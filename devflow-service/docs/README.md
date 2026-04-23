@@ -1,0 +1,30 @@
+# Docs
+
+This directory holds monorepo-wide documentation for `devflow-service`.
+It is the root documentation layer for the backend monorepo, not the place for detailed per-module implementation docs.
+
+## Read in this order
+
+1. `architecture.md` — what the monorepo shape is and how the top-level areas are intended to work
+2. `constraints.md` — what must not be collapsed, invented, or migrated prematurely
+3. `observability.md` — how a fresh agent should inspect and verify this bootstrap repository
+
+## What belongs here
+
+Keep root-level docs here when they apply across multiple future modules or explain the repo-wide contract:
+- monorepo structure
+- migration-stage constraints
+- shared observability and verification entrypoints
+- navigation into future module-local docs
+
+## What does not belong here
+
+Do not put these at the root-doc layer:
+- module-specific implementation details that belong under a future module-local docs area
+- current production ownership truth that still belongs in `devflow-control`
+- invented API contracts for services that have not been migrated yet
+
+## Current scope
+
+During M005/S01, these docs describe a repository skeleton only.
+They intentionally document reserved areas and migration rules without pretending that service code has already landed.
