@@ -6,6 +6,7 @@ This document is for a fresh engineer or agent landing in `devflow-service` with
 After reading it, the reader should know:
 - what M005/S02 already established
 - which root build contract is currently real
+- which Docker packaging contract now applies to future service migrations
 - what remains intentionally pending for S03/S04/S05
 - which command to run next to verify the repository-local contract
 - which docs to read in order before changing the repo
@@ -13,11 +14,10 @@ After reading it, the reader should know:
 ## Current phase ownership
 
 - Milestone: `M005`
-- Slice: `S02`
-- Slice goal: land the real root Go module and repo-local baseline contract for future shared extraction and service migration work
+- Slice: `S03`
+- Slice goal: land the controlled per-service Docker baseline for future service migration work while preserving the real root-module baseline from S02
 - Current task status in this slice:
-  - `T01` complete: root module, initial shared-package baseline, and repo-local verifier landed
-  - `T02` complete: extracted the first authoritative infrastructure shared seam into the root module
+  - `T01` in progress: define the monorepo Docker contract and controlled-image catalog
 
 ## What S02 established
 
@@ -31,15 +31,28 @@ The slice established these repository-local surfaces:
 
 This means a fresh reader can now diagnose whether the repo is missing build metadata, stale docs, missing shared-package surfaces, or a real Go test failure from inside this repo alone.
 
+## What S03 now adds
+
+S03 starts the repository-local Docker baseline before any migrated service code lands under `modules/`.
+The current Docker contract surface is:
+- `docs/docker.md` for the approved Aliyun registry, controlled builder baseline, runtime-image expectations, and artifact-first packaging rule
+- root docs that point future agents to `docs/docker.md` before adding per-service Dockerfiles
+- a documented ban on inline install commands such as `apk add`, `apk upgrade`, `apt-get`, `yum`, `dnf`, and `go install` inside future service Dockerfiles
+
+This does **not** mean any migrated service already exists in this repo.
+It means future slices must consume a documented Docker contract instead of inventing one during migration.
+
 ## Current local build contract
 
 Treat the following as the active local truth for this repo:
 - module path: `github.com/bsonger/devflow-service`
 - Go version: `1.25.8`
 - build model: **single root module**
+- Docker builder baseline: `registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.25.8`
 
 This deliberately supersedes the older `1.25.6` patch still visible in sibling service repos.
 It also means this slice does **not** use `go.work` or per-service `go.mod` files yet.
+If older memory entries mention a `go.work` or multi-module baseline here, treat them as stale until a later slice updates the repo-local contract explicitly.
 
 ## Current extracted shared seam
 
@@ -60,6 +73,7 @@ The following remain intentionally deferred:
 - owner-service migrations under `modules/`
 - runnable binaries under `cmd/`
 - gateway/Kong implementation under `gateway/`
+- repo-local Docker assets and verifier-enforced Docker policy checks planned for later S03 tasks
 - any final post-migration workspace reshaping, if later slices choose to revisit it
 - generated assets, fake APIs, or placeholder runtime behavior
 
@@ -71,10 +85,11 @@ If you are landing here cold, read in this order:
 1. `README.md` — repo purpose and current root-module baseline
 2. `AGENTS.md` — startup rules and canonical verification commands
 3. `docs/README.md` — docs map
-4. `docs/architecture.md` — monorepo shape and ownership boundaries
-5. `docs/constraints.md` — what must not be created yet
-6. `docs/observability.md` — inspection and verification surfaces
-7. `scripts/README.md` — repo-local verifier contract
+4. `docs/docker.md` — controlled Docker baseline and future service-packaging policy
+5. `docs/architecture.md` — monorepo shape and ownership boundaries
+6. `docs/constraints.md` — what must not be created yet
+7. `docs/observability.md` — inspection and verification surfaces
+8. `scripts/README.md` — repo-local verifier contract
 
 If migration-history or long-term target-architecture questions remain after that, consult `../devflow/devflow-control/docs/target-architecture/` and note any divergence from the current repo-local contract before changing code.
 
@@ -86,7 +101,7 @@ Run this from the `devflow-service` repo root:
 bash scripts/verify.sh
 ```
 
-This verifier is the canonical repo-local handoff check for S02.
+This verifier is the canonical repo-local handoff check for S02 and the future extension point for S03 Docker-policy enforcement.
 It fails fast and reports whether the repo is missing its root module, stale contract docs, required shared-package surfaces, or passing Go test proof.
 
 ## What `scripts/verify.sh` proves
@@ -99,6 +114,7 @@ A passing run means:
 
 A passing run does **not** mean migrated owner services, binaries, or gateway code already exist.
 It only proves the root-module baseline and its documented recovery/verification contract are intact.
+Until later S03 tasks land the static Docker-policy checker, `docs/docker.md` remains the human-readable source of truth for future per-service packaging rules.
 
 ## If verification fails
 
@@ -110,3 +126,4 @@ Use the first failing line to decide where to inspect next:
 
 Do not add fake code or fake binaries just to satisfy the verifier.
 If the verifier reveals a real contract change, update code, docs, and verification together so the repository stays honest.
+If a future service Dockerfile question arises before static policy enforcement lands, inspect `docs/docker.md` first.

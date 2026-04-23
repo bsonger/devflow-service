@@ -9,13 +9,13 @@ After reading it, the reader should know which repo-local script to run first an
 
 ## Canonical verifier
 
-Run this from the repo root before handoff or after changing root docs, recovery guidance, shared package surfaces, or repository structure:
+Run this from the repo root before handoff or after changing root docs, recovery guidance, shared package surfaces, repository structure, or Docker policy files:
 
 ```sh
 bash scripts/verify.sh
 ```
 
-This is the canonical repo-local handoff check for the current root-module baseline.
+This is the canonical repo-local handoff check for the current root-module baseline and the future enforcement point for the Docker contract in `docs/docker.md`.
 
 ## What `verify.sh` checks
 
@@ -25,6 +25,7 @@ The verifier fails fast and checks:
 - root entrypoints point to `docs/recovery.md` and `bash scripts/verify.sh`
 - repo-local docs mention the root-module contract
 - expected shared baseline packages exist under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
+- later S03 work will extend it to require `docs/docker.md`, controlled-image references, and bans on inline install commands in `modules/**/Dockerfile*`
 - `go test ./...` passes as the authoritative compile/test proof for the code currently landed here
 
 This keeps the repo-local verifier honest: it proves the local handoff surface exists and that the root module plus extracted shared packages still compile.

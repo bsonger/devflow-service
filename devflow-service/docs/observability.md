@@ -4,6 +4,7 @@
 
 This repository currently exposes cold-start inspection surfaces plus a real compile/test signal.
 In M005/S02, observability means a fresh reader or agent can determine the active root module, Go baseline, extracted shared packages, pending migration work, and next verification step without relying on prior session memory.
+In M005/S03, that observability surface also includes the controlled Docker baseline in `docs/docker.md` so packaging-policy drift can be diagnosed from the repo root.
 
 ## Primary inspection surfaces
 
@@ -11,6 +12,7 @@ Use these files as the root observability surfaces:
 - `docs/recovery.md` for current milestone/slice status, module path, Go baseline, extracted shared packages, pending work, and the next read/run order
 - `README.md` for repo purpose and current monorepo baseline state
 - `AGENTS.md` for startup order, constraints, and the preferred repo-local verification commands
+- `docs/docker.md` for the controlled image catalog, artifact-first packaging rule, and banned inline-install patterns
 - `docs/architecture.md` for module shape and boundary intent
 - `docs/constraints.md` for what must not be created or collapsed yet
 - `scripts/README.md` for the repo-local verifier contract
@@ -47,6 +49,7 @@ Because `shared/observability` and `shared/routercore` now provide the repo's fi
 Later slices should extend this inspection surface with:
 - repo-wide migration checks once owner modules land
 - root verification that composes module-level test suites
+- Docker policy checks for missing contract files, controlled-image references, and banned inline-install patterns under `modules/`
 - runtime-oriented observability once real binaries and services exist
 
 Those additions should preserve the cold-start property: a fresh agent should still be able to find the preferred verification path from the repo root without external session context.

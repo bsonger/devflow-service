@@ -14,7 +14,7 @@ The top-level repository shape is:
 - `modules/` for explicit owner-service destinations
 - `shared/` for infrastructure-only common code
 - `gateway/` for edge and Kong-facing backend surfaces
-- `docs/` for monorepo-wide documentation
+- `docs/` for monorepo-wide documentation, including `docs/docker.md` for the controlled Docker baseline
 - `scripts/` for repo-level verification and support scripts
 
 These areas exist now so future work can land in a stable structure instead of inventing layout during each migration task.
@@ -30,6 +30,7 @@ The choice intentionally supersedes older sibling-repo patch levels such as `1.2
 
 This is a staged migration contract, not a claim that the long-term workspace discussion is closed forever.
 For S02, however, the repository must behave as one root module and must not introduce `go.work` or per-service `go.mod` files.
+If older session memory or upstream notes still describe a root `go.work` or multi-module baseline, treat that as stale until a later slice changes the repo-local docs, verification, and code together.
 
 ## Boundary model
 
@@ -47,7 +48,18 @@ The intended ownership model remains:
 `gateway/` is reserved for backend edge configuration and gateway-facing contracts.
 Neither area is allowed to become a hidden business-logic owner.
 
-## What is real in S02
+## Docker packaging direction
+
+S03 reserves a per-service Docker packaging model before any migrated service lands under `modules/`.
+That Docker contract is documented in `docs/docker.md` and follows these repo-local rules:
+- use the approved Aliyun registry namespace `registry.cn-hangzhou.aliyuncs.com/devflow`
+- use the controlled builder baseline `golang-builder:1.25.8`
+- prefer artifact-first packaging into a thin per-service runtime image
+- keep inline install commands such as `apk add`, `apt-get`, `yum`, `dnf`, or `go install` out of future service Dockerfiles
+
+This matches the sibling-repo staging pattern where build artifacts are prepared first and `Dockerfile.package` performs the final packaging step.
+The contract exists now so S04 can add a real service Dockerfile without inventing Docker policy during migration.
+
 
 This slice makes only a narrow set of things real:
 - the root `go.mod`
