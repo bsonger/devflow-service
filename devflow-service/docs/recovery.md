@@ -4,56 +4,65 @@
 
 This document is for a fresh engineer or agent landing in `devflow-service` without prior session memory.
 After reading it, the reader should know:
-- what M005/S01 already established
-- what remains intentionally pending for S02 and later slices
-- which command to run next to verify the repository-local handoff surface
+- what M005/S02 already established
+- which root build contract is currently real
+- what remains intentionally pending for S03/S04/S05
+- which command to run next to verify the repository-local contract
 - which docs to read in order before changing the repo
 
 ## Current phase ownership
 
 - Milestone: `M005`
-- Slice: `S01`
-- Slice goal: create the real `devflow-service` repository skeleton with repository-local startup, recovery, and verification entrypoints
+- Slice: `S02`
+- Slice goal: land the real root Go module and repo-local baseline contract for future shared extraction and service migration work
 - Current task status in this slice:
-  - `T01` complete — root repository skeleton and root entrypoint docs exist
-  - `T02` complete when `bash scripts/verify.sh` passes from the repo root
+  - `T01` complete when the root module, shared-package baseline, and repo-local verifier all pass
 
-## What S01 established
+## What S02 established
 
-S01 created the real sibling repository at `devflow-service` and made the monorepo root navigable before service migration begins.
+S02 turned `devflow-service` from a docs-only skeleton into a real Go repository baseline.
 The slice established these repository-local surfaces:
-- root `README.md` describing repo purpose and current bootstrap state
-- root `AGENTS.md` describing startup order and the preferred repo-local verification path
-- root docs covering architecture, constraints, and observability
-- reserved top-level landing zones for `cmd/`, `modules/`, `shared/`, and `gateway/`
-- one repo-local verifier entrypoint at `scripts/verify.sh`
+- root `go.mod` with module path `github.com/bsonger/devflow-service`
+- root Go baseline `1.25.8`, matching the controlled builder image tag in `../devflow-control/docker/golang-builder.Dockerfile`
+- first extracted infrastructure-only shared packages under `shared/httpx` and `shared/loggingx`
+- root docs and agent entrypoints updated to describe the root-module contract honestly
+- one repo-local verifier entrypoint at `scripts/verify.sh` that checks the root-module/docs contract and then runs `go test ./...`
 
-This means a fresh reader can now determine the current migration phase from inside this repo instead of relying only on upstream target docs in `devflow-control`.
+This means a fresh reader can now diagnose whether the repo is missing build metadata, stale docs, missing shared-package surfaces, or a real Go test failure from inside this repo alone.
 
-## What is intentionally pending for S02+
+## Current local build contract
 
-The following are intentionally **not** part of S01 and should be introduced only by later migration slices:
-- the real root `go.mod`
-- any `go.work` file
-- per-service `go.mod` files
-- migrated backend service code under `modules/`
+Treat the following as the active local truth for this repo:
+- module path: `github.com/bsonger/devflow-service`
+- Go version: `1.25.8`
+- build model: **single root module**
+
+This deliberately supersedes the older `1.25.6` patch still visible in sibling service repos.
+It also means this slice does **not** use `go.work` or per-service `go.mod` files yet.
+
+## What is intentionally pending for S03/S04/S05
+
+The following remain intentionally deferred:
+- owner-service migrations under `modules/`
 - runnable binaries under `cmd/`
+- gateway/Kong implementation under `gateway/`
+- any final post-migration workspace reshaping, if later slices choose to revisit it
 - generated assets, fake APIs, or placeholder runtime behavior
 
-Near-term M005 work is expected to add the real root build/workspace contract in later slices before the repository converges on its final multi-module state.
+Do not pre-create those surfaces just to make the repo look more complete.
 
 ## Read this next
 
 If you are landing here cold, read in this order:
-1. `README.md` — repo purpose and current bootstrap state
-2. `AGENTS.md` — startup rules and canonical verifier command
+1. `README.md` — repo purpose and current root-module baseline
+2. `AGENTS.md` — startup rules and canonical verification commands
 3. `docs/README.md` — docs map
 4. `docs/architecture.md` — monorepo shape and ownership boundaries
 5. `docs/constraints.md` — what must not be created yet
 6. `docs/observability.md` — inspection and verification surfaces
 7. `scripts/README.md` — repo-local verifier contract
 
-If ownership, migration authority, or future-state boundary questions remain after that, consult the upstream frozen authority in `../devflow/devflow-control/docs/target-architecture/`.
+If migration-history or long-term target-architecture questions remain after that, consult `../devflow/devflow-control/docs/target-architecture/` and note any divergence from the current repo-local contract before changing code.
 
 ## Canonical verification command
 
@@ -63,26 +72,27 @@ Run this from the `devflow-service` repo root:
 bash scripts/verify.sh
 ```
 
-This verifier is the canonical repo-local handoff check for S01.
-It fails fast and reports which required local surfaces are missing before rerunning the upstream frozen-doc verifiers from `devflow-control`.
+This verifier is the canonical repo-local handoff check for S02.
+It fails fast and reports whether the repo is missing its root module, stale contract docs, required shared-package surfaces, or passing Go test proof.
 
 ## What `scripts/verify.sh` proves
 
 A passing run means:
-- the required root docs and reserved top-level directories still exist
-- the repository-local recovery surface is present and wired from the root entrypoints
-- the repo-local verifier is present and executable
-- upstream blueprint and migration-handoff docs in `devflow-control` still pass their own frozen-contract verification
+- `go.mod` exists at the repo root and is non-empty
+- the root docs and recovery surfaces mention the root-module contract and the canonical verifier command
+- `shared/httpx` and `shared/loggingx` exist as real extracted package surfaces for this slice
+- `go test ./...` passes for the code currently landed in the repo
 
-A passing run does **not** mean migrated services or workspace/build files exist yet.
-It only proves the repository-local bootstrap and recovery contract is intact and still aligned with upstream authority.
+A passing run does **not** mean migrated owner services, binaries, or gateway code already exist.
+It only proves the root-module baseline and its documented recovery/verification contract are intact.
 
 ## If verification fails
 
 Use the first failing line to decide where to inspect next:
-- missing root files or directories → restore the local repository skeleton and root docs
-- missing recovery/verifier references → rewire `README.md`, `AGENTS.md`, or `scripts/README.md`
-- upstream verifier failure → inspect the referenced `devflow-control` target-architecture docs and update this repo only if the local handoff surface drifted from upstream truth
+- missing `go.mod` or missing root-module literals → restore the root build contract and root docs
+- missing shared package files → restore the extracted baseline packages under `shared/`
+- failing `go test ./...` → inspect the failing package and fix the real compile/test regression
+- stale recovery/doc references → rewire `README.md`, `AGENTS.md`, `docs/observability.md`, or `scripts/README.md`
 
-Do not add fake code or fake build files just to satisfy the verifier.
-If the verifier reveals a real contract change, update the docs and script so the repository stays honest.
+Do not add fake code or fake binaries just to satisfy the verifier.
+If the verifier reveals a real contract change, update code, docs, and verification together so the repository stays honest.

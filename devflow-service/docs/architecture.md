@@ -3,12 +3,13 @@
 ## Role of this repository
 
 `devflow-service` is the future backend monorepo for DevFlow.
-In M005/S01, it exists as the real repository root and documentation surface that later migration slices will populate.
-This slice reserves the monorepo shape without claiming that backend services have already been moved.
+In M005/S02 it stops being a docs-only skeleton and becomes a real Go repository with one root module plus the first infrastructure-only shared packages.
+Service migrations under `modules/` and runnable entrypoints under `cmd/` remain intentionally deferred.
 
 ## Root structure
 
-The top-level repository shape is reserved as follows:
+The top-level repository shape is:
+- `go.mod` for the current repository-wide build contract
 - `cmd/` for runnable entrypoints only
 - `modules/` for explicit owner-service destinations
 - `shared/` for infrastructure-only common code
@@ -17,6 +18,18 @@ The top-level repository shape is reserved as follows:
 - `scripts/` for repo-level verification and support scripts
 
 These areas exist now so future work can land in a stable structure instead of inventing layout during each migration task.
+
+## Current module model
+
+The current local execution truth is a **single root Go module**:
+- module path: `github.com/bsonger/devflow-service`
+- Go baseline: `1.25.8`
+
+This root module exists so extracted shared packages can compile and be tested immediately.
+The choice intentionally supersedes older sibling-repo patch levels such as `1.25.6`, because the controlled builder image already ships `1.25.8`.
+
+This is a staged migration contract, not a claim that the long-term workspace discussion is closed forever.
+For S02, however, the repository must behave as one root module and must not introduce `go.work` or per-service `go.mod` files.
 
 ## Boundary model
 
@@ -30,38 +43,34 @@ The intended ownership model remains:
 - release concerns stay release-owned
 - runtime concerns stay runtime-owned
 
-`shared/` is reserved for infrastructure such as bootstrap, transport helpers, and observability plumbing.
+`shared/` is for infrastructure such as bootstrap, transport helpers, and observability plumbing.
 `gateway/` is reserved for backend edge configuration and gateway-facing contracts.
 Neither area is allowed to become a hidden business-logic owner.
 
-## Migration-stage contract
+## What is real in S02
 
-This bootstrap slice is intentionally narrow.
-It creates:
-- the repository itself
-- root docs and agent entrypoints
-- empty-but-real top-level landing zones with README placeholders
+This slice makes only a narrow set of things real:
+- the root `go.mod`
+- the root `go 1.25.8` baseline
+- extracted infrastructure packages under `shared/httpx` and `shared/loggingx`
+- repo-local docs and recovery/verifier surfaces that describe the current contract honestly
 
 It intentionally does **not** create:
-- migrated service code
-- generated assets
-- fake binaries or fake service layouts
-- the final workspace contract files
-
-Per the M005 target architecture and migration handoff, later slices will introduce the actual Go workspace setup.
-For the near-term M005 path, use a **single root `go.mod` in later slices** rather than adding per-service `go.mod` files during this bootstrap task.
-This task therefore reserves module boundaries in prose and directory shape, not in build metadata yet.
+- migrated owner-service code under `modules/`
+- runnable binaries under `cmd/`
+- fake APIs or fake runtime behavior
+- the final multi-module workspace assembly files
 
 ## Relationship to upstream authority
 
-This repo is the future implementation destination.
-Current-state ownership truth and future-state migration authority still live in `devflow-control`.
-If this root architecture ever conflicts with the target architecture documents there, the upstream target docs win until intentionally updated.
+This repo is the implementation destination.
+`devflow-control` still holds the broader migration history and long-term target architecture, but this repository's docs define the active local contract for the current slice.
+If those two sources diverge during M005/S02, treat the repo-local root-module contract as the current implementation truth and record the discrepancy for later reconciliation.
 
 ## Cold-reader outcome
 
 A fresh reader should be able to tell from this repository alone:
-- why `devflow-service` exists
-- which top-level areas are already reserved
+- that the repo already has a real root build contract
+- which shared packages are currently extracted
 - what not to create yet
-- where to go for the authoritative future-state migration contract
+- what remains pending for later slices

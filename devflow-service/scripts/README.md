@@ -9,38 +9,35 @@ After reading it, the reader should know which repo-local script to run first an
 
 ## Canonical verifier
 
-Run this from the repo root before handoff or after changing root docs, recovery guidance, or repository structure:
+Run this from the repo root before handoff or after changing root docs, recovery guidance, shared package surfaces, or repository structure:
 
 ```sh
 bash scripts/verify.sh
 ```
 
-This is the canonical repo-local handoff check for the bootstrap repository.
+This is the canonical repo-local handoff check for the current root-module baseline.
 
 ## What `verify.sh` checks
 
 The verifier fails fast and checks:
+- root `go.mod` exists and is non-empty
 - required root docs exist and are non-empty
-- reserved top-level directories still exist
 - root entrypoints point to `docs/recovery.md` and `bash scripts/verify.sh`
-- the upstream frozen-doc verifier scripts in `devflow-control` still pass
+- repo-local docs mention the root-module contract
+- expected shared baseline packages exist under `shared/httpx` and `shared/loggingx`
+- `go test ./...` passes as the authoritative compile/test proof for the code currently landed here
 
-The final two checks are delegated to:
-- `../devflow-control/scripts/verify-devflow-service-blueprint.sh`
-- `../devflow-control/scripts/verify-devflow-service-migration-handoff.sh`
-
-This keeps the repo-local verifier honest: it proves the local handoff surface exists and that upstream migration authority has not drifted.
+This keeps the repo-local verifier honest: it proves the local handoff surface exists and that the root module plus extracted shared packages still compile.
 
 ## What this verifier does not claim
 
-`verify.sh` does **not** claim that migrated services, build files, or runnable binaries already exist.
-It verifies the repository-local bootstrap and recovery contract only.
+`verify.sh` does **not** claim that migrated owner-service modules, runnable binaries, or gateway implementations already exist.
+It verifies the repository-local root-module and shared-baseline contract only.
 
 ## Expected future role
 
 Later slices can extend this directory with real repo-wide helpers for:
-- workspace validation once build files exist
-- migration integrity checks
+- migration integrity checks once owner modules land
 - whole-repo verification that composes module-level checks
 - build or generation helpers that are truly repo-wide
 

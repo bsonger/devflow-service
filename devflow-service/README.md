@@ -1,45 +1,52 @@
 # DevFlow Service
 
-`devflow-service` is the future backend monorepo for DevFlow.
-It is the landing repository for the backend services that are currently split across multiple repos.
-
-This repository is intentionally in bootstrap state during M005/S01.
-It provides the root entrypoints, navigation surfaces, and monorepo skeleton that future migration slices will fill in.
-It does **not** yet contain migrated service code, a root `go.mod`, a `go.work`, or per-module `go.mod` files.
+`devflow-service` is the backend monorepo landing repository for DevFlow.
+As of M005/S02 it now has a real root Go module and the first extracted infrastructure-only shared packages, while owner-service migrations under `modules/` remain intentionally pending.
 
 ## Purpose
 
-This repo exists so a fresh engineer or agent can answer three questions immediately from inside the repository:
-- what this monorepo is for
-- what structure is already reserved
-- what documents and verification entrypoints to use before making changes
+This repo gives a fresh engineer or agent one place to answer:
+- what build baseline the backend monorepo currently uses
+- which root surfaces are already real versus still staged
+- where shared code may live before module migrations begin
+- which command proves the repo-local contract is still intact
 
 ## Current state
 
 Today this repo contains:
-- monorepo root documentation
-- root-level navigation for future module and gateway areas
-- placeholder directories for `cmd/`, `modules/`, `shared/`, and `gateway/`
-- repo-local script guidance
+- one root `go.mod` for the repository-wide baseline
+- shared infrastructure packages under `shared/` (`httpx`, `loggingx`)
+- root documentation describing the monorepo contract and pending migration work
+- one repo-local verification entrypoint in `scripts/verify.sh`
 
-Today this repo does **not** contain:
-- migrated backend services
-- generated artifacts
-- runnable binaries
-- workspace assembly files
+Today this repo does **not** yet contain:
+- owner-service code migrated under `modules/`
+- runnable binaries under `cmd/`
+- a root `go.work`
+- per-service `go.mod` files
+- generated artifacts or placeholder runtime services
 
-## Planned monorepo shape
+## Build baseline
 
-M005 uses a staged bootstrap.
-Later slices will add the real Go workspace contract and migrated module contents.
-The intended long-term shape is:
-- root process entrypoints under `cmd/`
-- explicit owner-service modules under `modules/`
-- infrastructure-only shared code under `shared/`
-- edge and Kong-facing configuration under `gateway/`
+The repository baseline is now:
+- module path: `github.com/bsonger/devflow-service`
+- Go version: `1.25.8`
 
-Per the M005 target architecture and D020 migration direction, the early migration path uses a **single root `go.mod` in later slices** before the repository converges on the final multi-module workspace contract.
-This slice only reserves the structure and documents the rules; it does not create those files yet.
+`go 1.25.8` matches the published builder image tag in `../devflow-control/docker/golang-builder.Dockerfile` and supersedes the older `1.25.6` patch still present in sibling service repos.
+Per D020 and this migration slice, the repo uses a **single root module first**; later slices can revisit the final workspace shape once real module migrations exist.
+
+## Monorepo shape
+
+The intended top-level layout remains:
+- `cmd/` — reserved for runnable process entrypoints only
+- `modules/` — reserved for explicit owner-service migration targets
+- `shared/` — infrastructure-only packages extracted for cross-module reuse
+- `gateway/` — edge and Kong-facing backend surfaces
+- `docs/` — monorepo-wide architecture, constraints, observability, and recovery guidance
+- `scripts/` — repo-level verification and support scripts
+
+Only `shared/` has real code in this slice.
+That does **not** authorize putting owner-specific business logic there.
 
 ## Read this first
 
@@ -52,33 +59,22 @@ If you are landing here cold, read in this order:
 6. `docs/observability.md`
 7. `scripts/README.md`
 
-## Directory guide
-
-- `cmd/` — reserved for runnable process entrypoints only
-- `modules/` — reserved for explicit owner-service migration targets
-- `shared/` — reserved for infrastructure helpers absorbed from common backend packages
-- `gateway/` — reserved for Kong and edge-facing backend surfaces
-- `docs/` — monorepo-wide architecture, constraints, observability, and navigation
-- `scripts/` — repo-level verification and support scripts
-
-Each reserved top-level area includes a local README so a fresh reader can understand intent before code migration begins.
-
 ## What belongs elsewhere
 
 This repository is future-state backend scope only.
-Use sibling repos for current authority that still lives outside this monorepo:
-- `devflow-control` for current-state system truth, target architecture authority, and migration governance
-- `devflow-platform-web` for frontend code and browser-facing behavior
+Use sibling repos for authority that still lives outside this monorepo:
+- `devflow-control` for migration governance and target-architecture history
+- `devflow-platform-web` for frontend code and browser behavior
 
 ## Verification
 
 Use `docs/recovery.md` as the repository-local status and continuation surface.
-It records the current milestone/slice, what S01 established, what remains intentionally pending, and what a fresh agent should read or run next.
+It records the current milestone/slice, the chosen Go baseline and root module path, and what work is still pending for S03/S04/S05.
 
-The canonical repo-local handoff check is:
+The canonical repo-local check is:
 
 ```sh
 bash scripts/verify.sh
 ```
 
-This verifier checks the required local repository skeleton and recovery surfaces, then reruns the upstream frozen-doc verifiers in `devflow-control` so this repo stays aligned with migration authority.
+The verifier now checks the root module file, confirms the docs mention the root-module/shared extraction contract, and then runs `go test ./...` as the authoritative compile/test proof for the code already landed in this repo.
