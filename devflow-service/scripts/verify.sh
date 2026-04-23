@@ -12,6 +12,14 @@ info() {
   echo "INFO: $*"
 }
 
+run_docker_policy_check() {
+  info "Running Docker policy checks"
+  (
+    cd "$ROOT_DIR"
+    bash scripts/check-docker-policy.sh
+  )
+}
+
 require_file() {
   local path="$1"
   local label="$2"
@@ -51,6 +59,13 @@ require_file "$ROOT_DIR/docs/observability.md" "observability doc"
 require_file "$ROOT_DIR/docs/recovery.md" "recovery doc"
 require_file "$ROOT_DIR/scripts/README.md" "scripts README"
 require_file "$ROOT_DIR/scripts/verify.sh" "repo-local verifier"
+require_file "$ROOT_DIR/scripts/check-docker-policy.sh" "Docker policy checker"
+require_file "$ROOT_DIR/scripts/check-docker-policy_test.sh" "Docker policy checker test"
+require_file "$ROOT_DIR/docs/docker.md" "Docker contract doc"
+require_dir "$ROOT_DIR/docker" "docker assets directory"
+require_file "$ROOT_DIR/docker/README.md" "docker assets README"
+require_file "$ROOT_DIR/docker/golang-builder.Dockerfile" "repo-local golang builder Dockerfile"
+require_file "$ROOT_DIR/docker/service.Dockerfile.template" "service Dockerfile template"
 
 require_dir "$ROOT_DIR/cmd" "cmd directory"
 require_dir "$ROOT_DIR/modules" "modules directory"
@@ -86,6 +101,10 @@ require_literal "$ROOT_DIR/AGENTS.md" "AGENTS recovery link" "docs/recovery.md"
 require_literal "$ROOT_DIR/AGENTS.md" "AGENTS verifier command" "bash scripts/verify.sh"
 require_literal "$ROOT_DIR/docs/README.md" "docs index recovery link" "recovery.md"
 require_literal "$ROOT_DIR/scripts/README.md" "scripts README verifier command" "bash scripts/verify.sh"
+require_literal "$ROOT_DIR/docs/docker.md" "Docker contract banner" "controlled Docker baseline"
+require_literal "$ROOT_DIR/docs/docker.md" "Docker contract inline install ban" "go install"
+require_literal "$ROOT_DIR/docker/README.md" "docker assets README verifier command" "bash scripts/verify.sh"
+require_literal "$ROOT_DIR/docker/README.md" "docker assets README policy reference" "approved FROM references"
 
 info "Checking repo-local root-module documentation"
 require_literal "$ROOT_DIR/README.md" "README root module contract" "single root module"
@@ -94,7 +113,9 @@ require_literal "$ROOT_DIR/docs/recovery.md" "recovery root module contract" "si
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery go baseline" "1.25.8"
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery extracted seam" "shared/routercore"
 require_literal "$ROOT_DIR/docs/observability.md" "observability go test proof" 'go test ./...'
+require_literal "$ROOT_DIR/docs/observability.md" "observability Docker policy direction" "Docker policy"
 
+run_docker_policy_check
 run_go_test
 
 info "Repository-local verification passed."

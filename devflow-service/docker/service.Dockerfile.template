@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1
+FROM scratch
+
+WORKDIR /app
+
+# Copy staged runtime assets only. Replace the example paths with the real service artifact names.
+COPY .build/staging/_shared/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY .build/staging/<service-name>/<service-binary> ./<service-binary>
+# COPY .build/staging/<service-name>/docs ./docs
+# COPY .build/staging/<service-name>/config ./config
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+EXPOSE 8080
+USER 65532:65532
+ENTRYPOINT ["/app/<service-binary>"]
