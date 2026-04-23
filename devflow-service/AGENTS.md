@@ -10,14 +10,17 @@ Read in this order:
 6. `docs/constraints.md`
 7. `docs/observability.md`
 8. `scripts/README.md`
+9. `modules/meta-service/README.md`
 
 Public API: not yet.
-This repo currently owns the root Go module, extracted shared infrastructure packages, the repository-local Docker contract in `docs/docker.md`, and future backend landing zones for `cmd/`, `modules/`, and `gateway/`.
-If ownership, migration authority, or final workspace-shape questions appear, go back to `../devflow/devflow-control/docs/target-architecture/devflow-service.md` and `../devflow/devflow-control/docs/target-architecture/devflow-service-migration-handoff.md`, but treat this repo's root-module contract as the current local execution truth for M005/S02 and its controlled Docker baseline as the current local execution truth for M005/S03.
+This repo currently owns the root Go module, extracted shared infrastructure packages, the repository-local Docker contract in `docs/docker.md`, the first migrated owner-service under `modules/meta-service`, and the repo-local recovery/verification contract for interruption-safe resume.
+If ownership, migration authority, or final workspace-shape questions appear, go back to `../devflow/devflow-control/docs/target-architecture/devflow-service.md` and `../devflow/devflow-control/docs/target-architecture/devflow-service-migration-handoff.md`, but treat this repo's root-module contract and `docs/recovery.md` as the current local execution truth for M005/S05.
 
 ## Commands
-- `bash scripts/verify.sh`
-- `go test ./...`
+- `bash scripts/verify.sh` — canonical repo-local recovery and handoff proof; rerun this first after interruption
+- `bash modules/meta-service/scripts/build.sh` — drill down when `modules/meta-service` build or artifact staging is in doubt
+- `bash scripts/check-docker-policy.sh` — drill down when Dockerfile policy drift is suspected
+- `go test ./...` — final compile/test proof already composed into `bash scripts/verify.sh`
 - inspect `docs/docker.md` before adding any future service Dockerfile under `modules/`
 
 ## Current repository rules
@@ -29,11 +32,12 @@ If ownership, migration authority, or final workspace-shape questions appear, go
 - Keep owner-service boundaries explicit when real code migration begins; do not hide domain ownership inside `shared/` or `gateway/`.
 - `shared/` is for infrastructure-only packages such as transport, bootstrap, router, and observability helpers that multiple future modules can import.
 - The current extracted shared seam is `httpx`, `loggingx`, `otelx`, `pyroscopex`, `observability`, `routercore`, and `bootstrap`.
+- `docs/recovery.md` is the single recovery authority; do not create a parallel resume/state file.
 
 ## Before handoff
 - Rerun `bash scripts/verify.sh` from the repo root.
-- Confirm `docs/recovery.md` still describes the repository phase, root module path, extracted shared packages, Docker contract, and pending work honestly.
-- Confirm the root docs still describe the repository honestly and point readers to `docs/docker.md` before future service packaging work.
+- Confirm `docs/recovery.md` still describes the active slice goal, last-known verification sequence, first rerun command, and failure-routing guidance honestly.
+- Confirm `README.md`, `docs/observability.md`, and `scripts/README.md` still describe the same command order and guarantees as `docs/recovery.md`.
 - Confirm no new `go.work`, per-service `go.mod`, fake `cmd/` binaries, or fake `modules/` code were introduced.
 
 ## When to go back to devflow-control
