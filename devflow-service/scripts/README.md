@@ -28,11 +28,11 @@ The verifier fails fast and checks:
 - Docker docs and Docker asset docs still advertise the controlled Docker baseline, approved `FROM` references, and the inline-install ban
 - expected shared baseline packages exist under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
 - `modules/meta-service/` exists and includes `README.md`, `scripts/build.sh`, `scripts/regen-swagger.sh`, and `Dockerfile`
-- `modules/meta-service` docs still describe the shared extraction adoption and honest asset staging boundaries
+- `bash modules/meta-service/scripts/build.sh` passes as the real migrated-service build proof, even though that intentionally refreshes artifacts under `modules/meta-service/.build` and `modules/meta-service/bin`
 - `scripts/check-docker-policy.sh` scans any service Dockerfiles under `modules/**/Dockerfile*` and fails with file-localized diagnostics for banned inline install commands or unapproved `FROM` references
 - `go test ./...` passes as the authoritative compile/test proof for the code currently landed here
 
-This keeps the repo-local verifier honest: it proves the local handoff surface exists, that the first migrated service still has its tracked build/package surfaces, and that the root module plus extracted shared packages still compile.
+This keeps the repo-local verifier honest: it proves the local handoff surface exists, that the first migrated service still has its tracked build/package surfaces and can still build from the repo root, and that the root module plus extracted shared packages still compile.
 
 ## What this verifier does not claim
 
