@@ -24,7 +24,7 @@ The verifier fails fast and checks:
 - required root docs exist and are non-empty
 - root entrypoints point to `docs/recovery.md` and `bash scripts/verify.sh`
 - repo-local docs mention the root-module contract
-- expected shared baseline packages exist under `shared/httpx` and `shared/loggingx`
+- expected shared baseline packages exist under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
 - `go test ./...` passes as the authoritative compile/test proof for the code currently landed here
 
 This keeps the repo-local verifier honest: it proves the local handoff surface exists and that the root module plus extracted shared packages still compile.

@@ -11,7 +11,7 @@ Read in this order:
 7. `scripts/README.md`
 
 Public API: not yet.
-This repo currently owns the root Go module, shared infrastructure extraction surface, and future backend landing zones for `cmd/`, `modules/`, and `gateway/`.
+This repo currently owns the root Go module, extracted shared infrastructure packages, and future backend landing zones for `cmd/`, `modules/`, and `gateway/`.
 If ownership, migration authority, or final workspace-shape questions appear, go back to `../devflow/devflow-control/docs/target-architecture/devflow-service.md` and `../devflow/devflow-control/docs/target-architecture/devflow-service-migration-handoff.md`, but treat this repo's root-module contract as the current local execution truth for M005/S02.
 
 ## Commands
@@ -24,11 +24,12 @@ If ownership, migration authority, or final workspace-shape questions appear, go
 - Do not create `go.work` or per-service `go.mod` files in this slice.
 - Do not create fake service implementations, placeholder binaries, or pretend verification output just to make the tree look complete.
 - Keep owner-service boundaries explicit when real code migration begins; do not hide domain ownership inside `shared/` or `gateway/`.
-- `shared/` is for infrastructure-only packages such as transport and observability helpers that multiple future modules can import.
+- `shared/` is for infrastructure-only packages such as transport, bootstrap, router, and observability helpers that multiple future modules can import.
+- The current extracted shared seam is `httpx`, `loggingx`, `otelx`, `pyroscopex`, `observability`, `routercore`, and `bootstrap`.
 
 ## Before handoff
 - Rerun `bash scripts/verify.sh` from the repo root.
-- Confirm `docs/recovery.md` still describes the repository phase, root module path, and pending work honestly.
+- Confirm `docs/recovery.md` still describes the repository phase, root module path, extracted shared packages, and pending work honestly.
 - Confirm the root docs still describe the repository honestly.
 - Confirm no new `go.work`, per-service `go.mod`, fake `cmd/` binaries, or fake `modules/` code were introduced.
 

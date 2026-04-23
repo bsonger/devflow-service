@@ -16,7 +16,8 @@ After reading it, the reader should know:
 - Slice: `S02`
 - Slice goal: land the real root Go module and repo-local baseline contract for future shared extraction and service migration work
 - Current task status in this slice:
-  - `T01` complete when the root module, shared-package baseline, and repo-local verifier all pass
+  - `T01` complete: root module, initial shared-package baseline, and repo-local verifier landed
+  - `T02` complete: extracted the first authoritative infrastructure shared seam into the root module
 
 ## What S02 established
 
@@ -24,9 +25,9 @@ S02 turned `devflow-service` from a docs-only skeleton into a real Go repository
 The slice established these repository-local surfaces:
 - root `go.mod` with module path `github.com/bsonger/devflow-service`
 - root Go baseline `1.25.8`, matching the controlled builder image tag in `../devflow-control/docker/golang-builder.Dockerfile`
-- first extracted infrastructure-only shared packages under `shared/httpx` and `shared/loggingx`
+- extracted infrastructure-only shared packages under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
 - root docs and agent entrypoints updated to describe the root-module contract honestly
-- one repo-local verifier entrypoint at `scripts/verify.sh` that checks the root-module/docs contract and then runs `go test ./...`
+- one repo-local verifier entrypoint at `scripts/verify.sh` that checks the root-module/docs contract, asserts the extracted shared-package surfaces, and then runs `go test ./...`
 
 This means a fresh reader can now diagnose whether the repo is missing build metadata, stale docs, missing shared-package surfaces, or a real Go test failure from inside this repo alone.
 
@@ -39,6 +40,19 @@ Treat the following as the active local truth for this repo:
 
 This deliberately supersedes the older `1.25.6` patch still visible in sibling service repos.
 It also means this slice does **not** use `go.work` or per-service `go.mod` files yet.
+
+## Current extracted shared seam
+
+The authoritative shared infrastructure packages now in-repo are:
+- `shared/httpx` for response, list, error, and pagination helpers used by API handlers
+- `shared/loggingx` for zap logger setup plus request-id and tracing context enrichment
+- `shared/otelx` for OpenTelemetry tracer and metric-provider setup
+- `shared/pyroscopex` for Pyroscope bootstrap
+- `shared/observability` for runtime initialization, metrics/pprof servers, and dependency-call instrumentation
+- `shared/routercore` for shared Gin middleware including request logging, panic recovery, request IDs, and HTTP metrics
+- `shared/bootstrap` for service startup orchestration that wires config load, runtime init, ports, router launch, and sidecar observability servers
+
+These are the packages later service-migration slices should import instead of `devflow-service-common` when moving code into this monorepo.
 
 ## What is intentionally pending for S03/S04/S05
 
@@ -80,7 +94,7 @@ It fails fast and reports whether the repo is missing its root module, stale con
 A passing run means:
 - `go.mod` exists at the repo root and is non-empty
 - the root docs and recovery surfaces mention the root-module contract and the canonical verifier command
-- `shared/httpx` and `shared/loggingx` exist as real extracted package surfaces for this slice
+- the extracted shared infrastructure packages exist at the expected paths under `shared/`
 - `go test ./...` passes for the code currently landed in the repo
 
 A passing run does **not** mean migrated owner services, binaries, or gateway code already exist.

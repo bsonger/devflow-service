@@ -2,13 +2,13 @@
 
 ## Purpose
 
-This repository currently exposes cold-start inspection surfaces plus a minimal compile/test signal.
+This repository currently exposes cold-start inspection surfaces plus a real compile/test signal.
 In M005/S02, observability means a fresh reader or agent can determine the active root module, Go baseline, extracted shared packages, pending migration work, and next verification step without relying on prior session memory.
 
 ## Primary inspection surfaces
 
 Use these files as the root observability surfaces:
-- `docs/recovery.md` for current milestone/slice status, module path, Go baseline, pending work, and the next read/run order
+- `docs/recovery.md` for current milestone/slice status, module path, Go baseline, extracted shared packages, pending work, and the next read/run order
 - `README.md` for repo purpose and current monorepo baseline state
 - `AGENTS.md` for startup order, constraints, and the preferred repo-local verification commands
 - `docs/architecture.md` for module shape and boundary intent
@@ -39,6 +39,8 @@ A failing `scripts/verify.sh` should tell a future agent which class of drift oc
 - missing recovery/doc literals → stale repo-local handoff documentation
 - missing shared package surfaces → extracted baseline code drift
 - failing `go test ./...` → real compile/test regression in landed repo code
+
+Because `shared/observability` and `shared/routercore` now provide the repo's first real runtime-oriented diagnostics, a failing compile/test run often also implies drift in metrics, pprof, tracing, panic recovery, or dependency instrumentation wiring.
 
 ## Future observability direction
 

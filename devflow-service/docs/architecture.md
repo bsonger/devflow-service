@@ -43,7 +43,7 @@ The intended ownership model remains:
 - release concerns stay release-owned
 - runtime concerns stay runtime-owned
 
-`shared/` is for infrastructure such as bootstrap, transport helpers, and observability plumbing.
+`shared/` is for infrastructure such as bootstrap, transport helpers, router middleware, and observability plumbing.
 `gateway/` is reserved for backend edge configuration and gateway-facing contracts.
 Neither area is allowed to become a hidden business-logic owner.
 
@@ -52,8 +52,16 @@ Neither area is allowed to become a hidden business-logic owner.
 This slice makes only a narrow set of things real:
 - the root `go.mod`
 - the root `go 1.25.8` baseline
-- extracted infrastructure packages under `shared/httpx` and `shared/loggingx`
+- extracted infrastructure packages under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
 - repo-local docs and recovery/verifier surfaces that describe the current contract honestly
+
+These extracted packages map cleanly to the infrastructure already evidenced in sibling repos:
+- `httpx` covers response and pagination helpers already used by API handlers
+- `loggingx` owns structured logger setup and request/trace context enrichment
+- `otelx` and `pyroscopex` provide tracing, metrics, and profiling bootstrap
+- `observability` composes runtime init plus metrics, pprof, and dependency-call signals
+- `routercore` provides the Gin middleware seam services can share without sharing domain handlers
+- `bootstrap` provides service startup orchestration without owning app-specific config or routing
 
 It intentionally does **not** create:
 - migrated owner-service code under `modules/`

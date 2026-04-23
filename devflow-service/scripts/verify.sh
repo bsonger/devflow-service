@@ -56,14 +56,24 @@ require_dir "$ROOT_DIR/cmd" "cmd directory"
 require_dir "$ROOT_DIR/modules" "modules directory"
 require_dir "$ROOT_DIR/shared" "shared directory"
 require_dir "$ROOT_DIR/gateway" "gateway directory"
-require_dir "$ROOT_DIR/shared/httpx" "shared/httpx directory"
-require_dir "$ROOT_DIR/shared/loggingx" "shared/loggingx directory"
+
+for pkg in httpx loggingx otelx pyroscopex observability routercore bootstrap; do
+  require_dir "$ROOT_DIR/shared/$pkg" "shared/$pkg directory"
+done
 
 require_file "$ROOT_DIR/shared/httpx/pagination.go" "shared/httpx pagination helper"
 require_file "$ROOT_DIR/shared/httpx/response.go" "shared/httpx response helper"
 require_file "$ROOT_DIR/shared/httpx/httpx_test.go" "shared/httpx tests"
 require_file "$ROOT_DIR/shared/loggingx/logging.go" "shared/loggingx logger helper"
 require_file "$ROOT_DIR/shared/loggingx/logging_test.go" "shared/loggingx tests"
+require_file "$ROOT_DIR/shared/otelx/metrics.go" "shared/otelx metrics helper"
+require_file "$ROOT_DIR/shared/otelx/tracer.go" "shared/otelx tracer helper"
+require_file "$ROOT_DIR/shared/pyroscopex/pyroscope.go" "shared/pyroscopex profiler helper"
+require_file "$ROOT_DIR/shared/observability/runtime.go" "shared/observability runtime helper"
+require_file "$ROOT_DIR/shared/observability/server.go" "shared/observability server helper"
+require_file "$ROOT_DIR/shared/observability/dependency.go" "shared/observability dependency helper"
+require_file "$ROOT_DIR/shared/routercore/gin.go" "shared/routercore gin helper"
+require_file "$ROOT_DIR/shared/bootstrap/service.go" "shared/bootstrap service helper"
 
 info "Checking root module contract"
 require_literal "$ROOT_DIR/go.mod" "module path" "module github.com/bsonger/devflow-service"
@@ -82,6 +92,7 @@ require_literal "$ROOT_DIR/README.md" "README root module contract" "single root
 require_literal "$ROOT_DIR/docs/architecture.md" "architecture root module contract" "single root Go module"
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery root module contract" "single root module"
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery go baseline" "1.25.8"
+require_literal "$ROOT_DIR/docs/recovery.md" "recovery extracted seam" "shared/routercore"
 require_literal "$ROOT_DIR/docs/observability.md" "observability go test proof" 'go test ./...'
 
 run_go_test

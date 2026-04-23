@@ -15,7 +15,7 @@ This repo gives a fresh engineer or agent one place to answer:
 
 Today this repo contains:
 - one root `go.mod` for the repository-wide baseline
-- shared infrastructure packages under `shared/` (`httpx`, `loggingx`)
+- shared infrastructure packages under `shared/` (`httpx`, `loggingx`, `otelx`, `pyroscopex`, `observability`, `routercore`, `bootstrap`)
 - root documentation describing the monorepo contract and pending migration work
 - one repo-local verification entrypoint in `scripts/verify.sh`
 
@@ -48,6 +48,19 @@ The intended top-level layout remains:
 Only `shared/` has real code in this slice.
 That does **not** authorize putting owner-specific business logic there.
 
+## Extracted shared surface
+
+The current extracted shared seam is:
+- `shared/httpx` for response and pagination helpers already used by API handlers
+- `shared/loggingx` for structured logger setup and context/request-id enrichment
+- `shared/otelx` for OpenTelemetry tracer and metric-provider setup
+- `shared/pyroscopex` for profiling bootstrap
+- `shared/observability` for runtime observability initialization plus metrics/pprof servers and dependency-call instrumentation
+- `shared/routercore` for Gin middleware, logging, request-id, recovery, and HTTP metrics helpers
+- `shared/bootstrap` for service startup wiring that composes config load, runtime init, router run, and observability sidecars
+
+These are the authoritative in-repo packages S04 can retarget future migrated services onto.
+
 ## Read this first
 
 If you are landing here cold, read in this order:
@@ -69,7 +82,7 @@ Use sibling repos for authority that still lives outside this monorepo:
 ## Verification
 
 Use `docs/recovery.md` as the repository-local status and continuation surface.
-It records the current milestone/slice, the chosen Go baseline and root module path, and what work is still pending for S03/S04/S05.
+It records the current milestone/slice, the chosen Go baseline and root module path, which shared packages are authoritative in-repo, and what work is still pending for S03/S04/S05.
 
 The canonical repo-local check is:
 
@@ -77,4 +90,4 @@ The canonical repo-local check is:
 bash scripts/verify.sh
 ```
 
-The verifier now checks the root module file, confirms the docs mention the root-module/shared extraction contract, and then runs `go test ./...` as the authoritative compile/test proof for the code already landed in this repo.
+The verifier now checks the root module file, confirms the docs mention the root-module/shared extraction contract, asserts the required extracted shared packages are present, and then runs `go test ./...` as the authoritative compile/test proof for the code already landed in this repo.
