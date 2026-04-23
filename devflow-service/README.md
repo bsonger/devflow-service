@@ -44,12 +44,13 @@ This slice only reserves the structure and documents the rules; it does not crea
 ## Read this first
 
 If you are landing here cold, read in this order:
-1. `AGENTS.md`
-2. `docs/README.md`
-3. `docs/architecture.md`
-4. `docs/constraints.md`
-5. `docs/observability.md`
-6. `scripts/README.md`
+1. `docs/recovery.md`
+2. `AGENTS.md`
+3. `docs/README.md`
+4. `docs/architecture.md`
+5. `docs/constraints.md`
+6. `docs/observability.md`
+7. `scripts/README.md`
 
 ## Directory guide
 
@@ -71,10 +72,13 @@ Use sibling repos for current authority that still lives outside this monorepo:
 
 ## Verification
 
-The bootstrap verification for this slice is structural:
-- required root docs exist
-- reserved top-level directories exist
-- the repo exposes agent-usable startup and recovery surfaces
+Use `docs/recovery.md` as the repository-local status and continuation surface.
+It records the current milestone/slice, what S01 established, what remains intentionally pending, and what a fresh agent should read or run next.
 
-When repo-local verifier scripts land, `scripts/README.md` will name the preferred command.
-Until then, verify this slice by checking the documented root files and directories are present.
+The canonical repo-local handoff check is:
+
+```sh
+bash scripts/verify.sh
+```
+
+This verifier checks the required local repository skeleton and recovery surfaces, then reruns the upstream frozen-doc verifiers in `devflow-control` so this repo stays aligned with migration authority.

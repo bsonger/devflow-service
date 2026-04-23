@@ -8,26 +8,28 @@ In bootstrap state, observability means a fresh reader or agent can determine th
 ## Primary inspection surfaces
 
 Use these files as the root observability surfaces:
+- `docs/recovery.md` for current milestone/slice status, pending work, and the next read/run order
 - `README.md` for repo purpose and current bootstrap state
-- `AGENTS.md` for startup order, constraints, and the preferred structural verification command
+- `AGENTS.md` for startup order, constraints, and the preferred repo-local verification command
 - `docs/architecture.md` for monorepo shape and boundary intent
 - `docs/constraints.md` for what must not be created or collapsed yet
-- `scripts/README.md` for current script status and the expected future verifier path
+- `scripts/README.md` for the repo-local verifier contract
 
 ## Current verification signal
 
-The current verification signal is structural presence:
+The current verification signal is a real repo-local verifier composed from local and upstream checks:
 - required root docs exist
 - reserved top-level directories exist
-- the repo advertises a concrete verification command from the root
+- the repository-local recovery and verification entrypoints are wired from the root
+- upstream frozen-doc verifiers still pass
 
 The preferred bootstrap check is:
 
 ```sh
-test -f AGENTS.md && test -f README.md && test -f docs/architecture.md && test -f scripts/README.md && test -d cmd && test -d modules && test -d shared && test -d gateway
+bash scripts/verify.sh
 ```
 
-A passing result means the repo still exposes the minimum root recovery and navigation surfaces this slice owns.
+A passing result means the repo still exposes the minimum root recovery and navigation surfaces this slice owns and remains aligned with upstream migration authority.
 
 ## Future observability direction
 

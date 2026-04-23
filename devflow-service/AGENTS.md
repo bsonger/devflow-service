@@ -14,7 +14,7 @@ This repo currently owns the monorepo root skeleton, root navigation docs, and f
 If ownership, migration authority, or future-state boundary questions appear, go back to `../devflow/devflow-control/docs/target-architecture/devflow-service.md` and `../devflow/devflow-control/docs/target-architecture/devflow-service-migration-handoff.md`.
 
 ## Commands
-- `test -f AGENTS.md && test -f README.md && test -f docs/architecture.md && test -f scripts/README.md && test -d cmd && test -d modules && test -d shared && test -d gateway`
+- `bash scripts/verify.sh`
 
 ## Current repository rules
 - Treat this repository as a bootstrap monorepo skeleton until later M005 slices migrate real code.
@@ -24,9 +24,12 @@ If ownership, migration authority, or future-state boundary questions appear, go
 - Keep owner-service boundaries explicit when real code migration begins; do not hide domain ownership inside `shared/` or `gateway/`.
 
 ## Before handoff
-- Rerun the structural verification command above.
+- Rerun `bash scripts/verify.sh` from the repo root.
+- Confirm `docs/recovery.md` still describes the repository phase and pending work honestly.
 - Confirm the root docs still describe the repository honestly.
 - Confirm reserved directories still align with the target monorepo scope.
 
 ## When to go back to devflow-control
+Go back when the task changes monorepo ownership boundaries, migration sequencing, route/governance expectations, or the documented future-state repository contract.
+rol
 Go back when the task changes monorepo ownership boundaries, migration sequencing, route/governance expectations, or the documented future-state repository contract.

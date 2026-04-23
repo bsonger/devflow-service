@@ -5,9 +5,10 @@ It is the root documentation layer for the backend monorepo, not the place for d
 
 ## Read in this order
 
-1. `architecture.md` — what the monorepo shape is and how the top-level areas are intended to work
-2. `constraints.md` — what must not be collapsed, invented, or migrated prematurely
-3. `observability.md` — how a fresh agent should inspect and verify this bootstrap repository
+1. `recovery.md` — current milestone/slice ownership, what S01 established, what remains intentionally pending, and the next verifier command
+2. `architecture.md` — what the monorepo shape is and how the top-level areas are intended to work
+3. `constraints.md` — what must not be collapsed, invented, or migrated prematurely
+4. `observability.md` — how a fresh agent should inspect and verify this bootstrap repository
 
 ## What belongs here
 
