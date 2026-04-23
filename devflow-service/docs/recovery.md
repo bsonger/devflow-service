@@ -14,33 +14,37 @@ After reading it, the reader should know:
 ## Current phase ownership
 
 - Milestone: `M005`
-- Slice: `S03`
-- Slice goal: land the controlled per-service Docker baseline for future service migration work while preserving the real root-module baseline from S02
+- Slice: `S04`
+- Slice goal: migrate the first real owner-service as `modules/meta-service`, retarget it onto the extracted shared packages, and add truthful local build/package/verification surfaces
 - Current task status in this slice:
-  - `T01` in progress: define the monorepo Docker contract and controlled-image catalog
+  - `T01` complete: migrated the former `devflow-app-service` code into `modules/meta-service` under the root module and retargeted imports to `shared/...`
+  - `T02` in progress: add service-local build/package surfaces and extend repo-local verification/recovery docs to prove the migration honestly
 
-## What S02 established
+## What S02 and S03 established
 
-S02 turned `devflow-service` from a docs-only skeleton into a real Go repository baseline.
-The slice established these repository-local surfaces:
+S02 turned `devflow-service` from a docs-only skeleton into a real Go repository baseline, and S03 added the controlled Docker policy that future service packaging must follow.
+Those slices established these repository-local surfaces:
 - root `go.mod` with module path `github.com/bsonger/devflow-service`
 - root Go baseline `1.25.8`, matching the controlled builder image tag in `../devflow-control/docker/golang-builder.Dockerfile`
 - extracted infrastructure-only shared packages under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
 - root docs and agent entrypoints updated to describe the root-module contract honestly
-- one repo-local verifier entrypoint at `scripts/verify.sh` that checks the root-module/docs contract, asserts the extracted shared-package surfaces, and then runs `go test ./...`
+- one repo-local verifier entrypoint at `scripts/verify.sh`
+- the Docker contract in `docs/docker.md` plus static policy enforcement in `scripts/check-docker-policy.sh`
 
-This means a fresh reader can now diagnose whether the repo is missing build metadata, stale docs, missing shared-package surfaces, or a real Go test failure from inside this repo alone.
+This means a fresh reader can now diagnose whether the repo is missing build metadata, stale docs, missing shared-package surfaces, Docker policy drift, or a real Go test failure from inside this repo alone.
 
-## What S03 now adds
+## What S04 now adds
 
-S03 starts the repository-local Docker baseline before any migrated service code lands under `modules/`.
-The current Docker contract surface is:
-- `docs/docker.md` for the approved Aliyun registry, controlled builder baseline, runtime-image expectations, and artifact-first packaging rule
-- root docs that point future agents to `docs/docker.md` before adding per-service Dockerfiles
-- a documented ban on inline install commands such as `apk add`, `apk upgrade`, `apt-get`, `yum`, `dnf`, and `go install` inside future service Dockerfiles
+S04 makes the first owner-service migration real instead of hypothetical.
+The current migrated-service surface is:
+- `modules/meta-service/` containing the former `devflow-app-service` code retargeted onto `shared/...`
+- `modules/meta-service/scripts/build.sh` for deterministic Linux artifact staging under `.build/staging/meta-service/`
+- `modules/meta-service/Dockerfile` for artifact-first scratch packaging using approved `FROM` references only
+- `modules/meta-service/README.md` documenting what assets are real now versus still deferred
+- repo-local verification and recovery docs that explicitly fail if the migrated service, its build script, or its Dockerfile disappear
 
-This does **not** mean any migrated service already exists in this repo.
-It means future slices must consume a documented Docker contract instead of inventing one during migration.
+This still does **not** mean deployment/runtime rollout is complete.
+It means the first migrated owner-service is now present, builds truthfully from this repository, and is visible in repo-local diagnosis surfaces.
 
 ## Current local build contract
 
@@ -48,6 +52,9 @@ Treat the following as the active local truth for this repo:
 - module path: `github.com/bsonger/devflow-service`
 - Go version: `1.25.8`
 - build model: **single root module**
+- migrated owner-service present: `modules/meta-service`
+- service-local build surface: `modules/meta-service/scripts/build.sh`
+- service-local packaging surface: `modules/meta-service/Dockerfile`
 - Docker builder baseline: `registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.25.8`
 
 This deliberately supersedes the older `1.25.6` patch still visible in sibling service repos.
@@ -65,17 +72,17 @@ The authoritative shared infrastructure packages now in-repo are:
 - `shared/routercore` for shared Gin middleware including request logging, panic recovery, request IDs, and HTTP metrics
 - `shared/bootstrap` for service startup orchestration that wires config load, runtime init, ports, router launch, and sidecar observability servers
 
-These are the packages later service-migration slices should import instead of `devflow-service-common` when moving code into this monorepo.
+These are the packages the migrated `meta-service` now imports instead of `devflow-service-common`.
 
-## What is intentionally pending for S03/S04/S05
+## What is intentionally pending for S04/S05
 
 The following remain intentionally deferred:
-- owner-service migrations under `modules/`
-- runnable binaries under `cmd/`
+- remaining owner-service migrations under `modules/`
+- runnable binaries under top-level `cmd/`
 - gateway/Kong implementation under `gateway/`
-- repo-local Docker assets and verifier-enforced Docker policy checks planned for later S03 tasks
+- final deployment/runtime rollout proof beyond the service-local build/package surfaces already added for `meta-service`
 - any final post-migration workspace reshaping, if later slices choose to revisit it
-- generated assets, fake APIs, or placeholder runtime behavior
+- committed generated artifacts, fake APIs, or placeholder runtime behavior
 
 Do not pre-create those surfaces just to make the repo look more complete.
 
@@ -93,16 +100,18 @@ If you are landing here cold, read in this order:
 
 If migration-history or long-term target-architecture questions remain after that, consult `../devflow/devflow-control/docs/target-architecture/` and note any divergence from the current repo-local contract before changing code.
 
-## Canonical verification command
+## Canonical verification commands
 
-Run this from the `devflow-service` repo root:
+Run these from the `devflow-service` repo root:
 
 ```sh
+bash modules/meta-service/scripts/build.sh
+bash scripts/check-docker-policy.sh
 bash scripts/verify.sh
 ```
 
-This verifier is the canonical repo-local handoff check for S02 and the future extension point for S03 Docker-policy enforcement.
-It fails fast and reports whether the repo is missing its root module, stale contract docs, required shared-package surfaces, or passing Go test proof.
+`bash scripts/verify.sh` remains the canonical repo-local handoff check.
+The service-local build and Docker-policy commands are the first drill-down surfaces when the migrated service itself is in doubt.
 
 ## What `scripts/verify.sh` proves
 
@@ -110,20 +119,22 @@ A passing run means:
 - `go.mod` exists at the repo root and is non-empty
 - the root docs and recovery surfaces mention the root-module contract and the canonical verifier command
 - the extracted shared infrastructure packages exist at the expected paths under `shared/`
+- `modules/meta-service/` exists and includes `scripts/build.sh`, `Dockerfile`, and `README.md`
+- repo-local docs mention the migrated `meta-service` boundary and the fact that it consumes `shared/...`
 - `go test ./...` passes for the code currently landed in the repo
 
-A passing run does **not** mean migrated owner services, binaries, or gateway code already exist.
-It only proves the root-module baseline and its documented recovery/verification contract are intact.
-Until later S03 tasks land the static Docker-policy checker, `docs/docker.md` remains the human-readable source of truth for future per-service packaging rules.
+A passing run does **not** mean deployment/runtime rollout is complete for `meta-service`.
+It proves the first migrated service is present, its documented build/package surfaces exist, and the root-module/shared baseline still compiles and tests honestly.
 
 ## If verification fails
 
 Use the first failing line to decide where to inspect next:
 - missing `go.mod` or missing root-module literals → restore the root build contract and root docs
 - missing shared package files → restore the extracted baseline packages under `shared/`
+- missing `modules/meta-service` surfaces → restore the migrated service, its `scripts/build.sh`, `Dockerfile`, or `README.md`
 - failing `go test ./...` → inspect the failing package and fix the real compile/test regression
-- stale recovery/doc references → rewire `README.md`, `AGENTS.md`, `docs/observability.md`, or `scripts/README.md`
+- stale recovery/doc references → rewire `README.md`, `docs/recovery.md`, `docs/architecture.md`, or `scripts/README.md`
+- Docker policy failure → inspect `modules/meta-service/Dockerfile` against `docs/docker.md` and `scripts/check-docker-policy.sh`
 
 Do not add fake code or fake binaries just to satisfy the verifier.
 If the verifier reveals a real contract change, update code, docs, and verification together so the repository stays honest.
-If a future service Dockerfile question arises before static policy enforcement lands, inspect `docs/docker.md` first.

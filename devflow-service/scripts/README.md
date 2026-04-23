@@ -9,7 +9,7 @@ After reading it, the reader should know which repo-local script to run first an
 
 ## Canonical verifier
 
-Run this from the repo root before handoff or after changing root docs, recovery guidance, shared package surfaces, repository structure, or Docker policy files:
+Run this from the repo root before handoff or after changing root docs, recovery guidance, shared package surfaces, migrated service surfaces, repository structure, or Docker policy files:
 
 ```sh
 bash scripts/verify.sh
@@ -27,15 +27,17 @@ The verifier fails fast and checks:
 - repo-local docs mention the root-module contract
 - Docker docs and Docker asset docs still advertise the controlled Docker baseline, approved `FROM` references, and the inline-install ban
 - expected shared baseline packages exist under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
+- `modules/meta-service/` exists and includes `README.md`, `scripts/build.sh`, `scripts/regen-swagger.sh`, and `Dockerfile`
+- `modules/meta-service` docs still describe the shared extraction adoption and honest asset staging boundaries
 - `scripts/check-docker-policy.sh` scans any service Dockerfiles under `modules/**/Dockerfile*` and fails with file-localized diagnostics for banned inline install commands or unapproved `FROM` references
 - `go test ./...` passes as the authoritative compile/test proof for the code currently landed here
 
-This keeps the repo-local verifier honest: it proves the local handoff surface exists and that the root module plus extracted shared packages still compile.
+This keeps the repo-local verifier honest: it proves the local handoff surface exists, that the first migrated service still has its tracked build/package surfaces, and that the root module plus extracted shared packages still compile.
 
 ## What this verifier does not claim
 
-`verify.sh` does **not** claim that migrated owner-service modules, runnable binaries, or gateway implementations already exist.
-It verifies the repository-local root-module and shared-baseline contract only.
+`verify.sh` does **not** claim that every owner-service migration, top-level runnable binary, or gateway implementation already exists.
+It verifies the repository-local root-module/shared-baseline contract plus the first migrated `meta-service` surface only.
 
 ## Expected future role
 

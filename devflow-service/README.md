@@ -1,7 +1,7 @@
 # DevFlow Service
 
 `devflow-service` is the backend monorepo landing repository for DevFlow.
-As of M005/S02 it now has a real root Go module and the first extracted infrastructure-only shared packages, while owner-service migrations under `modules/` remain intentionally pending.
+As of M005/S04 it now has a real root Go module, the first extracted infrastructure-only shared packages, and the first migrated owner-service under `modules/meta-service`.
 
 ## Purpose
 
@@ -17,15 +17,15 @@ This repo gives a fresh engineer or agent one place to answer:
 Today this repo contains:
 - one root `go.mod` for the repository-wide baseline
 - shared infrastructure packages under `shared/` (`httpx`, `loggingx`, `otelx`, `pyroscopex`, `observability`, `routercore`, `bootstrap`)
+- the first migrated owner-service under `modules/meta-service`
 - root documentation describing the monorepo contract, the Docker contract in `docs/docker.md`, and pending migration work
 - one repo-local verification entrypoint in `scripts/verify.sh`
 
 Today this repo does **not** yet contain:
-- owner-service code migrated under `modules/`
-- runnable binaries under `cmd/`
 - a root `go.work`
 - per-service `go.mod` files
-- generated artifacts or placeholder runtime services
+- generated artifacts or placeholder runtime services committed to the repo
+- final deployment/runtime rollout completion for `meta-service`
 
 ## Build baseline
 
@@ -48,8 +48,8 @@ The intended top-level layout remains:
 - `docs/` — monorepo-wide architecture, constraints, observability, and recovery guidance
 - `scripts/` — repo-level verification and support scripts
 
-Only `shared/` has real code in this slice.
-That does **not** authorize putting owner-specific business logic there.
+Only `shared/` and `modules/meta-service` have real code in this slice.
+That does **not** authorize putting owner-specific business logic into `shared/` or assuming the remaining services have already migrated.
 
 ## Extracted shared surface
 
@@ -62,7 +62,7 @@ The current extracted shared seam is:
 - `shared/routercore` for Gin middleware, logging, request-id, recovery, and HTTP metrics helpers
 - `shared/bootstrap` for service startup wiring that composes config load, runtime init, router run, and observability sidecars
 
-These are the authoritative in-repo packages S04 can retarget future migrated services onto.
+These are the authoritative in-repo packages S04 retargets `modules/meta-service` onto, and the migrated service is the proof that the shared extraction is actually consumed rather than documented aspirationally.
 
 ## Read this first
 
@@ -95,5 +95,5 @@ The canonical repo-local check is:
 bash scripts/verify.sh
 ```
 
-The verifier now checks the root module file, confirms the docs mention the root-module/shared extraction contract, asserts the required extracted shared packages are present, and then runs `go test ./...` as the authoritative compile/test proof for the code already landed in this repo.
-Later in S03 it also becomes the canonical place to enforce the Docker contract files and banned inline-install patterns described in `docs/docker.md`.
+The verifier now checks the root module file, confirms the docs mention the root-module/shared extraction contract, asserts the required extracted shared packages are present, confirms `modules/meta-service` plus its `scripts/build.sh` and `Dockerfile` exist, and then runs `go test ./...` as the authoritative compile/test proof for the code already landed in this repo.
+Later slices can extend it further for deployment/runtime rollout checks once S05 makes those surfaces real.

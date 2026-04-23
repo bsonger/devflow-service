@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+META_SERVICE_DIR="$ROOT_DIR/modules/meta-service"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -90,6 +91,15 @@ require_file "$ROOT_DIR/shared/observability/dependency.go" "shared/observabilit
 require_file "$ROOT_DIR/shared/routercore/gin.go" "shared/routercore gin helper"
 require_file "$ROOT_DIR/shared/bootstrap/service.go" "shared/bootstrap service helper"
 
+info "Checking migrated meta-service surfaces"
+require_dir "$META_SERVICE_DIR" "meta-service directory"
+require_file "$META_SERVICE_DIR/README.md" "meta-service README"
+require_file "$META_SERVICE_DIR/scripts/build.sh" "meta-service build script"
+require_file "$META_SERVICE_DIR/scripts/regen-swagger.sh" "meta-service swagger regen script"
+require_file "$META_SERVICE_DIR/Dockerfile" "meta-service Dockerfile"
+require_file "$META_SERVICE_DIR/cmd/main.go" "meta-service entrypoint"
+require_file "$META_SERVICE_DIR/pkg/router/router_test.go" "meta-service router identity test"
+
 info "Checking root module contract"
 require_literal "$ROOT_DIR/go.mod" "module path" "module github.com/bsonger/devflow-service"
 require_literal "$ROOT_DIR/go.mod" "go baseline" "go 1.25.8"
@@ -108,17 +118,35 @@ require_literal "$ROOT_DIR/docker/README.md" "docker assets README policy refere
 
 info "Checking repo-local root-module documentation"
 require_literal "$ROOT_DIR/README.md" "README root module contract" "single root module"
+require_literal "$ROOT_DIR/README.md" "README meta-service contract" "modules/meta-service"
 require_literal "$ROOT_DIR/docs/architecture.md" "architecture root module contract" "single root Go module"
+require_literal "$ROOT_DIR/docs/architecture.md" "architecture meta-service contract" "modules/meta-service"
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery root module contract" "single root module"
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery go baseline" "1.25.8"
 require_literal "$ROOT_DIR/docs/recovery.md" "recovery extracted seam" "shared/routercore"
+require_literal "$ROOT_DIR/docs/recovery.md" "recovery meta-service build command" "bash modules/meta-service/scripts/build.sh"
 require_literal "$ROOT_DIR/docs/observability.md" "observability go test proof" 'go test ./...'
-require_literal "$ROOT_DIR/docs/observability.md" "observability Docker policy direction" "Docker policy"
+require_literal "$ROOT_DIR/docs/observability.md" "observability meta-service surfaces" 'modules/meta-service'
+require_literal "$ROOT_DIR/scripts/README.md" "scripts README meta-service build script" 'scripts/build.sh'
+
+info "Checking meta-service documentation and packaging contract"
+require_literal "$META_SERVICE_DIR/README.md" "meta-service shared adoption" "shared/bootstrap"
+require_literal "$META_SERVICE_DIR/README.md" "meta-service build command" "bash scripts/build.sh"
+require_literal "$META_SERVICE_DIR/README.md" "meta-service deferred rollout note" "S05 or later"
+require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
+require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker staged binary" "COPY .build/staging/meta-service/meta-service ./meta-service"
+require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker staged certs" "COPY .build/staging/_shared/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"
+require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build go build target" "./modules/meta-service/cmd"
+require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build binary contract" 'OUTPUT_BINARY_REL="bin/$SERVICE_NAME"'
+require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service staging contract" 'STAGING_ROOT="$BUILD_ROOT/staging"'
+require_literal "$META_SERVICE_DIR/scripts/regen-swagger.sh" "meta-service optional swag guard" "swag CLI not installed; skipping Swagger regeneration"
+require_literal "$META_SERVICE_DIR/pkg/router/router_test.go" "meta-service identity assertion" 'payload.Service != "meta-service"'
 
 run_docker_policy_check
 run_go_test
 
 info "Repository-local verification passed."
 echo "  repo: $ROOT_DIR"
+echo "  migrated service: $META_SERVICE_DIR"
 echo "  recovery: $ROOT_DIR/docs/recovery.md"
 echo "  verifier: $ROOT_DIR/scripts/verify.sh"

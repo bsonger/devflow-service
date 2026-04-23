@@ -24,6 +24,7 @@ The current verification signal is a real repo-local verifier composed from loca
 - `go.mod` exists and declares the root module baseline
 - root docs and recovery surfaces exist and mention the root-module contract
 - shared package surfaces expected by this slice exist
+- `modules/meta-service` plus its build/package surfaces exist
 - `go test ./...` passes as the authoritative compile/test proof for code currently landed in the repo
 
 The preferred root check is:
@@ -32,7 +33,7 @@ The preferred root check is:
 bash scripts/verify.sh
 ```
 
-A passing result means the repo still exposes the minimum root recovery and build-contract surfaces this slice owns and that the currently extracted shared packages compile and test successfully.
+A passing result means the repo still exposes the minimum root recovery and build-contract surfaces this slice owns, that the first migrated service is still present with its tracked build/package surfaces, and that the currently extracted shared packages compile and test successfully.
 
 ## Failure interpretation
 
@@ -40,6 +41,7 @@ A failing `scripts/verify.sh` should tell a future agent which class of drift oc
 - missing `go.mod` or wrong root-module references → build-contract drift
 - missing recovery/doc literals → stale repo-local handoff documentation
 - missing shared package surfaces → extracted baseline code drift
+- missing `modules/meta-service` surfaces → migrated-service packaging/build drift
 - failing `go test ./...` → real compile/test regression in landed repo code
 
 Because `shared/observability` and `shared/routercore` now provide the repo's first real runtime-oriented diagnostics, a failing compile/test run often also implies drift in metrics, pprof, tracing, panic recovery, or dependency instrumentation wiring.
@@ -47,9 +49,8 @@ Because `shared/observability` and `shared/routercore` now provide the repo's fi
 ## Future observability direction
 
 Later slices should extend this inspection surface with:
-- repo-wide migration checks once owner modules land
+- repo-wide migration checks as additional owner modules land beyond `meta-service`
 - root verification that composes module-level test suites
-- Docker policy checks for missing contract files, controlled-image references, and banned inline-install patterns under `modules/`
-- runtime-oriented observability once real binaries and services exist
+- deployment/runtime-oriented observability once real binaries and services are wired for rollout
 
 Those additions should preserve the cold-start property: a fresh agent should still be able to find the preferred verification path from the repo root without external session context.

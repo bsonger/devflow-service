@@ -3,8 +3,8 @@
 ## Role of this repository
 
 `devflow-service` is the future backend monorepo for DevFlow.
-In M005/S02 it stops being a docs-only skeleton and becomes a real Go repository with one root module plus the first infrastructure-only shared packages.
-Service migrations under `modules/` and runnable entrypoints under `cmd/` remain intentionally deferred.
+In M005/S04 it now has one root module, the first infrastructure-only shared packages, and the first real owner-service migration under `modules/meta-service`.
+Additional service migrations and runnable entrypoints under top-level `cmd/` remain intentionally deferred.
 
 ## Root structure
 
@@ -50,7 +50,7 @@ Neither area is allowed to become a hidden business-logic owner.
 
 ## Docker packaging direction
 
-S03 reserves a per-service Docker packaging model before any migrated service lands under `modules/`.
+S03 reserves a per-service Docker packaging model before migrated services land under `modules/`, and S04 now exercises that policy with the first real service Dockerfile.
 That Docker contract is documented in `docs/docker.md` and follows these repo-local rules:
 - use the approved Aliyun registry namespace `registry.cn-hangzhou.aliyuncs.com/devflow`
 - use the controlled builder baseline `golang-builder:1.25.8`
@@ -61,10 +61,12 @@ This matches the sibling-repo staging pattern where build artifacts are prepared
 The contract exists now so S04 can add a real service Dockerfile without inventing Docker policy during migration.
 
 
-This slice makes only a narrow set of things real:
+This slice makes a narrow but real set of things concrete:
 - the root `go.mod`
 - the root `go 1.25.8` baseline
 - extracted infrastructure packages under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
+- the migrated owner-service under `modules/meta-service`
+- the `meta-service` build and packaging surfaces (`modules/meta-service/scripts/build.sh` and `modules/meta-service/Dockerfile`)
 - repo-local docs and recovery/verifier surfaces that describe the current contract honestly
 
 These extracted packages map cleanly to the infrastructure already evidenced in sibling repos:
@@ -76,10 +78,11 @@ These extracted packages map cleanly to the infrastructure already evidenced in 
 - `bootstrap` provides service startup orchestration without owning app-specific config or routing
 
 It intentionally does **not** create:
-- migrated owner-service code under `modules/`
-- runnable binaries under `cmd/`
+- the remaining owner-service migrations under `modules/`
+- runnable binaries under top-level `cmd/`
 - fake APIs or fake runtime behavior
 - the final multi-module workspace assembly files
+- a claim that deployment/runtime rollout is already complete for `meta-service`
 
 ## Relationship to upstream authority
 
@@ -91,6 +94,7 @@ If those two sources diverge during M005/S02, treat the repo-local root-module c
 
 A fresh reader should be able to tell from this repository alone:
 - that the repo already has a real root build contract
-- which shared packages are currently extracted
+- which shared packages are currently extracted and already consumed by `modules/meta-service`
+- that `meta-service` is the first real migrated owner-service and where its build/package surfaces live
 - what not to create yet
 - what remains pending for later slices
