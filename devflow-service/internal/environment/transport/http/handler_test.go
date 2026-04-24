@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	envsvc "github.com/bsonger/devflow-service/internal/environment/application"
 	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
+	envsvc "github.com/bsonger/devflow-service/internal/environment/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

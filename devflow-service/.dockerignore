@@ -1,5 +1,5 @@
-** 
-!Dockerfile
-!.build/
-!.build/staging/
-!.build/staging/**
+.git
+.github
+.cache
+.build
+bin

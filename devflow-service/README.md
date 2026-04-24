@@ -30,7 +30,7 @@ The target repository baseline is:
 - target Go version: `1.26.2`
 - target builder/runtime contract: controlled base images with all installation behavior moved out of service Dockerfiles
 
-Service Dockerfiles are expected to become packaging-only surfaces.
+Service Dockerfiles should use thin multi-stage builds and keep installation behavior inside controlled base images only.
 
 ## Repo shape
 
@@ -84,7 +84,7 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
-docker build
+docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
 ```
 

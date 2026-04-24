@@ -34,7 +34,7 @@ The current target code layout is:
 - `cmd/meta-service/main.go` for entrypoint-only startup logic
 - `internal/platform/` for infrastructure-only capabilities such as config, db, logger, otel, httpx, and runtime lifecycle
 - `internal/<domain>/domain` for domain objects and rules
-- `internal/<domain>/application` for use-case orchestration
+- `internal/<domain>/service` for use-case orchestration
 - `internal/<domain>/repository` for data-access interfaces and implementations
 - `internal/<domain>/transport` for external protocol adapters
 - `internal/<domain>/module.go` for domain assembly

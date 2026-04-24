@@ -1,7 +1,7 @@
 package project
 
 import (
-	projectapp "github.com/bsonger/devflow-service/internal/project/application"
+	projectservice "github.com/bsonger/devflow-service/internal/project/service"
 	projecthttp "github.com/bsonger/devflow-service/internal/project/transport/http"
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +12,7 @@ type Module struct {
 
 func NewModule() Module {
 	return Module{
-		handler: projecthttp.NewHandler(projectapp.DefaultService),
+		handler: projecthttp.NewHandler(projectservice.DefaultService),
 	}
 }
 

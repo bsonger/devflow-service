@@ -15,14 +15,23 @@ trap cleanup EXIT
 mkdir -p "$VALID_DIR" "$INVALID_DIR"
 
 cat > "$TEST_ROOT/valid/Dockerfile" <<'EOF_ROOT'
+FROM golang:1.26.2-alpine3.22 AS builder
+WORKDIR /workspace
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/meta-service ./cmd/meta-service
+
 FROM scratch
 WORKDIR /app
-COPY .build/staging/meta-service/meta-service ./meta-service
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /out/meta-service ./meta-service
 ENTRYPOINT ["/app/meta-service"]
 EOF_ROOT
 
 cat > "$VALID_DIR/Dockerfile.package" <<'EOF_VALID'
-FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2 AS builder
+FROM golang:1.26.2-alpine3.22 AS builder
 WORKDIR /workspace
 COPY . .
 RUN go build -o /out/meta-service ./cmd/meta-service

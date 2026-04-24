@@ -41,15 +41,6 @@ require_literal() {
   grep -Fq "$needle" "$path" || fail "$label missing from $(basename "$path"): expected literal [$needle]"
 }
 
-run_meta_service_build() {
-  info "Running migrated meta-service build proof (artifacts under .build and bin are expected)"
-  (
-    cd "$ROOT_DIR"
-    mkdir -p "$GO_CACHE_DIR"
-    GOCACHE="$GO_CACHE_DIR" bash scripts/build-meta-service.sh
-  )
-}
-
 run_go_test() {
   info "Running go test ./..."
   (
@@ -79,7 +70,7 @@ require_file "$ROOT_DIR/docs/policies/docker-baseline.md" "docker baseline polic
 require_file "$ROOT_DIR/docs/policies/verification.md" "verification policy doc"
 require_file "$ROOT_DIR/scripts/README.md" "scripts README"
 require_file "$ROOT_DIR/scripts/verify.sh" "repo-local verifier"
-require_file "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service build script"
+require_file "$ROOT_DIR/scripts/docker-build.sh" "repo-local docker build wrapper"
 require_file "$ROOT_DIR/scripts/regen-swagger.sh" "meta-service swagger regen script"
 require_file "$ROOT_DIR/scripts/check-docker-policy.sh" "Docker policy checker"
 require_file "$ROOT_DIR/scripts/check-docker-policy_test.sh" "Docker policy checker test"
@@ -146,21 +137,18 @@ require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service internal
 info "Checking meta-service documentation and packaging contract"
 require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service service name" "meta-service"
 require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service root build target" "./cmd/meta-service"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker builder base" "FROM golang:1.26.2-alpine3.22 AS builder"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
-require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker staged binary" "COPY .build/staging/meta-service/meta-service ./meta-service"
-require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker staged certs" "COPY .build/staging/_shared/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"
-require_literal "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service build go build target" "./cmd/meta-service"
-require_literal "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service build binary contract" 'OUTPUT_BINARY_REL="bin/$SERVICE_NAME"'
-require_literal "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service staging contract" 'STAGING_ROOT="$BUILD_ROOT/staging"'
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker build target" "go build -o /out/meta-service ./cmd/meta-service"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker copied binary" "COPY --from=builder /out/meta-service ./meta-service"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker copied certs" "COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"
 require_literal "$ROOT_DIR/scripts/regen-swagger.sh" "meta-service optional swag guard" "swag CLI not installed; skipping Swagger regeneration"
 require_literal "$ROOT_DIR/internal/app/router_test.go" "meta-service identity assertion" 'payload.Service != "meta-service"'
 
 run_docker_policy_check
-run_meta_service_build
 run_go_test
 
 info "Repository-local verification passed."
 echo "  repo: $ROOT_DIR"
 echo "  recovery: $ROOT_DIR/docs/system/recovery.md"
 echo "  verifier: $ROOT_DIR/scripts/verify.sh"
-echo "  build proof: $ROOT_DIR/scripts/build-meta-service.sh"

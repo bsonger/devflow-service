@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bsonger/devflow-service/internal/cluster/application"
 	"github.com/bsonger/devflow-service/internal/cluster/domain"
+	"github.com/bsonger/devflow-service/internal/cluster/service"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,7 +18,7 @@ type clusterService interface {
 	Get(context.Context, uuid.UUID) (*domain.Cluster, error)
 	Update(context.Context, *domain.Cluster) error
 	Delete(context.Context, uuid.UUID) error
-	List(context.Context, application.ListFilter) ([]domain.Cluster, error)
+	List(context.Context, service.ListFilter) ([]domain.Cluster, error)
 }
 
 type Handler struct {
@@ -171,7 +171,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Cluster]
 // @Router /api/v1/clusters [get]
 func (h *Handler) List(c *gin.Context) {
-	filter := application.ListFilter{
+	filter := service.ListFilter{
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}
@@ -197,16 +197,16 @@ func writeClusterError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
-	case errors.Is(err, application.ErrClusterConflict):
+	case errors.Is(err, service.ErrClusterConflict):
 		httpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
-	case errors.Is(err, application.ErrClusterNameRequired),
-		errors.Is(err, application.ErrClusterServerRequired),
-		errors.Is(err, application.ErrClusterKubeConfigRequired),
-		errors.Is(err, application.ErrClusterOnboardingMalformed):
+	case errors.Is(err, service.ErrClusterNameRequired),
+		errors.Is(err, service.ErrClusterServerRequired),
+		errors.Is(err, service.ErrClusterKubeConfigRequired),
+		errors.Is(err, service.ErrClusterOnboardingMalformed):
 		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-	case errors.Is(err, application.ErrClusterOnboardingTimeout):
+	case errors.Is(err, service.ErrClusterOnboardingTimeout):
 		httpx.WriteError(c, http.StatusGatewayTimeout, "deadline_exceeded", err.Error(), nil)
-	case errors.Is(err, application.ErrClusterOnboardingFailed):
+	case errors.Is(err, service.ErrClusterOnboardingFailed):
 		httpx.WriteError(c, http.StatusConflict, "failed_precondition", err.Error(), nil)
 	default:
 		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)

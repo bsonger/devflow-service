@@ -41,12 +41,13 @@ build:
 
 .PHONY: package
 package:
+	mkdir -p bin
 	mkdir -p $(GOCACHE)
-	GOCACHE=$(GOCACHE) bash scripts/build-meta-service.sh
+	$(GO_RUN_ENV) CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/$(APP) ./cmd/$(APP)
 
 .PHONY: docker-build
-docker-build: package
-	docker build -t $(DOCKER_IMAGE) -f Dockerfile .
+docker-build:
+	bash scripts/docker-build.sh $(DOCKER_IMAGE) Dockerfile
 
 .PHONY: verify
 verify:
@@ -66,4 +67,4 @@ tidy:
 
 .PHONY: clean
 clean:
-	rm -rf ./bin ./.build ./.cache
+	rm -rf ./bin ./.cache

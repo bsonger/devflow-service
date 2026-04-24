@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	projectapp "github.com/bsonger/devflow-service/internal/project/application"
 	projectdomain "github.com/bsonger/devflow-service/internal/project/domain"
+	projectservice "github.com/bsonger/devflow-service/internal/project/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -20,7 +20,7 @@ type stubProjectService struct {
 	getFn              func(context.Context, uuid.UUID) (*projectdomain.Project, error)
 	updateFn           func(context.Context, *projectdomain.Project) error
 	deleteFn           func(context.Context, uuid.UUID) error
-	listFn             func(context.Context, projectapp.ProjectListFilter) ([]projectdomain.Project, error)
+	listFn             func(context.Context, projectservice.ProjectListFilter) ([]projectdomain.Project, error)
 	listApplicationsFn func(context.Context, uuid.UUID) ([]projectdomain.Application, error)
 }
 
@@ -40,7 +40,7 @@ func (s stubProjectService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.deleteFn(ctx, id)
 }
 
-func (s stubProjectService) List(ctx context.Context, filter projectapp.ProjectListFilter) ([]projectdomain.Project, error) {
+func (s stubProjectService) List(ctx context.Context, filter projectservice.ProjectListFilter) ([]projectdomain.Project, error) {
 	return s.listFn(ctx, filter)
 }
 
@@ -119,7 +119,7 @@ func TestGetProjectReturnsEnvelope(t *testing.T) {
 func TestListProjectsReturnsEnvelope(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := NewHandler(stubProjectService{
-		listFn: func(_ context.Context, filter projectapp.ProjectListFilter) ([]projectdomain.Project, error) {
+		listFn: func(_ context.Context, filter projectservice.ProjectListFilter) ([]projectdomain.Project, error) {
 			if filter.Name != "" {
 				t.Fatalf("unexpected filter: %#v", filter)
 			}

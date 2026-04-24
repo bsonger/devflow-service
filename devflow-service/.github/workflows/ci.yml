@@ -40,7 +40,7 @@ jobs:
       - name: Build target binary
         run: make build
 
-      - name: Build staged meta-service artifacts
+      - name: Build linux target binary
         run: make package
 
       - name: Build root runtime image

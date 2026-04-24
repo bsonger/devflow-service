@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
-	"github.com/bsonger/devflow-service/internal/project/application"
 	"github.com/bsonger/devflow-service/internal/project/domain"
+	"github.com/bsonger/devflow-service/internal/project/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -18,7 +18,7 @@ type projectService interface {
 	Get(context.Context, uuid.UUID) (*domain.Project, error)
 	Update(context.Context, *domain.Project) error
 	Delete(context.Context, uuid.UUID) error
-	List(context.Context, application.ProjectListFilter) ([]domain.Project, error)
+	List(context.Context, service.ProjectListFilter) ([]domain.Project, error)
 	ListApplications(context.Context, uuid.UUID) ([]domain.Application, error)
 }
 
@@ -177,7 +177,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Project]
 // @Router /api/v1/projects [get]
 func (h *Handler) List(c *gin.Context) {
-	filter := application.ProjectListFilter{
+	filter := service.ProjectListFilter{
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}

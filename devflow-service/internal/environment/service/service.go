@@ -1,4 +1,4 @@
-package application
+package service
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	clusterapp "github.com/bsonger/devflow-service/internal/cluster/application"
 	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
+	clusterservice "github.com/bsonger/devflow-service/internal/cluster/service"
 	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
 	envrepo "github.com/bsonger/devflow-service/internal/environment/repository"
 	"github.com/google/uuid"
@@ -34,7 +34,7 @@ type Service interface {
 	List(context.Context, ListFilter) ([]envdomain.Environment, error)
 }
 
-var DefaultService Service = NewService(envrepo.EnvironmentStore, clusterapp.DefaultService)
+var DefaultService Service = NewService(envrepo.EnvironmentStore, clusterservice.DefaultService)
 
 type clusterReader interface {
 	Get(context.Context, uuid.UUID) (*clusterdomain.Cluster, error)

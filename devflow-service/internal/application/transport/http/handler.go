@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bsonger/devflow-service/internal/application/application"
 	"github.com/bsonger/devflow-service/internal/application/domain"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
@@ -19,7 +18,7 @@ type applicationService interface {
 	Update(context.Context, *domain.Application) error
 	Delete(context.Context, uuid.UUID) error
 	UpdateActiveImage(context.Context, uuid.UUID, uuid.UUID) error
-	List(context.Context, application.ListFilter) ([]domain.Application, error)
+	List(context.Context, domain.ListFilter) ([]domain.Application, error)
 }
 
 type Handler struct {
@@ -86,7 +85,7 @@ func (h *Handler) Create(c *gin.Context) {
 	appRecord.WithCreateDefault()
 	_, err := h.svc.Create(c.Request.Context(), appRecord)
 	if err != nil {
-		if errors.Is(err, application.ErrProjectReferenceNotFound) {
+		if errors.Is(err, domain.ErrProjectReferenceNotFound) {
 			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 			return
 		}
@@ -153,7 +152,7 @@ func (h *Handler) Update(c *gin.Context) {
 	appRecord.SetID(id)
 
 	if err := h.svc.Update(c.Request.Context(), &appRecord); err != nil {
-		if errors.Is(err, application.ErrProjectReferenceNotFound) {
+		if errors.Is(err, domain.ErrProjectReferenceNotFound) {
 			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 			return
 		}
@@ -237,7 +236,7 @@ func (h *Handler) UpdateActiveImage(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Application]
 // @Router /api/v1/applications [get]
 func (h *Handler) List(c *gin.Context) {
-	filter := application.ListFilter{
+	filter := domain.ListFilter{
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 		RepoAddress:    c.Query("repo_address"),

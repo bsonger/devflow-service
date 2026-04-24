@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"github.com/bsonger/devflow-service/internal/cluster/application"
+	"github.com/bsonger/devflow-service/internal/cluster/service"
 	"github.com/bsonger/devflow-service/internal/cluster/transport/http"
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +12,7 @@ type Module struct {
 
 func NewModule() Module {
 	return Module{
-		handler: http.NewHandler(application.DefaultService),
+		handler: http.NewHandler(service.DefaultService),
 	}
 }
 

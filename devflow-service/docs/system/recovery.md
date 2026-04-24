@@ -15,6 +15,7 @@ After reading it, a fresh engineer or agent should know:
 - Active migration: finish the remaining repo-root cleanup after moving `meta-service` into the repository root layout
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
+- Active image packaging: root `Dockerfile` now performs a multi-stage build directly from `cmd/meta-service`
 
 This repository is in an intentional transition state.
 Current local docs are authoritative even when the code migration is not complete yet.
@@ -39,7 +40,7 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
-docker build
+docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
 ```
 

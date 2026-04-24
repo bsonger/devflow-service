@@ -6,19 +6,21 @@ This document defines the controlled Docker baseline for `devflow-service`.
 
 - target Go baseline: `1.26.2`
 - local builds, CI, builder images, and packaging must align to `Go 1.26.2`
+- approved public builder image for in-repo multi-stage builds: `golang:1.26.2-alpine3.22`
 
 ## Base image policy
 
 - build-time tools belong in controlled builder images
 - runtime installation dependencies belong in controlled runtime base images
-- service Dockerfiles are packaging-only surfaces
+- service Dockerfiles should use thin multi-stage builds
 - the repo-local builder baseline source lives at `docker/golang-builder.Dockerfile`
 
 ## Service Dockerfile rules
 
 Allowed:
 - choose a controlled base image
-- copy built artifacts and tracked runtime files
+- compile in an approved builder stage
+- copy built artifacts and tracked runtime files into the final runtime stage
 - declare runtime metadata such as `ENTRYPOINT`, `CMD`, or `EXPOSE`
 
 Banned:

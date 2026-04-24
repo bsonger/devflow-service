@@ -17,7 +17,7 @@ The target local layout for this service is:
 - packaging and verification contracts rooted at the repository root
 
 `meta-service` no longer keeps any runtime Go packages under `modules/`.
-Build, Swagger staging, and Docker packaging now run from root repo surfaces.
+Build, Swagger generation, and Docker packaging now run from root repo surfaces.
 
 ## Current diagnostics
 
@@ -36,7 +36,7 @@ The service should eventually prove cleanly with:
 ```sh
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
-docker build
+docker build -t devflow-service:local -f Dockerfile .
 ```
 
 During the migration, failures should be treated as real contract drift to fix, not as accepted transition noise.

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bsonger/devflow-service/internal/environment/application"
 	"github.com/bsonger/devflow-service/internal/environment/domain"
+	"github.com/bsonger/devflow-service/internal/environment/service"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,7 +18,7 @@ type environmentService interface {
 	Get(context.Context, uuid.UUID) (*domain.Environment, error)
 	Update(context.Context, *domain.Environment) error
 	Delete(context.Context, uuid.UUID) error
-	List(context.Context, application.ListFilter) ([]domain.Environment, error)
+	List(context.Context, service.ListFilter) ([]domain.Environment, error)
 }
 
 type Handler struct {
@@ -164,7 +164,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Environment]
 // @Router /api/v1/environments [get]
 func (h *Handler) List(c *gin.Context) {
-	filter := application.ListFilter{
+	filter := service.ListFilter{
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}
@@ -198,11 +198,11 @@ func writeEnvironmentError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
-	case errors.Is(err, application.ErrEnvironmentConflict):
+	case errors.Is(err, service.ErrEnvironmentConflict):
 		httpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
-	case errors.Is(err, application.ErrEnvironmentNameRequired),
-		errors.Is(err, application.ErrEnvironmentClusterRequired),
-		errors.Is(err, application.ErrClusterReferenceNotFound):
+	case errors.Is(err, service.ErrEnvironmentNameRequired),
+		errors.Is(err, service.ErrEnvironmentClusterRequired),
+		errors.Is(err, service.ErrClusterReferenceNotFound):
 		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 	default:
 		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)

@@ -34,20 +34,20 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
-docker build
+docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
-```
-
-The root packaging/build proof for `meta-service` is:
-
-```sh
-bash scripts/build-meta-service.sh
 ```
 
 The repo-level convenience entrypoint is:
 
 ```sh
 make ci
+```
+
+The Docker image build wrapper is:
+
+```sh
+bash scripts/docker-build.sh devflow-service:local Dockerfile
 ```
 
 The matching automated workflow is:

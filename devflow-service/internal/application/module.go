@@ -1,7 +1,7 @@
 package application
 
 import (
-	appsvc "github.com/bsonger/devflow-service/internal/application/application"
+	appservice "github.com/bsonger/devflow-service/internal/application/service"
 	apphttp "github.com/bsonger/devflow-service/internal/application/transport/http"
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +12,7 @@ type Module struct {
 
 func NewModule() Module {
 	return Module{
-		handler: apphttp.NewHandler(appsvc.DefaultService),
+		handler: apphttp.NewHandler(appservice.DefaultService),
 	}
 }
 

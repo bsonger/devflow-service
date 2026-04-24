@@ -28,7 +28,7 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
-docker build
+docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
 ```
 

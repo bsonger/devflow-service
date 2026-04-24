@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appsvc "github.com/bsonger/devflow-service/internal/application/application"
 	appdomain "github.com/bsonger/devflow-service/internal/application/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,7 +20,7 @@ type stubApplicationService struct {
 	updateFn            func(context.Context, *appdomain.Application) error
 	deleteFn            func(context.Context, uuid.UUID) error
 	updateActiveImageFn func(context.Context, uuid.UUID, uuid.UUID) error
-	listFn              func(context.Context, appsvc.ListFilter) ([]appdomain.Application, error)
+	listFn              func(context.Context, appdomain.ListFilter) ([]appdomain.Application, error)
 }
 
 func (s stubApplicationService) Create(ctx context.Context, app *appdomain.Application) (uuid.UUID, error) {
@@ -39,7 +38,7 @@ func (s stubApplicationService) Delete(ctx context.Context, id uuid.UUID) error 
 func (s stubApplicationService) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUID) error {
 	return s.updateActiveImageFn(ctx, appID, imageID)
 }
-func (s stubApplicationService) List(ctx context.Context, filter appsvc.ListFilter) ([]appdomain.Application, error) {
+func (s stubApplicationService) List(ctx context.Context, filter appdomain.ListFilter) ([]appdomain.Application, error) {
 	return s.listFn(ctx, filter)
 }
 
@@ -73,7 +72,7 @@ func TestCreateApplicationReturnsEnvelope(t *testing.T) {
 
 func TestListApplicationsReturnsEnvelope(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
-	handler := NewHandler(stubApplicationService{listFn: func(_ context.Context, filter appsvc.ListFilter) ([]appdomain.Application, error) {
+	handler := NewHandler(stubApplicationService{listFn: func(_ context.Context, filter appdomain.ListFilter) ([]appdomain.Application, error) {
 		if filter.ProjectID != nil {
 			t.Fatalf("unexpected project filter: %#v", filter)
 		}

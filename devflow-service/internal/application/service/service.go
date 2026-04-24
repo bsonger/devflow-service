@@ -1,4 +1,4 @@
-package application
+package service
 
 import (
 	"context"
@@ -11,22 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrProjectReferenceNotFound = errors.New("project reference not found")
-
-type ListFilter struct {
-	IncludeDeleted bool
-	Name           string
-	ProjectID      *uuid.UUID
-	RepoAddress    string
-}
-
 type Service interface {
 	Create(context.Context, *appdomain.Application) (uuid.UUID, error)
 	Get(context.Context, uuid.UUID) (*appdomain.Application, error)
 	Update(context.Context, *appdomain.Application) error
 	Delete(context.Context, uuid.UUID) error
 	UpdateActiveImage(context.Context, uuid.UUID, uuid.UUID) error
-	List(context.Context, ListFilter) ([]appdomain.Application, error)
+	List(context.Context, appdomain.ListFilter) ([]appdomain.Application, error)
 }
 
 var DefaultService Service = NewService(apprepo.ApplicationStore, projectrepo.ProjectStore)
@@ -69,7 +60,7 @@ func (s *service) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUI
 	return s.applications.UpdateActiveImage(ctx, appID, imageID)
 }
 
-func (s *service) List(ctx context.Context, filter ListFilter) ([]appdomain.Application, error) {
+func (s *service) List(ctx context.Context, filter appdomain.ListFilter) ([]appdomain.Application, error) {
 	return s.applications.List(ctx, filter.IncludeDeleted, filter.Name, filter.ProjectID, filter.RepoAddress)
 }
 
@@ -79,7 +70,7 @@ func (s *service) syncProjectReference(ctx context.Context, application *appdoma
 	}
 	if _, err := s.projects.Get(ctx, application.ProjectID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrProjectReferenceNotFound
+			return appdomain.ErrProjectReferenceNotFound
 		}
 		return err
 	}
