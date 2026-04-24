@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_ROOT="$ROOT_DIR/scripts/testdata/docker-policy"
-VALID_DIR="$TEST_ROOT/valid/modules/meta-service"
-INVALID_DIR="$TEST_ROOT/invalid/modules/meta-service"
+VALID_DIR="$TEST_ROOT/valid/services/meta-service"
+INVALID_DIR="$TEST_ROOT/invalid/services/meta-service"
 CHECKER="$ROOT_DIR/scripts/check-docker-policy.sh"
 
 cleanup() {
@@ -13,6 +13,13 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$VALID_DIR" "$INVALID_DIR"
+
+cat > "$TEST_ROOT/valid/Dockerfile" <<'EOF_ROOT'
+FROM scratch
+WORKDIR /app
+COPY .build/staging/meta-service/meta-service ./meta-service
+ENTRYPOINT ["/app/meta-service"]
+EOF_ROOT
 
 cat > "$VALID_DIR/Dockerfile.package" <<'EOF_VALID'
 FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2 AS builder
@@ -33,10 +40,10 @@ ENTRYPOINT ["/bin/sh"]
 EOF_INVALID
 
 echo "INFO[test]: expecting pass for approved builder/runtime references"
-bash "$CHECKER" "$TEST_ROOT/valid/modules"
+bash "$CHECKER" "$TEST_ROOT/valid"
 
 echo "INFO[test]: expecting failure for banned install pattern and unapproved runtime"
-if bash "$CHECKER" "$TEST_ROOT/invalid/modules"; then
+if bash "$CHECKER" "$TEST_ROOT/invalid"; then
   echo "ERROR[test]: expected invalid fixture to fail policy check" >&2
   exit 1
 fi

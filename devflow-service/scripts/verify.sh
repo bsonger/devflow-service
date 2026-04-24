@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-META_SERVICE_DIR="$ROOT_DIR/modules/meta-service"
 GO_CACHE_DIR="${GOCACHE:-$ROOT_DIR/.cache/go-build}"
 
 fail() {
@@ -43,11 +42,11 @@ require_literal() {
 }
 
 run_meta_service_build() {
-  info "Running migrated meta-service build proof (artifacts under modules/meta-service/.build and bin are expected)"
+  info "Running migrated meta-service build proof (artifacts under .build and bin are expected)"
   (
     cd "$ROOT_DIR"
     mkdir -p "$GO_CACHE_DIR"
-    GOCACHE="$GO_CACHE_DIR" bash modules/meta-service/scripts/build.sh
+    GOCACHE="$GO_CACHE_DIR" bash scripts/build-meta-service.sh
   )
 }
 
@@ -80,6 +79,8 @@ require_file "$ROOT_DIR/docs/policies/docker-baseline.md" "docker baseline polic
 require_file "$ROOT_DIR/docs/policies/verification.md" "verification policy doc"
 require_file "$ROOT_DIR/scripts/README.md" "scripts README"
 require_file "$ROOT_DIR/scripts/verify.sh" "repo-local verifier"
+require_file "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service build script"
+require_file "$ROOT_DIR/scripts/regen-swagger.sh" "meta-service swagger regen script"
 require_file "$ROOT_DIR/scripts/check-docker-policy.sh" "Docker policy checker"
 require_file "$ROOT_DIR/scripts/check-docker-policy_test.sh" "Docker policy checker test"
 require_file "$ROOT_DIR/docs/docker.md" "Docker redirect doc"
@@ -95,7 +96,6 @@ require_dir "$ROOT_DIR/internal" "internal directory"
 require_dir "$ROOT_DIR/api" "api directory"
 require_dir "$ROOT_DIR/deployments" "deployments directory"
 require_dir "$ROOT_DIR/test" "test directory"
-require_dir "$ROOT_DIR/modules" "modules directory"
 require_dir "$ROOT_DIR/gateway" "gateway directory"
 
 require_dir "$ROOT_DIR/internal/app" "internal app assembly directory"
@@ -110,15 +110,7 @@ require_file "$ROOT_DIR/internal/platform/db/postgres.go" "internal platform db"
 [[ ! -d "$ROOT_DIR/shared" ]] || fail "catch-all shared directory must not exist: $ROOT_DIR/shared"
 [[ ! -d "$ROOT_DIR/common" ]] || fail "catch-all common directory must not exist: $ROOT_DIR/common"
 [[ ! -d "$ROOT_DIR/util" ]] || fail "catch-all util directory must not exist: $ROOT_DIR/util"
-[[ ! -d "$META_SERVICE_DIR/cmd" ]] || fail "legacy meta-service cmd directory must not exist: $META_SERVICE_DIR/cmd"
-[[ ! -d "$META_SERVICE_DIR/pkg" ]] || fail "legacy meta-service pkg directory must not exist: $META_SERVICE_DIR/pkg"
-
-info "Checking migrated meta-service surfaces"
-require_dir "$META_SERVICE_DIR" "meta-service directory"
-require_file "$META_SERVICE_DIR/README.md" "meta-service README"
-require_file "$META_SERVICE_DIR/scripts/build.sh" "meta-service build script"
-require_file "$META_SERVICE_DIR/scripts/regen-swagger.sh" "meta-service swagger regen script"
-require_file "$META_SERVICE_DIR/Dockerfile" "meta-service Dockerfile"
+[[ ! -d "$ROOT_DIR/modules" ]] || fail "legacy modules directory must not exist: $ROOT_DIR/modules"
 
 info "Checking root module contract"
 require_literal "$ROOT_DIR/go.mod" "module path" "module github.com/bsonger/devflow-service"
@@ -154,14 +146,13 @@ require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service internal
 info "Checking meta-service documentation and packaging contract"
 require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service service name" "meta-service"
 require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service root build target" "./cmd/meta-service"
-require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service packaging boundary" "packaging boundary only"
-require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
-require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker staged binary" "COPY .build/staging/meta-service/meta-service ./meta-service"
-require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker staged certs" "COPY .build/staging/_shared/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"
-require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build go build target" "./cmd/meta-service"
-require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build binary contract" 'OUTPUT_BINARY_REL="bin/$SERVICE_NAME"'
-require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service staging contract" 'STAGING_ROOT="$BUILD_ROOT/staging"'
-require_literal "$META_SERVICE_DIR/scripts/regen-swagger.sh" "meta-service optional swag guard" "swag CLI not installed; skipping Swagger regeneration"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker staged binary" "COPY .build/staging/meta-service/meta-service ./meta-service"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker staged certs" "COPY .build/staging/_shared/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"
+require_literal "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service build go build target" "./cmd/meta-service"
+require_literal "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service build binary contract" 'OUTPUT_BINARY_REL="bin/$SERVICE_NAME"'
+require_literal "$ROOT_DIR/scripts/build-meta-service.sh" "meta-service staging contract" 'STAGING_ROOT="$BUILD_ROOT/staging"'
+require_literal "$ROOT_DIR/scripts/regen-swagger.sh" "meta-service optional swag guard" "swag CLI not installed; skipping Swagger regeneration"
 require_literal "$ROOT_DIR/internal/app/router_test.go" "meta-service identity assertion" 'payload.Service != "meta-service"'
 
 run_docker_policy_check
@@ -170,7 +161,6 @@ run_go_test
 
 info "Repository-local verification passed."
 echo "  repo: $ROOT_DIR"
-echo "  migrated service: $META_SERVICE_DIR"
 echo "  recovery: $ROOT_DIR/docs/system/recovery.md"
 echo "  verifier: $ROOT_DIR/scripts/verify.sh"
-echo "  build proof: $ROOT_DIR/modules/meta-service/scripts/build.sh"
+echo "  build proof: $ROOT_DIR/scripts/build-meta-service.sh"

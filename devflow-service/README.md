@@ -20,8 +20,8 @@ Today this repo is in a transition state:
 - the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
 - the canonical repo-local verification entrypoint remains `bash scripts/verify.sh`
 
-This repo does **not** currently treat `shared/` or `modules/meta-service` as the desired end state.
-Those are migration surfaces to remove, not patterns to preserve.
+This repo does **not** currently treat `shared/` or `modules/` as valid end-state structure.
+Those were migration surfaces to remove, not patterns to preserve.
 
 ## Build baseline
 

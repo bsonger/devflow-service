@@ -16,8 +16,8 @@ The target local layout for this service is:
 - infrastructure code under `internal/platform/...`
 - packaging and verification contracts rooted at the repository root
 
-`modules/meta-service` is now a transitional packaging boundary only.
-It is not the source of truth for runtime Go packages.
+`meta-service` no longer keeps any runtime Go packages under `modules/`.
+Build, Swagger staging, and Docker packaging now run from root repo surfaces.
 
 ## Current diagnostics
 

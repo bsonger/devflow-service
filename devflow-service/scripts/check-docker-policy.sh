@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MODULES_DIR="${1:-$ROOT_DIR/modules}"
+DOCKER_SCAN_ROOT="${1:-$ROOT_DIR}"
 
 BANNED_PATTERNS=(
   'apk[[:space:]]+add'
@@ -40,21 +40,25 @@ matches_any() {
   return 1
 }
 
-if [[ ! -d "$MODULES_DIR" ]]; then
-  fail "modules directory is missing: $MODULES_DIR"
-fi
-
 dockerfiles=()
 while IFS= read -r dockerfile; do
+  [[ -n "$dockerfile" ]] || continue
   dockerfiles+=("$dockerfile")
-done < <(find "$MODULES_DIR" -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) | sort)
+done < <(
+  find "$DOCKER_SCAN_ROOT" \
+    -type f \
+    \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) \
+    ! -path "$DOCKER_SCAN_ROOT/docker/*" \
+    ! -path "$DOCKER_SCAN_ROOT/.build/*" \
+    2>/dev/null | sort -u
+)
 
 if [[ ${#dockerfiles[@]} -eq 0 ]]; then
-  info "No service Dockerfiles found under $MODULES_DIR; static policy check passed."
+  info "No service Dockerfiles found under $DOCKER_SCAN_ROOT; static policy check passed."
   exit 0
 fi
 
-info "Scanning ${#dockerfiles[@]} Dockerfile(s) under $MODULES_DIR"
+info "Scanning ${#dockerfiles[@]} Dockerfile(s) under $DOCKER_SCAN_ROOT"
 
 violations=0
 

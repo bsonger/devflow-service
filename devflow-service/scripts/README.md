@@ -38,6 +38,12 @@ docker build
 bash scripts/verify.sh
 ```
 
+The root packaging/build proof for `meta-service` is:
+
+```sh
+bash scripts/build-meta-service.sh
+```
+
 The repo-level convenience entrypoint is:
 
 ```sh

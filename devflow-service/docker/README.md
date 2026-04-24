@@ -1,11 +1,11 @@
 # Docker assets
 
-This directory contains the repository-local Docker baseline for future service packaging in `devflow-service`.
-These assets are shared contract surfaces, not a claim that migrated services already exist under `modules/` today.
+This directory contains the repository-local Docker baseline for service packaging in `devflow-service`.
+These assets are policy references, not alternative service homes.
 
 ## Purpose
 
-Use these files when a later slice adds a real service Dockerfile under `modules/`.
+Use these files when working on the active root `Dockerfile` or when a later slice adds another real service Dockerfile at an explicit service boundary.
 They encode the approved builder/runtime image policy from `docs/docker.md` and provide a copyable artifact-first template that avoids inline package installation.
 
 ## Files
@@ -15,7 +15,7 @@ They encode the approved builder/runtime image policy from `docs/docker.md` and 
 
 ## Current policy
 
-Future service Dockerfiles under `modules/**/Dockerfile*` must:
+Active and future service Dockerfiles must:
 - use approved FROM references only
 - keep build and tool installation in the controlled builder or an earlier staged build pipeline
 - package prebuilt artifacts into `scratch` or another documented controlled runtime image
@@ -37,4 +37,4 @@ The canonical verifier remains:
 bash scripts/verify.sh
 ```
 
-That command now checks this directory, validates approved controlled-image references, and scans service Dockerfiles under `modules/` for banned inline-install patterns.
+That command now checks this directory, validates approved controlled-image references, and scans the active service Dockerfile surfaces outside `docker/` for banned inline-install patterns.

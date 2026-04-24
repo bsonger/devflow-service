@@ -1,6 +1,6 @@
 APP ?= meta-service
 DOCKER_IMAGE ?= $(APP):local
-GOFMT_DIRS := cmd internal modules/meta-service
+GOFMT_DIRS := cmd internal
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOLANGCI_LINT_CACHE ?= $(CURDIR)/.cache/golangci-lint
 GO_RUN_ENV := GOCACHE=$(GOCACHE)
@@ -42,7 +42,7 @@ build:
 .PHONY: package
 package:
 	mkdir -p $(GOCACHE)
-	GOCACHE=$(GOCACHE) bash modules/meta-service/scripts/build.sh
+	GOCACHE=$(GOCACHE) bash scripts/build-meta-service.sh
 
 .PHONY: docker-build
 docker-build: package
@@ -66,4 +66,4 @@ tidy:
 
 .PHONY: clean
 clean:
-	rm -rf ./bin ./modules/meta-service/bin ./modules/meta-service/.build ./.cache
+	rm -rf ./bin ./.build ./.cache

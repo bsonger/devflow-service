@@ -28,6 +28,6 @@ The root layout is:
 - no catch-all `shared/`
 - no catch-all `common/`
 - no catch-all `util/`
-- no long-term `modules/meta-service` home
+- no `modules/` service-code home
 
 Prefer explicit duplication over premature shared abstractions.

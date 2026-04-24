@@ -7,7 +7,7 @@ These constraints apply to the current `devflow-service` migration baseline.
 - Do not create fake migrated code, fake binaries, or pretend verification output.
 - Do not introduce `go.work` or per-service `go.mod` files during this migration.
 - Do not keep or reintroduce `shared/`, `common/`, or `util/` as catch-all directories.
-- Do not keep `modules/meta-service` as the long-term service location.
+- Do not reintroduce `modules/` as a service-code location.
 - Do not bury business semantics inside `internal/platform`.
 - Do not let `cmd/` absorb domain logic or large amounts of module-internal wiring.
 - Do not add install commands such as `apk add`, `apt-get`, `yum`, `dnf`, or `go install` to service Dockerfiles.

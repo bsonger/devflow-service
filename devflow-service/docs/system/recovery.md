@@ -12,7 +12,7 @@ After reading it, a fresh engineer or agent should know:
 ## Current migration state
 
 - Active service: `meta-service`
-- Active migration: move `meta-service` from `modules/meta-service` into the repository root layout
+- Active migration: finish the remaining repo-root cleanup after moving `meta-service` into the repository root layout
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
 
