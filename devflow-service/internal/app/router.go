@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"time"
 
-	applicationmodule "github.com/bsonger/devflow-service/internal/application"
-	clustermodule "github.com/bsonger/devflow-service/internal/cluster"
-	environmentmodule "github.com/bsonger/devflow-service/internal/environment"
-	routercore "github.com/bsonger/devflow-service/internal/platform/routercore"
-	projectmodule "github.com/bsonger/devflow-service/internal/project"
+	"github.com/bsonger/devflow-service/internal/application"
+	"github.com/bsonger/devflow-service/internal/cluster"
+	"github.com/bsonger/devflow-service/internal/environment"
+	"github.com/bsonger/devflow-service/internal/platform/routercore"
+	"github.com/bsonger/devflow-service/internal/project"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/swaggo/files"
+	"github.com/swaggo/gin-swagger"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -89,11 +89,11 @@ func NewRouterWithOptions(opts Options) *gin.Engine {
 }
 
 func RegisterProjectRoutes(rg *gin.RouterGroup) {
-	projectmodule.NewModule().RegisterRoutes(rg)
+	project.NewModule().RegisterRoutes(rg)
 }
 
 func RegisterApplicationCoreRoutes(rg *gin.RouterGroup) {
-	applicationmodule.NewModule().RegisterRoutes(rg)
+	application.NewModule().RegisterRoutes(rg)
 }
 
 func RegisterApplicationRoutes(rg *gin.RouterGroup) {
@@ -101,11 +101,11 @@ func RegisterApplicationRoutes(rg *gin.RouterGroup) {
 }
 
 func RegisterClusterRoutes(rg *gin.RouterGroup) {
-	clustermodule.NewModule().RegisterRoutes(rg)
+	cluster.NewModule().RegisterRoutes(rg)
 }
 
 func RegisterEnvironmentRoutes(rg *gin.RouterGroup) {
-	environmentmodule.NewModule().RegisterRoutes(rg)
+	environment.NewModule().RegisterRoutes(rg)
 }
 
 func serviceName(opts Options) string {

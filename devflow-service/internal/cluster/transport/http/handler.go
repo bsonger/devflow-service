@@ -6,19 +6,19 @@ import (
 	"errors"
 	"net/http"
 
-	clustersvc "github.com/bsonger/devflow-service/internal/cluster/application"
-	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
-	platformhttpx "github.com/bsonger/devflow-service/internal/platform/httpx"
+	"github.com/bsonger/devflow-service/internal/cluster/application"
+	"github.com/bsonger/devflow-service/internal/cluster/domain"
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type clusterService interface {
-	Create(context.Context, *clusterdomain.Cluster) (uuid.UUID, error)
-	Get(context.Context, uuid.UUID) (*clusterdomain.Cluster, error)
-	Update(context.Context, *clusterdomain.Cluster) error
+	Create(context.Context, *domain.Cluster) (uuid.UUID, error)
+	Get(context.Context, uuid.UUID) (*domain.Cluster, error)
+	Update(context.Context, *domain.Cluster) error
 	Delete(context.Context, uuid.UUID) error
-	List(context.Context, clustersvc.ListFilter) ([]clusterdomain.Cluster, error)
+	List(context.Context, application.ListFilter) ([]domain.Cluster, error)
 }
 
 type Handler struct {
@@ -26,12 +26,12 @@ type Handler struct {
 }
 
 type CreateClusterRequest struct {
-	Name              string                    `json:"name" binding:"required"`
-	Server            string                    `json:"server" binding:"required"`
-	KubeConfig        string                    `json:"kubeconfig" binding:"required"`
-	ArgoCDClusterName string                    `json:"argocd_cluster_name,omitempty"`
-	Description       string                    `json:"description,omitempty"`
-	Labels            []clusterdomain.LabelItem `json:"labels,omitempty"`
+	Name              string             `json:"name" binding:"required"`
+	Server            string             `json:"server" binding:"required"`
+	KubeConfig        string             `json:"kubeconfig" binding:"required"`
+	ArgoCDClusterName string             `json:"argocd_cluster_name,omitempty"`
+	Description       string             `json:"description,omitempty"`
+	Labels            []domain.LabelItem `json:"labels,omitempty"`
 }
 
 type UpdateClusterRequest = CreateClusterRequest
@@ -49,14 +49,23 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	cluster.DELETE("/:id", h.Delete)
 }
 
+// Create godoc
+// @Summary 创建集群
+// @Description 创建一个新的集群
+// @Tags Cluster
+// @Accept json
+// @Produce json
+// @Param data body CreateClusterRequest true "Cluster Data"
+// @Success 201 {object} httpx.DataResponse[domain.Cluster]
+// @Router /api/v1/clusters [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateClusterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 		return
 	}
 
-	cluster := &clusterdomain.Cluster{
+	cluster := &domain.Cluster{
 		Name:              req.Name,
 		Server:            req.Server,
 		KubeConfig:        req.KubeConfig,
@@ -72,13 +81,19 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteData(c, http.StatusCreated, cluster)
+	httpx.WriteData(c, http.StatusCreated, cluster)
 }
 
+// Get godoc
+// @Summary 获取集群
+// @Tags Cluster
+// @Param id path string true "Cluster ID"
+// @Success 200 {object} httpx.DataResponse[domain.Cluster]
+// @Router /api/v1/clusters/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
 		return
 	}
 
@@ -88,23 +103,30 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteData(c, http.StatusOK, cluster)
+	httpx.WriteData(c, http.StatusOK, cluster)
 }
 
+// Update godoc
+// @Summary 更新集群
+// @Tags Cluster
+// @Param id path string true "Cluster ID"
+// @Param data body UpdateClusterRequest true "Cluster Data"
+// @Success 204
+// @Router /api/v1/clusters/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
 		return
 	}
 
 	var req UpdateClusterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 		return
 	}
 
-	cluster := clusterdomain.Cluster{
+	cluster := domain.Cluster{
 		Name:              req.Name,
 		Server:            req.Server,
 		KubeConfig:        req.KubeConfig,
@@ -119,13 +141,19 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteNoContent(c)
+	httpx.WriteNoContent(c)
 }
 
+// Delete godoc
+// @Summary 删除集群
+// @Tags Cluster
+// @Param id path string true "Cluster ID"
+// @Success 204
+// @Router /api/v1/clusters/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
 		return
 	}
 
@@ -134,12 +162,17 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteNoContent(c)
+	httpx.WriteNoContent(c)
 }
 
+// List godoc
+// @Summary 获取集群列表
+// @Tags Cluster
+// @Success 200 {object} httpx.ListResponse[domain.Cluster]
+// @Router /api/v1/clusters [get]
 func (h *Handler) List(c *gin.Context) {
-	filter := clustersvc.ListFilter{
-		IncludeDeleted: platformhttpx.IncludeDeleted(c),
+	filter := application.ListFilter{
+		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}
 
@@ -149,33 +182,33 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	paging, err := platformhttpx.ParsePagination(c)
+	paging, err := httpx.ParsePagination(c)
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 		return
 	}
 
 	total := len(clusters)
-	clusters = platformhttpx.PaginateSlice(clusters, paging)
-	platformhttpx.WriteList(c, http.StatusOK, clusters, paging, total)
+	clusters = httpx.PaginateSlice(clusters, paging)
+	httpx.WriteList(c, http.StatusOK, clusters, paging, total)
 }
 
 func writeClusterError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		platformhttpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
-	case errors.Is(err, clustersvc.ErrClusterConflict):
-		platformhttpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
-	case errors.Is(err, clustersvc.ErrClusterNameRequired),
-		errors.Is(err, clustersvc.ErrClusterServerRequired),
-		errors.Is(err, clustersvc.ErrClusterKubeConfigRequired),
-		errors.Is(err, clustersvc.ErrClusterOnboardingMalformed):
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-	case errors.Is(err, clustersvc.ErrClusterOnboardingTimeout):
-		platformhttpx.WriteError(c, http.StatusGatewayTimeout, "deadline_exceeded", err.Error(), nil)
-	case errors.Is(err, clustersvc.ErrClusterOnboardingFailed):
-		platformhttpx.WriteError(c, http.StatusConflict, "failed_precondition", err.Error(), nil)
+		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+	case errors.Is(err, application.ErrClusterConflict):
+		httpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
+	case errors.Is(err, application.ErrClusterNameRequired),
+		errors.Is(err, application.ErrClusterServerRequired),
+		errors.Is(err, application.ErrClusterKubeConfigRequired),
+		errors.Is(err, application.ErrClusterOnboardingMalformed):
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	case errors.Is(err, application.ErrClusterOnboardingTimeout):
+		httpx.WriteError(c, http.StatusGatewayTimeout, "deadline_exceeded", err.Error(), nil)
+	case errors.Is(err, application.ErrClusterOnboardingFailed):
+		httpx.WriteError(c, http.StatusConflict, "failed_precondition", err.Error(), nil)
 	default:
-		platformhttpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
 	}
 }

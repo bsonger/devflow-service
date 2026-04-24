@@ -1,18 +1,18 @@
 package environment
 
 import (
-	envsvc "github.com/bsonger/devflow-service/internal/environment/application"
-	envhttp "github.com/bsonger/devflow-service/internal/environment/transport/http"
+	"github.com/bsonger/devflow-service/internal/environment/application"
+	"github.com/bsonger/devflow-service/internal/environment/transport/http"
 	"github.com/gin-gonic/gin"
 )
 
 type Module struct {
-	handler *envhttp.Handler
+	handler *http.Handler
 }
 
 func NewModule() Module {
 	return Module{
-		handler: envhttp.NewHandler(envsvc.DefaultService),
+		handler: http.NewHandler(application.DefaultService),
 	}
 }
 

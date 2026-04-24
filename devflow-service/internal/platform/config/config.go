@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
-	platformobservability "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	"github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/spf13/viper"
 )
 
@@ -62,7 +62,7 @@ func InitConfig(ctx context.Context, config *Config) error {
 }
 
 func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(context.Context) error, error) {
-	shutdown, err := platformobservability.Init(ctx, platformobservability.RuntimeOptions{
+	shutdown, err := observability.Init(ctx, observability.RuntimeOptions{
 		LogLevel:        stringValue(config.Log, func(v *LogConfig) string { return v.Level }),
 		LogFormat:       stringValue(config.Log, func(v *LogConfig) string { return v.Format }),
 		OtelEndpoint:    stringValue(config.Otel, func(v *OtelConfig) string { return v.Endpoint }),
@@ -78,7 +78,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	if err != nil {
 		return shutdown, err
 	}
-	platformdb.ApplyPool(conn,
+	db.ApplyPool(conn,
 		intValue(config.Postgres, func(v *PostgresConfig) int { return v.MaxOpenConns }),
 		intValue(config.Postgres, func(v *PostgresConfig) int { return v.MaxIdleConns }),
 		intValue(config.Postgres, func(v *PostgresConfig) int { return v.ConnMaxLifetimeMinutes }),
@@ -88,7 +88,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		return shutdown, err
 	}
 
-	platformdb.InitPostgres(conn)
+	db.InitPostgres(conn)
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)

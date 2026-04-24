@@ -16,6 +16,9 @@ The target local layout for this service is:
 - infrastructure code under `internal/platform/...`
 - packaging and verification contracts rooted at the repository root
 
+`modules/meta-service` is now a transitional packaging boundary only.
+It is not the source of truth for runtime Go packages.
+
 ## Current diagnostics
 
 Use these surfaces when working on or diagnosing this service:

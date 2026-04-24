@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 )
 
 type statusResponse struct {

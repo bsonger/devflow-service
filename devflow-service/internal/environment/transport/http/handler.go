@@ -6,19 +6,19 @@ import (
 	"errors"
 	"net/http"
 
-	envsvc "github.com/bsonger/devflow-service/internal/environment/application"
-	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
-	platformhttpx "github.com/bsonger/devflow-service/internal/platform/httpx"
+	"github.com/bsonger/devflow-service/internal/environment/application"
+	"github.com/bsonger/devflow-service/internal/environment/domain"
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type environmentService interface {
-	Create(context.Context, *envdomain.Environment) (uuid.UUID, error)
-	Get(context.Context, uuid.UUID) (*envdomain.Environment, error)
-	Update(context.Context, *envdomain.Environment) error
+	Create(context.Context, *domain.Environment) (uuid.UUID, error)
+	Get(context.Context, uuid.UUID) (*domain.Environment, error)
+	Update(context.Context, *domain.Environment) error
 	Delete(context.Context, uuid.UUID) error
-	List(context.Context, envsvc.ListFilter) ([]envdomain.Environment, error)
+	List(context.Context, application.ListFilter) ([]domain.Environment, error)
 }
 
 type Handler struct {
@@ -26,10 +26,10 @@ type Handler struct {
 }
 
 type CreateEnvironmentRequest struct {
-	Name        string                `json:"name" binding:"required"`
-	ClusterID   uuid.UUID             `json:"cluster_id" binding:"required"`
-	Description string                `json:"description,omitempty"`
-	Labels      []envdomain.LabelItem `json:"labels,omitempty"`
+	Name        string             `json:"name" binding:"required"`
+	ClusterID   uuid.UUID          `json:"cluster_id" binding:"required"`
+	Description string             `json:"description,omitempty"`
+	Labels      []domain.LabelItem `json:"labels,omitempty"`
 }
 
 type UpdateEnvironmentRequest = CreateEnvironmentRequest
@@ -47,14 +47,22 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	environment.DELETE("/:id", h.Delete)
 }
 
+// Create godoc
+// @Summary 创建环境
+// @Tags Environment
+// @Accept json
+// @Produce json
+// @Param data body CreateEnvironmentRequest true "Environment Data"
+// @Success 201 {object} httpx.DataResponse[domain.Environment]
+// @Router /api/v1/environments [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateEnvironmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 		return
 	}
 
-	environment := &envdomain.Environment{
+	environment := &domain.Environment{
 		Name:        req.Name,
 		ClusterID:   req.ClusterID,
 		Description: req.Description,
@@ -68,13 +76,19 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteData(c, http.StatusCreated, environment)
+	httpx.WriteData(c, http.StatusCreated, environment)
 }
 
+// Get godoc
+// @Summary 获取环境
+// @Tags Environment
+// @Param id path string true "Environment ID"
+// @Success 200 {object} httpx.DataResponse[domain.Environment]
+// @Router /api/v1/environments/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
 		return
 	}
 
@@ -84,23 +98,30 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteData(c, http.StatusOK, environment)
+	httpx.WriteData(c, http.StatusOK, environment)
 }
 
+// Update godoc
+// @Summary 更新环境
+// @Tags Environment
+// @Param id path string true "Environment ID"
+// @Param data body UpdateEnvironmentRequest true "Environment Data"
+// @Success 204
+// @Router /api/v1/environments/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
 		return
 	}
 
 	var req UpdateEnvironmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 		return
 	}
 
-	environment := envdomain.Environment{
+	environment := domain.Environment{
 		Name:        req.Name,
 		ClusterID:   req.ClusterID,
 		Description: req.Description,
@@ -113,13 +134,19 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteNoContent(c)
+	httpx.WriteNoContent(c)
 }
 
+// Delete godoc
+// @Summary 删除环境
+// @Tags Environment
+// @Param id path string true "Environment ID"
+// @Success 204
+// @Router /api/v1/environments/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
 		return
 	}
 
@@ -128,18 +155,23 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	platformhttpx.WriteNoContent(c)
+	httpx.WriteNoContent(c)
 }
 
+// List godoc
+// @Summary 获取环境列表
+// @Tags Environment
+// @Success 200 {object} httpx.ListResponse[domain.Environment]
+// @Router /api/v1/environments [get]
 func (h *Handler) List(c *gin.Context) {
-	filter := envsvc.ListFilter{
-		IncludeDeleted: platformhttpx.IncludeDeleted(c),
+	filter := application.ListFilter{
+		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}
 	if clusterID := c.Query("cluster_id"); clusterID != "" {
 		id, err := uuid.Parse(clusterID)
 		if err != nil {
-			platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid cluster_id", nil)
+			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid cluster_id", nil)
 			return
 		}
 		filter.ClusterID = &id
@@ -151,28 +183,28 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	paging, err := platformhttpx.ParsePagination(c)
+	paging, err := httpx.ParsePagination(c)
 	if err != nil {
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 		return
 	}
 
 	total := len(environments)
-	environments = platformhttpx.PaginateSlice(environments, paging)
-	platformhttpx.WriteList(c, http.StatusOK, environments, paging, total)
+	environments = httpx.PaginateSlice(environments, paging)
+	httpx.WriteList(c, http.StatusOK, environments, paging, total)
 }
 
 func writeEnvironmentError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		platformhttpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
-	case errors.Is(err, envsvc.ErrEnvironmentConflict):
-		platformhttpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
-	case errors.Is(err, envsvc.ErrEnvironmentNameRequired),
-		errors.Is(err, envsvc.ErrEnvironmentClusterRequired),
-		errors.Is(err, envsvc.ErrClusterReferenceNotFound):
-		platformhttpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+	case errors.Is(err, application.ErrEnvironmentConflict):
+		httpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
+	case errors.Is(err, application.ErrEnvironmentNameRequired),
+		errors.Is(err, application.ErrEnvironmentClusterRequired),
+		errors.Is(err, application.ErrClusterReferenceNotFound):
+		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
 	default:
-		platformhttpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
 	}
 }

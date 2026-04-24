@@ -1,7 +1,7 @@
 package pyroscopex
 
 import (
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/grafana/pyroscope-go"
 	"go.uber.org/zap"
 )

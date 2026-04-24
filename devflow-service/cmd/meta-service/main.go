@@ -1,38 +1,43 @@
+// @title DevFlow Meta Service API
+// @version 1.0
+// @description DevFlow meta-service HTTP API.
+// @BasePath /
+
 package main
 
 import (
-	serviceapp "github.com/bsonger/devflow-service/internal/app"
-	platformconfig "github.com/bsonger/devflow-service/internal/platform/config"
-	platformbootstrap "github.com/bsonger/devflow-service/internal/platform/runtime/bootstrap"
-	platformobservability "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	"github.com/bsonger/devflow-service/internal/app"
+	"github.com/bsonger/devflow-service/internal/platform/config"
+	"github.com/bsonger/devflow-service/internal/platform/runtime/bootstrap"
+	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 )
 
 func main() {
-	err := platformbootstrap.Run(platformbootstrap.Options[platformconfig.Config, serviceapp.Options, string]{
+	err := bootstrap.Run(bootstrap.Options[config.Config, app.Options, string]{
 		Name: "meta-service",
-		RouteOptions: serviceapp.Options{
+		RouteOptions: app.Options{
 			ServiceName:   "meta-service",
 			EnableSwagger: true,
-			Modules: []serviceapp.Module{
-				serviceapp.ModuleProject,
-				serviceapp.ModuleApplication,
-				serviceapp.ModuleCluster,
-				serviceapp.ModuleEnvironment,
+			Modules: []app.Module{
+				app.ModuleProject,
+				app.ModuleApplication,
+				app.ModuleCluster,
+				app.ModuleEnvironment,
 			},
 		},
-		Load:        platformconfig.Load,
-		InitRuntime: platformconfig.InitRuntime,
-		NewRouter: func(opts serviceapp.Options) platformbootstrap.Runner {
-			return serviceapp.NewRouterWithOptions(opts)
+		Load:        config.Load,
+		InitRuntime: config.InitRuntime,
+		NewRouter: func(opts app.Options) bootstrap.Runner {
+			return app.NewRouterWithOptions(opts)
 		},
-		ResolveConfigPort: func(cfg *platformconfig.Config) int {
+		ResolveConfigPort: func(cfg *config.Config) int {
 			if cfg != nil && cfg.Server != nil {
 				return cfg.Server.Port
 			}
 			return 0
 		},
-		StartMetricsServer: platformobservability.StartMetricsServer,
-		StartPprofServer:   platformobservability.StartPprofServer,
+		StartMetricsServer: observability.StartMetricsServer,
+		StartPprofServer:   observability.StartPprofServer,
 		PortEnv:            "META_SERVICE_PORT",
 		DefaultPort:        8081,
 		MetricsPortEnv:     "META_SERVICE_METRICS_PORT",

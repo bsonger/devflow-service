@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
-	otelx "github.com/bsonger/devflow-service/internal/platform/otel"
-	pyroscopex "github.com/bsonger/devflow-service/internal/platform/runtime/pyroscopex"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/otel"
+	"github.com/bsonger/devflow-service/internal/platform/runtime/pyroscopex"
 	"go.opentelemetry.io/otel/trace"
 )
 

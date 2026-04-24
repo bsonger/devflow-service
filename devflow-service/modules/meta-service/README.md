@@ -7,8 +7,8 @@ The runtime identity remains `meta-service`, but the active root entrypoint and 
 
 This module now contains:
 - the service-local packaging and staging surface
-- compatibility entrypoints and wrappers that still support the migration
-- the remaining migrated API/app/domain/store/router packages under `pkg/`
+- the service-local Docker packaging surface
+- the build and Swagger staging scripts that package the root-owned service
 - health and readiness endpoints that return `service: meta-service`
 - a service-local build surface at `scripts/build.sh`
 - a service-local artifact-first packaging surface at `Dockerfile`
@@ -19,6 +19,7 @@ This slice does **not** claim that all historical runtime assets from `devflow-a
 In particular:
 - `scripts/build.sh` stages `docs/` and `config/` only if those tracked directories exist in this module
 - Swagger regeneration is optional and staged into temporary build output so generated files do not change the default `go test ./...` package graph
+- this module is no longer the source of truth for runtime Go packages
 - deployment/runtime rollout and any remaining config migration work still belong to S05 or later
 
 ## Build and package

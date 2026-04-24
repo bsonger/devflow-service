@@ -1,18 +1,18 @@
 package cluster
 
 import (
-	clustersvc "github.com/bsonger/devflow-service/internal/cluster/application"
-	clusterhttp "github.com/bsonger/devflow-service/internal/cluster/transport/http"
+	"github.com/bsonger/devflow-service/internal/cluster/application"
+	"github.com/bsonger/devflow-service/internal/cluster/transport/http"
 	"github.com/gin-gonic/gin"
 )
 
 type Module struct {
-	handler *clusterhttp.Handler
+	handler *http.Handler
 }
 
 func NewModule() Module {
 	return Module{
-		handler: clusterhttp.NewHandler(clustersvc.DefaultService),
+		handler: http.NewHandler(application.DefaultService),
 	}
 }
 

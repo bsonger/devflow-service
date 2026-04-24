@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"go.uber.org/zap"
 )
 

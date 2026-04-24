@@ -6,7 +6,7 @@ import (
 	"net/http/pprof"
 	"strings"
 
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
