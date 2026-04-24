@@ -10,7 +10,7 @@ They encode the approved builder/runtime image policy from `docs/docker.md` and 
 
 ## Files
 
-- `golang-builder.Dockerfile` — repo-local copy of the controlled Go builder baseline (`registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.25.8` source shape) for auditability and future local promotion
+- `golang-builder.Dockerfile` — repo-local copy of the controlled Go builder baseline (`registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2` source shape) for auditability and future local promotion
 - `service.Dockerfile.template` — packaging-only template for future service boundaries; it copies prebuilt artifacts into an approved runtime base and bans inline install steps by structure
 
 ## Current policy

@@ -1,44 +1,111 @@
 # AGENTS
 
-## Startup
-Read in this order:
-1. `docs/recovery.md`
+## Purpose
+
+This is the canonical startup and operating guide for agents working in `devflow-service`.
+Read this before broad exploration.
+Use it to decide what to read first, which local docs own the current fact, when to consult `devflow-control`, and how to continue the `meta-service` root migration without reviving the old layout.
+
+## Canonical startup contract
+
+`AGENTS.md` is the only canonical startup contract for agents in this repo.
+
+Default startup read set:
+1. this file: `AGENTS.md`
+2. `docs/system/recovery.md`
+3. `README.md`
+4. `docs/system/architecture.md`
+5. `docs/policies/docker-baseline.md` only if the task touches build, image, packaging, or CI
+6. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification or repo scripts
+7. `../devflow-control/docs/target-architecture/devflow-service.md` only if the task changes migration boundaries or repo shape beyond current local docs
+8. `../devflow-control/docs/target-architecture/devflow-service-migration-handoff.md` only if the task changes migration sequencing or needs future-state lane guidance
+
+Do not read every doc by default.
+Do not use `devflow-control` future-state docs to override this repo's active local execution contract.
+
+## Reader outcome
+
+After reading this file, a fresh engineer or agent should be able to:
+- make normal repo changes without regressing the current contract
+- continue the `meta-service` restructuring under the new root-level layout
+- distinguish between this repo's current execution truth and `devflow-control`'s future-state guidance
+
+## Authority ladder
+
+When documents disagree, trust them in this order:
+1. this repo's current implementation-facing docs and verification surfaces
+2. this file as the canonical startup and routing contract
+3. `../devflow-control/docs/target-architecture/*.md` for future-state migration boundaries only
+4. `docs/superpowers/specs/` and `docs/superpowers/plans/` for historical design context only
+
+If a conflict remains after reading the highest-authority current docs, stop and resolve it instead of guessing.
+
+## Task-intent routing
+
+### If the task is repo-local implementation work
+Read:
+1. `docs/system/recovery.md`
 2. `README.md`
-3. `docs/README.md`
-4. `docs/docker.md`
-5. `docs/architecture.md`
-6. `docs/constraints.md`
-7. `docs/observability.md`
-8. `scripts/README.md`
-9. `modules/meta-service/README.md`
+3. `docs/system/architecture.md`
+4. one additional local doc only if the task needs it
 
-Public API: not yet.
-This repo currently owns the root Go module, extracted shared infrastructure packages, the repository-local Docker contract in `docs/docker.md`, the first migrated owner-service under `modules/meta-service`, and the repo-local recovery/verification contract for interruption-safe resume.
-If ownership, migration authority, or final workspace-shape questions appear, go back to `../devflow/devflow-control/docs/target-architecture/devflow-service.md` and `../devflow/devflow-control/docs/target-architecture/devflow-service-migration-handoff.md`, but treat this repo's root-module contract and `docs/recovery.md` as the current local execution truth for M005/S05.
+### If the task is Docker, build-image, or CI work
+Read:
+1. `docs/system/recovery.md`
+2. `docs/policies/docker-baseline.md`
+3. `docs/policies/verification.md`
+4. `scripts/README.md`
 
-## Commands
-- `bash scripts/verify.sh` — canonical repo-local recovery and handoff proof; rerun this first after interruption
-- `bash modules/meta-service/scripts/build.sh` — drill down when `modules/meta-service` build or artifact staging is in doubt
-- `bash scripts/check-docker-policy.sh` — drill down when Dockerfile policy drift is suspected
-- `go test ./...` — final compile/test proof already composed into `bash scripts/verify.sh`
-- inspect `docs/docker.md` before adding any future service Dockerfile under `modules/`
+### If the task is verification or handoff hardening
+Read:
+1. `docs/system/recovery.md`
+2. `docs/system/observability.md`
+3. `docs/policies/verification.md`
+4. `scripts/README.md`
 
-## Current repository rules
-- Treat `go.mod` at the repo root as the active build contract.
-- Use `go 1.25.8`; this matches the controlled builder image tag and supersedes sibling repos still on `1.25.6`.
-- Follow `docs/docker.md` for the controlled Docker baseline: approved Aliyun registry references, artifact-first packaging, and the ban on inline install commands in future service Dockerfiles.
-- Do not create `go.work` or per-service `go.mod` files in this slice.
-- Do not create fake service implementations, placeholder binaries, or pretend verification output just to make the tree look complete.
-- Keep owner-service boundaries explicit when real code migration begins; do not hide domain ownership inside `shared/` or `gateway/`.
-- `shared/` is for infrastructure-only packages such as transport, bootstrap, router, and observability helpers that multiple future modules can import.
-- The current extracted shared seam is `httpx`, `loggingx`, `otelx`, `pyroscopex`, `observability`, `routercore`, and `bootstrap`.
-- `docs/recovery.md` is the single recovery authority; do not create a parallel resume/state file.
+### If the task is migration-boundary or future-shape work
+Read:
+1. `docs/system/recovery.md`
+2. `docs/system/architecture.md`
+3. `../devflow-control/docs/target-architecture/devflow-service.md`
+4. `../devflow-control/docs/target-architecture/devflow-service-migration-handoff.md`
+
+### If the task is doc-only governance inside this repo
+Read:
+1. `docs/README.md`
+2. `docs/index/README.md`
+3. the smallest local authoritative docs implicated by the change
+
+## Current migration focus
+
+- The current service name remains `meta-service`.
+- The current migration target is to move `meta-service` into the repository root layout.
+- Do not expand this work into future services during the current pass.
+- Do not preserve old structure just to reduce diff size.
+
+## Current local rules
+
+- This repository root is the active `repo/` for current work.
+- Use `cmd` to isolate process entrypoints.
+- Use `internal` to isolate implementation.
+- Use business domains to isolate ownership boundaries.
+- Use `application`, `domain`, `repository`, and `transport` to control responsibilities.
+- Do not keep or reintroduce `shared/`, `common/`, or `util/` as catch-all directories.
+- Keep service Dockerfiles free of install commands; installation belongs in controlled base images.
+- Keep behavior stable while restructuring; do not use this migration as cover for unrelated business logic rewrites.
 
 ## Before handoff
-- Rerun `bash scripts/verify.sh` from the repo root.
-- Confirm `docs/recovery.md` still describes the active slice goal, last-known verification sequence, first rerun command, and failure-routing guidance honestly.
-- Confirm `README.md`, `docs/observability.md`, and `scripts/README.md` still describe the same command order and guarantees as `docs/recovery.md`.
-- Confirm no new `go.work`, per-service `go.mod`, fake `cmd/` binaries, or fake `modules/` code were introduced.
+
+- Rerun the repo verification stack from the repo root.
+- Confirm `AGENTS.md`, `README.md`, `docs/system/*`, `docs/services/*`, `docs/policies/*`, and `scripts/README.md` describe the same layout and command order.
+- Confirm the active service still builds as `meta-service`.
+- Confirm no catch-all `shared/`, `common/`, or `util/` directories were reintroduced.
 
 ## When to go back to devflow-control
-Go back when the task changes migration sequencing, ownership boundaries, gateway/governance expectations, or the eventual post-S02 workspace design.
+
+Go back to `devflow-control` when the task changes:
+- migration sequencing across multiple future services
+- ownership boundaries between domains
+- gateway or Kong governance expectations
+- future-state CI/governance contracts beyond the current repo migration
+- the decision to reintroduce multi-module or workspace-level Go structure

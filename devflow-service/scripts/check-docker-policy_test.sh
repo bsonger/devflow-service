@@ -15,7 +15,7 @@ trap cleanup EXIT
 mkdir -p "$VALID_DIR" "$INVALID_DIR"
 
 cat > "$VALID_DIR/Dockerfile.package" <<'EOF_VALID'
-FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.25.8 AS builder
+FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2 AS builder
 WORKDIR /workspace
 COPY . .
 RUN go build -o /out/meta-service ./cmd/meta-service

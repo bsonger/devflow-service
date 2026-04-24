@@ -5,45 +5,58 @@ This directory contains repo-level verification and support scripts.
 ## Reader and outcome
 
 This guide is for a fresh engineer or agent landing in `devflow-service`.
-After reading it, the reader should know which repo-local script to run first and what that script proves.
+After reading it, the reader should know which repo-local script to run first and what that script is supposed to prove during the migration.
 
 ## Canonical verifier
 
-Run this from the repo root before handoff or after changing root docs, recovery guidance, shared package surfaces, migrated service surfaces, repository structure, or Docker policy files:
+Run this from the repo root before handoff or after changing docs, verification rules, Docker policy, repo layout, or build paths:
 
 ```sh
 bash scripts/verify.sh
 ```
 
-This is the canonical repo-local handoff check for the current root-module baseline and the current enforcement point for the Docker contract in `docs/docker.md`.
+This remains the canonical repo-local handoff check while the repository migrates from the older nested shape to the root `cmd/` and `internal/` layout.
 
-## What `verify.sh` checks
+## What `verify.sh` should prove
 
-The verifier fails fast and checks:
-- root `go.mod` exists and is non-empty
-- required root docs exist and are non-empty
-- required Docker contract files exist and are non-empty (`docs/docker.md`, `docker/README.md`, `docker/golang-builder.Dockerfile`, `docker/service.Dockerfile.template`, and the Docker policy scripts)
-- root entrypoints point to `docs/recovery.md` and `bash scripts/verify.sh`
-- repo-local docs mention the root-module contract
-- Docker docs and Docker asset docs still advertise the controlled Docker baseline, approved `FROM` references, and the inline-install ban
-- expected shared baseline packages exist under `shared/httpx`, `shared/loggingx`, `shared/otelx`, `shared/pyroscopex`, `shared/observability`, `shared/routercore`, and `shared/bootstrap`
-- `modules/meta-service/` exists and includes `README.md`, `scripts/build.sh`, `scripts/regen-swagger.sh`, and `Dockerfile`
-- `bash modules/meta-service/scripts/build.sh` passes as the real migrated-service build proof, even though that intentionally refreshes artifacts under `modules/meta-service/.build` and `modules/meta-service/bin`
-- `scripts/check-docker-policy.sh` scans any service Dockerfiles under `modules/**/Dockerfile*` and fails with file-localized diagnostics for banned inline install commands or unapproved `FROM` references
-- `go test ./...` passes as the authoritative compile/test proof for the code currently landed here
+The verifier should fail fast and prove:
+- repo-local startup and docs surfaces exist under the layered docs structure
+- the active Go baseline matches the current contract
+- Docker policy is enforced from the policy docs and script checks
+- `meta-service` builds from the active root layout
+- `go test ./...` still passes
 
-This keeps the repo-local verifier honest: it proves the local handoff surface exists, that the first migrated service still has its tracked build/package surfaces and can still build from the repo root, and that the root module plus extracted shared packages still compile.
+The target proof stack for the repo is:
 
-## What this verifier does not claim
+```sh
+gofmt ./...
+go vet ./...
+golangci-lint run
+go test ./...
+go build -o bin/meta-service ./cmd/meta-service
+docker build
+bash scripts/verify.sh
+```
 
-`verify.sh` does **not** claim that every owner-service migration, top-level runnable binary, or gateway implementation already exists.
-It verifies the repository-local root-module/shared-baseline contract plus the first migrated `meta-service` surface only.
+The repo-level convenience entrypoint is:
 
-## Expected future role
+```sh
+make ci
+```
 
-Later slices can extend this directory with real repo-wide helpers for:
-- migration integrity checks once owner modules land
-- whole-repo verification that composes module-level checks
-- build or generation helpers that are truly repo-wide
+The matching automated workflow is:
 
-Any future script added here should remain runnable from the repo root and should be documented in reader-first terms.
+```text
+.github/workflows/ci.yml
+```
+
+## What this verifier should not claim
+
+`verify.sh` should not pretend that the migration is already complete while old paths are still in use.
+It should verify the active local contract honestly.
+
+## Related docs
+
+- `docs/policies/verification.md`
+- `docs/policies/docker-baseline.md`
+- `docs/system/recovery.md`

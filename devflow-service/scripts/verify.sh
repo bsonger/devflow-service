@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 META_SERVICE_DIR="$ROOT_DIR/modules/meta-service"
+GO_CACHE_DIR="${GOCACHE:-$ROOT_DIR/.cache/go-build}"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -45,7 +46,8 @@ run_meta_service_build() {
   info "Running migrated meta-service build proof (artifacts under modules/meta-service/.build and bin are expected)"
   (
     cd "$ROOT_DIR"
-    bash modules/meta-service/scripts/build.sh
+    mkdir -p "$GO_CACHE_DIR"
+    GOCACHE="$GO_CACHE_DIR" bash modules/meta-service/scripts/build.sh
   )
 }
 
@@ -53,51 +55,61 @@ run_go_test() {
   info "Running go test ./..."
   (
     cd "$ROOT_DIR"
-    go test ./...
+    mkdir -p "$GO_CACHE_DIR"
+    GOCACHE="$GO_CACHE_DIR" go test ./...
   )
 }
 
 info "Checking repository-local root-module and recovery surfaces"
 require_file "$ROOT_DIR/go.mod" "root go.mod"
+require_file "$ROOT_DIR/.gitignore" "root .gitignore"
 require_file "$ROOT_DIR/README.md" "root README"
 require_file "$ROOT_DIR/AGENTS.md" "root AGENTS"
+require_file "$ROOT_DIR/.github/workflows/ci.yml" "repo CI workflow"
 require_file "$ROOT_DIR/docs/README.md" "docs index"
-require_file "$ROOT_DIR/docs/architecture.md" "architecture doc"
-require_file "$ROOT_DIR/docs/constraints.md" "constraints doc"
-require_file "$ROOT_DIR/docs/observability.md" "observability doc"
-require_file "$ROOT_DIR/docs/recovery.md" "recovery doc"
+require_file "$ROOT_DIR/docs/index/README.md" "docs index README"
+require_file "$ROOT_DIR/docs/index/getting-started.md" "docs getting started"
+require_file "$ROOT_DIR/docs/index/agent-path.md" "docs agent path"
+require_file "$ROOT_DIR/docs/system/architecture.md" "system architecture doc"
+require_file "$ROOT_DIR/docs/system/constraints.md" "system constraints doc"
+require_file "$ROOT_DIR/docs/system/observability.md" "system observability doc"
+require_file "$ROOT_DIR/docs/system/recovery.md" "system recovery doc"
+require_file "$ROOT_DIR/docs/services/meta-service.md" "meta-service service doc"
+require_file "$ROOT_DIR/docs/policies/repo-layout.md" "repo layout policy doc"
+require_file "$ROOT_DIR/docs/policies/docker-baseline.md" "docker baseline policy doc"
+require_file "$ROOT_DIR/docs/policies/verification.md" "verification policy doc"
 require_file "$ROOT_DIR/scripts/README.md" "scripts README"
 require_file "$ROOT_DIR/scripts/verify.sh" "repo-local verifier"
 require_file "$ROOT_DIR/scripts/check-docker-policy.sh" "Docker policy checker"
 require_file "$ROOT_DIR/scripts/check-docker-policy_test.sh" "Docker policy checker test"
-require_file "$ROOT_DIR/docs/docker.md" "Docker contract doc"
+require_file "$ROOT_DIR/docs/docker.md" "Docker redirect doc"
 require_dir "$ROOT_DIR/docker" "docker assets directory"
 require_file "$ROOT_DIR/docker/README.md" "docker assets README"
 require_file "$ROOT_DIR/docker/golang-builder.Dockerfile" "repo-local golang builder Dockerfile"
 require_file "$ROOT_DIR/docker/service.Dockerfile.template" "service Dockerfile template"
+require_dir "$ROOT_DIR/docs/generated" "generated docs directory"
+require_dir "$ROOT_DIR/docs/archive" "archive docs directory"
 
 require_dir "$ROOT_DIR/cmd" "cmd directory"
+require_dir "$ROOT_DIR/internal" "internal directory"
+require_dir "$ROOT_DIR/api" "api directory"
+require_dir "$ROOT_DIR/deployments" "deployments directory"
+require_dir "$ROOT_DIR/test" "test directory"
 require_dir "$ROOT_DIR/modules" "modules directory"
-require_dir "$ROOT_DIR/shared" "shared directory"
 require_dir "$ROOT_DIR/gateway" "gateway directory"
 
-for pkg in httpx loggingx otelx pyroscopex observability routercore bootstrap; do
-  require_dir "$ROOT_DIR/shared/$pkg" "shared/$pkg directory"
-done
+require_dir "$ROOT_DIR/internal/app" "internal app assembly directory"
+require_dir "$ROOT_DIR/internal/platform" "internal platform directory"
+require_dir "$ROOT_DIR/internal/platform/config" "internal platform config directory"
+require_dir "$ROOT_DIR/internal/platform/db" "internal platform db directory"
+require_file "$ROOT_DIR/internal/app/router.go" "internal app router"
+require_file "$ROOT_DIR/internal/app/router_test.go" "internal app router tests"
+require_file "$ROOT_DIR/internal/platform/config/config.go" "internal platform config"
+require_file "$ROOT_DIR/internal/platform/db/postgres.go" "internal platform db"
 
-require_file "$ROOT_DIR/shared/httpx/pagination.go" "shared/httpx pagination helper"
-require_file "$ROOT_DIR/shared/httpx/response.go" "shared/httpx response helper"
-require_file "$ROOT_DIR/shared/httpx/httpx_test.go" "shared/httpx tests"
-require_file "$ROOT_DIR/shared/loggingx/logging.go" "shared/loggingx logger helper"
-require_file "$ROOT_DIR/shared/loggingx/logging_test.go" "shared/loggingx tests"
-require_file "$ROOT_DIR/shared/otelx/metrics.go" "shared/otelx metrics helper"
-require_file "$ROOT_DIR/shared/otelx/tracer.go" "shared/otelx tracer helper"
-require_file "$ROOT_DIR/shared/pyroscopex/pyroscope.go" "shared/pyroscopex profiler helper"
-require_file "$ROOT_DIR/shared/observability/runtime.go" "shared/observability runtime helper"
-require_file "$ROOT_DIR/shared/observability/server.go" "shared/observability server helper"
-require_file "$ROOT_DIR/shared/observability/dependency.go" "shared/observability dependency helper"
-require_file "$ROOT_DIR/shared/routercore/gin.go" "shared/routercore gin helper"
-require_file "$ROOT_DIR/shared/bootstrap/service.go" "shared/bootstrap service helper"
+[[ ! -d "$ROOT_DIR/shared" ]] || fail "catch-all shared directory must not exist: $ROOT_DIR/shared"
+[[ ! -d "$ROOT_DIR/common" ]] || fail "catch-all common directory must not exist: $ROOT_DIR/common"
+[[ ! -d "$ROOT_DIR/util" ]] || fail "catch-all util directory must not exist: $ROOT_DIR/util"
 
 info "Checking migrated meta-service surfaces"
 require_dir "$META_SERVICE_DIR" "meta-service directory"
@@ -106,49 +118,49 @@ require_file "$META_SERVICE_DIR/scripts/build.sh" "meta-service build script"
 require_file "$META_SERVICE_DIR/scripts/regen-swagger.sh" "meta-service swagger regen script"
 require_file "$META_SERVICE_DIR/Dockerfile" "meta-service Dockerfile"
 require_file "$META_SERVICE_DIR/cmd/main.go" "meta-service entrypoint"
-require_file "$META_SERVICE_DIR/pkg/router/router_test.go" "meta-service router identity test"
 
 info "Checking root module contract"
 require_literal "$ROOT_DIR/go.mod" "module path" "module github.com/bsonger/devflow-service"
-require_literal "$ROOT_DIR/go.mod" "go baseline" "go 1.25.8"
+require_literal "$ROOT_DIR/go.mod" "go baseline" "go 1.26.2"
 
 info "Checking root entrypoint wiring"
-require_literal "$ROOT_DIR/README.md" "README recovery link" "docs/recovery.md"
+require_literal "$ROOT_DIR/README.md" "README recovery link" "docs/system/recovery.md"
 require_literal "$ROOT_DIR/README.md" "README verifier command" "bash scripts/verify.sh"
-require_literal "$ROOT_DIR/AGENTS.md" "AGENTS recovery link" "docs/recovery.md"
-require_literal "$ROOT_DIR/AGENTS.md" "AGENTS verifier command" "bash scripts/verify.sh"
-require_literal "$ROOT_DIR/docs/README.md" "docs index recovery link" "recovery.md"
+require_literal "$ROOT_DIR/AGENTS.md" "AGENTS recovery link" "docs/system/recovery.md"
+require_literal "$ROOT_DIR/docs/README.md" "docs index agent start" "AGENTS.md"
+require_literal "$ROOT_DIR/docs/index/README.md" "index README canonical agent start" "AGENTS.md"
 require_literal "$ROOT_DIR/scripts/README.md" "scripts README verifier command" "bash scripts/verify.sh"
-require_literal "$ROOT_DIR/docs/docker.md" "Docker contract banner" "controlled Docker baseline"
-require_literal "$ROOT_DIR/docs/docker.md" "Docker contract inline install ban" "go install"
+require_literal "$ROOT_DIR/docs/policies/docker-baseline.md" "Docker baseline install ban" "go install"
+require_literal "$ROOT_DIR/docs/policies/docker-baseline.md" "Docker baseline go version" "1.26.2"
 require_literal "$ROOT_DIR/docker/README.md" "docker assets README verifier command" "bash scripts/verify.sh"
 require_literal "$ROOT_DIR/docker/README.md" "docker assets README policy reference" "approved FROM references"
+require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy make ci" "make ci"
+require_literal "$ROOT_DIR/scripts/README.md" "scripts README make ci" "make ci"
 
-info "Checking repo-local root-module documentation"
-require_literal "$ROOT_DIR/README.md" "README root module contract" "single root module"
-require_literal "$ROOT_DIR/README.md" "README meta-service contract" "modules/meta-service"
-require_literal "$ROOT_DIR/docs/architecture.md" "architecture root module contract" "single root Go module"
-require_literal "$ROOT_DIR/docs/architecture.md" "architecture meta-service contract" "modules/meta-service"
-require_literal "$ROOT_DIR/docs/recovery.md" "recovery root module contract" "single root module"
-require_literal "$ROOT_DIR/docs/recovery.md" "recovery go baseline" "1.25.8"
-require_literal "$ROOT_DIR/docs/recovery.md" "recovery extracted seam" "shared/routercore"
-require_literal "$ROOT_DIR/docs/recovery.md" "recovery meta-service build command" "bash modules/meta-service/scripts/build.sh"
-require_literal "$ROOT_DIR/docs/observability.md" "observability go test proof" 'go test ./...'
-require_literal "$ROOT_DIR/docs/observability.md" "observability meta-service surfaces" 'modules/meta-service'
-require_literal "$ROOT_DIR/scripts/README.md" "scripts README meta-service build script" 'scripts/build.sh'
+info "Checking repo-local documentation alignment"
+require_literal "$ROOT_DIR/README.md" "README docs layout" "docs/index/"
+require_literal "$ROOT_DIR/README.md" "README recovery contract" "docs/system/recovery.md"
+require_literal "$ROOT_DIR/docs/system/architecture.md" "system architecture cmd layout" "cmd/"
+require_literal "$ROOT_DIR/docs/system/architecture.md" "system architecture internal layout" "internal/"
+require_literal "$ROOT_DIR/docs/system/architecture.md" "system architecture app assembly" "internal/platform/"
+require_literal "$ROOT_DIR/docs/system/recovery.md" "system recovery verifier command" "bash scripts/verify.sh"
+require_literal "$ROOT_DIR/docs/system/recovery.md" "system recovery migration target" "repository root layout"
+require_literal "$ROOT_DIR/docs/system/observability.md" "system observability build proof" './cmd/meta-service'
+require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy verifier command" "bash scripts/verify.sh"
+require_literal "$ROOT_DIR/scripts/README.md" "scripts README meta-service build target" "./cmd/meta-service"
+require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service internal platform target" "internal/platform/..."
 
 info "Checking meta-service documentation and packaging contract"
-require_literal "$META_SERVICE_DIR/README.md" "meta-service shared adoption" "shared/bootstrap"
-require_literal "$META_SERVICE_DIR/README.md" "meta-service build command" "bash scripts/build.sh"
-require_literal "$META_SERVICE_DIR/README.md" "meta-service deferred rollout note" "S05 or later"
+require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service service name" "meta-service"
+require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service root build target" "./cmd/meta-service"
 require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
 require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker staged binary" "COPY .build/staging/meta-service/meta-service ./meta-service"
 require_literal "$META_SERVICE_DIR/Dockerfile" "meta-service Docker staged certs" "COPY .build/staging/_shared/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"
-require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build go build target" "./modules/meta-service/cmd"
+require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build go build target" "./cmd/meta-service"
 require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service build binary contract" 'OUTPUT_BINARY_REL="bin/$SERVICE_NAME"'
 require_literal "$META_SERVICE_DIR/scripts/build.sh" "meta-service staging contract" 'STAGING_ROOT="$BUILD_ROOT/staging"'
 require_literal "$META_SERVICE_DIR/scripts/regen-swagger.sh" "meta-service optional swag guard" "swag CLI not installed; skipping Swagger regeneration"
-require_literal "$META_SERVICE_DIR/pkg/router/router_test.go" "meta-service identity assertion" 'payload.Service != "meta-service"'
+require_literal "$ROOT_DIR/internal/app/router_test.go" "meta-service identity assertion" 'payload.Service != "meta-service"'
 
 run_docker_policy_check
 run_meta_service_build
@@ -157,6 +169,6 @@ run_go_test
 info "Repository-local verification passed."
 echo "  repo: $ROOT_DIR"
 echo "  migrated service: $META_SERVICE_DIR"
-echo "  recovery: $ROOT_DIR/docs/recovery.md"
+echo "  recovery: $ROOT_DIR/docs/system/recovery.md"
 echo "  verifier: $ROOT_DIR/scripts/verify.sh"
 echo "  build proof: $ROOT_DIR/modules/meta-service/scripts/build.sh"

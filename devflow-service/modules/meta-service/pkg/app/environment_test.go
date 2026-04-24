@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
-	"github.com/bsonger/devflow-service/shared/loggingx"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"

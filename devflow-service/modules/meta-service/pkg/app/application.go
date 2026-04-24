@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/infra/store"
-	"github.com/bsonger/devflow-service/shared/loggingx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -220,7 +220,9 @@ func (s *applicationService) List(ctx context.Context, filter ApplicationListFil
 		log.Error("list applications failed", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	apps := make([]domain.Application, 0)
 	for rows.Next() {
@@ -256,11 +258,11 @@ func scanApplication(scanner interface {
 	Scan(dest ...any) error
 }) (*domain.Application, error) {
 	var (
-		app              domain.Application
-		projectID        sql.NullString
+		app           domain.Application
+		projectID     sql.NullString
 		activeImageID sql.NullString
-		labelsBytes      []byte
-		deletedAt        sql.NullTime
+		labelsBytes   []byte
+		deletedAt     sql.NullTime
 	)
 
 	if err := scanner.Scan(

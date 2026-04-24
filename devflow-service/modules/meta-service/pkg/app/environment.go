@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/infra/store"
-	"github.com/bsonger/devflow-service/shared/loggingx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -219,7 +219,9 @@ func (s *environmentService) List(ctx context.Context, filter EnvironmentListFil
 		logEnvironmentFailure(log, "list environments failed", err)
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	environments := make([]domain.Environment, 0)
 	for rows.Next() {

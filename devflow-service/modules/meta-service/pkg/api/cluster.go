@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
+	httpx "github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/app"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
-	"github.com/bsonger/devflow-service/shared/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

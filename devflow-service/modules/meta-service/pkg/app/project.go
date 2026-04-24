@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/infra/store"
-	"github.com/bsonger/devflow-service/shared/loggingx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -174,7 +174,9 @@ func (s *projectService) List(ctx context.Context, filter ProjectListFilter) ([]
 		log.Error("list projects failed", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	projects := make([]domain.Project, 0)
 	for rows.Next() {

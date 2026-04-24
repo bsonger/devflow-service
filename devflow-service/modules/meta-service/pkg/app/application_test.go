@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/infra/store"
-	"github.com/bsonger/devflow-service/shared/loggingx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

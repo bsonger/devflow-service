@@ -1,0 +1,9 @@
+**
+!Dockerfile
+!modules/
+modules/**
+!modules/meta-service/
+modules/meta-service/**
+!modules/meta-service/.build/
+!modules/meta-service/.build/staging/
+!modules/meta-service/.build/staging/**

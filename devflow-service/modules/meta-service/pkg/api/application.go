@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
+	httpx "github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/app"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
-	"github.com/bsonger/devflow-service/shared/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -43,12 +43,12 @@ type CreateApplicationRequest struct {
 }
 
 type UpdateApplicationRequest struct {
-	ProjectID        uuid.UUID          `json:"project_id"`
-	Name             string             `json:"name"`
-	RepoAddress      string             `json:"repo_address"`
-	Description      string             `json:"description,omitempty"`
-	ActiveImageID    *uuid.UUID         `json:"active_image_id,omitempty"`
-	Labels           []domain.LabelItem `json:"labels,omitempty"`
+	ProjectID     uuid.UUID          `json:"project_id"`
+	Name          string             `json:"name"`
+	RepoAddress   string             `json:"repo_address"`
+	Description   string             `json:"description,omitempty"`
+	ActiveImageID *uuid.UUID         `json:"active_image_id,omitempty"`
+	Labels        []domain.LabelItem `json:"labels,omitempty"`
 }
 
 type UpdateActiveImageRequest struct {
@@ -138,12 +138,12 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 	}
 
 	application := domain.Application{
-		ProjectID:        req.ProjectID,
-		Name:             req.Name,
-		RepoAddress:      req.RepoAddress,
-		Description:      req.Description,
-		ActiveImageID:    req.ActiveImageID,
-		Labels:           req.Labels,
+		ProjectID:     req.ProjectID,
+		Name:          req.Name,
+		RepoAddress:   req.RepoAddress,
+		Description:   req.Description,
+		ActiveImageID: req.ActiveImageID,
+		Labels:        req.Labels,
 	}
 	application.SetID(id)
 

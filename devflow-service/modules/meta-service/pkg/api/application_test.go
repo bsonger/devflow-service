@@ -16,12 +16,12 @@ import (
 )
 
 type stubApplicationService struct {
-	createFn             func(context.Context, *domain.Application) (uuid.UUID, error)
-	getFn                func(context.Context, uuid.UUID) (*domain.Application, error)
-	updateFn             func(context.Context, *domain.Application) error
-	deleteFn             func(context.Context, uuid.UUID) error
-	updateActiveImageFn  func(context.Context, uuid.UUID, uuid.UUID) error
-	listFn               func(context.Context, app.ApplicationListFilter) ([]domain.Application, error)
+	createFn            func(context.Context, *domain.Application) (uuid.UUID, error)
+	getFn               func(context.Context, uuid.UUID) (*domain.Application, error)
+	updateFn            func(context.Context, *domain.Application) error
+	deleteFn            func(context.Context, uuid.UUID) error
+	updateActiveImageFn func(context.Context, uuid.UUID, uuid.UUID) error
+	listFn              func(context.Context, app.ApplicationListFilter) ([]domain.Application, error)
 }
 
 func (s stubApplicationService) Create(ctx context.Context, app *domain.Application) (uuid.UUID, error) {

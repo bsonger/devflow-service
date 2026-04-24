@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify gofmt
+        run: make fmt-check
+
+      - name: Run go vet
+        run: make vet
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          args: ./...
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Build target binary
+        run: make build
+
+      - name: Build staged meta-service artifacts
+        run: make package
+
+      - name: Build root runtime image
+        run: make docker-build DOCKER_IMAGE=devflow-service:ci
+
+      - name: Run repo verifier
+        run: make verify

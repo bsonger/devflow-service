@@ -13,6 +13,7 @@ OUTPUT_BINARY="$BIN_DIR/$SERVICE_NAME"
 OUTPUT_BINARY_REL="bin/$SERVICE_NAME"
 SOURCE_BINARY="$SERVICE_STAGE_DIR/$SERVICE_NAME"
 TEMP_SWAGGER_DIR="$BUILD_ROOT/swagger"
+GO_CACHE_DIR="${GOCACHE:-$REPO_ROOT/.cache/go-build}"
 
 log() {
   echo "INFO[meta-service-build]: $*"
@@ -39,6 +40,8 @@ copy_if_exists() {
 log "preparing deterministic artifact directories"
 rm -rf "$BUILD_ROOT" "$BIN_DIR"
 mkdir -p "$SERVICE_STAGE_DIR" "$SHARED_STAGE_DIR/certs" "$BIN_DIR"
+mkdir -p "$GO_CACHE_DIR"
+mkdir -p "$SERVICE_STAGE_DIR/docs" "$SERVICE_STAGE_DIR/config"
 
 if [[ -f "$SERVICE_DIR/scripts/regen-swagger.sh" ]]; then
   log "running optional Swagger regeneration into temporary staging"
@@ -76,8 +79,8 @@ log "staged CA certificates from $CERT_SOURCE"
 log "building linux/amd64 binary via root module"
 (
   cd "$REPO_ROOT"
-  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o "$SOURCE_BINARY" ./modules/meta-service/cmd
+  GOCACHE="$GO_CACHE_DIR" CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o "$SOURCE_BINARY" ./cmd/meta-service
 )
 cp "$SOURCE_BINARY" "$OUTPUT_BINARY"
 log "built binary at $OUTPUT_BINARY_REL"

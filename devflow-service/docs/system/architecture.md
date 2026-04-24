@@ -1,0 +1,62 @@
+# Architecture
+
+## Role of this repository
+
+`devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
+The active local migration focuses on one service, `meta-service`, and on moving the repository itself to a root-level `cmd` and `internal` layout.
+
+## Root structure
+
+The target top-level structure for current local work is:
+- `cmd/` for runnable process entrypoints only
+- `internal/` for repo-private implementation
+- `api/` for stable contracts such as OpenAPI or protobuf
+- `deployments/` for deployment artifacts that belong in-repo
+- `test/` for integration and end-to-end verification surfaces
+- `docs/` for repo-local documentation, layered by purpose
+- `scripts/` for verification and support scripts
+
+This replaces the older local staging shape built around `modules/` and `shared/`.
+
+## Build model
+
+The active local execution contract is:
+- one root Go module at the repo root
+- target Go baseline `1.26.2`
+- one active service process name: `meta-service`
+
+This repository should not introduce `go.work` or per-service `go.mod` files during the current migration.
+
+## Code organization model
+
+The current target code layout is:
+
+- `cmd/meta-service/main.go` for entrypoint-only startup logic
+- `internal/platform/` for infrastructure-only capabilities such as config, db, logger, otel, httpx, and runtime lifecycle
+- `internal/<domain>/domain` for domain objects and rules
+- `internal/<domain>/application` for use-case orchestration
+- `internal/<domain>/repository` for data-access interfaces and implementations
+- `internal/<domain>/transport` for external protocol adapters
+- `internal/<domain>/module.go` for domain assembly
+
+The point of this shape is to keep ownership explicit and avoid hidden dumping grounds.
+
+## Documentation model
+
+Repo-local docs are layered by purpose:
+- `docs/index/` for navigation only
+- `docs/system/` for current repo-local execution truth
+- `docs/services/` for current service-specific behavior and diagnostics
+- `docs/policies/` for durable repo rules
+- `docs/generated/` for generated artifacts only
+- `docs/archive/` for historical material only
+
+`AGENTS.md` remains the startup contract, not the place where all durable repo rules are copied.
+
+## Non-goals
+
+This migration does not currently aim to:
+- design final layouts for future services
+- preserve `modules/meta-service` as the long-term service home
+- preserve `shared/` as a long-term shared-code boundary
+- rewrite business behavior while restructuring packages

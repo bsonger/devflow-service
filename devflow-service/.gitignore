@@ -1,0 +1,4 @@
+bin/
+.cache/
+modules/meta-service/.build/
+modules/meta-service/bin/

@@ -2,8 +2,8 @@ package store
 
 import (
 	"database/sql"
-	"time"
 
+	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -11,23 +11,16 @@ var db *sql.DB
 
 func InitPostgres(d *sql.DB) {
 	db = d
+	platformdb.InitPostgres(d)
 }
 
 func DB() *sql.DB {
-	if db == nil {
-		panic("postgres store not initialized")
+	if db != nil {
+		return db
 	}
-	return db
+	return platformdb.Postgres()
 }
 
 func ApplyPool(conn *sql.DB, maxOpen, maxIdle, lifetimeMinutes int) {
-	if maxOpen > 0 {
-		conn.SetMaxOpenConns(maxOpen)
-	}
-	if maxIdle > 0 {
-		conn.SetMaxIdleConns(maxIdle)
-	}
-	if lifetimeMinutes > 0 {
-		conn.SetConnMaxLifetime(time.Duration(lifetimeMinutes) * time.Minute)
-	}
+	platformdb.ApplyPool(conn, maxOpen, maxIdle, lifetimeMinutes)
 }

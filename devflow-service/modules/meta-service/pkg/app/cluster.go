@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/domain"
 	"github.com/bsonger/devflow-service/modules/meta-service/pkg/infra/store"
-	"github.com/bsonger/devflow-service/shared/loggingx"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
@@ -332,7 +332,9 @@ func (s *clusterService) List(ctx context.Context, filter ClusterListFilter) ([]
 		logClusterFailure(log, "list clusters failed", err)
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	clusters := make([]domain.Cluster, 0)
 	for rows.Next() {
@@ -585,18 +587,18 @@ func buildArgoClusterConfigFromKubeConfig(kubeconfig string) (string, error) {
 		config["password"] = restCfg.Password
 	}
 
-	tlsConfig := map[string]any{"insecure": restCfg.TLSClientConfig.Insecure}
-	if len(restCfg.TLSClientConfig.CAData) > 0 {
-		tlsConfig["caData"] = base64.StdEncoding.EncodeToString(restCfg.TLSClientConfig.CAData)
+	tlsConfig := map[string]any{"insecure": restCfg.Insecure}
+	if len(restCfg.CAData) > 0 {
+		tlsConfig["caData"] = base64.StdEncoding.EncodeToString(restCfg.CAData)
 	}
-	if len(restCfg.TLSClientConfig.CertData) > 0 {
-		tlsConfig["certData"] = base64.StdEncoding.EncodeToString(restCfg.TLSClientConfig.CertData)
+	if len(restCfg.CertData) > 0 {
+		tlsConfig["certData"] = base64.StdEncoding.EncodeToString(restCfg.CertData)
 	}
-	if len(restCfg.TLSClientConfig.KeyData) > 0 {
-		tlsConfig["keyData"] = base64.StdEncoding.EncodeToString(restCfg.TLSClientConfig.KeyData)
+	if len(restCfg.KeyData) > 0 {
+		tlsConfig["keyData"] = base64.StdEncoding.EncodeToString(restCfg.KeyData)
 	}
-	if restCfg.TLSClientConfig.ServerName != "" {
-		tlsConfig["serverName"] = restCfg.TLSClientConfig.ServerName
+	if restCfg.ServerName != "" {
+		tlsConfig["serverName"] = restCfg.ServerName
 	}
 	if len(tlsConfig) > 0 {
 		config["tlsClientConfig"] = tlsConfig
