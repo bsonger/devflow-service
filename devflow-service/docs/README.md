@@ -13,6 +13,7 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/index/getting-started.md` — human-first navigation path
 - `AGENTS.md` — canonical agent startup contract
 - `docs/index/agent-path.md` — compact agent route map back to `AGENTS.md`
+- `docs/index/agent-recipes.md` — compact task recipes for common repo-local changes
 - `docs/system/` — current repo-local execution truth
 - `docs/services/` — current service-specific behavior and diagnostics
 - `docs/policies/` — durable repo rules such as layout, Docker, and verification
@@ -20,5 +21,5 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/archive/` — historical material only
 - `docs/superpowers/` — historical specs and plans
 
-Directory `README.md` files under `docs/index/`, `docs/generated/`, and `docs/archive/` are orientation aids only.
+Directory `README.md` files under `docs/index/`, `docs/services/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only.
 The owning docs in `docs/system/`, `docs/services/`, and `docs/policies/` hold the current facts.

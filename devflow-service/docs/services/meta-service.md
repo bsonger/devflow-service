@@ -28,6 +28,7 @@ Use these surfaces when working on or diagnosing this service:
 4. `docs/policies/docker-baseline.md`
 5. `docs/policies/verification.md`
 6. `scripts/README.md`
+7. `docs/services/application.md`, `project.md`, `cluster.md`, and `environment.md` for current resource contracts
 
 ## Build and verification target
 
