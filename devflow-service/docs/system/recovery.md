@@ -87,6 +87,6 @@ Inspect next:
 ## Guardrails during recovery
 
 - Do not create a parallel recovery tracker.
-- Do not reintroduce `shared/`, `common/`, or `util/` as catch-all directories.
+- Do not reintroduce catch-all `common/`, `util/`, or business-heavy `shared/` directories.
 - Do not add install commands into service Dockerfiles.
 - Do not treat stale docs as acceptable during the migration; update docs and verification together.

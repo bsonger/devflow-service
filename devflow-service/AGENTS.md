@@ -4,7 +4,7 @@
 
 This is the canonical startup and operating guide for agents working in `devflow-service`.
 Read this before broad exploration.
-Use it to decide what to read first, which local docs own the current fact, when to consult `devflow-control`, and how to continue the `meta-service` root migration without reviving the old layout.
+Use it to decide what to read first, which local docs own the current fact, when to consult `devflow-control`, and how to continue the `meta-service` root migration without reviving the old layout or drifting away from the repo's Go monorepo rules.
 
 ## Canonical startup contract
 
@@ -89,8 +89,9 @@ Read:
 - Use `cmd` to isolate process entrypoints.
 - Use `internal` to isolate implementation.
 - Use business domains to isolate ownership boundaries.
-- Use `application`, `domain`, `repository`, and `transport` to control responsibilities.
-- Do not keep or reintroduce `shared/`, `common/`, or `util/` as catch-all directories.
+- Use `service`, `domain`, `repository`, and `transport` to control responsibilities.
+- `internal/shared/` is allowed only for a small set of stable cross-domain helpers such as `errs`, `response`, `middleware`, and `idgen`.
+- Do not create catch-all `common/`, `util/`, `base/`, or business-heavy `shared/` areas.
 - Keep service Dockerfiles free of install commands; installation belongs in controlled base images.
 - Keep behavior stable while restructuring; do not use this migration as cover for unrelated business logic rewrites.
 
@@ -99,7 +100,7 @@ Read:
 - Rerun the repo verification stack from the repo root.
 - Confirm `AGENTS.md`, `README.md`, `docs/system/*`, `docs/services/*`, `docs/policies/*`, and `scripts/README.md` describe the same layout and command order.
 - Confirm the active service still builds as `meta-service`.
-- Confirm no catch-all `shared/`, `common/`, or `util/` directories were reintroduced.
+- Confirm no catch-all `common/`, `util/`, or business-heavy `shared/` directories were reintroduced.
 
 ## When to go back to devflow-control
 

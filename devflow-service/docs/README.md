@@ -21,5 +21,9 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/archive/` — historical material only
 - `docs/superpowers/` — historical specs and plans
 
+For the detailed Go monorepo directory and dependency rules used by this repo, start with:
+
+- `docs/policies/go-monorepo-layout.md`
+
 Directory `README.md` files under `docs/index/`, `docs/services/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only.
 The owning docs in `docs/system/`, `docs/services/`, and `docs/policies/` hold the current facts.

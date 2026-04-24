@@ -12,12 +12,14 @@ It does not yet aim to rename the service or redesign its business behavior.
 
 The target local layout for this service is:
 - `cmd/meta-service/main.go`
-- business code under `internal/<domain>/...`
+- business code under `internal/<domain>/{service,domain,repository,transport}`
 - infrastructure code under `internal/platform/...`
+- optional stable shared helpers under `internal/shared/...`
 - packaging and verification contracts rooted at the repository root
 
 `meta-service` no longer keeps any runtime Go packages under `modules/`.
 Build, Swagger generation, and Docker packaging now run from root repo surfaces.
+The current domain set in this repo is `application`, `project`, `cluster`, and `environment`.
 
 ## Current diagnostics
 

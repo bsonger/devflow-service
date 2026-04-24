@@ -15,7 +15,7 @@ Read:
 
 Verify:
 - code and docs still point at the same root layout
-- no catch-all `shared/`, `common/`, or `util/` directories were reintroduced
+- no catch-all `common/`, `util/`, or business-heavy `shared/` directories were reintroduced
 
 ## Recipe: API or handler change
 

@@ -10,13 +10,16 @@ The active local migration focuses on one service, `meta-service`, and on moving
 The target top-level structure for current local work is:
 - `cmd/` for runnable process entrypoints only
 - `internal/` for repo-private implementation
+- `internal/platform/` for infrastructure-only capabilities
+- `internal/shared/` for optional, stable, cross-domain helpers only
 - `api/` for stable contracts such as OpenAPI or protobuf
 - `deployments/` for deployment artifacts that belong in-repo
 - `test/` for integration and end-to-end verification surfaces
 - `docs/` for repo-local documentation, layered by purpose
 - `scripts/` for verification and support scripts
 
-This replaces the older local staging shape built around `modules/` and `shared/`.
+This replaces the older local staging shape built around `modules/`.
+It does not reintroduce a broad shared-code layer; any future `internal/shared/` use must stay narrow and infrastructure-like.
 
 ## Build model
 
@@ -33,6 +36,7 @@ The current target code layout is:
 
 - `cmd/meta-service/main.go` for entrypoint-only startup logic
 - `internal/platform/` for infrastructure-only capabilities such as config, db, logger, otel, httpx, and runtime lifecycle
+- `internal/shared/` for a small number of stable cross-domain helpers when duplication is no longer justified
 - `internal/<domain>/domain` for domain objects and rules
 - `internal/<domain>/service` for use-case orchestration
 - `internal/<domain>/repository` for data-access interfaces and implementations
@@ -58,5 +62,5 @@ Repo-local docs are layered by purpose:
 This migration does not currently aim to:
 - design final layouts for future services
 - preserve `modules/meta-service` as the long-term service home
-- preserve `shared/` as a long-term shared-code boundary
+- create a broad `shared/`, `common/`, or `util/` dumping ground
 - rewrite business behavior while restructuring packages

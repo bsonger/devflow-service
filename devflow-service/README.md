@@ -1,7 +1,7 @@
 # DevFlow Service
 
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
-The active local migration focuses on one service, `meta-service`, and on moving the repository to a root-level `cmd` and `internal` layout.
+The active local migration still focuses on one runnable service, `meta-service`, while the repo contract is aligned to a root-level Go monorepo layout.
 
 ## Purpose
 
@@ -17,11 +17,13 @@ This repo gives a fresh engineer or agent one place to answer:
 Today this repo is in a transition state:
 - the current active service name remains `meta-service`
 - the target code layout is root `cmd/` plus root `internal/`
+- business code follows `internal/<domain>/{service,domain,repository,transport}`
 - the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
 - the canonical repo-local verification entrypoint remains `bash scripts/verify.sh`
 
-This repo does **not** currently treat `shared/` or `modules/` as valid end-state structure.
-Those were migration surfaces to remove, not patterns to preserve.
+This repo does **not** treat `modules/` as a valid end-state structure.
+`internal/shared/` is allowed only as a small, controlled area for stable cross-domain helpers such as errors, response helpers, middleware, or id generation.
+It is not a place for business logic, private models, or generic `common`/`util` dumping grounds.
 
 ## Build baseline
 
@@ -37,6 +39,8 @@ Service Dockerfiles should use thin multi-stage builds and keep installation beh
 The active target top-level layout is:
 - `cmd/` — runnable process entrypoints only
 - `internal/` — repo-private implementation
+- `internal/platform/` — infrastructure-only capabilities
+- `internal/shared/` — optional, tightly-scoped shared helpers only
 - `api/` — stable contracts such as OpenAPI or protobuf
 - `deployments/` — deployment artifacts that belong in-repo
 - `test/` — integration and e2e verification surfaces
@@ -60,7 +64,7 @@ Use the docs tree by purpose:
 - `docs/index/` — navigation only
 - `docs/system/` — current repo-local truth
 - `docs/services/` — current service-specific behavior and diagnostics
-- `docs/policies/` — durable repo rules
+- `docs/policies/` — durable repo rules, including Go monorepo layout policy
 - `docs/generated/` — generated artifacts only
 - `docs/archive/` — historical material only
 
@@ -98,4 +102,10 @@ The matching CI workflow lives at:
 
 ```text
 .github/workflows/ci.yml
+```
+
+For the detailed Go monorepo layout contract, read:
+
+```text
+docs/policies/go-monorepo-layout.md
 ```
