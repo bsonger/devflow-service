@@ -6,7 +6,9 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/application"
 	"github.com/bsonger/devflow-service/internal/cluster"
+	"github.com/bsonger/devflow-service/internal/config"
 	"github.com/bsonger/devflow-service/internal/environment"
+	"github.com/bsonger/devflow-service/internal/network"
 	"github.com/bsonger/devflow-service/internal/platform/routercore"
 	"github.com/bsonger/devflow-service/internal/project"
 	"github.com/gin-contrib/cors"
@@ -23,6 +25,8 @@ const (
 	ModuleApplication Module = "application"
 	ModuleCluster     Module = "cluster"
 	ModuleEnvironment Module = "environment"
+	ModuleNetwork     Module = "network"
+	ModuleConfig      Module = "config"
 )
 
 type Options struct {
@@ -40,6 +44,8 @@ func NewRouter() *gin.Engine {
 			ModuleApplication,
 			ModuleCluster,
 			ModuleEnvironment,
+			ModuleNetwork,
+			ModuleConfig,
 		},
 	})
 }
@@ -108,6 +114,14 @@ func RegisterEnvironmentRoutes(rg *gin.RouterGroup) {
 	environment.NewModule().RegisterRoutes(rg)
 }
 
+func RegisterNetworkRoutes(rg *gin.RouterGroup) {
+	network.NewModule().RegisterRoutes(rg)
+}
+
+func RegisterConfigRoutes(rg *gin.RouterGroup) {
+	config.NewModule().RegisterRoutes(rg)
+}
+
 func serviceName(opts Options) string {
 	if opts.ServiceName == "" {
 		return "devflow"
@@ -132,6 +146,10 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 			RegisterClusterRoutes(api)
 		case ModuleEnvironment:
 			RegisterEnvironmentRoutes(api)
+		case ModuleNetwork:
+			RegisterNetworkRoutes(api)
+		case ModuleConfig:
+			RegisterConfigRoutes(api)
 		}
 	}
 }

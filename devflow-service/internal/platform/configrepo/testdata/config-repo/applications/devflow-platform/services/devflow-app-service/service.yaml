@@ -1,0 +1,6 @@
+kind: Service
+ports:
+  - name: http
+    service_port: 80
+    target_port: 8080
+    protocol: TCP

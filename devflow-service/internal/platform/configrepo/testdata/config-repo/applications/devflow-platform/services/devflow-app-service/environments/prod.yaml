@@ -1,0 +1,4 @@
+kind: EnvironmentOverlay
+environment: prod
+configuration:
+  replicas: 4

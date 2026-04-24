@@ -23,6 +23,8 @@ func main() {
 				app.ModuleApplication,
 				app.ModuleCluster,
 				app.ModuleEnvironment,
+				app.ModuleNetwork,
+				app.ModuleConfig,
 			},
 		},
 		Load:        config.Load,
