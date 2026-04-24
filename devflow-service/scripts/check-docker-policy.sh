@@ -14,7 +14,7 @@ BANNED_PATTERNS=(
 )
 
 APPROVED_FROM_PATTERNS=(
-  '^FROM[[:space:]]+registry\.cn-hangzhou\.aliyuncs\.com/devflow/golang-builder:1\.26\.2([[:space:]]+AS[[:space:]]+[A-Za-z0-9._-]+)?$'
+  '^FROM[[:space:]]+registry\.cn-hangzhou\.aliyuncs\.com/devflow/golang-builder:1\.26\.2-alpine3\.22([[:space:]]+AS[[:space:]]+[A-Za-z0-9._-]+)?$'
   '^FROM[[:space:]]+golang:1\.26\.2-alpine3\.22([[:space:]]+AS[[:space:]]+[A-Za-z0-9._-]+)?$'
   '^FROM[[:space:]]+scratch([[:space:]]+AS[[:space:]]+[A-Za-z0-9._-]+)?$'
   '^FROM[[:space:]]+registry\.cn-hangzhou\.aliyuncs\.com/devflow/[A-Za-z0-9._/-]+(:[A-Za-z0-9._-]+)?([[:space:]]+AS[[:space:]]+[A-Za-z0-9._-]+)?$'

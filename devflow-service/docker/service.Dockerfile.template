@@ -1,4 +1,4 @@
-FROM golang:1.26.2-alpine3.22 AS builder
+FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 AS builder
 
 WORKDIR /workspace
 

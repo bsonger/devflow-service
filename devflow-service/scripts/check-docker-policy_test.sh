@@ -15,7 +15,7 @@ trap cleanup EXIT
 mkdir -p "$VALID_DIR" "$INVALID_DIR"
 
 cat > "$TEST_ROOT/valid/Dockerfile" <<'EOF_ROOT'
-FROM golang:1.26.2-alpine3.22 AS builder
+FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 AS builder
 WORKDIR /workspace
 COPY go.mod go.sum ./
 RUN go mod download
@@ -31,7 +31,7 @@ ENTRYPOINT ["/app/meta-service"]
 EOF_ROOT
 
 cat > "$VALID_DIR/Dockerfile.package" <<'EOF_VALID'
-FROM golang:1.26.2-alpine3.22 AS builder
+FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 AS builder
 WORKDIR /workspace
 COPY . .
 RUN go build -o /out/meta-service ./cmd/meta-service

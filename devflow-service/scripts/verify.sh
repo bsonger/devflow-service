@@ -137,7 +137,7 @@ require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service internal
 info "Checking meta-service documentation and packaging contract"
 require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service service name" "meta-service"
 require_literal "$ROOT_DIR/docs/services/meta-service.md" "meta-service root build target" "./cmd/meta-service"
-require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker builder base" "FROM golang:1.26.2-alpine3.22 AS builder"
+require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker builder base" "FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 AS builder"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker build target" "go build -o /out/meta-service ./cmd/meta-service"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker copied binary" "COPY --from=builder /out/meta-service ./meta-service"

@@ -6,7 +6,7 @@ This document defines the controlled Docker baseline for `devflow-service`.
 
 - target Go baseline: `1.26.2`
 - local builds, CI, builder images, and packaging must align to `Go 1.26.2`
-- approved public builder image for in-repo multi-stage builds: `golang:1.26.2-alpine3.22`
+- approved builder image for in-repo multi-stage builds: `registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22`
 
 ## Base image policy
 
