@@ -1,4 +1,4 @@
-package loggingx
+package logger
 
 import (
 	"context"

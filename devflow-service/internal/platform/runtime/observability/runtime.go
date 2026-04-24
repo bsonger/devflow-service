@@ -21,7 +21,7 @@ type RuntimeOptions struct {
 }
 
 func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error, error) {
-	loggingx.InitZapLogger(&loggingx.Config{
+	logger.InitZapLogger(&logger.Config{
 		Level:  opts.LogLevel,
 		Format: opts.LogFormat,
 	})
@@ -33,7 +33,7 @@ func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error
 
 	shutdown := func(context.Context) error { return nil }
 	if opts.OtelEndpoint != "" {
-		tpShutdown, err := otelx.InitOtel(ctx, &otelx.Config{
+		tpShutdown, err := otel.InitOtel(ctx, &otel.Config{
 			Endpoint:    opts.OtelEndpoint,
 			ServiceName: serviceName,
 			SampleRatio: opts.OtelSampleRatio,
@@ -48,7 +48,7 @@ func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error
 		pyroscopex.InitPyroscope(serviceName, opts.PyroscopeAddr)
 	}
 
-	if err := otelx.InitMetricProvider(); err != nil {
+	if err := otel.InitMetricProvider(); err != nil {
 		return shutdown, err
 	}
 
@@ -66,7 +66,7 @@ func ResolveServiceName(override, configServiceName string) string {
 }
 
 func ReinjectLogger(ctx context.Context) context.Context {
-	return loggingx.InjectLogger(ctx, loggingx.LoggerFromContext(ctx))
+	return logger.InjectLogger(ctx, logger.LoggerFromContext(ctx))
 }
 
 func StartSpan(ctx context.Context, tracer trace.Tracer, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

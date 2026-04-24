@@ -12,7 +12,7 @@ import (
 
 	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
@@ -35,7 +35,7 @@ func NewPostgresStore() Store {
 }
 
 func (s *postgresStore) Create(ctx context.Context, environment *envdomain.Environment) (uuid.UUID, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "create_environment"),
 		zap.String("resource", "environment"),
 		zap.String("cluster_id", environment.ClusterID.String()),
@@ -65,7 +65,7 @@ func (s *postgresStore) Create(ctx context.Context, environment *envdomain.Envir
 }
 
 func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*envdomain.Environment, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "get_environment"),
 		zap.String("resource", "environment"),
 		zap.String("resource_id", id.String()),
@@ -90,7 +90,7 @@ func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*envdomain.Envir
 }
 
 func (s *postgresStore) Update(ctx context.Context, environment *envdomain.Environment) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "update_environment"),
 		zap.String("resource", "environment"),
 		zap.String("resource_id", environment.GetID().String()),
@@ -142,7 +142,7 @@ func (s *postgresStore) Update(ctx context.Context, environment *envdomain.Envir
 }
 
 func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "delete_environment"),
 		zap.String("resource", "environment"),
 		zap.String("resource_id", id.String()),
@@ -174,7 +174,7 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name string, clusterID *uuid.UUID) ([]envdomain.Environment, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "list_environments"),
 		zap.String("resource", "environment"),
 		zap.Bool("include_deleted", includeDeleted),

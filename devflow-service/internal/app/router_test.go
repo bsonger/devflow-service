@@ -15,7 +15,7 @@ type statusResponse struct {
 }
 
 func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T) {
-	loggingx.InitZapLogger(&loggingx.Config{Level: "info", Format: "console"})
+	logger.InitZapLogger(&logger.Config{Level: "info", Format: "console"})
 	r := NewRouterWithOptions(Options{
 		ServiceName:   "meta-service",
 		EnableSwagger: true,
@@ -61,7 +61,7 @@ func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T)
 }
 
 func TestNewRouterWithOptionsRegistersClusterAndEnvironmentRoutesAlongsideExistingModules(t *testing.T) {
-	loggingx.InitZapLogger(&loggingx.Config{Level: "info", Format: "console"})
+	logger.InitZapLogger(&logger.Config{Level: "info", Format: "console"})
 	r := NewRouterWithOptions(Options{
 		ServiceName:   "meta-service",
 		EnableSwagger: false,

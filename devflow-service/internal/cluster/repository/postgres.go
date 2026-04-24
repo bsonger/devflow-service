@@ -12,7 +12,7 @@ import (
 
 	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
@@ -153,7 +153,7 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name string) ([]clusterdomain.Cluster, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "list_clusters"),
 		zap.String("resource", "cluster"),
 		zap.String("result", "started"),
@@ -315,7 +315,7 @@ func clusterLogger(ctx context.Context, operation string, resourceID uuid.UUID) 
 	if resourceID != uuid.Nil {
 		resourceIDValue = resourceID.String()
 	}
-	return loggingx.LoggerWithContext(ctx).With(
+	return logger.LoggerWithContext(ctx).With(
 		zap.String("operation", operation),
 		zap.String("resource", "cluster"),
 		zap.String("resource_id", resourceIDValue),

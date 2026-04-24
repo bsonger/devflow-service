@@ -10,7 +10,7 @@ import (
 	"time"
 
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	projectdomain "github.com/bsonger/devflow-service/internal/project/domain"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -33,7 +33,7 @@ func NewPostgresStore() Store {
 }
 
 func (s *postgresStore) Create(ctx context.Context, project *projectdomain.Project) (uuid.UUID, error) {
-	log := loggingx.LoggerWithContext(ctx).With(zap.String("operation", "create_project"))
+	log := logger.LoggerWithContext(ctx).With(zap.String("operation", "create_project"))
 
 	labels, err := marshalLabels(project.Labels)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *postgresStore) Create(ctx context.Context, project *projectdomain.Proje
 }
 
 func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*projectdomain.Project, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "get_project"),
 		zap.String("project_id", id.String()),
 	)
@@ -76,7 +76,7 @@ func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*projectdomain.P
 }
 
 func (s *postgresStore) Update(ctx context.Context, project *projectdomain.Project) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "update_project"),
 		zap.String("project_id", project.GetID().String()),
 	)
@@ -119,7 +119,7 @@ func (s *postgresStore) Update(ctx context.Context, project *projectdomain.Proje
 }
 
 func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "delete_project"),
 		zap.String("project_id", id.String()),
 	)
@@ -148,7 +148,7 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name string) ([]projectdomain.Project, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "list_projects"),
 		zap.Bool("include_deleted", includeDeleted),
 		zap.String("name", name),

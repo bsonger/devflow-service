@@ -64,7 +64,7 @@ func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 	r := opts.NewRouter(opts.RouteOptions)
 	port := resolveConfiguredPort(cfg, opts.DefaultPort, opts.PortEnv, opts.ResolveConfigPort)
 
-	loggingx.Logger.Info("starting service",
+	logger.Logger.Info("starting service",
 		zap.String("service", opts.Name),
 		zap.Int("port", port),
 		zap.Int("metrics_port", metricsPort),

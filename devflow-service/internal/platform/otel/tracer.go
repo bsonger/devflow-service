@@ -1,4 +1,4 @@
-package otelx
+package otel
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -64,7 +64,7 @@ func InitOtel(ctx context.Context, config *Config) (func(context.Context) error,
 		),
 	)
 
-	loggingx.Logger.Info(
+	logger.Logger.Info(
 		"OpenTelemetry tracing initialized",
 		zap.String("service", config.ServiceName),
 		zap.String("endpoint", config.Endpoint),

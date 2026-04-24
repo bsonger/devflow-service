@@ -44,13 +44,13 @@ func StartPprofServer(addr string) {
 }
 
 func serve(kind, addr string, handler http.Handler) {
-	loggingx.Logger.Info("starting observability server",
+	logger.Logger.Info("starting observability server",
 		zap.String("kind", kind),
 		zap.String("addr", addr),
 	)
 
 	if err := http.ListenAndServe(addr, handler); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		loggingx.Logger.Error("observability server exited",
+		logger.Logger.Error("observability server exited",
 			zap.String("kind", kind),
 			zap.String("addr", addr),
 			zap.Error(err),

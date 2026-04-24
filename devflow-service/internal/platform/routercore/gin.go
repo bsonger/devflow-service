@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	platformhttpx "github.com/bsonger/devflow-service/internal/platform/httpx"
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/grafana/pyroscope-go"
@@ -178,17 +178,17 @@ func GinZapLogger() gin.HandlerFunc {
 			fields = append(fields, zap.String("error.message", err.Error()))
 		}
 
-		logger := loggingx.LoggerFromContext(req.Context())
+		log := logger.LoggerFromContext(req.Context())
 
 		switch {
 		case status >= 500:
-			logger.Error("http request", fields...)
+			log.Error("http request", fields...)
 		case status >= 400:
-			logger.Warn("http request", fields...)
+			log.Warn("http request", fields...)
 		case latency >= time.Second:
-			logger.Warn("slow http request", fields...)
+			log.Warn("slow http request", fields...)
 		default:
-			logger.Info("http request", fields...)
+			log.Info("http request", fields...)
 		}
 	}
 }
@@ -197,8 +197,8 @@ func GinZapRecovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				logger := loggingx.LoggerFromContext(c.Request.Context())
-				logger.Error("panic recovered",
+				log := logger.LoggerFromContext(c.Request.Context())
+				log.Error("panic recovered",
 					zap.String("component", "http_server"),
 					zap.String("result", "panic"),
 					zap.Any("panic", rec),
@@ -206,7 +206,7 @@ func GinZapRecovery() gin.HandlerFunc {
 					zap.String("path", c.Request.URL.Path),
 					zap.String("client_ip", c.ClientIP()),
 				)
-				platformhttpx.WriteError(c, http.StatusInternalServerError, "internal", "internal server error", nil)
+				httpx.WriteError(c, http.StatusInternalServerError, "internal", "internal server error", nil)
 				c.Abort()
 			}
 		}()
@@ -221,8 +221,8 @@ func LoggerMiddleware() gin.HandlerFunc {
 			requestID = uuid.NewString()
 		}
 		c.Header("X-Request-Id", requestID)
-		ctx := loggingx.WithRequestID(c.Request.Context(), requestID)
-		ctx = loggingx.InjectLogger(ctx, loggingx.Logger)
+		ctx := logger.WithRequestID(c.Request.Context(), requestID)
+		ctx = logger.InjectLogger(ctx, logger.Logger)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}

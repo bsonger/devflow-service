@@ -9,7 +9,7 @@ import (
 
 	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
 	clusterrepo "github.com/bsonger/devflow-service/internal/cluster/repository"
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -199,7 +199,7 @@ func clusterLogger(ctx context.Context, operation string, resourceID uuid.UUID) 
 	if resourceID != uuid.Nil {
 		resourceIDValue = resourceID.String()
 	}
-	return loggingx.LoggerWithContext(ctx).With(
+	return logger.LoggerWithContext(ctx).With(
 		zap.String("operation", operation),
 		zap.String("resource", "cluster"),
 		zap.String("resource_id", resourceIDValue),

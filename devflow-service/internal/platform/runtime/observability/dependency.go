@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -46,7 +46,7 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		loggingx.LoggerFromContext(ctx).Error("dependency call failed",
+		logger.LoggerFromContext(ctx).Error("dependency call failed",
 			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
 			zap.String("result", "error"),
@@ -57,7 +57,7 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 		)
 	} else {
 		span.SetStatus(codes.Ok, "ok")
-		loggingx.LoggerFromContext(ctx).Info("dependency call completed",
+		logger.LoggerFromContext(ctx).Info("dependency call completed",
 			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
 			zap.String("result", "ok"),

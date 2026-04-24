@@ -10,7 +10,7 @@ func InitPyroscope(name, address string) {
 	if _, err := pyroscope.Start(pyroscope.Config{
 		ApplicationName: name,
 		ServerAddress:   address,
-		Logger:          loggingx.NewZapAdapter(loggingx.Logger),
+		Logger:          logger.NewZapAdapter(logger.Logger),
 		ProfileTypes: []pyroscope.ProfileType{
 			pyroscope.ProfileCPU,
 			pyroscope.ProfileAllocObjects,
@@ -24,6 +24,6 @@ func InitPyroscope(name, address string) {
 			pyroscope.ProfileBlockCount,
 		},
 	}); err != nil {
-		loggingx.Logger.Warn("pyroscope initialization failed", zap.Error(err))
+		logger.Logger.Warn("pyroscope initialization failed", zap.Error(err))
 	}
 }

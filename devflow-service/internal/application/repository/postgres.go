@@ -11,7 +11,7 @@ import (
 
 	appdomain "github.com/bsonger/devflow-service/internal/application/domain"
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
-	loggingx "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -34,7 +34,7 @@ func NewPostgresStore() Store {
 }
 
 func (s *postgresStore) Create(ctx context.Context, app *appdomain.Application) (uuid.UUID, error) {
-	log := loggingx.LoggerWithContext(ctx).With(zap.String("operation", "create_application"))
+	log := logger.LoggerWithContext(ctx).With(zap.String("operation", "create_application"))
 
 	labels, err := marshalLabels(app.Labels)
 	if err != nil {
@@ -57,7 +57,7 @@ func (s *postgresStore) Create(ctx context.Context, app *appdomain.Application) 
 }
 
 func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*appdomain.Application, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "get_application"),
 		zap.String("application_id", id.String()),
 	)
@@ -77,7 +77,7 @@ func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*appdomain.Appli
 }
 
 func (s *postgresStore) Update(ctx context.Context, app *appdomain.Application) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "update_application"),
 		zap.String("application_id", app.GetID().String()),
 	)
@@ -120,7 +120,7 @@ func (s *postgresStore) Update(ctx context.Context, app *appdomain.Application) 
 }
 
 func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "delete_application"),
 		zap.String("application_id", id.String()),
 	)
@@ -149,7 +149,7 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *postgresStore) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUID) error {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "update_application_active_image"),
 		zap.String("application_id", appID.String()),
 		zap.String("image_id", imageID.String()),
@@ -177,7 +177,7 @@ func (s *postgresStore) UpdateActiveImage(ctx context.Context, appID, imageID uu
 }
 
 func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name string, projectID *uuid.UUID, repoAddress string) ([]appdomain.Application, error) {
-	log := loggingx.LoggerWithContext(ctx).With(
+	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "list_applications"),
 		zap.Bool("include_deleted", includeDeleted),
 		zap.String("name", name),
