@@ -1,6 +1,7 @@
 # Repo Layout Policy
 
-This document defines the durable repo-local layout policy for `devflow-service`.
+This document defines the short-form durable repo-local layout policy for `devflow-service`.
+If this file and `go-monorepo-layout.md` differ, `go-monorepo-layout.md` wins.
 
 ## Root shape
 

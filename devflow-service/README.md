@@ -47,16 +47,23 @@ The active target top-level layout is:
 - `docs/` — layered repo-local docs
 - `scripts/` — repo-level verification and support scripts
 
+For directory, layering, naming, and dependency decisions, the primary policy is:
+
+```text
+docs/policies/go-monorepo-layout.md
+```
+
 ## Read this first
 
 If you are landing here cold, read in this order:
 1. `AGENTS.md`
 2. `docs/system/recovery.md`
 3. `docs/system/architecture.md`
-4. `docs/services/meta-service.md`
-5. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
-6. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
-7. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
+4. `docs/policies/go-monorepo-layout.md`
+5. `docs/services/meta-service.md`
+6. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
+7. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
+8. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
 
 ## Docs layout
 

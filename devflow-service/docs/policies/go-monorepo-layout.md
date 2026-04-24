@@ -1,14 +1,14 @@
 # Go Monorepo Layout Policy
 
 This document captures the detailed Go monorepo layout rule set for `devflow-service`.
-It is based on the target DevFlow Go monorepo shape, but it must be applied against the current repo reality instead of forcing unrelated folder churn.
+This is the primary directory, layering, naming, and dependency policy for the repo.
 
 ## Scope
 
 - Keep the current repo root as the active monorepo root.
 - Keep the current active runnable service name as `meta-service`.
-- Use this policy to guide new work and doc updates.
-- Do not use this document as a reason to rename or reshuffle unrelated directories that already match the contract closely enough.
+- Use this policy to guide new work, doc updates, and refactors.
+- When layout guidance conflicts with older repo-local wording, prefer this document.
 
 ## Current top-level layout
 
@@ -25,7 +25,7 @@ The repo root should use:
 - `docs/`
 
 The current repo also keeps a root `Dockerfile`.
-That is the active packaging contract today, even though a larger future monorepo may choose `deployments/docker/` for shared Docker assets.
+That is the active packaging contract today.
 
 ## Entrypoint rules
 
@@ -183,4 +183,4 @@ Interfaces should be named by role or behavior, not with `I` prefixes.
 
 - today only `meta-service` is the active runnable service in this repo
 - the layout and naming rules above still apply so future domains do not drift
-- document future expansion without changing current folders unnecessarily
+- if existing files lag behind this policy, update them toward this layout instead of preserving the older wording

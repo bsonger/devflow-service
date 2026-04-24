@@ -15,10 +15,11 @@ Default startup read set:
 2. `docs/system/recovery.md`
 3. `README.md`
 4. `docs/system/architecture.md`
-5. `docs/policies/docker-baseline.md` only if the task touches build, image, packaging, or CI
-6. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification or repo scripts
-7. `../devflow-control/docs/target-architecture/devflow-service.md` only if the task changes migration boundaries or repo shape beyond current local docs
-8. `../devflow-control/docs/target-architecture/devflow-service-migration-handoff.md` only if the task changes migration sequencing or needs future-state lane guidance
+5. `docs/policies/go-monorepo-layout.md` if the task touches directories, layering, naming, imports, or package boundaries
+6. `docs/policies/docker-baseline.md` only if the task touches build, image, packaging, or CI
+7. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification or repo scripts
+8. `../devflow-control/docs/target-architecture/devflow-service.md` only if the task changes migration boundaries or repo shape beyond current local docs
+9. `../devflow-control/docs/target-architecture/devflow-service-migration-handoff.md` only if the task changes migration sequencing or needs future-state lane guidance
 
 Do not read every doc by default.
 Do not use `devflow-control` future-state docs to override this repo's active local execution contract.
@@ -33,10 +34,11 @@ After reading this file, a fresh engineer or agent should be able to:
 ## Authority ladder
 
 When documents disagree, trust them in this order:
-1. this repo's current implementation-facing docs and verification surfaces
-2. this file as the canonical startup and routing contract
-3. `../devflow-control/docs/target-architecture/*.md` for future-state migration boundaries only
-4. `docs/superpowers/specs/` and `docs/superpowers/plans/` for historical design context only
+1. `docs/policies/go-monorepo-layout.md` for directory, layering, naming, and dependency rules
+2. this repo's current implementation-facing docs and verification surfaces for current execution truth
+3. this file as the canonical startup and routing contract
+4. `../devflow-control/docs/target-architecture/*.md` for future-state migration boundaries only
+5. `docs/superpowers/specs/` and `docs/superpowers/plans/` for historical design context only
 
 If a conflict remains after reading the highest-authority current docs, stop and resolve it instead of guessing.
 
@@ -47,7 +49,8 @@ Read:
 1. `docs/system/recovery.md`
 2. `README.md`
 3. `docs/system/architecture.md`
-4. one additional local doc only if the task needs it
+4. `docs/policies/go-monorepo-layout.md`
+5. one additional local doc only if the task needs it
 
 ### If the task is Docker, build-image, or CI work
 Read:
