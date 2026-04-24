@@ -13,6 +13,30 @@ They encode the approved builder/runtime image policy from `docs/docker.md` and 
 - `golang-builder.Dockerfile` — repo-local copy of the Go builder baseline source (`golang:1.26.2-alpine3.22`) for auditability and future local promotion into `registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22`
 - `service.Dockerfile.template` — multi-stage template for future service boundaries; it builds the service in an approved builder image and copies only runtime artifacts into `scratch`
 
+## Published builder image
+
+The current published builder target is:
+
+```text
+registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22
+```
+
+The expected runtime platform for that published builder image is:
+
+```text
+linux/amd64
+```
+
+Publish it from this repo with:
+
+```sh
+docker buildx build \
+  --platform linux/amd64 \
+  -f docker/golang-builder.Dockerfile \
+  -t registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 \
+  --push .
+```
+
 ## Current policy
 
 Active and future service Dockerfiles must:
