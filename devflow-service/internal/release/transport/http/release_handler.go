@@ -58,8 +58,8 @@ type CreateReleaseRequest struct {
 // @Tags Release
 // @Accept json
 // @Produce json
-// @Param data body api.CreateReleaseRequest true "Release Data"
-// @Success 201 {object} api.ReleaseResponse
+// @Param data body CreateReleaseRequest true "Release Data"
+// @Success 201 {object} ReleaseResponse
 // @Router /api/v1/releases [post]
 func (h *ReleaseHandler) Create(c *gin.Context) {
 	var req CreateReleaseRequest
@@ -90,7 +90,7 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 // @Summary 获取Release
 // @Tags Release
 // @Param id path string true "Release ID"
-// @Success 200 {object} api.ReleaseResponse
+// @Success 200 {object} ReleaseResponse
 // @Router /api/v1/releases/{id} [get]
 func (h *ReleaseHandler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -141,7 +141,7 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 // List
 // @Summary 获取Release列表
 // @Tags Release
-// @Success 200 {object} api.ReleaseListResponse
+// @Success 200 {object} ReleaseListResponse
 // @Router /api/v1/releases [get]
 func (h *ReleaseHandler) List(c *gin.Context) {
 	filter := service.ReleaseListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}

@@ -9,6 +9,7 @@ Current policy docs:
 - `docker-baseline.md` — Docker and image-build rules
 - `verification.md` — canonical verification stack
 - `api-compatibility.md` — API evolution and compatibility expectations
+- `api-directory.md` — `api/` contract layer rules and OpenAPI generation policy
 - `new-service-rule.md` — new service and repo-baseline reference rules
 
 If a policy description conflicts with current implementation-facing docs, resolve that conflict instead of guessing.

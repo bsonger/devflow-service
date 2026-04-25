@@ -29,6 +29,16 @@ func NewReleaseWritebackHandler() *ReleaseWritebackHandler {
 	return &ReleaseWritebackHandler{svc: service.ReleaseService}
 }
 
+// HandleArgoEvent
+// @Summary Handle Argo CD event callback
+// @Tags Release
+// @Accept json
+// @Param data body ArgoEventRequest true "Argo event payload"
+// @Success 204
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/verify/argo/events [post]
 func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 	var req ArgoEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,6 +58,16 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 	httpx.WriteNoContent(c)
 }
 
+// HandleReleaseStep
+// @Summary Handle release step status callback
+// @Tags Release
+// @Accept json
+// @Param data body ReleaseStepRequest true "Release step payload"
+// @Success 204
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/verify/release/steps [post]
 func (h *ReleaseWritebackHandler) HandleReleaseStep(c *gin.Context) {
 	var req ReleaseStepRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

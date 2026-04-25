@@ -36,6 +36,16 @@ func (h *ImageHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	images.PATCH("/:id", h.Patch)
 }
 
+// Create
+// @Summary Create image
+// @Tags Image
+// @Accept json
+// @Produce json
+// @Param data body domain.CreateImageRequest true "Image create request"
+// @Success 201 {object} ImageResponse
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/images [post]
 func (h *ImageHandler) Create(c *gin.Context) {
 	var req imagedomain.CreateImageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -55,6 +65,21 @@ func (h *ImageHandler) Create(c *gin.Context) {
 	httpx.WriteData(c, http.StatusCreated, image)
 }
 
+// List
+// @Summary List images
+// @Tags Image
+// @Produce json
+// @Param application_id query string false "Application ID"
+// @Param pipeline_id query string false "Pipeline ID"
+// @Param status query string false "Status"
+// @Param branch query string false "Branch"
+// @Param name query string false "Name"
+// @Param page query int false "Page"
+// @Param page_size query int false "Page size"
+// @Success 200 {object} ImageListResponse
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/images [get]
 func (h *ImageHandler) List(c *gin.Context) {
 	filter := imageservice.ImageListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
 	if appID := c.Query("application_id"); appID != "" {
@@ -93,6 +118,16 @@ func (h *ImageHandler) List(c *gin.Context) {
 	httpx.WriteList(c, http.StatusOK, items, paging, total)
 }
 
+// Get
+// @Summary Get image
+// @Tags Image
+// @Produce json
+// @Param id path string true "Image ID"
+// @Success 200 {object} ImageResponse
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/images/{id} [get]
 func (h *ImageHandler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -111,6 +146,17 @@ func (h *ImageHandler) Get(c *gin.Context) {
 	httpx.WriteData(c, http.StatusOK, image)
 }
 
+// Patch
+// @Summary Patch image
+// @Tags Image
+// @Accept json
+// @Param id path string true "Image ID"
+// @Param data body domain.PatchImageRequest true "Image patch request"
+// @Success 204
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/images/{id} [patch]
 func (h *ImageHandler) Patch(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

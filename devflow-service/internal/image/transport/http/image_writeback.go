@@ -90,6 +90,16 @@ func resolvePipelineID(ctx *gin.Context, svc imageWritebackService, imageID uuid
 	return image.PipelineID, nil
 }
 
+// HandleTektonStatus
+// @Summary Handle Tekton pipeline status callback
+// @Tags Image
+// @Accept json
+// @Param data body ImageTektonStatusRequest true "Tekton status payload"
+// @Success 204
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/images/tekton/status [post]
 func (h *ImageWritebackHandler) HandleTektonStatus(c *gin.Context) {
 	var req ImageTektonStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -114,6 +124,16 @@ func (h *ImageWritebackHandler) HandleTektonStatus(c *gin.Context) {
 	httpx.WriteNoContent(c)
 }
 
+// HandleTektonTask
+// @Summary Handle Tekton task callback
+// @Tags Image
+// @Accept json
+// @Param data body ImageTektonTaskRequest true "Tekton task payload"
+// @Success 204
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/images/tekton/tasks [post]
 func (h *ImageWritebackHandler) HandleTektonTask(c *gin.Context) {
 	var req ImageTektonTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

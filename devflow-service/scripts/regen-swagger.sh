@@ -9,7 +9,7 @@ if ! command -v swag >/dev/null 2>&1; then
   exit 0
 fi
 
-OUTPUT_DIR="${SWAGGER_OUTPUT_DIR:-$ROOT_DIR/.build/swagger}"
+OUTPUT_DIR="${SWAGGER_OUTPUT_DIR:-$ROOT_DIR/api/openapi}"
 mkdir -p "$OUTPUT_DIR"
 export GOROOT="$(go env GOROOT)"
 swag init -g cmd/meta-service/main.go -d . --exclude .build,.cache,bin --parseDependency --parseInternal -o "$OUTPUT_DIR"

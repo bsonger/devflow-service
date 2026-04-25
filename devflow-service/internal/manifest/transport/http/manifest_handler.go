@@ -57,8 +57,8 @@ func (h *ManifestHandler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Tags Manifest
 // @Accept json
 // @Produce json
-// @Param data body api.CreateManifestRequestDoc true "Manifest create request"
-// @Success 201 {object} api.ManifestResponse
+// @Param data body CreateManifestRequestDoc true "Manifest create request"
+// @Success 201 {object} ManifestResponse
 // @Failure 400 {object} httpx.ErrorResponse
 // @Failure 404 {object} httpx.ErrorResponse
 // @Failure 409 {object} httpx.ErrorResponse
@@ -87,7 +87,7 @@ func (h *ManifestHandler) Create(c *gin.Context) {
 // @Param image_id query string false "Image ID"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
-// @Success 200 {object} api.ManifestListResponse
+// @Success 200 {object} ManifestListResponse
 // @Failure 400 {object} httpx.ErrorResponse
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/manifests [get]
@@ -132,7 +132,7 @@ func (h *ManifestHandler) List(c *gin.Context) {
 // @Tags Manifest
 // @Produce json
 // @Param id path string true "Manifest ID"
-// @Success 200 {object} api.ManifestResponse
+// @Success 200 {object} ManifestResponse
 // @Failure 400 {object} httpx.ErrorResponse
 // @Failure 404 {object} httpx.ErrorResponse
 // @Failure 500 {object} httpx.ErrorResponse
@@ -160,7 +160,7 @@ func (h *ManifestHandler) Get(c *gin.Context) {
 // @Tags Manifest
 // @Produce json
 // @Param id path string true "Manifest ID"
-// @Success 200 {object} api.ManifestResourcesResponse
+// @Success 200 {object} ManifestResourcesResponse
 // @Failure 400 {object} httpx.ErrorResponse
 // @Failure 404 {object} httpx.ErrorResponse
 // @Failure 500 {object} httpx.ErrorResponse

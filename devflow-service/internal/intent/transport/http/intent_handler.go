@@ -48,7 +48,7 @@ func (h *IntentHandler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Summary 获取执行意图列表
 // @Description 按 kind、status、resource 等维度查询 execution intents
 // @Tags Intent
-// @Success 200 {object} api.IntentListResponse
+// @Success 200 {object} IntentListResponse
 // @Router /api/v1/intents [get]
 func (h *IntentHandler) List(c *gin.Context) {
 	filter, err := buildIntentFilter(c)
@@ -78,7 +78,7 @@ func (h *IntentHandler) List(c *gin.Context) {
 // @Summary 获取执行意图
 // @Tags Intent
 // @Param id path string true "Intent ID"
-// @Success 200 {object} api.IntentResponse
+// @Success 200 {object} IntentResponse
 // @Router /api/v1/intents/{id} [get]
 func (h *IntentHandler) Get(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
