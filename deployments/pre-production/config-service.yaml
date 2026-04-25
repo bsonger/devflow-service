@@ -11,7 +11,7 @@ data:
     server:
       port: 8082
     postgres:
-      dsn: "postgres://USERNAME:PASSWORD@POSTGRES_HOST:5432/devflow?sslmode=disable"
+      dsn: "postgresql://app:Sm3MQA5IVcPt1wUiOm1cpEU0w9vJBhPChjoUXcuCGY6cW4Yo9qUkqaNMf1OfrSIi@pg18-rw.database:5432/app"
       max_open_conns: 20
       max_idle_conns: 10
       conn_max_lifetime_minutes: 30
