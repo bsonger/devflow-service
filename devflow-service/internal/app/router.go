@@ -6,9 +6,11 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/application"
 	"github.com/bsonger/devflow-service/internal/cluster"
-	"github.com/bsonger/devflow-service/internal/config"
+	"github.com/bsonger/devflow-service/internal/appservice"
+	"github.com/bsonger/devflow-service/internal/approute"
+	"github.com/bsonger/devflow-service/internal/appconfig"
 	"github.com/bsonger/devflow-service/internal/environment"
-	"github.com/bsonger/devflow-service/internal/network"
+	"github.com/bsonger/devflow-service/internal/workloadconfig"
 	"github.com/bsonger/devflow-service/internal/platform/routercore"
 	"github.com/bsonger/devflow-service/internal/project"
 	"github.com/gin-contrib/cors"
@@ -25,8 +27,10 @@ const (
 	ModuleApplication Module = "application"
 	ModuleCluster     Module = "cluster"
 	ModuleEnvironment Module = "environment"
-	ModuleNetwork     Module = "network"
-	ModuleConfig      Module = "config"
+	ModuleAppService   Module = "app-service"
+	ModuleAppRoute     Module = "app-route"
+	ModuleAppConfig    Module = "app-config"
+	ModuleWorkloadConfig Module = "workload-config"
 )
 
 type Options struct {
@@ -44,8 +48,10 @@ func NewRouter() *gin.Engine {
 			ModuleApplication,
 			ModuleCluster,
 			ModuleEnvironment,
-			ModuleNetwork,
-			ModuleConfig,
+			ModuleAppService,
+			ModuleAppRoute,
+			ModuleAppConfig,
+			ModuleWorkloadConfig,
 		},
 	})
 }
@@ -114,12 +120,20 @@ func RegisterEnvironmentRoutes(rg *gin.RouterGroup) {
 	environment.NewModule().RegisterRoutes(rg)
 }
 
-func RegisterNetworkRoutes(rg *gin.RouterGroup) {
-	network.NewModule().RegisterRoutes(rg)
+func RegisterAppServiceRoutes(rg *gin.RouterGroup) {
+	appservice.NewModule().RegisterRoutes(rg)
 }
 
-func RegisterConfigRoutes(rg *gin.RouterGroup) {
-	config.NewModule().RegisterRoutes(rg)
+func RegisterAppRouteRoutes(rg *gin.RouterGroup) {
+	approute.NewModule().RegisterRoutes(rg)
+}
+
+func RegisterAppConfigRoutes(rg *gin.RouterGroup) {
+	appconfig.NewModule().RegisterRoutes(rg)
+}
+
+func RegisterWorkloadConfigRoutes(rg *gin.RouterGroup) {
+	workloadconfig.NewModule().RegisterRoutes(rg)
 }
 
 func serviceName(opts Options) string {
@@ -146,10 +160,14 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 			RegisterClusterRoutes(api)
 		case ModuleEnvironment:
 			RegisterEnvironmentRoutes(api)
-		case ModuleNetwork:
-			RegisterNetworkRoutes(api)
-		case ModuleConfig:
-			RegisterConfigRoutes(api)
+		case ModuleAppService:
+			RegisterAppServiceRoutes(api)
+		case ModuleAppRoute:
+			RegisterAppRouteRoutes(api)
+		case ModuleAppConfig:
+			RegisterAppConfigRoutes(api)
+		case ModuleWorkloadConfig:
+			RegisterWorkloadConfigRoutes(api)
 		}
 	}
 }

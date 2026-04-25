@@ -7,6 +7,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/otel"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/pyroscopex"
+	gootel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -72,4 +73,14 @@ func ReinjectLogger(ctx context.Context) context.Context {
 func StartSpan(ctx context.Context, tracer trace.Tracer, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	ctx, span := tracer.Start(ctx, spanName, opts...)
 	return ReinjectLogger(ctx), span
+}
+
+var devflowTracer = gootel.Tracer("devflow")
+
+func StartServiceSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return StartSpan(ctx, devflowTracer, spanName, opts...)
+}
+
+func StartWorkerSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return StartSpan(ctx, gootel.Tracer("release-worker"), spanName, opts...)
 }

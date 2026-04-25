@@ -2,8 +2,7 @@
 
 This directory is reserved for runnable process entrypoints in `devflow-service`.
 
-Future slices should place service mains and operational binaries here once real migration begins.
-This bootstrap slice reserves the location only; it does not create placeholder binaries or fake service commands.
+Current migrated entries include `cmd/meta-service` and `cmd/release-service`.
 
 ## Intended scope
 

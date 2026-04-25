@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bsonger/devflow-service/internal/config/domain"
+	"github.com/bsonger/devflow-service/internal/appconfig/domain"
 )
 
 var ErrSourcePathNotFound = errors.New("config repo source path not found")

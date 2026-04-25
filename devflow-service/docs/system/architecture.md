@@ -3,7 +3,8 @@
 ## Role of this repository
 
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
-The active local migration focuses on one service, `meta-service`, and on moving the repository itself to a root-level `cmd` and `internal` layout.
+The active local migration focuses on `meta-service`, while `release-service` has also been brought into the same root-level `cmd` and `internal` layout with verify ingress absorbed into the release boundary.
+Inside `internal/`, release-owned business resources now follow the same top-level split pattern as the rest of the repo: `internal/image`, `internal/manifest`, `internal/intent`, plus release-specific assembly and adapters in `internal/release`.
 
 ## Root structure
 
@@ -26,7 +27,7 @@ It does not reintroduce a broad shared-code layer; any future `internal/shared/`
 The active local execution contract is:
 - one root Go module at the repo root
 - target Go baseline `1.26.2`
-- one active service process name: `meta-service`
+- current runnable process entries include `meta-service` and `release-service`
 
 This repository should not introduce `go.work` or per-service `go.mod` files during the current migration.
 
@@ -35,6 +36,7 @@ This repository should not introduce `go.work` or per-service `go.mod` files dur
 The current target code layout is:
 
 - `cmd/meta-service/main.go` for entrypoint-only startup logic
+- `cmd/release-service/main.go` for the migrated release-service entrypoint
 - `internal/platform/` for infrastructure-only capabilities such as config, db, logger, otel, httpx, and runtime lifecycle
 - `internal/shared/` for a small number of stable cross-domain helpers when duplication is no longer justified
 - `internal/<domain>/domain` for domain objects and rules

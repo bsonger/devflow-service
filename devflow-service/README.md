@@ -1,7 +1,7 @@
 # DevFlow Service
 
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
-The active local migration still focuses on one runnable service, `meta-service`, while the repo contract is aligned to a root-level Go monorepo layout.
+The active local migration still focuses on `meta-service`, while the repo contract is aligned to a root-level Go monorepo layout and now also carries the migrated `release-service` entrypoint with verify ingress absorbed into it.
 
 ## Purpose
 
@@ -16,6 +16,8 @@ This repo gives a fresh engineer or agent one place to answer:
 
 Today this repo is in a transition state:
 - the current active service name remains `meta-service`
+- `release-service` now also boots from the root layout at `cmd/release-service` with verify ingress folded into its release-owned HTTP surface
+- release-owned resource domains are split into `internal/image`, `internal/manifest`, `internal/intent`, with release-specific orchestration remaining in `internal/release`
 - the target code layout is root `cmd/` plus root `internal/`
 - business code follows `internal/<domain>/{service,domain,repository,transport}`
 - the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
@@ -95,6 +97,7 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
+go build -o bin/release-service ./cmd/release-service
 docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
 ```

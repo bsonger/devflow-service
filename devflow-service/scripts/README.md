@@ -24,6 +24,7 @@ The verifier should fail fast and prove:
 - the active Go baseline matches the current contract
 - Docker policy is enforced from the policy docs and script checks
 - `meta-service` builds from the active root layout
+- `release-service` builds from the active root layout with verify ingress absorbed into it
 - `go test ./...` still passes
 
 The target proof stack for the repo is:
@@ -34,6 +35,7 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
+go build -o bin/release-service ./cmd/release-service
 docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
 ```

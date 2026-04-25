@@ -20,6 +20,10 @@ func Postgres() *sql.DB {
 	return postgres
 }
 
+func DB() *sql.DB {
+	return Postgres()
+}
+
 func ApplyPool(conn *sql.DB, maxOpen, maxIdle, lifetimeMinutes int) {
 	if maxOpen > 0 {
 		conn.SetMaxOpenConns(maxOpen)

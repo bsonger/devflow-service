@@ -12,7 +12,9 @@ After reading it, a fresh engineer or agent should know:
 ## Current migration state
 
 - Active service: `meta-service`
+- Additional migrated service entrypoint: `release-service`
 - Active migration: finish the remaining repo-root cleanup after moving `meta-service` into the repository root layout
+- Active release migration: `release-service` now boots from `cmd/release-service` and owns the verify ingress/writeback paths that were previously modeled as `verify-service`
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
 - Active image packaging: root `Dockerfile` now performs a multi-stage build directly from `cmd/meta-service`
@@ -40,6 +42,7 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
+go build -o bin/release-service ./cmd/release-service
 docker build -t devflow-service:local -f Dockerfile .
 bash scripts/verify.sh
 ```
