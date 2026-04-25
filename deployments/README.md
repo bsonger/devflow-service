@@ -19,8 +19,12 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/meta-service.yaml` to deploy namespace, configmap, service, and deployment for `meta-service`
 - use `kubectl apply -f deployments/pre-production/config-service.yaml` to deploy `config-service`
 - use `kubectl apply -f deployments/pre-production/network-service.yaml` to deploy `network-service`
+- use `kubectl apply -f deployments/pre-production/release-service.yaml` to deploy `release-service`
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose `config-service`, `network-service`, and `runtime-service` through one Istio host with per-service subpaths
+
+By default, `release-service` is deployed as an in-cluster `ClusterIP` service only.
+It is not exposed by `deployments/pre-production/istio/shared-ingress.yaml`.
 
 Istio edge note:
 - `deployments/pre-production/istio/shared-ingress.yaml` is the committed pre-production edge contract for extracted service ingress
@@ -33,6 +37,7 @@ Pre-production manifest note:
 - `deployments/pre-production/meta-service.yaml` uses a `ConfigMap` named `meta-service-config`
 - `deployments/pre-production/config-service.yaml` uses a `ConfigMap` named `config-service-config`
 - `deployments/pre-production/network-service.yaml` uses a `ConfigMap` named `network-service-config`
+- `deployments/pre-production/release-service.yaml` uses a `ConfigMap` named `release-service-config`
 - `deployments/pre-production/runtime-service.yaml` uses a `ConfigMap` named `runtime-service-config`
 - update `data.config.yaml` in those files before applying them to a real environment
 
