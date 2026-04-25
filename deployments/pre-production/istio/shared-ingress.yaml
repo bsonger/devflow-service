@@ -15,7 +15,7 @@ spec:
         name: http
         protocol: HTTP
       hosts:
-        - devflow-pre.example.com
+        - devflow-pre-production.bei.com
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
@@ -27,10 +27,19 @@ metadata:
     environment: pre-production
 spec:
   hosts:
-    - devflow-pre.example.com
+    - devflow-pre-production.bei.com
   gateways:
     - devflow-pre-production/devflow-preproduction-gateway
   http:
+    - name: meta-service-platform-api
+      match:
+        - uri:
+            prefix: /api/v1/platform
+      route:
+        - destination:
+            host: meta-service.devflow-pre-production.svc.cluster.local
+            port:
+              number: 8081
     - name: config-service-root
       match:
         - uri:

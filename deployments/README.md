@@ -21,7 +21,7 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/network-service.yaml` to deploy `network-service`
 - use `kubectl apply -f deployments/pre-production/release-service.yaml` to deploy `release-service`
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
-- use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose `config-service`, `network-service`, and `runtime-service` through one Istio host with per-service subpaths
+- use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
 
 By default, `release-service` is deployed as an in-cluster `ClusterIP` service only.
 It is not exposed by `deployments/pre-production/istio/shared-ingress.yaml`.
@@ -29,7 +29,7 @@ It is not exposed by `deployments/pre-production/istio/shared-ingress.yaml`.
 Istio edge note:
 - `deployments/pre-production/istio/shared-ingress.yaml` is the committed pre-production edge contract for extracted service ingress
 - the committed pre-production namespace is `devflow-pre-production`
-- it uses one host, `devflow-pre.example.com`, with service-specific subpaths: `/config`, `/network`, and `/runtime`
+- it uses one host, `devflow-pre-production.bei.com`, with `/api/v1/platform` routed to `meta-service` and service-specific subpaths: `/config`, `/network`, and `/runtime`
 - the `Gateway` and `VirtualService` in that file should be updated together if the shared ingress host or gateway selector changes
 - the backend Kubernetes `Service` objects remain `ClusterIP`; edge exposure belongs to Istio ingress rather than per-service load balancers
 
