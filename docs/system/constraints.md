@@ -31,7 +31,7 @@ These constraints apply to the current `devflow-service` migration baseline.
 ## Documentation constraints
 
 - Keep navigation docs in `docs/index/` only.
-- Keep current repo-local truth in `docs/system/`, `docs/services/`, and `docs/policies/`.
+- Keep current repo-local truth in `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`.
 - Keep generated output in `docs/generated/` only.
 - Keep historical material in `docs/archive/` only.
 - Do not leave stale flat docs around as competing authorities once the layered docs exist.

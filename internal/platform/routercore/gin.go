@@ -3,7 +3,7 @@ package routercore
 import (
 	"context"
 	"net/http"
-	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +25,7 @@ func ShouldIgnorePath(path string) bool {
 		path == "/health" ||
 		path == "/healthz" ||
 		path == "/readyz" ||
+		path == "/internal/status" ||
 		strings.HasPrefix(path, "/debug/pprof") ||
 		strings.HasPrefix(path, "/swagger")
 }
@@ -55,13 +57,13 @@ func PyroscopeMiddleware() gin.HandlerFunc {
 }
 
 var (
-	httpMetricsOnce     sync.Once
-	httpRequestsCounter metric.Int64Counter
-	httpErrorsCounter   metric.Int64Counter
-	httpRequestLatency  metric.Float64Histogram
-	httpRequestSize     metric.Int64Histogram
-	httpResponseSize    metric.Int64Histogram
-	httpMetricsInitErr  error
+	httpMetricsOnce      sync.Once
+	httpRequestsCounter  metric.Int64Counter
+	httpRequestsInFlight metric.Int64UpDownCounter
+	httpRequestLatency   metric.Float64Histogram
+	httpRequestSize      metric.Int64Histogram
+	httpResponseSize     metric.Int64Histogram
+	httpMetricsInitErr   error
 )
 
 func GinMetricsMiddleware() gin.HandlerFunc {
@@ -78,6 +80,12 @@ func GinMetricsMiddleware() gin.HandlerFunc {
 		if requestSize < 0 {
 			requestSize = 0
 		}
+		ctx := c.Request.Context()
+		startAttrs := httpMetricAttributes(c, 0)
+		if httpMetricsInitErr == nil {
+			httpRequestsInFlight.Add(ctx, 1, metric.WithAttributes(startAttrs...))
+			defer httpRequestsInFlight.Add(ctx, -1, metric.WithAttributes(startAttrs...))
+		}
 
 		c.Next()
 
@@ -86,22 +94,11 @@ func GinMetricsMiddleware() gin.HandlerFunc {
 		}
 
 		status := c.Writer.Status()
-		statusClass := httpStatusClass(status)
-		attrs := []attribute.KeyValue{
-			attribute.String("service", serviceLabel()),
-			attribute.String("route", routeLabel(c)),
-			attribute.String("method", c.Request.Method),
-			attribute.String("status_class", statusClass),
-		}
-
-		ctx := c.Request.Context()
+		attrs := httpMetricAttributes(c, status)
 		httpRequestsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 		httpRequestLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
 		httpRequestSize.Record(ctx, requestSize, metric.WithAttributes(attrs...))
 		httpResponseSize.Record(ctx, int64(maxInt(c.Writer.Size(), 0)), metric.WithAttributes(attrs...))
-		if status >= 400 {
-			httpErrorsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
 	}
 }
 
@@ -109,22 +106,22 @@ func initHTTPMetrics() {
 	meter := otel.Meter("devflow/http")
 
 	httpRequestsCounter, httpMetricsInitErr = meter.Int64Counter(
-		"devflow_http_requests_total",
+		"http_server_requests_total",
 		metric.WithUnit("{request}"),
 	)
 	if httpMetricsInitErr != nil {
 		return
 	}
-	httpErrorsCounter, httpMetricsInitErr = meter.Int64Counter(
-		"devflow_http_errors_total",
-		metric.WithUnit("{error}"),
+	httpRequestsInFlight, httpMetricsInitErr = meter.Int64UpDownCounter(
+		"http_server_requests_in_flight",
+		metric.WithUnit("{request}"),
 	)
 	if httpMetricsInitErr != nil {
 		return
 	}
 
 	httpRequestLatency, httpMetricsInitErr = meter.Float64Histogram(
-		"devflow_http_request_duration_seconds",
+		"http_server_request_duration_seconds",
 		metric.WithUnit("s"),
 	)
 	if httpMetricsInitErr != nil {
@@ -132,7 +129,7 @@ func initHTTPMetrics() {
 	}
 
 	httpRequestSize, httpMetricsInitErr = meter.Int64Histogram(
-		"http.server.request.size",
+		"http_server_request_size_bytes",
 		metric.WithUnit("By"),
 	)
 	if httpMetricsInitErr != nil {
@@ -140,7 +137,7 @@ func initHTTPMetrics() {
 	}
 
 	httpResponseSize, httpMetricsInitErr = meter.Int64Histogram(
-		"http.server.response.size",
+		"http_server_response_size_bytes",
 		metric.WithUnit("By"),
 	)
 }
@@ -150,7 +147,6 @@ func GinZapLogger() gin.HandlerFunc {
 		start := time.Now()
 		req := c.Request
 		path := req.URL.Path
-		rawQuery := req.URL.RawQuery
 
 		c.Next()
 
@@ -164,18 +160,20 @@ func GinZapLogger() gin.HandlerFunc {
 		fields := []zap.Field{
 			zap.String("component", "http_server"),
 			zap.String("result", httpResult(status)),
-			zap.String("http.method", req.Method),
-			zap.String("http.route", route),
-			zap.String("http.target", buildTarget(path, rawQuery)),
-			zap.Int("http.status_code", status),
-			zap.String("client.ip", c.ClientIP()),
-			zap.String("user_agent.original", req.UserAgent()),
-			zap.Duration("http.server.duration", latency),
+			zap.String("method", req.Method),
+			zap.String("route", route),
+			zap.String("path", path),
+			zap.Int("status_code", status),
+			zap.Int64("request_size_bytes", maxInt64(req.ContentLength, 0)),
+			zap.Int("response_size_bytes", maxInt(c.Writer.Size(), 0)),
+			zap.Int64("duration_ms", latency.Milliseconds()),
+			zap.String("client_ip", c.ClientIP()),
+			zap.String("user_agent", req.UserAgent()),
 		}
 
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last()
-			fields = append(fields, zap.String("error.message", err.Error()))
+			fields = append(fields, zap.String("error_message", err.Error()))
 		}
 
 		log := logger.LoggerFromContext(req.Context())
@@ -218,21 +216,23 @@ func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := strings.TrimSpace(c.GetHeader("X-Request-Id"))
 		if requestID == "" {
+			requestID = strings.TrimSpace(c.GetHeader("X-Request-ID"))
+		}
+		if requestID == "" {
 			requestID = uuid.NewString()
 		}
 		c.Header("X-Request-Id", requestID)
+		c.Header("X-Request-ID", requestID)
 		ctx := logger.WithRequestID(c.Request.Context(), requestID)
 		ctx = logger.InjectLogger(ctx, logger.Logger)
+		if span := trace.SpanFromContext(ctx); span != nil {
+			if sc := span.SpanContext(); sc.IsValid() {
+				c.Header("X-Trace-Id", sc.TraceID().String())
+			}
+		}
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
-}
-
-func buildTarget(path, rawQuery string) string {
-	if rawQuery == "" {
-		return path
-	}
-	return path + "?" + rawQuery
 }
 
 func maxInt(value, fallback int) int {
@@ -242,15 +242,28 @@ func maxInt(value, fallback int) int {
 	return value
 }
 
-func serviceLabel() string {
-	if name := os.Getenv("SERVICE_NAME"); name != "" {
-		return name
+func maxInt64(value, fallback int64) int64 {
+	if value < fallback {
+		return fallback
 	}
-	return "devflow"
+	return value
 }
 
-func httpStatusClass(status int) string {
-	return httpResult(status)
+func httpMetricAttributes(c *gin.Context, status int) []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.String("service", logger.ServiceName()),
+		attribute.String("environment", logger.Environment()),
+		attribute.String("method", c.Request.Method),
+		attribute.String("route", routeLabel(c)),
+		attribute.String("status_code", httpStatusCodeLabel(status)),
+	}
+}
+
+func httpStatusCodeLabel(status int) string {
+	if status <= 0 {
+		return "in_flight"
+	}
+	return strconv.Itoa(status)
 }
 
 func httpResult(status int) string {

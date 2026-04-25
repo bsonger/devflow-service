@@ -12,12 +12,18 @@ After reading it, a fresh engineer or agent should know:
 ## Current migration state
 
 - Active service: `meta-service`
+- Additional migrated service entrypoint: `config-service`
+- Additional migrated service entrypoint: `network-service`
 - Additional migrated service entrypoint: `release-service`
+- Additional migrated service entrypoint: `runtime-service`
 - Active migration: finish the remaining repo-root cleanup after moving `meta-service` into the repository root layout
+- Active config migration: `config-service` now boots from `cmd/config-service` and owns the extracted `AppConfig` and `WorkloadConfig` API surface
+- Active network migration: `network-service` now boots from `cmd/network-service` and owns the extracted `Service` and `Route` API surface
 - Active release migration: `release-service` now boots from `cmd/release-service` and owns the verify ingress/writeback paths that were previously modeled as `verify-service`
-- Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
+- Active runtime migration: `runtime-service` now boots from `cmd/runtime-service` and owns extracted runtime spec, runtime revision, and observer pod APIs
+- Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
-- Active image packaging: root `Dockerfile` now performs a multi-stage build directly from `cmd/meta-service`
+- Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`, while non-default service image selection is hardcoded in committed Tekton manifests for `config-service`, `network-service`, `release-service`, and `runtime-service`
 
 This repository is in an intentional transition state.
 Current local docs are authoritative even when the code migration is not complete yet.
@@ -42,10 +48,15 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
+go build -o bin/config-service ./cmd/config-service
+go build -o bin/network-service ./cmd/network-service
 go build -o bin/release-service ./cmd/release-service
-docker build -t devflow-service:local -f Dockerfile .
+go build -o bin/runtime-service ./cmd/runtime-service
 bash scripts/verify.sh
 ```
+
+Local ad-hoc Docker builds are intentionally not part of the recovery proof stack.
+When packaging work is involved, use the committed Tekton manifests under `deployments/tekton/` instead of treating a local Docker build as authoritative.
 
 During the migration, some of those commands may still require path updates before they pass against the final root layout.
 When that happens, fix the repo contract and verification together instead of treating failures as expected noise.
@@ -60,8 +71,9 @@ Inspect next:
 3. `docs/README.md`
 4. `docs/system/`
 5. `docs/services/`
-6. `docs/policies/`
-7. `scripts/README.md`
+6. `docs/resources/`
+7. `docs/policies/`
+8. `scripts/README.md`
 
 ### If Docker policy checks fail
 
@@ -79,6 +91,15 @@ Inspect next:
 3. `internal/app`
 4. `internal/platform/...`
 5. the affected `internal/<domain>/...` package
+
+### If release writeback or observer callbacks fail
+
+Inspect next:
+1. `docs/system/release-writeback.md`
+2. `internal/release/transport/http/router.go`
+3. `internal/release/transport/http/writeback_support.go`
+4. `internal/release/transport/http/release_writeback.go`
+5. `internal/release/config/config.go`
 
 ### If migration-boundary decisions are unclear
 

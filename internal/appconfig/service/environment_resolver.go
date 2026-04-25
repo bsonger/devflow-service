@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bsonger/devflow-service/internal/shared/downstreamhttp"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 )
 
 type environmentResolver interface {
@@ -14,15 +14,12 @@ type environmentResolver interface {
 }
 
 type httpEnvironmentResolver struct {
-	baseURL string
-	client  *http.Client
+	client *downstreamhttp.Client
 }
 
-type environmentEnvelope struct {
-	Data struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	} `json:"data"`
+type environmentDoc struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func newHTTPEnvironmentResolver(baseURL string) environmentResolver {
@@ -31,8 +28,7 @@ func newHTTPEnvironmentResolver(baseURL string) environmentResolver {
 		return nil
 	}
 	return &httpEnvironmentResolver{
-		baseURL: trimmed,
-		client:  &http.Client{Timeout: 10 * time.Second},
+		client: downstreamhttp.NewWithOptions(trimmed, downstreamhttp.WithTimeout(10*time.Second)),
 	}
 }
 
@@ -43,27 +39,15 @@ func ResolveEnvironmentResolver(baseURL string) environmentResolver {
 func (r *httpEnvironmentResolver) ResolveName(ctx context.Context, environmentID string) (string, error) {
 	trimmedID := strings.TrimSpace(environmentID)
 	if trimmedID == "" {
-		return "", fmt.Errorf("environment id is required")
+		return "", sharederrs.Required("environment_id")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.baseURL+"/api/v1/environments/"+trimmedID, nil)
-	if err != nil {
+	var doc environmentDoc
+	if err := r.client.GetEnvelopeData(ctx, "/api/v1/environments/"+trimmedID, &doc); err != nil {
 		return "", err
 	}
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("resolve environment %s: unexpected status %d", trimmedID, resp.StatusCode)
-	}
-	var envelope environmentEnvelope
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return "", err
-	}
-	name := strings.TrimSpace(envelope.Data.Name)
+	name := strings.TrimSpace(doc.Name)
 	if name == "" {
-		return "", fmt.Errorf("resolve environment %s: empty environment name", trimmedID)
+		return "", sharederrs.FailedPrecondition("environment name is empty")
 	}
 	return name, nil
 }

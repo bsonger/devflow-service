@@ -23,8 +23,6 @@ func main() {
 				app.ModuleApplication,
 				app.ModuleCluster,
 				app.ModuleEnvironment,
-				app.ModuleAppService,
-				app.ModuleAppRoute,
 				app.ModuleAppConfig,
 				app.ModuleWorkloadConfig,
 			},

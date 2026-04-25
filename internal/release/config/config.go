@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
-	"github.com/bsonger/devflow-service/internal/release/transport/argo"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
-	localtekton "github.com/bsonger/devflow-service/internal/release/transport/tekton"
-	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/release/runtime"
-	"github.com/bsonger/devflow-service/internal/release/transport/runtime"
-	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/bsonger/devflow-service/internal/release/service"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	"github.com/bsonger/devflow-service/internal/release/transport/argo"
 	releasehttp "github.com/bsonger/devflow-service/internal/release/transport/http"
+	"github.com/bsonger/devflow-service/internal/release/transport/runtime"
+	localtekton "github.com/bsonger/devflow-service/internal/release/transport/tekton"
 
 	"github.com/spf13/viper"
 
@@ -145,12 +145,14 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 
 func initObservability(ctx context.Context, logCfg *model.LogConfig, otelCfg *model.OtelConfig, pyroscopeAddr, serviceName string) (func(context.Context) error, error) {
 	opts := observability.RuntimeOptions{
-		LogLevel:        "",
-		LogFormat:       "",
-		OtelEndpoint:    "",
-		OtelService:     resolveObservabilityServiceName(otelCfg, serviceName),
-		PyroscopeAddr:   pyroscopeAddr,
-		ServiceOverride: serviceName,
+		LogLevel:               "",
+		LogFormat:              "",
+		OtelEndpoint:           "",
+		OtelProtocol:           "",
+		OtelService:            resolveObservabilityServiceName(otelCfg, serviceName),
+		OtelResourceAttributes: "",
+		PyroscopeAddr:          pyroscopeAddr,
+		ServiceOverride:        serviceName,
 	}
 	if logCfg != nil {
 		opts.LogLevel = logCfg.Level
@@ -158,6 +160,9 @@ func initObservability(ctx context.Context, logCfg *model.LogConfig, otelCfg *mo
 	}
 	if otelCfg != nil {
 		opts.OtelEndpoint = otelCfg.Endpoint
+		opts.OtelProtocol = otelCfg.Protocol
+		opts.OtelResourceAttributes = otelCfg.ResourceAttributes
+		opts.OtelSampleRatio = otelCfg.SampleRatio
 	}
 	return observability.Init(ctx, opts)
 }

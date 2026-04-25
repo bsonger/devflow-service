@@ -54,8 +54,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/app-configs [post]
 func (h *Handler) CreateAppConfig(c *gin.Context) {
 	var req domain.AppConfigInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.AppConfig{
@@ -71,7 +70,7 @@ func (h *Handler) CreateAppConfig(c *gin.Context) {
 	}
 	item.WithCreateDefault()
 	if _, err := h.appConfigs.Create(c.Request.Context(), item); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, item)
@@ -85,18 +84,17 @@ func (h *Handler) CreateAppConfig(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.AppConfig]
 // @Router /api/v1/app-configs/{id} [get]
 func (h *Handler) GetAppConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	item, err := h.appConfigs.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusOK, item)
@@ -111,14 +109,12 @@ func (h *Handler) GetAppConfig(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/app-configs/{id} [put]
 func (h *Handler) UpdateAppConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	var req domain.AppConfigInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.AppConfig{
@@ -135,10 +131,10 @@ func (h *Handler) UpdateAppConfig(c *gin.Context) {
 	item.SetID(id)
 	if err := h.appConfigs.Update(c.Request.Context(), item); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -151,17 +147,16 @@ func (h *Handler) UpdateAppConfig(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/app-configs/{id} [delete]
 func (h *Handler) DeleteAppConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	if err := h.appConfigs.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -180,30 +175,22 @@ func (h *Handler) DeleteAppConfig(c *gin.Context) {
 // @Router /api/v1/app-configs [get]
 func (h *Handler) ListAppConfigs(c *gin.Context) {
 	var filter appconfig.AppConfigListFilter
-	if appID := c.Query("application_id"); appID != "" {
-		id, err := uuid.Parse(appID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application_id", nil)
-			return
-		}
-		filter.ApplicationID = &id
+	appID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok {
+		return
+	}
+	if appID != nil {
+		filter.ApplicationID = appID
 	}
 	filter.EnvironmentID = c.Query("environment_id")
 	filter.Name = c.Query("name")
 	filter.IncludeDeleted = httpx.IncludeDeleted(c)
 	items, err := h.appConfigs.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-	total := len(items)
-	items = httpx.PaginateSlice(items, paging)
-	httpx.WriteList(c, http.StatusOK, items, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
 // SyncAppConfig godoc
@@ -214,23 +201,21 @@ func (h *Handler) ListAppConfigs(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.AppConfigRevision]
 // @Router /api/v1/app-configs/{id}/sync-from-repo [post]
 func (h *Handler) SyncAppConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	result, err := h.appConfigs.Sync(c.Request.Context(), id)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 		case errors.Is(err, appconfig.ErrConfigSourceNotFound), errors.Is(err, appconfig.ErrConfigRepositoryUnavailable), errors.Is(err, appconfig.ErrConfigRepositorySyncFailed):
-			httpx.WriteError(c, http.StatusFailedDependency, "failed_precondition", err.Error(), nil)
+			httpx.WriteFailedPrecondition(c, http.StatusFailedDependency, err.Error())
 		default:
-			httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+			httpx.WriteInternalError(c, err)
 		}
 		return
 	}
 	httpx.WriteData(c, http.StatusOK, result.Revision)
 }
-

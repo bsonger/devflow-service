@@ -23,6 +23,7 @@ Allowed:
 - compile in an approved builder stage
 - copy built artifacts and tracked runtime files into the final runtime stage
 - declare runtime metadata such as `ENTRYPOINT`, `CMD`, or `EXPOSE`
+- keep one root `Dockerfile` that defaults to the active local contract
 
 Banned:
 - `apk add`
@@ -33,6 +34,34 @@ Banned:
 - any inline package or tool installation step
 
 If a dependency needs installation, promote it into the controlled base-image contract first.
+
+## Monorepo build selection rule
+
+The root `Dockerfile` may remain parameterized internally, but non-default service selection must not be treated as a local operator choice.
+For `config-service`, `network-service`, `release-service`, and `runtime-service`, the authoritative packaging contract is the committed Tekton manifest set under `deployments/tekton/`.
+
+Committed cluster-build examples:
+
+```text
+deployments/tekton/config-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/config-service-pipeline-run-template.yaml
+deployments/tekton/network-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/network-service-pipeline-run-template.yaml
+deployments/tekton/release-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/release-service-pipeline-run-template.yaml
+deployments/tekton/runtime-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/runtime-service-pipeline-run-template.yaml
+```
+
+Parameterization does not create new services by itself.
+Only domains with a runnable `cmd/<service>/main.go` entrypoint in this repo are separately buildable images here.
+In particular:
+- `config-service` is now a runnable extracted entrypoint
+- `network-service` is now a runnable extracted entrypoint
+- `runtime-service` is now a runnable extracted entrypoint
+
+The committed docs, runnable `cmd/` entrypoints, and cluster build manifests are the authoritative contract.
+Local ad-hoc Docker builds must not be treated as proof that a new service boundary exists.
 
 ## Builder image publication rule
 

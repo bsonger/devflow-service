@@ -10,14 +10,15 @@ import (
 	clusterservice "github.com/bsonger/devflow-service/internal/cluster/service"
 	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
 	envrepo "github.com/bsonger/devflow-service/internal/environment/repository"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
 
 var (
-	ErrEnvironmentNameRequired    = errors.New("environment name is required")
-	ErrEnvironmentClusterRequired = errors.New("environment cluster_id is required")
-	ErrClusterReferenceNotFound   = errors.New("cluster reference not found")
-	ErrEnvironmentConflict        = errors.New("environment already exists")
+	ErrEnvironmentNameRequired    = sharederrs.Required("environment name")
+	ErrEnvironmentClusterRequired = sharederrs.Required("cluster_id")
+	ErrClusterReferenceNotFound   = sharederrs.InvalidArgument("cluster reference not found")
+	ErrEnvironmentConflict        = sharederrs.Conflict("environment already exists")
 )
 
 type ListFilter struct {

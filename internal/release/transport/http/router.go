@@ -1,15 +1,14 @@
 package http
 
 import (
-	"github.com/bsonger/devflow-service/internal/release"
 	"github.com/bsonger/devflow-service/internal/platform/routercore"
+	"github.com/bsonger/devflow-service/internal/release"
 	"github.com/bsonger/devflow-service/internal/release/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
-	"net/http"
 	"time"
 )
 
@@ -64,18 +63,10 @@ func NewRouterWithOptions(opts Options) *gin.Engine {
 		}),
 	)
 
-	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"service": serviceName(opts),
-			"status":  "ok",
-		})
-	})
-
-	r.GET("/readyz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"service": serviceName(opts),
-			"status":  "ready",
-		})
+	routercore.RegisterStatusRoutes(r, routercore.StatusOptions{
+		ServiceName:   serviceName(opts),
+		EnableSwagger: opts.EnableSwagger,
+		Modules:       toStatusModules(opts.Modules),
 	})
 
 	if opts.EnableSwagger {
@@ -100,4 +91,21 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 	release.NewModule().RegisterRoutes(api)
 	NewReleaseHandler(service.ReleaseService).RegisterRoutes(api)
 	RegisterReleaseWritebackRoutes(api)
+}
+
+func toStatusModules(modules []Module) []string {
+	if len(modules) == 0 {
+		modules = []Module{
+			ModuleManifest,
+			ModuleImage,
+			ModuleRelease,
+			ModuleIntent,
+		}
+	}
+
+	out := make([]string, 0, len(modules))
+	for _, module := range modules {
+		out = append(out, string(module))
+	}
+	return out
 }

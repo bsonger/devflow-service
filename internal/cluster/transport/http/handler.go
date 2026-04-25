@@ -60,8 +60,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/clusters [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateClusterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -91,9 +90,8 @@ func (h *Handler) Create(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.Cluster]
 // @Router /api/v1/clusters/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
@@ -114,15 +112,13 @@ func (h *Handler) Get(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/clusters/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	var req UpdateClusterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -151,9 +147,8 @@ func (h *Handler) Update(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/clusters/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
@@ -181,34 +176,25 @@ func (h *Handler) List(c *gin.Context) {
 		writeClusterError(c, err)
 		return
 	}
-
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-
-	total := len(clusters)
-	clusters = httpx.PaginateSlice(clusters, paging)
-	httpx.WriteList(c, http.StatusOK, clusters, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, clusters)
 }
 
 func writeClusterError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+		httpx.WriteNotFound(c, "not found")
 	case errors.Is(err, service.ErrClusterConflict):
-		httpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
+		httpx.WriteConflict(c, err.Error())
 	case errors.Is(err, service.ErrClusterNameRequired),
 		errors.Is(err, service.ErrClusterServerRequired),
 		errors.Is(err, service.ErrClusterKubeConfigRequired),
 		errors.Is(err, service.ErrClusterOnboardingMalformed):
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 	case errors.Is(err, service.ErrClusterOnboardingTimeout):
 		httpx.WriteError(c, http.StatusGatewayTimeout, "deadline_exceeded", err.Error(), nil)
 	case errors.Is(err, service.ErrClusterOnboardingFailed):
-		httpx.WriteError(c, http.StatusConflict, "failed_precondition", err.Error(), nil)
+		httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 	default:
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 	}
 }

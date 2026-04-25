@@ -7,8 +7,9 @@ import (
 
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	argofake "github.com/argoproj/argo-cd/v3/pkg/client/clientset/versioned/fake"
-	"github.com/bsonger/devflow-service/internal/release/transport/argo"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	"github.com/bsonger/devflow-service/internal/release/transport/argo"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -32,7 +33,7 @@ func TestBootstrapGatesStopOnFirstFailure(t *testing.T) {
 	client := fake.NewClientset()
 	exec := &bootstrapExecutor{kubeClient: client}
 
-	results, err := exec.runBootstrapGates(context.Background(), deployTarget{
+	results, err := exec.runBootstrapGates(context.Background(), releasesupport.DeployTarget{
 		Namespace:         "test-ns",
 		DestinationServer: "https://cluster.example.com",
 	}, "app")
@@ -244,7 +245,7 @@ func TestBootstrapGateEnsureAppProjectDestinationFailsWhenNotFound(t *testing.T)
 
 func TestBootstrapMissingTarget(t *testing.T) {
 	exec := &bootstrapExecutor{kubeClient: fake.NewClientset()}
-	_, err := exec.runBootstrapGates(context.Background(), deployTarget{}, "app")
+	_, err := exec.runBootstrapGates(context.Background(), releasesupport.DeployTarget{}, "app")
 	if !errors.Is(err, ErrBootstrapMissingTarget) {
 		t.Fatalf("error = %v, want ErrBootstrapMissingTarget", err)
 	}

@@ -26,8 +26,11 @@ type PostgresConfig struct {
 }
 
 type OtelConfig struct {
-	Endpoint    string `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint"`
-	ServiceName string `mapstructure:"service_name" json:"service_name" yaml:"service_name"`
+	Endpoint           string  `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint"`
+	Protocol           string  `mapstructure:"protocol" json:"protocol" yaml:"protocol"`
+	ServiceName        string  `mapstructure:"service_name" json:"service_name" yaml:"service_name"`
+	ResourceAttributes string  `mapstructure:"resource_attributes" json:"resource_attributes" yaml:"resource_attributes"`
+	SampleRatio        float64 `mapstructure:"sample_ratio" json:"sample_ratio" yaml:"sample_ratio"`
 }
 
 type Repo struct {

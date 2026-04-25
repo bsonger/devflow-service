@@ -1,7 +1,7 @@
 # DevFlow Service
 
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
-The active local migration still focuses on `meta-service`, while the repo contract is aligned to a root-level Go monorepo layout and now also carries the migrated `release-service` entrypoint with verify ingress absorbed into it.
+The active local migration still focuses on `meta-service`, while the repo contract is aligned to a root-level Go monorepo layout and now also carries runnable `config-service`, `network-service`, `release-service`, and `runtime-service` entrypoints for extracted config/network/runtime boundaries.
 
 ## Purpose
 
@@ -9,18 +9,21 @@ This repo gives a fresh engineer or agent one place to answer:
 - what the current repo-local layout contract is
 - how docs are layered and where current truth lives
 - which service is actively being migrated
-- which Docker and verification rules must hold during the migration
+- which verification and packaging rules must hold during the migration
 - which command to rerun first after interruption
 
 ## Current state
 
 Today this repo is in a transition state:
 - the current active service name remains `meta-service`
+- `config-service` now also boots from the root layout at `cmd/config-service` and owns the extracted config API surface for `AppConfig` and `WorkloadConfig`
+- `network-service` now also boots from the root layout at `cmd/network-service` and owns the extracted network API surface for `Service` and `Route`
 - `release-service` now also boots from the root layout at `cmd/release-service` with verify ingress folded into its release-owned HTTP surface
+- `runtime-service` now also boots from the root layout at `cmd/runtime-service` and now owns extracted runtime spec, runtime revision, and runtime observed-pod APIs
 - release-owned resource domains are split into `internal/image`, `internal/manifest`, `internal/intent`, with release-specific orchestration remaining in `internal/release`
 - the target code layout is root `cmd/` plus root `internal/`
 - business code follows `internal/<domain>/{service,domain,repository,transport}`
-- the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, and `docs/policies/`
+- the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
 - the canonical repo-local verification entrypoint remains `bash scripts/verify.sh`
 
 This repo does **not** treat `modules/` as a valid end-state structure.
@@ -35,6 +38,8 @@ The target repository baseline is:
 - target builder/runtime contract: controlled base images with all installation behavior moved out of service Dockerfiles
 
 Service Dockerfiles should use thin multi-stage builds and keep installation behavior inside controlled base images only.
+The root `Dockerfile` defaults to building `meta-service`.
+Non-default service image selection for `config-service`, `network-service`, `release-service`, and `runtime-service` is a committed cluster-build concern and must be expressed through checked-in Tekton manifests under `deployments/tekton/` rather than ad-hoc local Docker commands.
 
 ## Repo shape
 
@@ -63,9 +68,10 @@ If you are landing here cold, read in this order:
 3. `docs/system/architecture.md`
 4. `docs/policies/go-monorepo-layout.md`
 5. `docs/services/meta-service.md`
-6. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
-7. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
-8. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
+6. `docs/resources/` only if the task needs current resource contracts
+7. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
+8. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
+9. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
 
 ## Docs layout
 
@@ -73,6 +79,7 @@ Use the docs tree by purpose:
 - `docs/index/` — navigation only
 - `docs/system/` — current repo-local truth
 - `docs/services/` — current service-specific behavior and diagnostics
+- `docs/resources/` — current resource contracts and API behavior
 - `docs/policies/` — durable repo rules, including Go monorepo layout policy
 - `docs/generated/` — generated artifacts only
 - `docs/archive/` — historical material only
@@ -97,9 +104,21 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
+go build -o bin/config-service ./cmd/config-service
+go build -o bin/network-service ./cmd/network-service
 go build -o bin/release-service ./cmd/release-service
-docker build -t devflow-service:local -f Dockerfile .
+go build -o bin/runtime-service ./cmd/runtime-service
 bash scripts/verify.sh
+```
+
+Local ad-hoc Docker image builds are intentionally **not** part of that proof stack.
+Service image selection belongs in committed Tekton manifests such as:
+
+```text
+deployments/tekton/config-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/network-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/release-service-preproduction-build-pipelinerun.yaml
+deployments/tekton/runtime-service-preproduction-build-pipelinerun.yaml
 ```
 
 The repo-level automation entrypoint for the same stack is:

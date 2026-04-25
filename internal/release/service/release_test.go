@@ -6,11 +6,16 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/bsonger/devflow-service/internal/release/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/dbsql"
+	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
+
+func marshalJSON(value any, empty string) ([]byte, error) {
+	return dbsql.MarshalJSON(value, empty)
+}
 
 func setupTestDB(t *testing.T) {
 	t.Helper()

@@ -2,14 +2,15 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
-	"github.com/bsonger/devflow-service/internal/release/transport/argo"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	"github.com/bsonger/devflow-service/internal/release/transport/argo"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,11 +19,11 @@ import (
 )
 
 var (
-	ErrBootstrapNamespace         = errors.New("bootstrap namespace failed")
-	ErrBootstrapPullSecret        = errors.New("bootstrap pull secret failed")
-	ErrBootstrapAppProject        = errors.New("bootstrap app project destination failed")
-	ErrBootstrapMissingTarget     = errors.New("bootstrap missing deploy target")
-	ErrBootstrapMissingKubeConfig = errors.New("bootstrap missing kubernetes config")
+	ErrBootstrapNamespace         = sharederrs.FailedPrecondition("bootstrap namespace failed")
+	ErrBootstrapPullSecret        = sharederrs.FailedPrecondition("bootstrap pull secret failed")
+	ErrBootstrapAppProject        = sharederrs.FailedPrecondition("bootstrap app project destination failed")
+	ErrBootstrapMissingTarget     = sharederrs.FailedPrecondition("bootstrap missing deploy target")
+	ErrBootstrapMissingKubeConfig = sharederrs.FailedPrecondition("bootstrap missing kubernetes config")
 )
 
 // bootstrapExecutor runs ordered bootstrap gates before Argo Application apply.
@@ -53,7 +54,7 @@ type bootstrapResult struct {
 
 // runBootstrapGates executes bootstrap gates in order and returns on first failure.
 // The caller is responsible for persisting step outcomes via UpdateStep.
-func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target deployTarget, appProjectName string) ([]bootstrapResult, error) {
+func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target releasesupport.DeployTarget, appProjectName string) ([]bootstrapResult, error) {
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
 		log = zap.NewNop()
@@ -69,7 +70,7 @@ func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target deploy
 	res := e.gateEnsureNamespace(ctx, target.Namespace)
 	results = append(results, res)
 	if res.Status == model.StepFailed {
-		log.Error("bootstrap gate failed", zap.String("gate", res.StepName), zap.String("message", res.Message))
+		log.Error("bootstrap gate failed", zap.String("step_name", res.StepName), zap.String("step_message", res.Message))
 		return results, fmt.Errorf("%w: %s", ErrBootstrapNamespace, res.Message)
 	}
 
@@ -77,7 +78,7 @@ func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target deploy
 	res = e.gateEnsurePullSecret(ctx, target.Namespace)
 	results = append(results, res)
 	if res.Status == model.StepFailed {
-		log.Error("bootstrap gate failed", zap.String("gate", res.StepName), zap.String("message", res.Message))
+		log.Error("bootstrap gate failed", zap.String("step_name", res.StepName), zap.String("step_message", res.Message))
 		return results, fmt.Errorf("%w: %s", ErrBootstrapPullSecret, res.Message)
 	}
 
@@ -85,7 +86,7 @@ func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target deploy
 	res = e.gateEnsureAppProjectDestination(ctx, appProjectName, target.DestinationServer, target.Namespace)
 	results = append(results, res)
 	if res.Status == model.StepFailed {
-		log.Error("bootstrap gate failed", zap.String("gate", res.StepName), zap.String("message", res.Message))
+		log.Error("bootstrap gate failed", zap.String("step_name", res.StepName), zap.String("step_message", res.Message))
 		return results, fmt.Errorf("%w: %s", ErrBootstrapAppProject, res.Message)
 	}
 

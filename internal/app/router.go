@@ -1,18 +1,17 @@
 package app
 
 import (
-	"net/http"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/application"
-	"github.com/bsonger/devflow-service/internal/cluster"
-	"github.com/bsonger/devflow-service/internal/appservice"
-	"github.com/bsonger/devflow-service/internal/approute"
 	"github.com/bsonger/devflow-service/internal/appconfig"
+	"github.com/bsonger/devflow-service/internal/application"
+	"github.com/bsonger/devflow-service/internal/approute"
+	"github.com/bsonger/devflow-service/internal/appservice"
+	"github.com/bsonger/devflow-service/internal/cluster"
 	"github.com/bsonger/devflow-service/internal/environment"
-	"github.com/bsonger/devflow-service/internal/workloadconfig"
 	"github.com/bsonger/devflow-service/internal/platform/routercore"
 	"github.com/bsonger/devflow-service/internal/project"
+	"github.com/bsonger/devflow-service/internal/workloadconfig"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/files"
@@ -23,13 +22,13 @@ import (
 type Module string
 
 const (
-	ModuleProject     Module = "project"
-	ModuleApplication Module = "application"
-	ModuleCluster     Module = "cluster"
-	ModuleEnvironment Module = "environment"
-	ModuleAppService   Module = "app-service"
-	ModuleAppRoute     Module = "app-route"
-	ModuleAppConfig    Module = "app-config"
+	ModuleProject        Module = "project"
+	ModuleApplication    Module = "application"
+	ModuleCluster        Module = "cluster"
+	ModuleEnvironment    Module = "environment"
+	ModuleAppService     Module = "app-service"
+	ModuleAppRoute       Module = "app-route"
+	ModuleAppConfig      Module = "app-config"
 	ModuleWorkloadConfig Module = "workload-config"
 )
 
@@ -48,8 +47,6 @@ func NewRouter() *gin.Engine {
 			ModuleApplication,
 			ModuleCluster,
 			ModuleEnvironment,
-			ModuleAppService,
-			ModuleAppRoute,
 			ModuleAppConfig,
 			ModuleWorkloadConfig,
 		},
@@ -77,17 +74,10 @@ func NewRouterWithOptions(opts Options) *gin.Engine {
 		}),
 	)
 
-	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"service": serviceName(opts),
-			"status":  "ok",
-		})
-	})
-	r.GET("/readyz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"service": serviceName(opts),
-			"status":  "ready",
-		})
+	routercore.RegisterStatusRoutes(r, routercore.StatusOptions{
+		ServiceName:   serviceName(opts),
+		EnableSwagger: opts.EnableSwagger,
+		Modules:       toStatusModules(opts.Modules),
 	})
 
 	if opts.EnableSwagger {
@@ -170,4 +160,23 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 			RegisterWorkloadConfigRoutes(api)
 		}
 	}
+}
+
+func toStatusModules(modules []Module) []string {
+	if len(modules) == 0 {
+		modules = []Module{
+			ModuleProject,
+			ModuleApplication,
+			ModuleCluster,
+			ModuleEnvironment,
+			ModuleAppConfig,
+			ModuleWorkloadConfig,
+		}
+	}
+
+	out := make([]string, 0, len(modules))
+	for _, module := range modules {
+		out = append(out, string(module))
+	}
+	return out
 }

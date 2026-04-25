@@ -42,28 +42,43 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 	start := time.Now()
 	err := fn(ctx)
 	duration := time.Since(start).Seconds()
+	log := logger.LoggerFromContext(ctx)
+	if log == nil {
+		log = zap.NewNop()
+	}
 
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		logger.LoggerFromContext(ctx).Error("dependency call failed",
+		RecordFailure(FailureSnapshot{
+			Component: "dependency_client",
+			Operation: call.Operation,
+			Target:    call.Target,
+			Result:    "error",
+			Message:   "dependency call failed",
+		})
+		log.Error("dependency call failed",
+			zap.String("operation", "dependency_call"),
+			zap.String("resource", "dependency"),
 			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
 			zap.String("result", "error"),
-			zap.String("dependency.kind", call.Kind),
-			zap.String("dependency.operation", call.Operation),
-			zap.Float64("dependency.duration_seconds", duration),
+			zap.String("dependency_kind", call.Kind),
+			zap.String("dependency_operation", call.Operation),
+			zap.Float64("dependency_duration_seconds", duration),
 			zap.Error(err),
 		)
 	} else {
 		span.SetStatus(codes.Ok, "ok")
-		logger.LoggerFromContext(ctx).Info("dependency call completed",
+		log.Info("dependency call completed",
+			zap.String("operation", "dependency_call"),
+			zap.String("resource", "dependency"),
 			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
 			zap.String("result", "ok"),
-			zap.String("dependency.kind", call.Kind),
-			zap.String("dependency.operation", call.Operation),
-			zap.Float64("dependency.duration_seconds", duration),
+			zap.String("dependency_kind", call.Kind),
+			zap.String("dependency_operation", call.Operation),
+			zap.Float64("dependency_duration_seconds", duration),
 		)
 	}
 

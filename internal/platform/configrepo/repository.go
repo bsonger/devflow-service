@@ -10,8 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/bsonger/devflow-service/internal/appconfig/domain"
 )
 
 var ErrSourcePathNotFound = errors.New("config repo source path not found")
@@ -33,7 +31,12 @@ type Snapshot struct {
 	SourcePath   string
 	SourceCommit string
 	SourceDigest string
-	Files        []domain.File
+	Files        []File
+}
+
+type File struct {
+	Name    string
+	Content string
 }
 
 type gitSyncer interface {
@@ -66,14 +69,14 @@ func (r *Repository) ReadSnapshot(ctx context.Context, sourcePath, env string) (
 		return nil, err
 	}
 
-	files := make([]domain.File, 0, len(resolved.Entries))
+	files := make([]File, 0, len(resolved.Entries))
 	hash := sha256.New()
 	for _, entry := range resolved.Entries {
 		content, err := os.ReadFile(entry.DiskPath)
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, domain.File{
+		files = append(files, File{
 			Name:    entry.Name,
 			Content: string(content),
 		})

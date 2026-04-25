@@ -2,27 +2,30 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
-	imageservice "github.com/bsonger/devflow-service/internal/image/service"
 	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
+	imageservice "github.com/bsonger/devflow-service/internal/image/service"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	"github.com/bsonger/devflow-service/internal/manifest/repository"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
-	store "github.com/bsonger/devflow-service/internal/platform/db"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"sigs.k8s.io/yaml"
 )
 
 var (
-	ErrManifestImageApplicationMismatch = errors.New("image does not belong to application")
-	ErrManifestAppConfigMissing         = errors.New("effective app config is missing")
-	ErrManifestWorkloadConfigMissing    = errors.New("effective workload config is missing")
-	ErrManifestRouteTargetInvalid       = errors.New("route points to missing service or port")
+	ErrManifestImageApplicationMismatch = sharederrs.FailedPrecondition("image does not belong to application")
+	ErrManifestAppConfigMissing         = sharederrs.FailedPrecondition("effective app config is missing")
+	ErrManifestWorkloadConfigMissing    = sharederrs.FailedPrecondition("effective workload config is missing")
+	ErrManifestRouteTargetInvalid       = sharederrs.FailedPrecondition("route points to missing service or port")
+	ErrManifestImageRepositoryMissing   = sharederrs.FailedPrecondition("image repository is not deployable")
 )
 
 var ManifestService = NewManifestService()
@@ -44,19 +47,37 @@ type manifestConfigReader interface {
 type manifestService struct {
 	images manifestImageReader
 	apps   interface {
-		Get(context.Context, uuid.UUID) (*applicationProjection, error)
+		Get(context.Context, uuid.UUID) (*releasesupport.ApplicationProjection, error)
 	}
+	store repository.Store
+}
+
+func (s *manifestService) repoStore() repository.Store {
+	if s.store == nil {
+		s.store = repository.NewPostgresStore()
+	}
+	return s.store
 }
 
 func NewManifestService() *manifestService {
 	return &manifestService{
 		images: imageservice.ImageService,
-		apps:   ApplicationService,
+		apps:   releasesupport.ApplicationService,
+		store:  repository.NewPostgresStore(),
 	}
 }
 
 func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-	runtimeCfg := CurrentRuntimeConfig()
+	log := logger.LoggerWithContext(ctx).With(
+		zap.String("operation", "create_manifest"),
+		zap.String("resource", "manifest"),
+		zap.String("result", "started"),
+		zap.String("application_id", req.ApplicationID.String()),
+		zap.String("environment_id", req.EnvironmentID),
+		zap.String("image_id", req.ImageID.String()),
+	)
+
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
 	networks := appservicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
 	configs := appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
 	artifacts := newManifestArtifactPublishing(runtimeCfg.ManifestRegistry, runtimeCfg.ManifestRegistryEnabled)
@@ -68,7 +89,7 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	if image.ApplicationID != req.ApplicationID {
 		return nil, ErrManifestImageApplicationMismatch
 	}
-	target, err := resolveDeployTarget(ctx, req.ApplicationID.String(), req.EnvironmentID)
+	target, err := releasesupport.ResolveDeployTarget(ctx, req.ApplicationID.String(), req.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,21 +126,29 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	}
 	manifest.WithCreateDefault()
 	if err := publishManifestArtifact(ctx, manifest, application.Name, runtimeCfg.ManifestRegistry, artifacts); err != nil {
+		log.Error("publish manifest artifact failed", zap.String("result", "error"), zap.Error(err))
 		return nil, err
 	}
-	if err := s.insert(ctx, manifest); err != nil {
+	if err := s.repoStore().Insert(ctx, manifest); err != nil {
+		log.Error("persist manifest failed", zap.String("result", "error"), zap.Error(err))
 		return nil, err
 	}
+	log.Info("manifest created",
+		zap.String("result", "success"),
+		zap.String("resource_id", manifest.ID.String()),
+		zap.String("artifact_repository", manifest.ArtifactRepository),
+		zap.String("artifact_digest", manifest.ArtifactDigest),
+	)
 	return manifest, nil
 }
 
 func resolveManifestImageRepository(image *imagedomain.Image, cfg imagedomain.ImageRegistryConfig) (string, error) {
 	if image == nil {
-		return "", fmt.Errorf("image is required")
+		return "", sharederrs.Required("image")
 	}
 	name := strings.Trim(strings.TrimSpace(image.Name), "/")
 	if name == "" {
-		return "", fmt.Errorf("image name is required")
+		return "", sharederrs.Required("image_name")
 	}
 	repoAddress := strings.TrimSpace(image.RepoAddress)
 	if looksLikeContainerRepository(repoAddress) {
@@ -127,7 +156,7 @@ func resolveManifestImageRepository(image *imagedomain.Image, cfg imagedomain.Im
 	}
 	repository := strings.TrimRight(cfg.Repository(), "/")
 	if repository == "" {
-		return "", fmt.Errorf("image repository is not deployable")
+		return "", ErrManifestImageRepositoryMissing
 	}
 	return repository + "/" + name, nil
 }
@@ -145,48 +174,7 @@ func looksLikeContainerRepository(value string) bool {
 }
 
 func (s *manifestService) List(ctx context.Context, filter manifestdomain.ManifestListFilter) ([]manifestdomain.Manifest, error) {
-	query := `
-		select id, application_id, environment_id, image_id, image_ref,
-			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
-			services_snapshot, routes_snapshot, app_config_snapshot, workload_config_snapshot,
-			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
-		from manifests
-	`
-	clauses := make([]string, 0, 4)
-	args := make([]any, 0, 4)
-	if !filter.IncludeDeleted {
-		clauses = append(clauses, "deleted_at is null")
-	}
-	if filter.ApplicationID != nil {
-		args = append(args, *filter.ApplicationID)
-		clauses = append(clauses, placeholderClause("application_id", len(args)))
-	}
-	if filter.EnvironmentID != nil {
-		args = append(args, *filter.EnvironmentID)
-		clauses = append(clauses, placeholderClause("environment_id", len(args)))
-	}
-	if filter.ImageID != nil {
-		args = append(args, *filter.ImageID)
-		clauses = append(clauses, placeholderClause("image_id", len(args)))
-	}
-	if len(clauses) > 0 {
-		query += " where " + strings.Join(clauses, " and ")
-	}
-	query += " order by created_at desc"
-	rows, err := store.DB().QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]manifestdomain.Manifest, 0)
-	for rows.Next() {
-		item, err := scanManifest(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, *item)
-	}
-	return out, rows.Err()
+	return s.repoStore().List(ctx, filter)
 }
 
 func (s *manifestService) GetResources(ctx context.Context, id uuid.UUID) (*manifestdomain.ManifestResourcesView, error) {
@@ -198,26 +186,11 @@ func (s *manifestService) GetResources(ctx context.Context, id uuid.UUID) (*mani
 }
 
 func (s *manifestService) Get(ctx context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
-	return scanManifest(store.DB().QueryRowContext(ctx, `
-		select id, application_id, environment_id, image_id, image_ref,
-			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
-			services_snapshot, routes_snapshot, app_config_snapshot, workload_config_snapshot,
-			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
-		from manifests
-		where id = $1 and deleted_at is null
-	`, id))
+	return s.repoStore().Get(ctx, id)
 }
 
 func (s *manifestService) Delete(ctx context.Context, id uuid.UUID) error {
-	result, err := store.DB().ExecContext(ctx, `
-		update manifests
-		set deleted_at = $2, updated_at = $2
-		where id = $1 and deleted_at is null
-	`, id, time.Now())
-	if err != nil {
-		return err
-	}
-	return ensureRowsAffected(result)
+	return s.repoStore().Delete(ctx, id)
 }
 
 func buildManifestResourcesView(item *manifestdomain.Manifest) (*manifestdomain.ManifestResourcesView, error) {
@@ -269,41 +242,6 @@ func decodeManifestRenderedResource(item manifestdomain.ManifestRenderedObject) 
 	}
 	decoded.Object = object
 	return decoded, nil
-}
-
-func (s *manifestService) insert(ctx context.Context, m *manifestdomain.Manifest) error {
-	servicesJSON, err := marshalJSON(m.ServicesSnapshot, "[]")
-	if err != nil {
-		return err
-	}
-	routesJSON, err := marshalJSON(m.RoutesSnapshot, "[]")
-	if err != nil {
-		return err
-	}
-	appConfigJSON, err := marshalJSON(m.AppConfigSnapshot, "{}")
-	if err != nil {
-		return err
-	}
-	workloadJSON, err := marshalJSON(m.WorkloadConfigSnapshot, "{}")
-	if err != nil {
-		return err
-	}
-	renderedJSON, err := marshalJSON(m.RenderedObjects, "[]")
-	if err != nil {
-		return err
-	}
-	_, err = store.DB().ExecContext(ctx, `
-		insert into manifests (
-			id, application_id, environment_id, image_id, image_ref,
-			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
-			services_snapshot, routes_snapshot, app_config_snapshot, workload_config_snapshot,
-			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-	`, m.ID, m.ApplicationID, m.EnvironmentID, m.ImageID, m.ImageRef,
-		m.ArtifactRepository, m.ArtifactTag, m.ArtifactRef, m.ArtifactDigest, m.ArtifactMediaType, nullableTimePtr(m.ArtifactPushedAt),
-		servicesJSON, routesJSON, appConfigJSON, workloadJSON, renderedJSON, m.RenderedYAML,
-		m.Status, m.CreatedAt, m.UpdatedAt, m.DeletedAt)
-	return err
 }
 
 func buildManifest(req *manifestdomain.CreateManifestRequest, image *imagedomain.Image, applicationName string, appConfig *appconfigdownstream.AppConfig, workload *appconfigdownstream.WorkloadConfig, services []appservicedownstream.Service, routes []appservicedownstream.Route, namespace string, imageRegistry imagedomain.ImageRegistryConfig) (*manifestdomain.Manifest, error) {

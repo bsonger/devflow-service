@@ -1,17 +1,17 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"sigs.k8s.io/yaml"
 )
 
-var ErrManifestImageNotDeployable = errors.New("image has neither digest nor tag")
+var ErrManifestImageNotDeployable = sharederrs.FailedPrecondition("image has neither digest nor tag")
 
 func resolveWorkloadImageRef(repository, tag, digest string) (string, map[string]string, error) {
 	annotations := map[string]string{}

@@ -5,13 +5,12 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"errors"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/httpx"
-	imageservice "github.com/bsonger/devflow-service/internal/image/service"
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
+	imageservice "github.com/bsonger/devflow-service/internal/image/service"
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -68,7 +67,7 @@ func RequireObserverToken(expected string) gin.HandlerFunc {
 			token = strings.TrimSpace(c.GetHeader(VerifyTokenHeader))
 		}
 		if subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
-			httpx.WriteError(c, http.StatusUnauthorized, "unauthorized", "unauthorized", nil)
+			httpx.WriteUnauthorized(c)
 			c.Abort()
 			return
 		}
@@ -102,13 +101,11 @@ func resolvePipelineID(ctx *gin.Context, svc imageWritebackService, imageID uuid
 // @Router /api/v1/images/tekton/status [post]
 func (h *ImageWritebackHandler) HandleTektonStatus(c *gin.Context) {
 	var req ImageTektonStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	imageID, err := uuid.Parse(req.ImageID)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid image_id", nil)
+	imageID, ok := httpx.ParseUUIDString(c, req.ImageID, "image_id")
+	if !ok {
 		return
 	}
 	if req.PipelineID != "" {
@@ -136,13 +133,11 @@ func (h *ImageWritebackHandler) HandleTektonStatus(c *gin.Context) {
 // @Router /api/v1/images/tekton/tasks [post]
 func (h *ImageWritebackHandler) HandleTektonTask(c *gin.Context) {
 	var req ImageTektonTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	imageID, err := uuid.Parse(req.ImageID)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid image_id", nil)
+	imageID, ok := httpx.ParseUUIDString(c, req.ImageID, "image_id")
+	if !ok {
 		return
 	}
 	pipelineID, err := resolvePipelineID(c, h.svc, imageID, req.PipelineID)
@@ -195,8 +190,8 @@ func normalizeStepStatus(status model.StepStatus) model.StepStatus {
 
 func writeImageVerifyError(c *gin.Context, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(c, http.StatusNotFound, "not_found", "image not found", nil)
+		httpx.WriteNotFound(c, "image not found")
 		return
 	}
-	httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+	httpx.WriteInternalError(c, err)
 }

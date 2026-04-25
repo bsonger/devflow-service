@@ -57,8 +57,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/environments [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateEnvironmentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -86,9 +85,8 @@ func (h *Handler) Create(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.Environment]
 // @Router /api/v1/environments/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
@@ -109,15 +107,13 @@ func (h *Handler) Get(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/environments/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	var req UpdateEnvironmentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -144,9 +140,8 @@ func (h *Handler) Update(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/environments/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
@@ -168,13 +163,12 @@ func (h *Handler) List(c *gin.Context) {
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}
-	if clusterID := c.Query("cluster_id"); clusterID != "" {
-		id, err := uuid.Parse(clusterID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid cluster_id", nil)
-			return
-		}
-		filter.ClusterID = &id
+	clusterID, ok := httpx.ParseUUIDQuery(c, "cluster_id")
+	if !ok {
+		return
+	}
+	if clusterID != nil {
+		filter.ClusterID = clusterID
 	}
 
 	environments, err := h.svc.List(c.Request.Context(), filter)
@@ -182,29 +176,20 @@ func (h *Handler) List(c *gin.Context) {
 		writeEnvironmentError(c, err)
 		return
 	}
-
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-
-	total := len(environments)
-	environments = httpx.PaginateSlice(environments, paging)
-	httpx.WriteList(c, http.StatusOK, environments, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, environments)
 }
 
 func writeEnvironmentError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+		httpx.WriteNotFound(c, "not found")
 	case errors.Is(err, service.ErrEnvironmentConflict):
-		httpx.WriteError(c, http.StatusConflict, "conflict", err.Error(), nil)
+		httpx.WriteConflict(c, err.Error())
 	case errors.Is(err, service.ErrEnvironmentNameRequired),
 		errors.Is(err, service.ErrEnvironmentClusterRequired),
 		errors.Is(err, service.ErrClusterReferenceNotFound):
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 	default:
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 	}
 }

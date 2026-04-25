@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/logger"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -33,6 +33,8 @@ func NewApplicationService() *applicationService {
 func (s *applicationService) Get(ctx context.Context, id uuid.UUID) (*ApplicationProjection, error) {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "get_application"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", id.String()),
 		zap.String("application_id", id.String()),
 	)
 
@@ -52,11 +54,17 @@ func (s *applicationService) Get(ctx context.Context, id uuid.UUID) (*Applicatio
 
 	app, err := scanApplicationProjection(row)
 	if err != nil {
-		log.Error("get application failed", zap.Error(err))
+		log.Error("get application failed", zap.String("result", "error"), zap.Error(err))
 		return nil, err
 	}
 
-	log.Debug("application fetched", zap.String("application_name", app.Name))
+	log.Debug("application fetched",
+		zap.String("result", "success"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", app.ID.String()),
+		zap.String("application_name", app.Name),
+		zap.String("project_name", app.ProjectName),
+	)
 	return app, nil
 }
 

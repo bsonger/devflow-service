@@ -11,6 +11,7 @@ import (
 
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/service"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -105,7 +106,7 @@ func TestCreateReleaseClusterNotReadyReturns409(t *testing.T) {
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
 			createFn: func(_ context.Context, _ *model.Release) (uuid.UUID, error) {
-				return uuid.Nil, service.ErrDeployTargetClusterNotReady
+				return uuid.Nil, releasesupport.ErrDeployTargetClusterNotReady
 			},
 		},
 	}
@@ -141,7 +142,7 @@ func TestCreateReleaseClusterReadinessMalformedReturns409(t *testing.T) {
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
 			createFn: func(_ context.Context, _ *model.Release) (uuid.UUID, error) {
-				return uuid.Nil, service.ErrDeployTargetClusterReadinessMalformed
+				return uuid.Nil, releasesupport.ErrDeployTargetClusterReadinessMalformed
 			},
 		},
 	}
@@ -170,8 +171,8 @@ func TestCreateReleaseClusterReadinessMalformedReturns409(t *testing.T) {
 	if resp.Error.Code != "failed_precondition" {
 		t.Fatalf("error code = %q, want failed_precondition", resp.Error.Code)
 	}
-	if resp.Error.Message != service.ErrDeployTargetClusterReadinessMalformed.Error() {
-		t.Fatalf("error message = %q, want %q", resp.Error.Message, service.ErrDeployTargetClusterReadinessMalformed.Error())
+	if resp.Error.Message != releasesupport.ErrDeployTargetClusterReadinessMalformed.Error() {
+		t.Fatalf("error message = %q, want %q", resp.Error.Message, releasesupport.ErrDeployTargetClusterReadinessMalformed.Error())
 	}
 }
 
@@ -180,7 +181,7 @@ func TestCreateReleaseClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
 			createFn: func(_ context.Context, _ *model.Release) (uuid.UUID, error) {
-				return uuid.Nil, service.ErrDeployTargetClusterNotReady
+				return uuid.Nil, releasesupport.ErrDeployTargetClusterNotReady
 			},
 		},
 	}

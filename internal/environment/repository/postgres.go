@@ -3,15 +3,13 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/dbsql"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -59,6 +57,7 @@ func (s *postgresStore) Create(ctx context.Context, environment *envdomain.Envir
 
 	log.Info("environment created",
 		zap.String("result", "success"),
+		zap.String("resource_id", environment.GetID().String()),
 		zap.String("environment_name", environment.Name),
 	)
 	return environment.GetID(), nil
@@ -135,6 +134,7 @@ func (s *postgresStore) Update(ctx context.Context, environment *envdomain.Envir
 
 	log.Info("environment updated",
 		zap.String("result", "success"),
+		zap.String("resource_id", environment.GetID().String()),
 		zap.String("environment_name", environment.Name),
 		zap.String("cluster_id", environment.ClusterID.String()),
 	)
@@ -169,7 +169,10 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 		return sql.ErrNoRows
 	}
 
-	log.Info("environment deleted", zap.String("result", "success"))
+	log.Info("environment deleted",
+		zap.String("result", "success"),
+		zap.String("resource_id", id.String()),
+	)
 	return nil
 }
 
@@ -178,8 +181,11 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 		zap.String("operation", "list_environments"),
 		zap.String("resource", "environment"),
 		zap.Bool("include_deleted", includeDeleted),
-		zap.String("name", name),
+		zap.String("filter_name", name),
 	)
+	if clusterID != nil {
+		log = log.With(zap.String("filter_cluster_id", clusterID.String()))
+	}
 
 	query := `
 		select id, name, cluster_id, description, labels, created_at, updated_at, deleted_at
@@ -193,11 +199,11 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 	}
 	if name != "" {
 		args = append(args, strings.TrimSpace(name))
-		clauses = append(clauses, placeholderClause("name", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("name", len(args)))
 	}
 	if clusterID != nil {
 		args = append(args, *clusterID)
-		clauses = append(clauses, placeholderClause("cluster_id", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("cluster_id", len(args)))
 	}
 	if len(clauses) > 0 {
 		query += " where " + strings.Join(clauses, " and ")
@@ -227,7 +233,7 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 		return nil, err
 	}
 
-	log.Debug("environments listed", zap.String("result", "success"), zap.Int("count", len(environments)))
+	log.Debug("environments listed", zap.String("result", "success"), zap.Int("environment_count", len(environments)))
 	return environments, nil
 }
 
@@ -254,16 +260,14 @@ func scanEnvironment(scanner interface {
 		return nil, err
 	}
 
-	if clusterID.Valid {
-		parsed, err := uuid.Parse(clusterID.String)
-		if err != nil {
-			return nil, err
-		}
-		environment.ClusterID = parsed
+	clusterUUID, err := dbsql.ParseNullUUID(clusterID)
+	if err != nil {
+		return nil, err
 	}
-	if deletedAt.Valid {
-		environment.DeletedAt = &deletedAt.Time
+	if clusterUUID != nil {
+		environment.ClusterID = *clusterUUID
 	}
+	environment.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	if len(labels) > 0 {
 		parsed, err := unmarshalLabels(labels)
 		if err != nil {
@@ -276,31 +280,19 @@ func scanEnvironment(scanner interface {
 }
 
 func marshalLabels(labels []envdomain.LabelItem) ([]byte, error) {
-	if labels == nil {
-		return []byte("[]"), nil
-	}
-	return json.Marshal(labels)
+	return dbsql.MarshalLabelItems(labels)
 }
 
 func unmarshalLabels(raw []byte) ([]envdomain.LabelItem, error) {
-	var labels []envdomain.LabelItem
-	if err := json.Unmarshal(raw, &labels); err == nil {
-		return labels, nil
-	}
-	var legacy map[string]string
-	if err := json.Unmarshal(raw, &legacy); err != nil {
-		return nil, err
-	}
-	labels = make([]envdomain.LabelItem, 0, len(legacy))
-	for key, value := range legacy {
-		labels = append(labels, envdomain.LabelItem{Key: key, Value: value})
-	}
-	sort.Slice(labels, func(i, j int) bool { return labels[i].Key < labels[j].Key })
-	return labels, nil
-}
-
-func placeholderClause(column string, position int) string {
-	return column + " = $" + strconv.Itoa(position)
+	return dbsql.UnmarshalLabelItems(
+		raw,
+		func(key, value string) envdomain.LabelItem {
+			return envdomain.LabelItem{Key: key, Value: value}
+		},
+		func(item envdomain.LabelItem) string {
+			return item.Key
+		},
+	)
 }
 
 func isUniqueViolation(err error) bool {

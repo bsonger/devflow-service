@@ -58,7 +58,7 @@ func TestBuildIntentFilter(t *testing.T) {
 	}
 }
 
-func TestBuildIntentFilterInvalidObjectID(t *testing.T) {
+func TestBuildIntentFilterInvalidResourceID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	recorder := httptest.NewRecorder()

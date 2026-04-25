@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/k8s"
 	projectdownstream "github.com/bsonger/devflow-service/internal/project/transport/downstream"
 	"github.com/bsonger/devflow-service/internal/release/transport/downstream"
+	"github.com/bsonger/devflow-service/internal/shared/downstreamhttp"
 )
 
 var (
@@ -131,7 +133,7 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 
 	binding, err := r.bindingReader.GetApplicationEnvironment(ctx, applicationID, environmentID)
 	if err != nil {
-		if isDownstreamStatus(err, 404) {
+		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
 			return nil, fmt.Errorf("%w: application_id=%s environment_id=%s", ErrDeployTargetBindingMissing, applicationID, environmentID)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetBindingLookupFailed, err)
@@ -145,7 +147,7 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 
 	application, err := r.ownerReader.GetApplication(ctx, applicationID)
 	if err != nil {
-		if isDownstreamStatus(err, 404) {
+		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
 			return nil, fmt.Errorf("%w: application_id=%s", ErrDeployTargetApplicationMetadataMissing, applicationID)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetApplicationLookupFailed, err)
@@ -156,7 +158,7 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 
 	project, err := r.ownerReader.GetProject(ctx, strings.TrimSpace(application.ProjectID))
 	if err != nil {
-		if isDownstreamStatus(err, 404) {
+		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
 			return nil, fmt.Errorf("%w: project_id=%s", ErrDeployTargetProjectMetadataMissing, application.ProjectID)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetProjectLookupFailed, err)
@@ -167,7 +169,7 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 
 	environment, err := r.ownerReader.GetEnvironment(ctx, environmentID)
 	if err != nil {
-		if isDownstreamStatus(err, 404) {
+		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
 			return nil, fmt.Errorf("%w: environment_id=%s", ErrDeployTargetEnvironmentMetadataMissing, environmentID)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetEnvironmentLookupFailed, err)
@@ -178,7 +180,7 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 
 	cluster, err := r.ownerReader.GetCluster(ctx, strings.TrimSpace(environment.ClusterID))
 	if err != nil {
-		if isDownstreamStatus(err, 404) {
+		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
 			return nil, fmt.Errorf("%w: cluster_id=%s", ErrDeployTargetClusterMetadataMissing, environment.ClusterID)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetClusterLookupFailed, err)
@@ -214,18 +216,6 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 		EnvironmentName:   strings.TrimSpace(environment.Name),
 		ClusterID:         strings.TrimSpace(cluster.ID),
 	}, nil
-}
-
-func isDownstreamStatus(err error, statusCode int) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	code := fmt.Sprintf("%d", statusCode)
-	return strings.Contains(message, "downstream request failed: "+code) ||
-		strings.Contains(message, "status "+code) ||
-		strings.Contains(message, " "+code+" ") ||
-		strings.Contains(message, ":"+code+" ")
 }
 
 func normalizeClusterServer(server string) (string, error) {

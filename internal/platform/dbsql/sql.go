@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,14 @@ func MarshalJSON(value any, empty string) ([]byte, error) {
 		return []byte(empty), nil
 	}
 	return json.Marshal(value)
+}
+
+func MustMarshalJSON(value any, empty string) []byte {
+	payload, err := MarshalJSON(value, empty)
+	if err != nil {
+		return []byte(empty)
+	}
+	return payload
 }
 
 func NullableUUID(id uuid.UUID) any {
@@ -35,6 +44,21 @@ func NullableTimePtr(t *time.Time) any {
 		return nil
 	}
 	return *t
+}
+
+func EmptyToNull(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
+}
+
+func TimePtrFromNull(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	parsed := value.Time
+	return &parsed
 }
 
 func PlaceholderClause(column string, position int) string {

@@ -3,14 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	appdomain "github.com/bsonger/devflow-service/internal/application/domain"
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/dbsql"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -34,11 +32,14 @@ func NewPostgresStore() Store {
 }
 
 func (s *postgresStore) Create(ctx context.Context, app *appdomain.Application) (uuid.UUID, error) {
-	log := logger.LoggerWithContext(ctx).With(zap.String("operation", "create_application"))
+	log := logger.LoggerWithContext(ctx).With(
+		zap.String("operation", "create_application"),
+		zap.String("resource", "application"),
+	)
 
 	labels, err := marshalLabels(app.Labels)
 	if err != nil {
-		log.Error("marshal application labels failed", zap.Error(err))
+		log.Error("marshal application labels failed", zap.String("result", "error"), zap.Error(err))
 		return uuid.Nil, err
 	}
 
@@ -46,19 +47,25 @@ func (s *postgresStore) Create(ctx context.Context, app *appdomain.Application) 
 		insert into applications (
 			id, project_id, name, repo_address, description, active_image_id, labels, created_at, updated_at, deleted_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, app.ID, nullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, nullableUUIDPtr(app.ActiveImageID), labels, app.CreatedAt, app.UpdatedAt, app.DeletedAt)
+	`, app.ID, dbsql.NullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, dbsql.NullableUUIDPtr(app.ActiveImageID), labels, app.CreatedAt, app.UpdatedAt, app.DeletedAt)
 	if err != nil {
-		log.Error("create application failed", zap.Error(err))
+		log.Error("create application failed", zap.String("result", "error"), zap.Error(err))
 		return uuid.Nil, err
 	}
 
-	log.Info("application created", zap.String("application_id", app.GetID().String()))
+	log.Info("application created",
+		zap.String("result", "success"),
+		zap.String("resource_id", app.GetID().String()),
+		zap.String("application_id", app.GetID().String()),
+	)
 	return app.GetID(), nil
 }
 
 func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*appdomain.Application, error) {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "get_application"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", id.String()),
 		zap.String("application_id", id.String()),
 	)
 
@@ -68,23 +75,28 @@ func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*appdomain.Appli
 		where id = $1 and deleted_at is null
 	`, id))
 	if err != nil {
-		log.Error("get application failed", zap.Error(err))
+		log.Error("get application failed", zap.String("result", "error"), zap.Error(err))
 		return nil, err
 	}
 
-	log.Debug("application fetched", zap.String("application_name", app.Name))
+	log.Debug("application fetched",
+		zap.String("result", "success"),
+		zap.String("application_name", app.Name),
+	)
 	return app, nil
 }
 
 func (s *postgresStore) Update(ctx context.Context, app *appdomain.Application) error {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "update_application"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", app.GetID().String()),
 		zap.String("application_id", app.GetID().String()),
 	)
 
 	current, err := s.Get(ctx, app.GetID())
 	if err != nil {
-		log.Error("load application failed", zap.Error(err))
+		log.Error("load application failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
 
@@ -101,9 +113,9 @@ func (s *postgresStore) Update(ctx context.Context, app *appdomain.Application) 
 		update applications
 		set project_id=$2, name=$3, repo_address=$4, description=$5, active_image_id=$6, labels=$7, updated_at=$8, deleted_at=$9
 		where id = $1 and deleted_at is null
-	`, app.ID, nullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, nullableUUIDPtr(app.ActiveImageID), labels, app.UpdatedAt, app.DeletedAt)
+	`, app.ID, dbsql.NullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, dbsql.NullableUUIDPtr(app.ActiveImageID), labels, app.UpdatedAt, app.DeletedAt)
 	if err != nil {
-		log.Error("update application failed", zap.Error(err))
+		log.Error("update application failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
 
@@ -115,13 +127,18 @@ func (s *postgresStore) Update(ctx context.Context, app *appdomain.Application) 
 		return sql.ErrNoRows
 	}
 
-	log.Debug("application updated", zap.String("application_name", app.Name))
+	log.Debug("application updated",
+		zap.String("result", "success"),
+		zap.String("application_name", app.Name),
+	)
 	return nil
 }
 
 func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "delete_application"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", id.String()),
 		zap.String("application_id", id.String()),
 	)
 
@@ -132,7 +149,7 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 		where id = $1 and deleted_at is null
 	`, id, now)
 	if err != nil {
-		log.Error("delete application failed", zap.Error(err))
+		log.Error("delete application failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
 
@@ -144,13 +161,19 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 		return sql.ErrNoRows
 	}
 
-	log.Info("application deleted")
+	log.Info("application deleted",
+		zap.String("result", "success"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", id.String()),
+	)
 	return nil
 }
 
 func (s *postgresStore) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUID) error {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "update_application_active_image"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", appID.String()),
 		zap.String("application_id", appID.String()),
 		zap.String("image_id", imageID.String()),
 	)
@@ -161,7 +184,7 @@ func (s *postgresStore) UpdateActiveImage(ctx context.Context, appID, imageID uu
 		where id = $1 and deleted_at is null
 	`, appID, imageID, time.Now())
 	if err != nil {
-		log.Error("update active image failed", zap.Error(err))
+		log.Error("update active image failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
 
@@ -173,16 +196,26 @@ func (s *postgresStore) UpdateActiveImage(ctx context.Context, appID, imageID uu
 		return sql.ErrNoRows
 	}
 
+	log.Info("application active image updated",
+		zap.String("result", "success"),
+		zap.String("resource", "application"),
+		zap.String("resource_id", appID.String()),
+		zap.String("image_id", imageID.String()),
+	)
 	return nil
 }
 
 func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name string, projectID *uuid.UUID, repoAddress string) ([]appdomain.Application, error) {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "list_applications"),
+		zap.String("resource", "application"),
 		zap.Bool("include_deleted", includeDeleted),
-		zap.String("name", name),
+		zap.String("filter_name", name),
 		zap.String("repo_address", repoAddress),
 	)
+	if projectID != nil {
+		log = log.With(zap.String("filter_project_id", projectID.String()))
+	}
 
 	query := `
 		select id, project_id, name, repo_address, description, active_image_id, labels, created_at, updated_at, deleted_at
@@ -196,15 +229,15 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 	}
 	if name != "" {
 		args = append(args, name)
-		clauses = append(clauses, placeholderClause("name", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("name", len(args)))
 	}
 	if projectID != nil {
 		args = append(args, *projectID)
-		clauses = append(clauses, placeholderClause("project_id", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("project_id", len(args)))
 	}
 	if repoAddress != "" {
 		args = append(args, repoAddress)
-		clauses = append(clauses, placeholderClause("repo_address", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("repo_address", len(args)))
 	}
 	if len(clauses) > 0 {
 		query += " where " + strings.Join(clauses, " and ")
@@ -213,7 +246,7 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 
 	rows, err := platformdb.Postgres().QueryContext(ctx, query, args...)
 	if err != nil {
-		log.Error("list applications failed", zap.Error(err))
+		log.Error("list applications failed", zap.String("result", "error"), zap.Error(err))
 		return nil, err
 	}
 	defer func() {
@@ -232,7 +265,10 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 		return nil, err
 	}
 
-	log.Debug("applications listed", zap.Int("count", len(apps)))
+	log.Debug("applications listed",
+		zap.String("result", "success"),
+		zap.Int("application_count", len(apps)),
+	)
 	return apps, nil
 }
 
@@ -262,23 +298,18 @@ func scanApplication(scanner interface {
 		return nil, err
 	}
 
-	if projectID.Valid {
-		parsed, err := uuid.Parse(projectID.String)
-		if err != nil {
-			return nil, err
-		}
-		app.ProjectID = parsed
+	projectUUID, err := dbsql.ParseNullUUID(projectID)
+	if err != nil {
+		return nil, err
 	}
-	if activeImageID.Valid {
-		parsed, err := uuid.Parse(activeImageID.String)
-		if err != nil {
-			return nil, err
-		}
-		app.ActiveImageID = &parsed
+	if projectUUID != nil {
+		app.ProjectID = *projectUUID
 	}
-	if deletedAt.Valid {
-		app.DeletedAt = &deletedAt.Time
+	app.ActiveImageID, err = dbsql.ParseNullUUID(activeImageID)
+	if err != nil {
+		return nil, err
 	}
+	app.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	if len(labelsBytes) > 0 {
 		labels, err := unmarshalLabels(labelsBytes)
 		if err != nil {
@@ -291,43 +322,17 @@ func scanApplication(scanner interface {
 }
 
 func marshalLabels(labels []appdomain.LabelItem) ([]byte, error) {
-	if labels == nil {
-		return []byte("[]"), nil
-	}
-	return json.Marshal(labels)
+	return dbsql.MarshalLabelItems(labels)
 }
 
 func unmarshalLabels(raw []byte) ([]appdomain.LabelItem, error) {
-	var labels []appdomain.LabelItem
-	if err := json.Unmarshal(raw, &labels); err == nil {
-		return labels, nil
-	}
-	var legacy map[string]string
-	if err := json.Unmarshal(raw, &legacy); err != nil {
-		return nil, err
-	}
-	labels = make([]appdomain.LabelItem, 0, len(legacy))
-	for key, value := range legacy {
-		labels = append(labels, appdomain.LabelItem{Key: key, Value: value})
-	}
-	sort.Slice(labels, func(i, j int) bool { return labels[i].Key < labels[j].Key })
-	return labels, nil
-}
-
-func nullableUUID(id uuid.UUID) any {
-	if id == uuid.Nil {
-		return nil
-	}
-	return id
-}
-
-func nullableUUIDPtr(id *uuid.UUID) any {
-	if id == nil || *id == uuid.Nil {
-		return nil
-	}
-	return *id
-}
-
-func placeholderClause(column string, position int) string {
-	return column + " = $" + strconv.Itoa(position)
+	return dbsql.UnmarshalLabelItems(
+		raw,
+		func(key, value string) appdomain.LabelItem {
+			return appdomain.LabelItem{Key: key, Value: value}
+		},
+		func(item appdomain.LabelItem) string {
+			return item.Key
+		},
+	)
 }

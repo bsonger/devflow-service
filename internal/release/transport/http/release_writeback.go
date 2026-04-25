@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"net/http"
 	"strings"
 	"time"
 
@@ -41,13 +40,11 @@ func NewReleaseWritebackHandler() *ReleaseWritebackHandler {
 // @Router /api/v1/verify/argo/events [post]
 func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 	var req ArgoEventRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	releaseID, err := uuid.Parse(req.ReleaseID)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid release_id", nil)
+	releaseID, ok := httpx.ParseUUIDString(c, req.ReleaseID, "release_id")
+	if !ok {
 		return
 	}
 	status := mapArgoStatusToReleaseStatus(req.Status)
@@ -70,13 +67,11 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 // @Router /api/v1/verify/release/steps [post]
 func (h *ReleaseWritebackHandler) HandleReleaseStep(c *gin.Context) {
 	var req ReleaseStepRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	releaseID, err := uuid.Parse(req.ReleaseID)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid release_id", nil)
+	releaseID, ok := httpx.ParseUUIDString(c, req.ReleaseID, "release_id")
+	if !ok {
 		return
 	}
 	if err := h.svc.UpdateStep(c.Request.Context(), releaseID, req.StepName, normalizeStepStatus(model.StepStatus(req.Status)), req.Progress, req.Message, nil, nil); err != nil {
@@ -110,8 +105,8 @@ func RegisterReleaseWritebackRoutes(rg *gin.RouterGroup) {
 
 func writeReleaseVerifyError(c *gin.Context, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(c, http.StatusNotFound, "not_found", "release not found", nil)
+		httpx.WriteNotFound(c, "release not found")
 		return
 	}
-	httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+	httpx.WriteInternalError(c, err)
 }

@@ -1,0 +1,99 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: devflow-preproduction-gateway
+  namespace: pre-production
+  labels:
+    app.kubernetes.io/part-of: devflow
+    environment: pre-production
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - devflow-pre.example.com
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: devflow-shared-services-edge
+  namespace: pre-production
+  labels:
+    app.kubernetes.io/part-of: devflow
+    environment: pre-production
+spec:
+  hosts:
+    - devflow-pre.example.com
+  gateways:
+    - pre-production/devflow-preproduction-gateway
+  http:
+    - name: config-service-root
+      match:
+        - uri:
+            exact: /config
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: config-service.pre-production.svc.cluster.local
+            port:
+              number: 8082
+    - name: config-service-prefix
+      match:
+        - uri:
+            prefix: /config/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: config-service.pre-production.svc.cluster.local
+            port:
+              number: 8082
+    - name: network-service-root
+      match:
+        - uri:
+            exact: /network
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: network-service.pre-production.svc.cluster.local
+            port:
+              number: 8086
+    - name: network-service-prefix
+      match:
+        - uri:
+            prefix: /network/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: network-service.pre-production.svc.cluster.local
+            port:
+              number: 8086
+    - name: runtime-service-root
+      match:
+        - uri:
+            exact: /runtime
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: runtime-service.pre-production.svc.cluster.local
+            port:
+              number: 8084
+    - name: runtime-service-prefix
+      match:
+        - uri:
+            prefix: /runtime/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: runtime-service.pre-production.svc.cluster.local
+            port:
+              number: 8084

@@ -26,8 +26,11 @@ type PostgresConfig struct {
 }
 
 type OtelConfig struct {
-	Endpoint    string `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint"`
-	ServiceName string `mapstructure:"service_name" json:"service_name" yaml:"service_name"`
+	Endpoint           string  `mapstructure:"endpoint" json:"endpoint" yaml:"endpoint"`
+	Protocol           string  `mapstructure:"protocol" json:"protocol" yaml:"protocol"`
+	ServiceName        string  `mapstructure:"service_name" json:"service_name" yaml:"service_name"`
+	ResourceAttributes string  `mapstructure:"resource_attributes" json:"resource_attributes" yaml:"resource_attributes"`
+	SampleRatio        float64 `mapstructure:"sample_ratio" json:"sample_ratio" yaml:"sample_ratio"`
 }
 
 type Config struct {
@@ -63,12 +66,15 @@ func InitConfig(ctx context.Context, config *Config) error {
 
 func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(context.Context) error, error) {
 	shutdown, err := observability.Init(ctx, observability.RuntimeOptions{
-		LogLevel:        stringValue(config.Log, func(v *LogConfig) string { return v.Level }),
-		LogFormat:       stringValue(config.Log, func(v *LogConfig) string { return v.Format }),
-		OtelEndpoint:    stringValue(config.Otel, func(v *OtelConfig) string { return v.Endpoint }),
-		OtelService:     stringValue(config.Otel, func(v *OtelConfig) string { return v.ServiceName }),
-		PyroscopeAddr:   configValue(config, func(v *Config) string { return v.Pyroscope }),
-		ServiceOverride: serviceName,
+		LogLevel:               stringValue(config.Log, func(v *LogConfig) string { return v.Level }),
+		LogFormat:              stringValue(config.Log, func(v *LogConfig) string { return v.Format }),
+		OtelEndpoint:           stringValue(config.Otel, func(v *OtelConfig) string { return v.Endpoint }),
+		OtelProtocol:           stringValue(config.Otel, func(v *OtelConfig) string { return v.Protocol }),
+		OtelService:            stringValue(config.Otel, func(v *OtelConfig) string { return v.ServiceName }),
+		OtelResourceAttributes: stringValue(config.Otel, func(v *OtelConfig) string { return v.ResourceAttributes }),
+		OtelSampleRatio:        floatValue(config.Otel, func(v *OtelConfig) float64 { return v.SampleRatio }),
+		PyroscopeAddr:          configValue(config, func(v *Config) string { return v.Pyroscope }),
+		ServiceOverride:        serviceName,
 	})
 	if err != nil {
 		return nil, err
@@ -100,6 +106,13 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 }
 
 func intValue[T any](value *T, getter func(*T) int) int {
+	if value == nil {
+		return 0
+	}
+	return getter(value)
+}
+
+func floatValue[T any](value *T, getter func(*T) float64) float64 {
 	if value == nil {
 		return 0
 	}

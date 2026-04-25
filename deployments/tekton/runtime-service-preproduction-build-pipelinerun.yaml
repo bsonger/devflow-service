@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: runtime-service-preproduction-build-
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: devflow
+    app.kubernetes.io/component: ci
+    service: runtime-service
+    environment: pre-production
+spec:
+  pipelineRef:
+    name: devflow-tekton-image-build-push-only
+  params:
+    - name: git-url
+      value: "ssh://git@github.com/bsonger/devflow-service.git"
+    - name: git-revision
+      value: "main"
+    - name: image-registry
+      value: "registry.cn-hangzhou.aliyuncs.com/devflow"
+    - name: name
+      value: "runtime-service"
+    - name: image-tag
+      value: "preproduction"
+    - name: DOCKERFILE
+      value: "Dockerfile"
+    - name: BUILD_ARGS
+      value: "--build-arg SERVICE_NAME=runtime-service --build-arg SERVICE_PORT=8084"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+          storageClassName: local-path
+    - name: dockerconfig
+      secret:
+        secretName: aliyun-docker-config
+    - name: ssh
+      secret:
+        secretName: git-ssh-secret
+  timeouts:
+    pipeline: 1h0m0s

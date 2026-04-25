@@ -10,8 +10,13 @@ import (
 )
 
 type statusResponse struct {
-	Service string `json:"service"`
-	Status  string `json:"status"`
+	Service   string `json:"service"`
+	Status    string `json:"status"`
+	RequestID string `json:"request_id"`
+	HTTP      struct {
+		SwaggerEnabled bool     `json:"swagger_enabled"`
+		Modules        []string `json:"modules"`
+	} `json:"http"`
 }
 
 func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T) {
@@ -35,6 +40,7 @@ func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T)
 	}{
 		{path: "/healthz", want: http.StatusOK, wantStatus: "ok", assertBody: true},
 		{path: "/readyz", want: http.StatusOK, wantStatus: "ready", assertBody: true},
+		{path: "/internal/status", want: http.StatusOK, wantStatus: "ok", assertBody: true},
 		{path: "/swagger/index.html", want: http.StatusOK},
 		{path: "/api/v1/app/swagger/index.html", want: http.StatusOK},
 	}
@@ -56,6 +62,17 @@ func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T)
 		}
 		if payload.Service != "meta-service" || payload.Status != tc.wantStatus {
 			t.Fatalf("path %s: unexpected payload %#v", tc.path, payload)
+		}
+		if payload.RequestID == "" {
+			t.Fatalf("path %s: expected request_id in payload", tc.path)
+		}
+		if tc.path == "/internal/status" {
+			if !payload.HTTP.SwaggerEnabled {
+				t.Fatalf("path %s: expected swagger_enabled", tc.path)
+			}
+			if len(payload.HTTP.Modules) == 0 {
+				t.Fatalf("path %s: expected modules in status payload", tc.path)
+			}
 		}
 	}
 }

@@ -3,7 +3,7 @@
 ## Role of this repository
 
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
-The active local migration focuses on `meta-service`, while `release-service` has also been brought into the same root-level `cmd` and `internal` layout with verify ingress absorbed into the release boundary.
+The active local migration focuses on `meta-service`, while `config-service`, `network-service`, `release-service`, and `runtime-service` have also been brought into the same root-level `cmd` and `internal` layout.
 Inside `internal/`, release-owned business resources now follow the same top-level split pattern as the rest of the repo: `internal/image`, `internal/manifest`, `internal/intent`, plus release-specific assembly and adapters in `internal/release`.
 
 ## Root structure
@@ -27,7 +27,7 @@ It does not reintroduce a broad shared-code layer; any future `internal/shared/`
 The active local execution contract is:
 - one root Go module at the repo root
 - target Go baseline `1.26.2`
-- current runnable process entries include `meta-service` and `release-service`
+- current runnable process entries include `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`
 
 This repository should not introduce `go.work` or per-service `go.mod` files during the current migration.
 
@@ -36,7 +36,10 @@ This repository should not introduce `go.work` or per-service `go.mod` files dur
 The current target code layout is:
 
 - `cmd/meta-service/main.go` for entrypoint-only startup logic
+- `cmd/config-service/main.go` for the extracted config-service entrypoint
+- `cmd/network-service/main.go` for the extracted network-service entrypoint
 - `cmd/release-service/main.go` for the migrated release-service entrypoint
+- `cmd/runtime-service/main.go` for the extracted runtime-service entrypoint
 - `internal/platform/` for infrastructure-only capabilities such as config, db, logger, otel, httpx, and runtime lifecycle
 - `internal/shared/` for a small number of stable cross-domain helpers when duplication is no longer justified
 - `internal/<domain>/domain` for domain objects and rules
@@ -53,6 +56,7 @@ Repo-local docs are layered by purpose:
 - `docs/index/` for navigation only
 - `docs/system/` for current repo-local execution truth
 - `docs/services/` for current service-specific behavior and diagnostics
+- `docs/resources/` for current resource contracts and API behavior
 - `docs/policies/` for durable repo rules
 - `docs/generated/` for generated artifacts only
 - `docs/archive/` for historical material only

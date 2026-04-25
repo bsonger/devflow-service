@@ -2,39 +2,14 @@ package service
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/bsonger/devflow-service/internal/approute/domain"
+	"github.com/bsonger/devflow-service/internal/approute/repository"
 	appservice "github.com/bsonger/devflow-service/internal/appservice/service"
-	"github.com/bsonger/devflow-service/internal/platform/db"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
-
-func nullableUUID(id uuid.UUID) any {
-	if id == uuid.Nil {
-		return nil
-	}
-	return id
-}
-
-func ensureRowsAffected(result sql.Result) error {
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-func placeholderClause(column string, position int) string {
-	return column + " = $" + strconv.Itoa(position)
-}
 
 type RouteService interface {
 	Create(ctx context.Context, route *domain.Route) (uuid.UUID, error)
@@ -53,10 +28,11 @@ type RouteListFilter struct {
 
 type routeService struct {
 	services appservice.ServiceService
+	store    repository.Store
 }
 
 func NewRouteService(services appservice.ServiceService) RouteService {
-	return &routeService{services: services}
+	return &routeService{services: services, store: repository.NewPostgresStore()}
 }
 
 var DefaultRouteService RouteService = NewRouteService(appservice.DefaultServiceService)
@@ -65,88 +41,30 @@ func (s *routeService) Create(ctx context.Context, item *domain.Route) (uuid.UUI
 	if err := s.validate(ctx, item); err != nil {
 		return uuid.Nil, err
 	}
-	_, err := db.Postgres().ExecContext(ctx, `
-		insert into routes (
-			id, application_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, item.ID, nullableUUID(item.ApplicationID), item.Name, item.Host, item.Path, item.ServiceName, item.ServicePort, item.CreatedAt, item.UpdatedAt, item.DeletedAt)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return item.ID, nil
+	return s.store.Create(ctx, item)
 }
 
 func (s *routeService) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error) {
-	return scanRoute(db.Postgres().QueryRowContext(ctx, `
-		select id, application_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
-		from routes
-		where application_id = $1 and id = $2 and deleted_at is null
-	`, applicationID, id))
+	return s.store.Get(ctx, applicationID, id)
 }
 
 func (s *routeService) Update(ctx context.Context, item *domain.Route) error {
 	if err := s.validate(ctx, item); err != nil {
 		return err
 	}
-	current, err := s.Get(ctx, item.ApplicationID, item.ID)
-	if err != nil {
-		return err
-	}
-	item.CreatedAt = current.CreatedAt
-	item.DeletedAt = current.DeletedAt
-	item.WithUpdateDefault()
-	result, err := db.Postgres().ExecContext(ctx, `
-		update routes
-		set name=$3, host=$4, path=$5, service_name=$6, service_port=$7, updated_at=$8
-		where application_id=$1 and id=$2 and deleted_at is null
-	`, item.ApplicationID, item.ID, item.Name, item.Host, item.Path, item.ServiceName, item.ServicePort, item.UpdatedAt)
-	if err != nil {
-		return err
-	}
-	return ensureRowsAffected(result)
+	return s.store.Update(ctx, item)
 }
 
 func (s *routeService) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
-	now := time.Now()
-	result, err := db.Postgres().ExecContext(ctx, `
-		update routes set deleted_at=$3, updated_at=$3
-		where application_id=$1 and id=$2 and deleted_at is null
-	`, applicationID, id, now)
-	if err != nil {
-		return err
-	}
-	return ensureRowsAffected(result)
+	return s.store.Delete(ctx, applicationID, id)
 }
 
 func (s *routeService) List(ctx context.Context, filter RouteListFilter) ([]domain.Route, error) {
-	query := `
-		select id, application_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
-		from routes
-	`
-	clauses := []string{"application_id = $1"}
-	args := []any{filter.ApplicationID}
-	if !filter.IncludeDeleted {
-		clauses = append(clauses, "deleted_at is null")
-	}
-	if filter.Name != "" {
-		args = append(args, filter.Name)
-		clauses = append(clauses, placeholderClause("name", len(args)))
-	}
-	query += " where " + strings.Join(clauses, " and ") + " order by created_at desc"
-	rows, err := db.Postgres().QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []domain.Route
-	for rows.Next() {
-		item, err := scanRoute(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, *item)
-	}
-	return items, rows.Err()
+	return s.store.List(ctx, repository.ListFilter{
+		ApplicationID:  filter.ApplicationID,
+		IncludeDeleted: filter.IncludeDeleted,
+		Name:           filter.Name,
+	})
 }
 
 func (s *routeService) Validate(ctx context.Context, item *domain.Route) []string {
@@ -194,30 +112,8 @@ func (s *routeService) Validate(ctx context.Context, item *domain.Route) []strin
 }
 
 func (s *routeService) validate(ctx context.Context, item *domain.Route) error {
-	if errs := s.Validate(ctx, item); len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
+	if messages := s.Validate(ctx, item); len(messages) > 0 {
+		return sharederrs.JoinInvalid(messages)
 	}
 	return nil
-}
-
-func scanRoute(scanner interface{ Scan(dest ...any) error }) (*domain.Route, error) {
-	var (
-		item          domain.Route
-		applicationID sql.NullString
-		deletedAt     sql.NullTime
-	)
-	if err := scanner.Scan(&item.ID, &applicationID, &item.Name, &item.Host, &item.Path, &item.ServiceName, &item.ServicePort, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
-		return nil, err
-	}
-	if applicationID.Valid {
-		parsed, err := uuid.Parse(applicationID.String)
-		if err != nil {
-			return nil, err
-		}
-		item.ApplicationID = parsed
-	}
-	if deletedAt.Valid {
-		item.DeletedAt = &deletedAt.Time
-	}
-	return &item, nil
 }

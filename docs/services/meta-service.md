@@ -19,7 +19,7 @@ The target local layout for this service is:
 
 `meta-service` no longer keeps any runtime Go packages under `modules/`.
 Build, Swagger generation, and Docker packaging now run from root repo surfaces.
-The current domain set in this repo is `application`, `project`, `cluster`, and `environment`.
+The current domain set still served directly by this process in this repo is `project`, `application`, `cluster`, `environment`, `appconfig`, and `workloadconfig`.
 
 ## Current diagnostics
 
@@ -30,7 +30,13 @@ Use these surfaces when working on or diagnosing this service:
 4. `docs/policies/docker-baseline.md`
 5. `docs/policies/verification.md`
 6. `scripts/README.md`
-7. `docs/services/application.md`, `project.md`, `cluster.md`, and `environment.md` for current resource contracts
+7. `docs/resources/application.md`, `docs/resources/project.md`, `docs/resources/cluster.md`, and `docs/resources/environment.md` for current resource contracts
+
+Runtime endpoints:
+
+- `/healthz`
+- `/readyz`
+- `/internal/status`
 
 ## Build and verification target
 
@@ -39,7 +45,10 @@ The service should eventually prove cleanly with:
 ```sh
 go test ./...
 go build -o bin/meta-service ./cmd/meta-service
-docker build -t devflow-service:local -f Dockerfile .
+bash scripts/verify.sh
 ```
+
+Local ad-hoc Docker builds are intentionally not the proof surface for this migration.
+When packaging selection matters, use the committed Tekton manifests documented under `deployments/tekton/`.
 
 During the migration, failures should be treated as real contract drift to fix, not as accepted transition noise.

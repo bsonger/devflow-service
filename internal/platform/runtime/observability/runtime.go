@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/otel"
@@ -12,32 +13,39 @@ import (
 )
 
 type RuntimeOptions struct {
-	LogLevel        string
-	LogFormat       string
-	OtelEndpoint    string
-	OtelService     string
-	OtelSampleRatio float64
-	PyroscopeAddr   string
-	ServiceOverride string
+	LogLevel               string
+	LogFormat              string
+	OtelEndpoint           string
+	OtelProtocol           string
+	OtelService            string
+	OtelResourceAttributes string
+	OtelSampleRatio        float64
+	PyroscopeAddr          string
+	ServiceOverride        string
 }
 
 func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error, error) {
+	serviceName := ResolveServiceName(opts.ServiceOverride, opts.OtelService)
+	if serviceName != "" {
+		_ = os.Setenv("SERVICE_NAME", serviceName)
+		if strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")) == "" {
+			_ = os.Setenv("OTEL_SERVICE_NAME", serviceName)
+		}
+	}
+
 	logger.InitZapLogger(&logger.Config{
 		Level:  opts.LogLevel,
 		Format: opts.LogFormat,
 	})
 
-	serviceName := ResolveServiceName(opts.ServiceOverride, opts.OtelService)
-	if serviceName != "" {
-		_ = os.Setenv("SERVICE_NAME", serviceName)
-	}
-
 	shutdown := func(context.Context) error { return nil }
 	if opts.OtelEndpoint != "" {
 		tpShutdown, err := otel.InitOtel(ctx, &otel.Config{
-			Endpoint:    opts.OtelEndpoint,
-			ServiceName: serviceName,
-			SampleRatio: opts.OtelSampleRatio,
+			Endpoint:           opts.OtelEndpoint,
+			Protocol:           opts.OtelProtocol,
+			ServiceName:        serviceName,
+			ResourceAttributes: opts.OtelResourceAttributes,
+			SampleRatio:        opts.OtelSampleRatio,
 		})
 		if err != nil {
 			return nil, err
