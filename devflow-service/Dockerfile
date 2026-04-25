@@ -1,4 +1,13 @@
+ARG SERVICE_NAME=meta-service
+ARG SERVICE_PORT=8081
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 AS builder
+
+ARG SERVICE_NAME
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /workspace
 
@@ -10,17 +19,19 @@ COPY internal ./internal
 COPY api ./api
 COPY docs ./docs
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o /out/meta-service ./cmd/meta-service
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -o /out/service ./cmd/${SERVICE_NAME}
 
 FROM scratch
+
+ARG SERVICE_PORT
 
 WORKDIR /app
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder /out/meta-service ./meta-service
+COPY --from=builder /out/service ./service
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-EXPOSE 8081
+EXPOSE ${SERVICE_PORT}
 USER 65532:65532
-ENTRYPOINT ["/app/meta-service"]
+ENTRYPOINT ["/app/service"]

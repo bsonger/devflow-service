@@ -8,8 +8,9 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
-	"github.com/bsonger/devflow-service/internal/release/transport/runtime"
 	"github.com/bsonger/devflow-service/internal/release/service"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	"github.com/bsonger/devflow-service/internal/release/transport/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -63,8 +64,7 @@ type CreateReleaseRequest struct {
 // @Router /api/v1/releases [post]
 func (h *ReleaseHandler) Create(c *gin.Context) {
 	var req CreateReleaseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	release := &model.Release{
@@ -75,11 +75,11 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 	release.WithCreateDefault()
 	_, err := h.svc.Create(c.Request.Context(), release)
 	if err != nil {
-		if errors.Is(err, service.ErrImageMissingRuntimeSpecRevision) || errors.Is(err, service.ErrRuntimeSpecBindingMismatch) || errors.Is(err, service.ErrReleaseManifestNotReady) || errors.Is(err, runtimeclient.ErrRuntimeServiceUnavailable) || errors.Is(err, service.ErrDeployTargetClusterNotReady) || errors.Is(err, service.ErrDeployTargetClusterReadinessMalformed) {
-			httpx.WriteError(c, http.StatusConflict, "failed_precondition", err.Error(), nil)
+		if errors.Is(err, service.ErrImageMissingRuntimeSpecRevision) || errors.Is(err, service.ErrRuntimeSpecBindingMismatch) || errors.Is(err, service.ErrReleaseManifestNotReady) || errors.Is(err, runtimeclient.ErrRuntimeServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
+			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -93,19 +93,18 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 // @Success 200 {object} ReleaseResponse
 // @Router /api/v1/releases/{id} [get]
 func (h *ReleaseHandler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	release, err := h.svc.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -122,20 +121,19 @@ func (h *ReleaseHandler) Get(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/releases/{id} [delete]
 func (h *ReleaseHandler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	httpx.WriteNoContent(c)
 }
 
 // List
@@ -145,29 +143,26 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 // @Router /api/v1/releases [get]
 func (h *ReleaseHandler) List(c *gin.Context) {
 	filter := service.ReleaseListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
-	if appID := c.Query("application_id"); appID != "" {
-		id, err := uuid.Parse(appID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application_id", nil)
-			return
-		}
-		filter.ApplicationID = &id
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok {
+		return
 	}
-	if manifestID := c.Query("manifest_id"); manifestID != "" {
-		id, err := uuid.Parse(manifestID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid manifest_id", nil)
-			return
-		}
-		filter.ManifestID = &id
+	if applicationID != nil {
+		filter.ApplicationID = applicationID
 	}
-	if imageID := c.Query("image_id"); imageID != "" {
-		id, err := uuid.Parse(imageID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid image_id", nil)
-			return
-		}
-		filter.ImageID = &id
+	manifestID, ok := httpx.ParseUUIDQuery(c, "manifest_id")
+	if !ok {
+		return
+	}
+	if manifestID != nil {
+		filter.ManifestID = manifestID
+	}
+	imageID, ok := httpx.ParseUUIDQuery(c, "image_id")
+	if !ok {
+		return
+	}
+	if imageID != nil {
+		filter.ImageID = imageID
 	}
 	if status := c.Query("status"); status != "" {
 		filter.Status = status
@@ -177,17 +172,8 @@ func (h *ReleaseHandler) List(c *gin.Context) {
 	}
 	releases, err := h.svc.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-
-	total := len(releases)
-	releases = httpx.PaginateSlice(releases, paging)
-	httpx.WriteList(c, http.StatusOK, releases, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, releases)
 }

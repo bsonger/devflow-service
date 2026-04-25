@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/k8s"
 	projectdownstream "github.com/bsonger/devflow-service/internal/project/transport/downstream"
 	"github.com/bsonger/devflow-service/internal/release/transport/downstream"
+	"github.com/bsonger/devflow-service/internal/shared/downstreamhttp"
 )
 
 type fakeBindingReader struct {
@@ -27,14 +29,14 @@ func (f fakeBindingReader) GetApplicationEnvironment(context.Context, string, st
 }
 
 type fakeOwnerReader struct {
-	application     *applicationdownstream.Application
-	applicationErr  error
-	project         *projectdownstream.Project
-	projectErr      error
-	environment     *environmentdownstream.Environment
-	environmentErr  error
-	cluster         *clusterdownstream.Cluster
-	clusterErr      error
+	application    *applicationdownstream.Application
+	applicationErr error
+	project        *projectdownstream.Project
+	projectErr     error
+	environment    *environmentdownstream.Environment
+	environmentErr error
+	cluster        *clusterdownstream.Cluster
+	clusterErr     error
 }
 
 func (f fakeOwnerReader) GetApplication(ctx context.Context, id string) (*applicationdownstream.Application, error) {
@@ -80,7 +82,7 @@ func TestResolveDeployTargetRequiresEnvironmentID(t *testing.T) {
 }
 
 func TestResolveDeployTargetMissingBinding(t *testing.T) {
-	resolver := &deployTargetResolver{bindingReader: &fakeBindingReader{err: errors.New("downstream request failed: 404")}}
+	resolver := &deployTargetResolver{bindingReader: &fakeBindingReader{err: downstreamhttp.Status(http.StatusNotFound)}}
 	_, err := resolver.Resolve(context.Background(), "app-1", "staging")
 	if !errors.Is(err, ErrDeployTargetBindingMissing) {
 		t.Fatalf("error = %v, want %v", err, ErrDeployTargetBindingMissing)
@@ -98,7 +100,7 @@ func TestResolveDeployTargetMalformedBinding(t *testing.T) {
 func TestResolveDeployTargetMissingApplicationMetadata(t *testing.T) {
 	resolver := &deployTargetResolver{
 		bindingReader: &fakeBindingReader{binding: &downstream.ApplicationEnvironment{ID: "ae-1", ApplicationID: "app-1"}},
-		ownerReader:   &fakeOwnerReader{applicationErr: errors.New("downstream request failed: 404")},
+		ownerReader:   &fakeOwnerReader{applicationErr: downstreamhttp.Status(http.StatusNotFound)},
 	}
 	_, err := resolver.Resolve(context.Background(), "app-1", "staging")
 	if !errors.Is(err, ErrDeployTargetApplicationMetadataMissing) {
@@ -109,7 +111,7 @@ func TestResolveDeployTargetMissingApplicationMetadata(t *testing.T) {
 func TestResolveDeployTargetMissingProjectMetadata(t *testing.T) {
 	resolver := &deployTargetResolver{
 		bindingReader: &fakeBindingReader{binding: &downstream.ApplicationEnvironment{ID: "ae-1", ApplicationID: "app-1"}},
-		ownerReader:   &fakeOwnerReader{application: &applicationdownstream.Application{ID: "app-1", Name: "portal", ProjectID: "project-1"}, projectErr: errors.New("downstream request failed: 404")},
+		ownerReader:   &fakeOwnerReader{application: &applicationdownstream.Application{ID: "app-1", Name: "portal", ProjectID: "project-1"}, projectErr: downstreamhttp.Status(http.StatusNotFound)},
 	}
 	_, err := resolver.Resolve(context.Background(), "app-1", "staging")
 	if !errors.Is(err, ErrDeployTargetProjectMetadataMissing) {
@@ -121,9 +123,9 @@ func TestResolveDeployTargetMissingEnvironmentMetadata(t *testing.T) {
 	resolver := &deployTargetResolver{
 		bindingReader: &fakeBindingReader{binding: &downstream.ApplicationEnvironment{ID: "ae-1", ApplicationID: "app-1"}},
 		ownerReader: &fakeOwnerReader{
-			application: &applicationdownstream.Application{ID: "app-1", Name: "portal", ProjectID: "project-1"},
-			project:     &projectdownstream.Project{ID: "project-1", Name: "checkout"},
-			environmentErr: errors.New("downstream request failed: 404"),
+			application:    &applicationdownstream.Application{ID: "app-1", Name: "portal", ProjectID: "project-1"},
+			project:        &projectdownstream.Project{ID: "project-1", Name: "checkout"},
+			environmentErr: downstreamhttp.Status(http.StatusNotFound),
 		},
 	}
 	_, err := resolver.Resolve(context.Background(), "app-1", "staging")
@@ -139,7 +141,7 @@ func TestResolveDeployTargetMissingClusterMetadata(t *testing.T) {
 			application: &applicationdownstream.Application{ID: "app-1", Name: "portal", ProjectID: "project-1"},
 			project:     &projectdownstream.Project{ID: "project-1", Name: "checkout"},
 			environment: &environmentdownstream.Environment{ID: "staging", Name: "staging", ClusterID: "cluster-1"},
-			clusterErr:  errors.New("downstream request failed: 404"),
+			clusterErr:  downstreamhttp.Status(http.StatusNotFound),
 		},
 	}
 	_, err := resolver.Resolve(context.Background(), "app-1", "staging")

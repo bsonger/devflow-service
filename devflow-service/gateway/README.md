@@ -1,9 +1,17 @@
 # gateway
 
-This directory is reserved for backend edge and Kong-facing surfaces in the future monorepo.
+This directory is reserved for backend edge contracts in `devflow-service`.
 
-It exists so later slices have a stable home for declarative gateway configuration, edge contracts, and related support assets without mixing that concern into owner-service modules.
-This bootstrap slice reserves the area only.
+The current committed pre-production edge contract is Istio-oriented rather than Kong-oriented.
+Use it as the stable home for declarative gateway configuration, shared ingress routing, and related support assets without mixing that concern into owner-service modules.
+
+Current repo-local edge artifact:
+- `deployments/pre-production/istio/shared-ingress.yaml`
+
+That manifest currently exposes one shared host, `devflow-pre.example.com`, and routes per-service subpaths through Istio:
+- `/config` -> `config-service`
+- `/network` -> `network-service`
+- `/runtime` -> `runtime-service`
 
 ## Boundary rule
 

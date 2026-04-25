@@ -16,6 +16,7 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/index/agent-recipes.md` — compact task recipes for common repo-local changes
 - `docs/system/` — current repo-local execution truth
 - `docs/services/` — current service-specific behavior and diagnostics
+- `docs/resources/` — current resource contracts and API behavior
 - `docs/policies/` — durable repo rules such as layout, Docker, and verification
 - `docs/generated/` — generated artifacts only
 - `docs/archive/` — historical material only
@@ -25,5 +26,37 @@ For the detailed Go monorepo directory and dependency rules used by this repo, s
 
 - `docs/policies/go-monorepo-layout.md`
 
-Directory `README.md` files under `docs/index/`, `docs/services/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only.
-The owning docs in `docs/system/`, `docs/services/`, and `docs/policies/` hold the current facts.
+For structured logging, metric-label, and trace-correlation rules, start with:
+
+- `docs/policies/observability-logging.md`
+
+For stable HTTP error envelopes and handler error-code mapping, start with:
+
+- `docs/policies/error-handling.md`
+
+For shared Gin handler conventions such as pagination, response helpers, and HTTP-edge parsing, start with:
+
+- `docs/policies/http-handler.md`
+
+For use-case orchestration boundaries inside `internal/*/service`, start with:
+
+- `docs/policies/service-layer.md`
+
+For downstream runtime-boundary clients, shared HTTP client reuse, and typed downstream status handling, start with:
+
+- `docs/policies/downstream-client.md`
+
+For persistence ownership, repository constructor shape, and storage boundary rules, start with:
+
+- `docs/policies/repository-layer.md`
+
+For background execution, lease-driven worker semantics, and runtime helper boundaries, start with:
+
+- `docs/policies/worker-runtime.md`
+
+For resource CRUD behavior, list/filter/pagination rules, and resource-doc contract shape, start with:
+
+- `docs/policies/resource-api.md`
+
+Directory `README.md` files under `docs/index/`, `docs/services/`, `docs/resources/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only.
+The owning docs in `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/` hold the current facts.

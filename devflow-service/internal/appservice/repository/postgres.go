@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/appservice/domain"
 	"github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/dbsql"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
 
@@ -50,7 +50,7 @@ func (s *postgresStore) Create(ctx context.Context, network *domain.Network) (uu
 		insert into networks (
 			id, application_id, name, ports, hosts, paths, gateway_refs, visibility, created_at, updated_at, deleted_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-	`, network.ID, nullableUUID(network.ApplicationID), network.Name, portsJSON, hostsJSON, pathsJSON, gatewaysJSON, network.Visibility, network.CreatedAt, network.UpdatedAt, network.DeletedAt)
+	`, network.ID, dbsql.NullableUUID(network.ApplicationID), network.Name, portsJSON, hostsJSON, pathsJSON, gatewaysJSON, network.Visibility, network.CreatedAt, network.UpdatedAt, network.DeletedAt)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -91,7 +91,7 @@ func (s *postgresStore) Update(ctx context.Context, network *domain.Network) err
 	if err != nil {
 		return err
 	}
-	return ensureRowsAffected(result)
+	return dbsql.EnsureRowsAffected(result)
 }
 
 func (s *postgresStore) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
@@ -103,7 +103,7 @@ func (s *postgresStore) Delete(ctx context.Context, applicationID, id uuid.UUID)
 	if err != nil {
 		return err
 	}
-	return ensureRowsAffected(result)
+	return dbsql.EnsureRowsAffected(result)
 }
 
 func (s *postgresStore) List(ctx context.Context, filter NetworkListFilter) ([]domain.Network, error) {
@@ -118,7 +118,7 @@ func (s *postgresStore) List(ctx context.Context, filter NetworkListFilter) ([]d
 	}
 	if filter.Name != "" {
 		args = append(args, filter.Name)
-		clauses = append(clauses, placeholderClause("name", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("name", len(args)))
 	}
 	query += " where " + strings.Join(clauses, " and ") + " order by created_at desc"
 
@@ -141,13 +141,13 @@ func (s *postgresStore) List(ctx context.Context, filter NetworkListFilter) ([]d
 
 func validateNetwork(network *domain.Network) error {
 	if network == nil {
-		return errors.New("network is required")
+		return sharederrs.Required("network")
 	}
 	if network.ApplicationID == uuid.Nil {
-		return errors.New("application_id is required")
+		return sharederrs.Required("application_id")
 	}
 	if strings.TrimSpace(network.Name) == "" {
-		return errors.New("name is required")
+		return sharederrs.Required("name")
 	}
 	return nil
 }
@@ -165,12 +165,12 @@ func scanNetwork(scanner interface{ Scan(dest ...any) error }) (*domain.Network,
 	if err := scanner.Scan(&item.ID, &applicationID, &item.Name, &portsJSON, &hostsJSON, &pathsJSON, &gatewaysJSON, &item.Visibility, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
-	if applicationID.Valid {
-		parsed, err := uuid.Parse(applicationID.String)
-		if err != nil {
-			return nil, err
-		}
-		item.ApplicationID = parsed
+	applicationUUID, err := dbsql.ParseNullUUID(applicationID)
+	if err != nil {
+		return nil, err
+	}
+	if applicationUUID != nil {
+		item.ApplicationID = *applicationUUID
 	}
 	if len(portsJSON) > 0 {
 		if err := json.Unmarshal(portsJSON, &item.Ports); err != nil {
@@ -192,30 +192,6 @@ func scanNetwork(scanner interface{ Scan(dest ...any) error }) (*domain.Network,
 			return nil, err
 		}
 	}
-	if deletedAt.Valid {
-		item.DeletedAt = &deletedAt.Time
-	}
+	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	return &item, nil
-}
-
-func ensureRowsAffected(result sql.Result) error {
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-func nullableUUID(id uuid.UUID) any {
-	if id == uuid.Nil {
-		return nil
-	}
-	return id
-}
-
-func placeholderClause(column string, position int) string {
-	return column + " = $" + strconv.Itoa(position)
 }

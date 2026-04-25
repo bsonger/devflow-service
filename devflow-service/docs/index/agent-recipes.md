@@ -3,7 +3,7 @@
 This page is index-only.
 
 Use it as a compact task map after reading `AGENTS.md`.
-If any recipe conflicts with current repo-local docs, trust `AGENTS.md`, `docs/system/`, `docs/services/`, and `docs/policies/` first.
+If any recipe conflicts with current repo-local docs, trust `AGENTS.md`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/` first.
 
 ## Recipe: Repo-local implementation change
 
@@ -22,12 +22,27 @@ Verify:
 Read:
 1. `AGENTS.md`
 2. `docs/services/meta-service.md`
-3. the affected resource doc under `docs/services/`
+3. the affected resource doc under `docs/resources/`
 4. `docs/policies/verification.md`
 
 Verify:
 - handler and service code changed together
-- the affected `docs/services/*.md` file reflects the current request fields, routes, and validation shape
+- the affected `docs/resources/*.md` file reflects the current request fields, routes, and validation shape
+- `bash scripts/verify.sh` still passes
+
+## Recipe: Release writeback or observer callback change
+
+Read:
+1. `AGENTS.md`
+2. `docs/services/release-service.md`
+3. `docs/system/release-writeback.md`
+4. `docs/resources/release.md`
+5. `docs/policies/verification.md`
+
+Verify:
+- token-gated writeback behavior still matches `observer.shared_token` wiring
+- callback routes, accepted headers, and status normalization still match the current handlers
+- release writeback docs and resource docs were updated in the same change
 - `bash scripts/verify.sh` still passes
 
 ## Recipe: Docker, image, or CI change
@@ -53,7 +68,7 @@ Read:
 
 Verify:
 - index docs stay navigation-only
-- current facts stay in `docs/system/`, `docs/services/`, or `docs/policies/`
+- current facts stay in `docs/system/`, `docs/services/`, `docs/resources/`, or `docs/policies/`
 - no migrated content overrides current repo-local truth
 
 ## Recipe: Handoff or completion

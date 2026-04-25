@@ -12,6 +12,7 @@ import (
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/k8s"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
@@ -204,8 +205,18 @@ func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.
 	}
 }
 
+func TestResolveManifestImageRepositoryRejectsUndeployableRepository(t *testing.T) {
+	_, err := resolveManifestImageRepository(&imagedomain.Image{
+		Name:        "demo-api",
+		RepoAddress: "git@github.com:bsonger/devflow-runtime-service.git",
+	}, imagedomain.ImageRegistryConfig{})
+	if err != ErrManifestImageRepositoryMissing {
+		t.Fatalf("err = %v, want %v", err, ErrManifestImageRepositoryMissing)
+	}
+}
+
 func TestDeriveNamespaceUsesProjectAndEnvironment(t *testing.T) {
-	ns, err := deriveNamespace("Checkout", "Staging")
+	ns, err := k8s.DeriveNamespace("Checkout", "Staging")
 	if err != nil {
 		t.Fatalf("deriveNamespace error = %v", err)
 	}

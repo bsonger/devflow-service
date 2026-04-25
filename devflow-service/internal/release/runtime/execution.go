@@ -1,6 +1,9 @@
 package runtime
 
-import "strings"
+import (
+	"strings"
+	"sync/atomic"
+)
 
 type ExecutionMode string
 
@@ -9,14 +12,19 @@ const (
 	ExecutionModeIntent ExecutionMode = "intent"
 )
 
-var currentExecutionMode = ExecutionModeDirect
+const (
+	executionModeDirect uint32 = iota
+	executionModeIntent
+)
+
+var currentExecutionMode atomic.Uint32
 
 func SetExecutionMode(mode ExecutionMode) {
 	switch mode {
 	case ExecutionModeIntent:
-		currentExecutionMode = ExecutionModeIntent
+		currentExecutionMode.Store(executionModeIntent)
 	default:
-		currentExecutionMode = ExecutionModeDirect
+		currentExecutionMode.Store(executionModeDirect)
 	}
 }
 
@@ -30,9 +38,12 @@ func SetExecutionModeFromString(mode string) {
 }
 
 func GetExecutionMode() ExecutionMode {
-	return currentExecutionMode
+	if currentExecutionMode.Load() == executionModeIntent {
+		return ExecutionModeIntent
+	}
+	return ExecutionModeDirect
 }
 
 func IsIntentMode() bool {
-	return currentExecutionMode == ExecutionModeIntent
+	return GetExecutionMode() == ExecutionModeIntent
 }

@@ -18,7 +18,7 @@ This policy defines how public HTTP APIs in `devflow-service` should evolve with
 ## Hard rules
 
 1. Do not ship silent breaking changes to public paths, request fields, response fields, enum values, or callback contracts.
-2. The human-authored source of current API truth in this repo is the affected `docs/services/*.md` file plus the handler and transport code.
+2. The human-authored source of current API truth in this repo is the affected `docs/resources/*.md` file plus the handler and transport code.
 3. If Swagger annotations or generated contract output are used, regenerate them in the same change cycle.
 4. If a change is not fully backward-compatible, document the compatibility impact before calling the work done.
 
@@ -44,6 +44,6 @@ A breaking change requires all of the following:
 
 If an API change affects ownership, service boundaries, or runtime flow, also update:
 - `docs/services/meta-service.md`
-- the affected `docs/services/*.md` resource file
+- the affected `docs/resources/*.md` resource file
 - `docs/system/architecture.md`
 - `docs/policies/verification.md` when the proof surface changes

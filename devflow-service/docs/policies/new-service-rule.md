@@ -46,6 +46,7 @@ scripts/
 - `docs/system/observability.md`
 - `docs/system/recovery.md`
 - relevant `docs/services/*.md`
+- relevant `docs/resources/*.md` when the service exposes resource contracts
 - `docs/policies/*.md`
 
 ## Verification expectation

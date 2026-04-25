@@ -1,0 +1,116 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: devflow-tekton-image-build-and-push
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/component: tekton-task
+    app.kubernetes.io/part-of: devflow
+spec:
+  description: Build and push an image from a repo root or a monorepo nested checkout.
+  params:
+    - name: IMAGE_REPOSITORY
+      type: string
+    - name: IMAGE_TAG
+      type: string
+    - name: GIT_TAG
+      type: string
+      default: ""
+    - name: DOCKERFILE
+      type: string
+      default: Dockerfile
+    - name: BUILD_ARGS
+      type: string
+      default: ""
+  results:
+    - name: IMAGE_DIGEST
+      type: string
+    - name: IMAGE_TAG
+      type: string
+  workspaces:
+    - name: source
+    - name: dockerconfig
+      mountPath: /.docker/
+    - name: ssh
+  steps:
+    - name: build-push
+      image: quay.io/buildah/stable:latest
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      env:
+        - name: HTTP_PROXY
+          value: http://192.168.1.5:7890
+        - name: HTTPS_PROXY
+          value: http://192.168.1.5:7890
+        - name: NO_PROXY
+          value: localhost,127.0.0.1,.svc,.cluster.local
+        - name: REGISTRY_AUTH_FILE
+          value: /.docker/.dockerconfigjson
+      script: |
+        set -euo pipefail
+
+        TAG="$(params.GIT_TAG)"
+        if [ -z "${TAG}" ]; then
+          TAG="$(params.IMAGE_TAG)"
+        fi
+
+        IMAGE="$(params.IMAGE_REPOSITORY):${TAG}"
+        SRC="$(workspaces.source.path)"
+        DOCKERFILE_REL="$(params.DOCKERFILE)"
+        BUILD_ARGS="$(params.BUILD_ARGS)"
+        SSH_DIR="${SRC}/.tekton-ssh"
+        PROXY_BUILD_ARGS="--build-arg HTTP_PROXY=${HTTP_PROXY} --build-arg HTTPS_PROXY=${HTTPS_PROXY} --build-arg NO_PROXY=${NO_PROXY} --build-arg http_proxy=${HTTP_PROXY} --build-arg https_proxy=${HTTPS_PROXY} --build-arg no_proxy=${NO_PROXY}"
+
+        cleanup() {
+          rm -rf "${SSH_DIR}"
+        }
+        trap cleanup EXIT
+
+        mkdir -p "${SSH_DIR}"
+        cp "$(workspaces.ssh.path)/id_rsa" "${SSH_DIR}/id_rsa"
+        chmod 600 "${SSH_DIR}/id_rsa"
+        ssh-keyscan github.com > "${SSH_DIR}/known_hosts"
+
+        find_repo_root() {
+          if [ -f "${SRC}/${DOCKERFILE_REL}" ]; then
+            dirname "${SRC}/${DOCKERFILE_REL}"
+            return 0
+          fi
+
+          MATCH="$(find "${SRC}" -maxdepth 3 -type f -path "*/${DOCKERFILE_REL}" | sort | head -n 1 || true)"
+          if [ -n "${MATCH}" ]; then
+            dirname "${MATCH}"
+            return 0
+          fi
+
+          return 1
+        }
+
+        if ! CONTEXT="$(find_repo_root)"; then
+          echo "ERROR: missing dockerfile ${DOCKERFILE_REL} under ${SRC}"
+          echo "Available Dockerfile candidates:"
+          find "${SRC}" -maxdepth 4 \( -name 'Dockerfile' -o -name 'Dockerfile.*' -o -name '*.dockerfile' \) | sort
+          exit 1
+        fi
+
+        DOCKERFILE_PATH="${CONTEXT}/${DOCKERFILE_REL}"
+        if [ ! -f "${DOCKERFILE_PATH}" ]; then
+          echo "ERROR: dockerfile path resolved but file missing: ${DOCKERFILE_PATH}"
+          exit 1
+        fi
+
+        echo "Resolved build context: ${CONTEXT}"
+        echo "Resolved dockerfile: ${DOCKERFILE_PATH}"
+        echo "🔧 Build image ${IMAGE}"
+        # shellcheck disable=SC2086
+        buildah bud ${PROXY_BUILD_ARGS} ${BUILD_ARGS} -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${CONTEXT}"
+
+        echo "🚀 Push image to registry"
+        buildah push "${IMAGE}" "docker://${IMAGE}"
+        buildah push --digestfile /tmp/digest "${IMAGE}" "docker://${IMAGE}"
+
+        DIGEST="$(cat /tmp/digest)"
+        echo "✅ Image digest: ${DIGEST}"
+        printf "%s" "${DIGEST}" > /tekton/results/IMAGE_DIGEST
+        printf "%s" "${TAG}" > /tekton/results/IMAGE_TAG

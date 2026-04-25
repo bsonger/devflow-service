@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pre-production
+  labels:
+    app.kubernetes.io/part-of: devflow
+    environment: pre-production
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: meta-service-config
+  namespace: pre-production
+  labels:
+    app.kubernetes.io/name: meta-service
+    app.kubernetes.io/part-of: devflow
+data:
+  config.yaml: |
+    server:
+      port: 8081
+    postgres:
+      dsn: "postgresql://app:Sm3MQA5IVcPt1wUiOm1cpEU0w9vJBhPChjoUXcuCGY6cW4Yo9qUkqaNMf1OfrSIi@pg18-rw.database:5432/app"
+      max_open_conns: 20
+      max_idle_conns: 10
+      conn_max_lifetime_minutes: 30
+    log:
+      level: info
+      format: json
+    otel:
+      endpoint: ""
+      service_name: app-service
+    pyroscope: ""
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meta-service
+  namespace: pre-production
+  labels:
+    app.kubernetes.io/name: meta-service
+    app.kubernetes.io/part-of: devflow
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: meta-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meta-service
+  namespace: pre-production
+  labels:
+    app.kubernetes.io/name: meta-service
+    app.kubernetes.io/part-of: devflow
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meta-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: meta-service
+        app.kubernetes.io/part-of: devflow
+    spec:
+      containers:
+        - name: meta-service
+          image: registry.cn-hangzhou.aliyuncs.com/devflow/meta-service:preproduction-routefix-20260425
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /etc/devflow/config
+              readOnly: true
+      imagePullSecrets:
+        - name: aliyun-docker-config
+      volumes:
+        - name: config
+          configMap:
+            name: meta-service-config
+      securityContext:
+        runAsNonRoot: true
+      terminationGracePeriodSeconds: 30

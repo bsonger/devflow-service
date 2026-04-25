@@ -10,19 +10,20 @@ import (
 	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
 	clusterrepo "github.com/bsonger/devflow-service/internal/cluster/repository"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 var (
-	ErrClusterNameRequired         = errors.New("cluster name is required")
-	ErrClusterServerRequired       = errors.New("cluster server is required")
-	ErrClusterKubeConfigRequired   = errors.New("cluster kubeconfig is required")
-	ErrClusterConflict             = errors.New("cluster already exists")
-	ErrClusterOnboardingFailed     = errors.New("cluster onboarding failed")
+	ErrClusterNameRequired         = sharederrs.Required("cluster name")
+	ErrClusterServerRequired       = sharederrs.Required("cluster server")
+	ErrClusterKubeConfigRequired   = sharederrs.Required("cluster kubeconfig")
+	ErrClusterConflict             = sharederrs.Conflict("cluster already exists")
+	ErrClusterOnboardingFailed     = sharederrs.FailedPrecondition("cluster onboarding failed")
 	ErrClusterOnboardingTimeout    = errors.New("cluster onboarding timed out")
-	ErrClusterOnboardingMalformed  = errors.New("cluster onboarding payload malformed")
-	ErrClusterOnboardingStatusSync = errors.New("cluster onboarding status persistence failed")
+	ErrClusterOnboardingMalformed  = sharederrs.InvalidArgument("cluster onboarding payload malformed")
+	ErrClusterOnboardingStatusSync = sharederrs.Internal("cluster onboarding status persistence failed")
 )
 
 type ListFilter struct {
@@ -82,8 +83,9 @@ func (s *service) Create(ctx context.Context, cluster *clusterdomain.Cluster) (u
 
 	log.Info("cluster created",
 		zap.String("result", "success"),
+		zap.String("resource_id", cluster.GetID().String()),
 		zap.String("cluster_name", cluster.Name),
-		zap.String("server", cluster.Server),
+		zap.String("cluster_server", cluster.Server),
 		zap.Bool("onboarding_ready", cluster.OnboardingReady),
 	)
 	return cluster.GetID(), nil
@@ -134,8 +136,9 @@ func (s *service) Update(ctx context.Context, cluster *clusterdomain.Cluster) er
 
 	log.Info("cluster updated",
 		zap.String("result", "success"),
+		zap.String("resource_id", cluster.GetID().String()),
 		zap.String("cluster_name", cluster.Name),
-		zap.String("server", cluster.Server),
+		zap.String("cluster_server", cluster.Server),
 		zap.Bool("onboarding_ready", cluster.OnboardingReady),
 	)
 	return nil
@@ -215,6 +218,10 @@ func logClusterFailure(log *zap.Logger, msg string, err error) {
 }
 
 func appErrorCode(err error) string {
+	if code := sharederrs.Code(err); code != "" {
+		return code
+	}
+
 	switch {
 	case err == nil:
 		return ""

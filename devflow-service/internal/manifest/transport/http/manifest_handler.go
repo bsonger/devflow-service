@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
+	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
-	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -66,8 +66,7 @@ func (h *ManifestHandler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/manifests [post]
 func (h *ManifestHandler) Create(c *gin.Context) {
 	var req manifestdomain.CreateManifestRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item, err := h.svc.CreateManifest(c.Request.Context(), &req)
@@ -93,38 +92,29 @@ func (h *ManifestHandler) Create(c *gin.Context) {
 // @Router /api/v1/manifests [get]
 func (h *ManifestHandler) List(c *gin.Context) {
 	filter := manifestdomain.ManifestListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
-	if value := c.Query("application_id"); value != "" {
-		id, err := uuid.Parse(value)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application_id", nil)
-			return
-		}
-		filter.ApplicationID = &id
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok {
+		return
+	}
+	if applicationID != nil {
+		filter.ApplicationID = applicationID
 	}
 	if value := c.Query("environment_id"); value != "" {
 		filter.EnvironmentID = &value
 	}
-	if value := c.Query("image_id"); value != "" {
-		id, err := uuid.Parse(value)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid image_id", nil)
-			return
-		}
-		filter.ImageID = &id
+	imageID, ok := httpx.ParseUUIDQuery(c, "image_id")
+	if !ok {
+		return
+	}
+	if imageID != nil {
+		filter.ImageID = imageID
 	}
 	items, err := h.svc.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-	total := len(items)
-	items = httpx.PaginateSlice(items, paging)
-	httpx.WriteList(c, http.StatusOK, items, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
 // GetManifest godoc
@@ -138,18 +128,17 @@ func (h *ManifestHandler) List(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/manifests/{id} [get]
 func (h *ManifestHandler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	item, err := h.svc.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusOK, item)
@@ -166,18 +155,17 @@ func (h *ManifestHandler) Get(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/manifests/{id}/resources [get]
 func (h *ManifestHandler) GetResources(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	item, err := h.svc.GetResources(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusOK, item)
@@ -193,30 +181,30 @@ func (h *ManifestHandler) GetResources(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/manifests/{id} [delete]
 func (h *ManifestHandler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	httpx.WriteNoContent(c)
 }
 
 func writeManifestError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+		httpx.WriteNotFound(c, "not found")
 	case errors.Is(err, manifestservice.ErrManifestImageApplicationMismatch),
 		errors.Is(err, manifestservice.ErrManifestAppConfigMissing),
 		errors.Is(err, manifestservice.ErrManifestWorkloadConfigMissing),
 		errors.Is(err, manifestservice.ErrManifestRouteTargetInvalid),
+		errors.Is(err, manifestservice.ErrManifestImageRepositoryMissing),
 		errors.Is(err, manifestservice.ErrManifestImageNotDeployable),
 		errors.Is(err, releasesupport.ErrDeployTargetBindingMissing),
 		errors.Is(err, releasesupport.ErrDeployTargetBindingMalformed),
@@ -232,8 +220,8 @@ func writeManifestError(c *gin.Context, err error) {
 		errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed),
 		errors.Is(err, releasesupport.ErrDeployTargetNamespaceInvalid),
 		errors.Is(err, releasesupport.ErrDeployTargetClusterServerInvalid):
-		httpx.WriteError(c, http.StatusConflict, "failed_precondition", err.Error(), nil)
+		httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 	default:
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 	}
 }

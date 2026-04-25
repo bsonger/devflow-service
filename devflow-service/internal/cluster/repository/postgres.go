@@ -3,15 +3,13 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/dbsql"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -77,7 +75,7 @@ func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*clusterdomain.C
 	log.Debug("cluster fetched",
 		zap.String("result", "success"),
 		zap.String("cluster_name", cluster.Name),
-		zap.String("server", cluster.Server),
+		zap.String("cluster_server", cluster.Server),
 		zap.Bool("onboarding_ready", cluster.OnboardingReady),
 	)
 	return cluster, nil
@@ -158,7 +156,7 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 		zap.String("resource", "cluster"),
 		zap.String("result", "started"),
 		zap.Bool("include_deleted", includeDeleted),
-		zap.String("name", name),
+		zap.String("filter_name", name),
 	)
 
 	query := `
@@ -175,7 +173,7 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 	}
 	if name != "" {
 		args = append(args, strings.TrimSpace(name))
-		clauses = append(clauses, placeholderClause("name", len(args)))
+		clauses = append(clauses, dbsql.PlaceholderClause("name", len(args)))
 	}
 	if len(clauses) > 0 {
 		query += " where " + strings.Join(clauses, " and ")
@@ -205,7 +203,7 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 		return nil, err
 	}
 
-	log.Debug("clusters listed", zap.String("result", "success"), zap.Int("count", len(clusters)))
+	log.Debug("clusters listed", zap.String("result", "success"), zap.Int("cluster_count", len(clusters)))
 	return clusters, nil
 }
 
@@ -260,12 +258,8 @@ func scanCluster(scanner interface {
 	if onboardingError.Valid {
 		cluster.OnboardingError = onboardingError.String
 	}
-	if onboardingCheckedAt.Valid {
-		cluster.OnboardingCheckedAt = &onboardingCheckedAt.Time
-	}
-	if deletedAt.Valid {
-		cluster.DeletedAt = &deletedAt.Time
-	}
+	cluster.OnboardingCheckedAt = dbsql.TimePtrFromNull(onboardingCheckedAt)
+	cluster.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	if len(labels) > 0 {
 		parsed, err := unmarshalLabels(labels)
 		if err != nil {
@@ -278,31 +272,19 @@ func scanCluster(scanner interface {
 }
 
 func marshalLabels(labels []clusterdomain.LabelItem) ([]byte, error) {
-	if labels == nil {
-		return []byte("[]"), nil
-	}
-	return json.Marshal(labels)
+	return dbsql.MarshalLabelItems(labels)
 }
 
 func unmarshalLabels(raw []byte) ([]clusterdomain.LabelItem, error) {
-	var labels []clusterdomain.LabelItem
-	if err := json.Unmarshal(raw, &labels); err == nil {
-		return labels, nil
-	}
-	var legacy map[string]string
-	if err := json.Unmarshal(raw, &legacy); err != nil {
-		return nil, err
-	}
-	labels = make([]clusterdomain.LabelItem, 0, len(legacy))
-	for key, value := range legacy {
-		labels = append(labels, clusterdomain.LabelItem{Key: key, Value: value})
-	}
-	sort.Slice(labels, func(i, j int) bool { return labels[i].Key < labels[j].Key })
-	return labels, nil
-}
-
-func placeholderClause(column string, position int) string {
-	return column + " = $" + strconv.Itoa(position)
+	return dbsql.UnmarshalLabelItems(
+		raw,
+		func(key, value string) clusterdomain.LabelItem {
+			return clusterdomain.LabelItem{Key: key, Value: value}
+		},
+		func(item clusterdomain.LabelItem) string {
+			return item.Key
+		},
+	)
 }
 
 func AsPgConflict(err error) bool {

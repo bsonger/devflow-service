@@ -32,7 +32,7 @@ func NewHandler(services serviceService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	services := rg.Group("/applications/:application_id/services")
+	services := rg.Group("/applications/:id/services")
 	{
 		services.GET("", h.ListServices)
 		services.POST("", h.CreateService)
@@ -53,20 +53,18 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Success 201 {object} httpx.DataResponse[domain.Service]
 // @Router /api/v1/applications/{application_id}/services [post]
 func (h *Handler) CreateService(c *gin.Context) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	var req domain.ServiceInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Service{ApplicationID: applicationID, Name: req.Name, Ports: req.Ports}
 	item.WithCreateDefault()
 	if _, err := h.services.Create(c.Request.Context(), item); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, item)
@@ -84,9 +82,8 @@ func (h *Handler) CreateService(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Service]
 // @Router /api/v1/applications/{application_id}/services [get]
 func (h *Handler) ListServices(c *gin.Context) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	items, err := h.services.List(c.Request.Context(), ServiceListFilter{
@@ -95,17 +92,10 @@ func (h *Handler) ListServices(c *gin.Context) {
 		Name:           c.Query("name"),
 	})
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-	total := len(items)
-	items = httpx.PaginateSlice(items, paging)
-	httpx.WriteList(c, http.StatusOK, items, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
 // UpdateService godoc
@@ -124,18 +114,17 @@ func (h *Handler) UpdateService(c *gin.Context) {
 		return
 	}
 	var req domain.ServiceInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Service{ApplicationID: applicationID, Name: req.Name, Ports: req.Ports}
 	item.SetID(id)
 	if err := h.services.Update(c.Request.Context(), item); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -155,24 +144,22 @@ func (h *Handler) DeleteService(c *gin.Context) {
 	}
 	if err := h.services.Delete(c.Request.Context(), applicationID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteNoContent(c)
 }
 
 func parseApplicationAndResourceID(c *gin.Context, key string) (uuid.UUID, uuid.UUID, bool) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return uuid.Nil, uuid.Nil, false
 	}
-	id, err := uuid.Parse(c.Param(key))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid resource id", nil)
+	id, ok := httpx.ParseUUIDParam(c, key)
+	if !ok {
 		return uuid.Nil, uuid.Nil, false
 	}
 	return applicationID, id, true

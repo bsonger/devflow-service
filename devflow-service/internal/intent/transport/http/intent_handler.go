@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/bsonger/devflow-service/internal/platform/httpx"
-	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
 	intentdomain "github.com/bsonger/devflow-service/internal/intent/domain"
+	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -53,25 +52,16 @@ func (h *IntentHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (h *IntentHandler) List(c *gin.Context) {
 	filter, err := buildIntentFilter(c)
 	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 
 	intents, err := h.svc.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-
-	total := len(intents)
-	intents = httpx.PaginateSlice(intents, paging)
-	httpx.WriteList(c, http.StatusOK, intents, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, intents)
 }
 
 // Get
@@ -81,19 +71,18 @@ func (h *IntentHandler) List(c *gin.Context) {
 // @Success 200 {object} IntentResponse
 // @Router /api/v1/intents/{id} [get]
 func (h *IntentHandler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	intent, err := h.svc.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -116,23 +105,11 @@ func buildIntentFilter(c *gin.Context) (intentservice.IntentListFilter, error) {
 		filter.ClaimedBy = claimedBy
 	}
 
-	if err := setUUIDFilter(&filter.ResourceID, "resource_id", c.Query("resource_id")); err != nil {
+	resourceID, err := httpx.ParseOptionalUUID(c.Query("resource_id"), "resource_id")
+	if err != nil {
 		return intentservice.IntentListFilter{}, err
 	}
+	filter.ResourceID = resourceID
 
 	return filter, nil
-}
-
-func setUUIDFilter(target **uuid.UUID, field, raw string) error {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return nil
-	}
-
-	id, err := uuid.Parse(value)
-	if err != nil {
-		return fmt.Errorf("invalid %s", field)
-	}
-	*target = &id
-	return nil
 }

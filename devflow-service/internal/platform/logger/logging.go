@@ -28,8 +28,9 @@ func InitZapLogger(config *Config) {
 		panic("InitZapLogger: log config is nil")
 	}
 
+	format := strings.ToLower(strings.TrimSpace(config.Format))
 	var cfg zap.Config
-	if strings.ToLower(config.Format) == "json" {
+	if format == "" || format == "json" {
 		cfg = zap.NewProductionConfig()
 	} else {
 		cfg = zap.NewDevelopmentConfig()
@@ -48,7 +49,7 @@ func InitZapLogger(config *Config) {
 
 	cfg.DisableStacktrace = false
 	cfg.DisableCaller = false
-	cfg.Development = strings.ToLower(config.Format) != "json"
+	cfg.Development = format != "" && format != "json"
 
 	logger, err := cfg.Build(
 		zap.AddCaller(),
@@ -93,6 +94,31 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, requestIDKey, requestID)
+}
+
+func ServiceName() string {
+	return firstNonEmpty(
+		os.Getenv("SERVICE_NAME"),
+		os.Getenv("OTEL_SERVICE_NAME"),
+		"devflow",
+	)
+}
+
+func Environment() string {
+	return firstNonEmpty(
+		os.Getenv("ENV"),
+		os.Getenv("ENVIRONMENT"),
+		os.Getenv("DEPLOYMENT_ENVIRONMENT"),
+		"unknown",
+	)
+}
+
+func ServiceVersion() string {
+	return firstNonEmpty(
+		os.Getenv("SERVICE_VERSION"),
+		os.Getenv("VERSION"),
+		"unknown",
+	)
 }
 
 func RequestIDFromContext(ctx context.Context) string {
@@ -148,9 +174,9 @@ func (z *ZapAdapter) Errorf(msg string, args ...interface{}) {
 
 func withEnvFields(l *zap.Logger) *zap.Logger {
 	fields := []zap.Field{
-		envField("service", "SERVICE_NAME"),
-		envField("version", "SERVICE_VERSION"),
-		envField("env", "ENV"),
+		zap.String("service", ServiceName()),
+		zap.String("environment", Environment()),
+		zap.String("service_version", ServiceVersion()),
 		hostField(),
 		envField("pod", "POD_NAME"),
 		envField("namespace", "POD_NAMESPACE"),
@@ -182,4 +208,13 @@ func envField(key, envKey string) zap.Field {
 		return zap.String(key, v)
 	}
 	return zap.Field{}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

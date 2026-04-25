@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	workloadconfig "github.com/bsonger/devflow-service/internal/workloadconfig/service"
-	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -52,8 +52,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/workload-configs [post]
 func (h *Handler) CreateWorkloadConfig(c *gin.Context) {
 	var req domain.WorkloadConfigInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.WorkloadConfig{
@@ -72,7 +71,7 @@ func (h *Handler) CreateWorkloadConfig(c *gin.Context) {
 	}
 	item.WithCreateDefault()
 	if _, err := h.workloadConfigs.Create(c.Request.Context(), item); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, item)
@@ -86,18 +85,17 @@ func (h *Handler) CreateWorkloadConfig(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.WorkloadConfig]
 // @Router /api/v1/workload-configs/{id} [get]
 func (h *Handler) GetWorkloadConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	item, err := h.workloadConfigs.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusOK, item)
@@ -112,14 +110,12 @@ func (h *Handler) GetWorkloadConfig(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/workload-configs/{id} [put]
 func (h *Handler) UpdateWorkloadConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	var req domain.WorkloadConfigInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.WorkloadConfig{
@@ -139,10 +135,10 @@ func (h *Handler) UpdateWorkloadConfig(c *gin.Context) {
 	item.SetID(id)
 	if err := h.workloadConfigs.Update(c.Request.Context(), item); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -155,17 +151,16 @@ func (h *Handler) UpdateWorkloadConfig(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/workload-configs/{id} [delete]
 func (h *Handler) DeleteWorkloadConfig(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	if err := h.workloadConfigs.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -184,28 +179,20 @@ func (h *Handler) DeleteWorkloadConfig(c *gin.Context) {
 // @Router /api/v1/workload-configs [get]
 func (h *Handler) ListWorkloadConfigs(c *gin.Context) {
 	var filter workloadconfig.WorkloadConfigListFilter
-	if appID := c.Query("application_id"); appID != "" {
-		id, err := uuid.Parse(appID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application_id", nil)
-			return
-		}
-		filter.ApplicationID = &id
+	appID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok {
+		return
+	}
+	if appID != nil {
+		filter.ApplicationID = appID
 	}
 	filter.EnvironmentID = c.Query("environment_id")
 	filter.Name = c.Query("name")
 	filter.IncludeDeleted = httpx.IncludeDeleted(c)
 	items, err := h.workloadConfigs.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-	total := len(items)
-	items = httpx.PaginateSlice(items, paging)
-	httpx.WriteList(c, http.StatusOK, items, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, items)
 }

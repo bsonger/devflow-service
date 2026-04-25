@@ -8,6 +8,7 @@ import (
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/google/uuid"
 )
 
@@ -25,9 +26,9 @@ func TestBuildArgoApplicationUsesManifestOCIArtifactWhenPresent(t *testing.T) {
 		ArtifactTag:        release.ManifestID.String(),
 		ArtifactDigest:     "sha256:abc123",
 	}
-	target := deployTarget{Namespace: "checkout-staging", DestinationServer: "https://cluster-staging.example.com"}
+	target := releasesupport.DeployTarget{Namespace: "checkout-staging", DestinationServer: "https://cluster-staging.example.com"}
 
-	app := buildArgoApplication(release, manifest, &applicationProjection{
+	app := buildArgoApplication(release, manifest, &releasesupport.ApplicationProjection{
 		Name:        "demo-api",
 		ProjectName: "devflow-staging",
 	}, target)
@@ -65,9 +66,9 @@ func TestBuildArgoApplicationFallsBackToRepoPluginWithoutArtifact(t *testing.T) 
 		Env:           "production",
 	}
 	manifest := &manifestdomain.Manifest{BaseModel: model.BaseModel{ID: release.ManifestID}}
-	target := deployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
+	target := releasesupport.DeployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
 
-	app := buildArgoApplication(release, manifest, &applicationProjection{
+	app := buildArgoApplication(release, manifest, &releasesupport.ApplicationProjection{
 		Name:        "demo-api",
 		ProjectName: "checkout",
 	}, target)

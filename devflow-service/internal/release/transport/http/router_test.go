@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,11 +17,13 @@ func TestNewRouterWithOptionsRegistersReleaseSwaggerRoutes(t *testing.T) {
 	})
 
 	cases := []struct {
-		path string
-		want int
+		path       string
+		want       int
+		assertBody bool
 	}{
-		{path: "/healthz", want: http.StatusOK},
-		{path: "/readyz", want: http.StatusOK},
+		{path: "/healthz", want: http.StatusOK, assertBody: true},
+		{path: "/readyz", want: http.StatusOK, assertBody: true},
+		{path: "/internal/status", want: http.StatusOK, assertBody: true},
 		{path: "/swagger/index.html", want: http.StatusOK},
 		{path: "/api/v1/release/swagger/index.html", want: http.StatusOK},
 	}
@@ -31,6 +34,29 @@ func TestNewRouterWithOptionsRegistersReleaseSwaggerRoutes(t *testing.T) {
 		r.ServeHTTP(rec, req)
 		if rec.Code != tc.want {
 			t.Fatalf("path %s: got %d want %d body=%s", tc.path, rec.Code, tc.want, rec.Body.String())
+		}
+		if !tc.assertBody {
+			continue
+		}
+
+		var payload struct {
+			Service   string `json:"service"`
+			RequestID string `json:"request_id"`
+			HTTP      struct {
+				Modules []string `json:"modules"`
+			} `json:"http"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("path %s: decode body: %v", tc.path, err)
+		}
+		if payload.Service != "release-service" {
+			t.Fatalf("path %s: unexpected service %q", tc.path, payload.Service)
+		}
+		if payload.RequestID == "" {
+			t.Fatalf("path %s: expected request_id in payload", tc.path)
+		}
+		if tc.path == "/internal/status" && len(payload.HTTP.Modules) == 0 {
+			t.Fatalf("path %s: expected modules in payload", tc.path)
 		}
 	}
 }

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bsonger/devflow-service/internal/platform/httpx"
-	imageservice "github.com/bsonger/devflow-service/internal/image/service"
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
+	imageservice "github.com/bsonger/devflow-service/internal/image/service"
+	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -48,8 +48,7 @@ func (h *ImageHandler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/images [post]
 func (h *ImageHandler) Create(c *gin.Context) {
 	var req imagedomain.CreateImageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	image := imagedomain.Image{
@@ -59,7 +58,7 @@ func (h *ImageHandler) Create(c *gin.Context) {
 		Branch:                  req.Branch,
 	}
 	if _, err := h.svc.CreateImage(c.Request.Context(), &image); err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, image)
@@ -82,13 +81,12 @@ func (h *ImageHandler) Create(c *gin.Context) {
 // @Router /api/v1/images [get]
 func (h *ImageHandler) List(c *gin.Context) {
 	filter := imageservice.ImageListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
-	if appID := c.Query("application_id"); appID != "" {
-		id, err := uuid.Parse(appID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application_id", nil)
-			return
-		}
-		filter.ApplicationID = &id
+	appID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok {
+		return
+	}
+	if appID != nil {
+		filter.ApplicationID = appID
 	}
 	if pipelineID := c.Query("pipeline_id"); pipelineID != "" {
 		filter.PipelineID = pipelineID
@@ -105,17 +103,10 @@ func (h *ImageHandler) List(c *gin.Context) {
 
 	items, err := h.svc.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-	total := len(items)
-	items = httpx.PaginateSlice(items, paging)
-	httpx.WriteList(c, http.StatusOK, items, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
 // Get
@@ -129,18 +120,17 @@ func (h *ImageHandler) List(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/images/{id} [get]
 func (h *ImageHandler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	image, err := h.svc.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusOK, image)
@@ -158,22 +148,20 @@ func (h *ImageHandler) Get(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/images/{id} [patch]
 func (h *ImageHandler) Patch(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	var patch imagedomain.PatchImageRequest
-	if err := c.ShouldBindJSON(&patch); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &patch) {
 		return
 	}
 	if err := h.svc.Patch(c.Request.Context(), id, &patch); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "image not found", nil)
+			httpx.WriteNotFound(c, "image not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteNoContent(c)

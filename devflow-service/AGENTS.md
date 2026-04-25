@@ -101,7 +101,7 @@ Read:
 ## Before handoff
 
 - Rerun the repo verification stack from the repo root.
-- Confirm `AGENTS.md`, `README.md`, `docs/system/*`, `docs/services/*`, `docs/policies/*`, and `scripts/README.md` describe the same layout and command order.
+- Confirm `AGENTS.md`, `README.md`, `docs/system/*`, `docs/services/*`, `docs/resources/*`, `docs/policies/*`, and `scripts/README.md` describe the same layout and command order.
 - Confirm the active service still builds as `meta-service`.
 - Confirm no catch-all `common/`, `util/`, or business-heavy `shared/` directories were reintroduced.
 

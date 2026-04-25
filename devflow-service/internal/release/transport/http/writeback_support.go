@@ -2,7 +2,6 @@ package http
 
 import (
 	"crypto/subtle"
-	"net/http"
 	"strings"
 
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
@@ -27,7 +26,7 @@ func RequireObserverToken(expected string) gin.HandlerFunc {
 			token = strings.TrimSpace(c.GetHeader(VerifyTokenHeader))
 		}
 		if subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
-			httpx.WriteError(c, http.StatusUnauthorized, "unauthorized", "unauthorized", nil)
+			httpx.WriteUnauthorized(c)
 			c.Abort()
 			return
 		}

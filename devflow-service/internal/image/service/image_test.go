@@ -6,19 +6,20 @@ import (
 
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 )
 
 func TestCreateImageDefaultsBranchAndUsesRepoURLFallback(t *testing.T) {
-	originalRegistry := CurrentRuntimeConfig()
-	ConfigureRuntimeConfig(RuntimeConfig{
+	originalRegistry := releasesupport.CurrentRuntimeConfig()
+	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{
 		ImageRegistry: imagedomain.ImageRegistryConfig{
 			Registry:  "registry.example.com",
 			Namespace: "devflow",
 		},
 	})
-	defer ConfigureRuntimeConfig(originalRegistry)
+	defer releasesupport.ConfigureRuntimeConfig(originalRegistry)
 
-	app := &applicationProjection{
+	app := &releasesupport.ApplicationProjection{
 		Name:        "devflow-app-serv",
 		RepoURL:     "https://github.com/bsonger/devflow-app-serv.git",
 		RepoAddress: "",
@@ -59,9 +60,9 @@ func TestCreateImageDefaultsBranchAndUsesRepoURLFallback(t *testing.T) {
 }
 
 func TestConfiguredImageRegistryRejectsEmptyRepository(t *testing.T) {
-	originalRegistry := CurrentRuntimeConfig()
-	ConfigureRuntimeConfig(RuntimeConfig{})
-	defer ConfigureRuntimeConfig(originalRegistry)
+	originalRegistry := releasesupport.CurrentRuntimeConfig()
+	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{})
+	defer releasesupport.ConfigureRuntimeConfig(originalRegistry)
 
 	_, err := configuredImageRegistry()
 	if err == nil {

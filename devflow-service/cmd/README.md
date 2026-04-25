@@ -2,7 +2,7 @@
 
 This directory is reserved for runnable process entrypoints in `devflow-service`.
 
-Current migrated entries include `cmd/meta-service` and `cmd/release-service`.
+Current migrated entries include `cmd/meta-service`, `cmd/config-service`, `cmd/network-service`, `cmd/release-service`, and `cmd/runtime-service`.
 
 ## Intended scope
 

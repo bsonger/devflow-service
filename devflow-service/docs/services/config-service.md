@@ -1,7 +1,7 @@
 # Config Service
 
-This file is migrated from `devflow-control` as a cross-repo reference.
-It is ownership context, not current implementation authority for this repo.
+This service boundary has been migrated into `devflow-service`.
+Use this file as the repo-local summary for where config-owned behavior now lives in code.
 
 ## Owns
 
@@ -28,3 +28,49 @@ It is ownership context, not current implementation authority for this repo.
 
 - platform orchestration layers
 - release-time consumers
+
+## Current Repo Entry
+
+`config-service` now boots as a separate runnable entrypoint in this repo.
+Its current repo-local entrypoint lives at `cmd/config-service/main.go`.
+
+Full path reference:
+
+```text
+cmd/config-service/main.go
+```
+
+The migrated implementation is split by domain:
+
+```text
+internal/appconfig/
+internal/workloadconfig/
+```
+
+The current repo-local layout follows the monorepo policy:
+
+```text
+internal/appconfig/domain
+internal/appconfig/service
+internal/appconfig/repository
+internal/appconfig/transport/http
+internal/appconfig/transport/downstream
+internal/appconfig/module.go
+internal/workloadconfig/domain
+internal/workloadconfig/service
+internal/workloadconfig/repository
+internal/workloadconfig/transport/http
+internal/workloadconfig/module.go
+```
+
+Within the running process, these domains are registered through the `config-service` router and startup surfaces:
+
+```text
+cmd/config-service/main.go
+internal/configservice/transport/http/router.go
+```
+
+The resource contracts owned by this boundary are documented at:
+
+- `docs/resources/appconfig.md`
+- `docs/resources/workloadconfig.md`

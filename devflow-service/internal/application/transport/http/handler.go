@@ -71,8 +71,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Router /api/v1/applications [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateApplicationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	appRecord := &domain.Application{
@@ -86,10 +85,10 @@ func (h *Handler) Create(c *gin.Context) {
 	_, err := h.svc.Create(c.Request.Context(), appRecord)
 	if err != nil {
 		if errors.Is(err, domain.ErrProjectReferenceNotFound) {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+			httpx.WriteInvalidArgument(c, err.Error())
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, appRecord)
@@ -102,19 +101,18 @@ func (h *Handler) Create(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.Application]
 // @Router /api/v1/applications/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	appRecord, err := h.svc.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -129,15 +127,13 @@ func (h *Handler) Get(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/applications/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	var req UpdateApplicationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -153,14 +149,14 @@ func (h *Handler) Update(c *gin.Context) {
 
 	if err := h.svc.Update(c.Request.Context(), &appRecord); err != nil {
 		if errors.Is(err, domain.ErrProjectReferenceNotFound) {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+			httpx.WriteInvalidArgument(c, err.Error())
 			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -174,18 +170,17 @@ func (h *Handler) Update(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/applications/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -200,30 +195,27 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/applications/{id}/active_image [patch]
 func (h *Handler) UpdateActiveImage(c *gin.Context) {
-	appID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid id", nil)
+	appID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 
 	var req UpdateActiveImageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
-	imageID, err := uuid.Parse(req.ImageID)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid image_id", nil)
+	imageID, ok := httpx.ParseUUIDString(c, req.ImageID, "image_id")
+	if !ok {
 		return
 	}
 
 	if err := h.svc.UpdateActiveImage(c.Request.Context(), appID, imageID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 
@@ -241,28 +233,18 @@ func (h *Handler) List(c *gin.Context) {
 		Name:           c.Query("name"),
 		RepoAddress:    c.Query("repo_address"),
 	}
-	if projectID := c.Query("project_id"); projectID != "" {
-		id, err := uuid.Parse(projectID)
-		if err != nil {
-			httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid project_id", nil)
-			return
-		}
-		filter.ProjectID = &id
+	projectID, ok := httpx.ParseUUIDQuery(c, "project_id")
+	if !ok {
+		return
+	}
+	if projectID != nil {
+		filter.ProjectID = projectID
 	}
 
 	apps, err := h.svc.List(c.Request.Context(), filter)
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-
-	total := len(apps)
-	apps = httpx.PaginateSlice(apps, paging)
-	httpx.WriteList(c, http.StatusOK, apps, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, apps)
 }

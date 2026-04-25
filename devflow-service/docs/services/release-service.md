@@ -1,7 +1,7 @@
 # Release Service
 
-This file is migrated from `devflow-control` as a cross-repo reference.
-It is ownership context, not current implementation authority for this repo.
+This service boundary has been migrated into `devflow-service`.
+Use this file as the repo-local summary for where release-owned behavior now lives in code.
 
 ## Owns
 
@@ -20,12 +20,10 @@ It is ownership context, not current implementation authority for this repo.
 - `WorkloadConfig`
 - `Service`
 - `Route`
-- runtime desired-state semantics
 
 ## Upstream Dependencies
 
 - PostgreSQL
-- runtime service
 - Tekton
 - Argo CD
 - Kubernetes API
@@ -39,6 +37,9 @@ It is ownership context, not current implementation authority for this repo.
 
 `verify-service` is no longer treated as a separate service summary in this repo.
 Its ingress and verification concerns are now considered part of the broader `release-service` ownership boundary.
+
+`runtime-service` is now a separate runnable service summary in this repo again.
+Release-time runtime binding checks now read runtime lookup state through the runtime-service contract instead of treating runtime as part of the release-owned HTTP surface.
 
 ## Current Repo Entry
 
@@ -84,6 +85,27 @@ internal/release/module.go
 This means `release-service` is no longer modeled as one large `internal/release/service` implementation area.
 It now follows the same top-level domain split style already used elsewhere in this repository: resource-specific business code lives in `internal/image`, `internal/manifest`, and `internal/intent`, while `internal/release` keeps release-specific orchestration, persistence, runtime adapters, HTTP assembly, and cross-domain support helpers.
 
+The resource contracts owned by this boundary are documented at:
+
+- `docs/resources/image.md`
+- `docs/resources/manifest.md`
+- `docs/resources/intent.md`
+- `docs/resources/release.md`
+
+The non-resource operational callback contract for observer and verify writeback lives at:
+
+- `docs/system/release-writeback.md`
+
+The worker and runtime helper boundary for background execution, intent claiming, and generic runtime bootstrap is governed by:
+
+- `docs/policies/worker-runtime.md`
+
+Runtime endpoints for this boundary include:
+
+- `/healthz`
+- `/readyz`
+- `/internal/status`
+
 The same migration boundary now applies to release-time downstream readers:
 
 ```text
@@ -92,9 +114,10 @@ internal/project/transport/downstream
 internal/environment/transport/downstream
 internal/cluster/transport/downstream
 internal/appconfig/transport/downstream
-internal/network/transport/downstream
+internal/appservice/transport/downstream
+internal/release/transport/runtime
 internal/shared/downstreamhttp
 ```
 
-After this migration, `release` no longer owns application/project/environment/cluster/config/network downstream clients.
-`internal/release/transport/downstream` is now limited to release-specific orchestrator binding access.
+After this migration, `release` no longer owns application/project/environment/cluster/config/service-route/runtime lookup state directly.
+`internal/release/transport/downstream` is now limited to release-specific orchestrator binding access, while runtime lookup calls go through `internal/release/transport/runtime`.

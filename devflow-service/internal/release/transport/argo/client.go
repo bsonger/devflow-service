@@ -8,6 +8,7 @@ import (
 	argoapi "github.com/argoproj/argo-cd/v3/pkg/client/clientset/versioned"
 	argov1alpha1 "github.com/argoproj/argo-cd/v3/pkg/client/clientset/versioned/typed/application/v1alpha1"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"go.uber.org/zap"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -33,7 +34,11 @@ func Init(config *rest.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create argo cd client: %w", err)
 	}
-	logger.Logger.Info("argo cd client initialized")
+	logger.Logger.Info("argo cd client initialized",
+		zap.String("operation", "init_argo_client"),
+		zap.String("resource", "argo_client"),
+		zap.String("result", "success"),
+	)
 	return nil
 }
 

@@ -3,7 +3,6 @@ package tekton
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
@@ -30,7 +29,11 @@ func InitClient(ctx context.Context, config *rest.Config, logger *zap.Logger) er
 	if err != nil {
 		return err
 	}
-	logger.Info(fmt.Sprintf("tekton client initialized"))
+	logger.Info("tekton client initialized",
+		zap.String("operation", "init_tekton_client"),
+		zap.String("resource", "tekton_client"),
+		zap.String("result", "success"),
+	)
 	return nil
 }
 

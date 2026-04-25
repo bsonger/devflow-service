@@ -3,21 +3,21 @@ package service
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/appconfig/domain"
+	appconfigrepo "github.com/bsonger/devflow-service/internal/appconfig/repository"
 	"github.com/bsonger/devflow-service/internal/platform/configrepo"
-	"github.com/bsonger/devflow-service/internal/platform/db"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
 
-var ErrConfigSourceNotFound = errors.New("configuration source path not found")
-var ErrConfigRepositoryUnavailable = errors.New("configuration repository is not configured")
-var ErrConfigRepositorySyncFailed = errors.New("configuration repository sync failed")
+var ErrConfigSourceNotFound = sharederrs.FailedPrecondition("configuration source path not found")
+var ErrConfigRepositoryUnavailable = sharederrs.FailedPrecondition("configuration repository is not configured")
+var ErrConfigRepositorySyncFailed = sharederrs.FailedPrecondition("configuration repository sync failed")
 
 type AppConfigListFilter struct {
 	ApplicationID  *uuid.UUID
@@ -37,11 +37,15 @@ type appConfigRepository interface {
 
 type AppConfigService struct {
 	repo                appConfigRepository
+	store               appconfigrepo.AppConfigStore
 	environmentResolver environmentResolver
 }
 
 func NewAppConfigService(repo appConfigRepository) *AppConfigService {
-	return &AppConfigService{repo: repo}
+	return &AppConfigService{
+		repo:  repo,
+		store: appconfigrepo.NewAppConfigPostgresStore(),
+	}
 }
 
 func (s *AppConfigService) WithEnvironmentResolver(resolver environmentResolver) *AppConfigService {
@@ -57,22 +61,11 @@ func (s *AppConfigService) Create(ctx context.Context, cfg *domain.AppConfig) (u
 		cfg.SourcePath = deriveAppConfigSourcePath(cfg.Name)
 	}
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
-	_, err := db.Postgres().ExecContext(ctx, `
-		insert into configurations (
-			id, application_id, name, env, description, format, data, mount_path, labels, source_path, files, latest_revision_no, latest_revision_id, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'[]'::jsonb,$11,$12,$13,$14,$15)
-	`, cfg.ID, cfg.ApplicationID, cfg.Name, cfg.EnvironmentID, cfg.Description, cfg.Format, cfg.Data, cfg.MountPath, marshalJSON(cfg.Labels), cfg.SourcePath, cfg.LatestRevisionNo, nullableUUIDPtr(cfg.LatestRevisionID), cfg.CreatedAt, cfg.UpdatedAt, cfg.DeletedAt)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return cfg.ID, nil
+	return s.store.Create(ctx, cfg)
 }
 
 func (s *AppConfigService) Get(ctx context.Context, id uuid.UUID) (*domain.AppConfig, error) {
-	cfg, err := scanAppConfig(db.Postgres().QueryRowContext(ctx, `
-		select id, application_id, name, env, description, format, data, mount_path, labels, source_path, latest_revision_no, latest_revision_id, created_at, updated_at, deleted_at
-		from configurations where id=$1 and deleted_at is null
-	`, id))
+	cfg, err := s.store.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -106,70 +99,20 @@ func (s *AppConfigService) Update(ctx context.Context, cfg *domain.AppConfig) er
 		cfg.SourcePath = current.SourcePath
 	}
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
-	cfg.WithUpdateDefault()
-	result, err := db.Postgres().ExecContext(ctx, `
-		update configurations
-		set application_id=$2, name=$3, env=$4, description=$5, format=$6, data=$7, mount_path=$8, labels=$9, source_path=$10, updated_at=$11
-		where id=$1 and deleted_at is null
-	`, cfg.ID, cfg.ApplicationID, cfg.Name, cfg.EnvironmentID, cfg.Description, cfg.Format, cfg.Data, cfg.MountPath, marshalJSON(cfg.Labels), cfg.SourcePath, cfg.UpdatedAt)
-	if err != nil {
-		return err
-	}
-	return ensureRowsAffected(result)
+	return s.store.Update(ctx, cfg)
 }
 
 func (s *AppConfigService) Delete(ctx context.Context, id uuid.UUID) error {
-	now := time.Now()
-	result, err := db.Postgres().ExecContext(ctx, `
-		update configurations set deleted_at=$2, updated_at=$2
-		where id=$1 and deleted_at is null
-	`, id, now)
-	if err != nil {
-		return err
-	}
-	return ensureRowsAffected(result)
+	return s.store.Delete(ctx, id)
 }
 
 func (s *AppConfigService) List(ctx context.Context, filter AppConfigListFilter) ([]domain.AppConfig, error) {
-	query := `
-		select id, application_id, name, env, description, format, data, mount_path, labels, source_path, latest_revision_no, latest_revision_id, created_at, updated_at, deleted_at
-		from configurations
-	`
-	clauses := make([]string, 0, 4)
-	args := make([]any, 0, 4)
-	if !filter.IncludeDeleted {
-		clauses = append(clauses, "deleted_at is null")
-	}
-	if filter.ApplicationID != nil {
-		args = append(args, *filter.ApplicationID)
-		clauses = append(clauses, placeholderClause("application_id", len(args)))
-	}
-	if filter.EnvironmentID != "" {
-		args = append(args, filter.EnvironmentID)
-		clauses = append(clauses, placeholderClause("env", len(args)))
-	}
-	if filter.Name != "" {
-		args = append(args, filter.Name)
-		clauses = append(clauses, placeholderClause("name", len(args)))
-	}
-	if len(clauses) > 0 {
-		query += " where " + strings.Join(clauses, " and ")
-	}
-	query += " order by created_at desc"
-	rows, err := db.Postgres().QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := make([]domain.AppConfig, 0)
-	for rows.Next() {
-		item, err := scanAppConfig(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, *item)
-	}
-	return items, rows.Err()
+	return s.store.List(ctx, appconfigrepo.AppConfigListFilter{
+		ApplicationID:  filter.ApplicationID,
+		EnvironmentID:  filter.EnvironmentID,
+		IncludeDeleted: filter.IncludeDeleted,
+		Name:           filter.Name,
+	})
 }
 
 func (s *AppConfigService) Sync(ctx context.Context, id uuid.UUID) (*AppConfigSyncResult, error) {
@@ -244,7 +187,7 @@ func (s *AppConfigService) syncWithSnapshot(ctx context.Context, cfg *domain.App
 		ID:                uuid.New(),
 		AppConfigID:       cfg.ID,
 		RevisionNo:        revisionNo,
-		Files:             snapshot.Files,
+		Files:             snapshotFilesToDomainFiles(snapshot.Files),
 		RenderedConfigMap: renderConfigMap(snapshot.Files),
 		ContentHash:       snapshot.SourceDigest,
 		SourceCommit:      snapshot.SourceCommit,
@@ -261,73 +204,37 @@ func (s *AppConfigService) syncWithSnapshot(ctx context.Context, cfg *domain.App
 }
 
 func (s *AppConfigService) getLatestRevision(ctx context.Context, appConfigID uuid.UUID) (*domain.AppConfigRevision, error) {
-	return scanAppConfigRevision(db.Postgres().QueryRowContext(ctx, `
-		select id, configuration_id, revision_no, files, rendered_configmap, content_hash, source_commit, source_digest, created_at
-		from configuration_revisions
-		where configuration_id=$1
-		order by revision_no desc limit 1
-	`, appConfigID))
+	return s.store.GetLatestRevision(ctx, appConfigID)
 }
 
 func (s *AppConfigService) getRevision(ctx context.Context, id uuid.UUID) (*domain.AppConfigRevision, error) {
-	return scanAppConfigRevision(db.Postgres().QueryRowContext(ctx, `
-		select id, configuration_id, revision_no, files, rendered_configmap, content_hash, source_commit, source_digest, created_at
-		from configuration_revisions
-		where id=$1
-	`, id))
+	return s.store.GetRevision(ctx, id)
 }
 
 func (s *AppConfigService) insertRevision(ctx context.Context, revision *domain.AppConfigRevision) error {
-	filesJSON, err := json.Marshal(revision.Files)
-	if err != nil {
-		return err
-	}
-	renderedJSON, err := json.Marshal(revision.RenderedConfigMap)
-	if err != nil {
-		return err
-	}
-	createdAt, err := time.Parse(time.RFC3339, revision.CreatedAt)
-	if err != nil {
-		return err
-	}
-	_, err = db.Postgres().ExecContext(ctx, `
-		insert into configuration_revisions (
-			id, configuration_id, revision_no, files, rendered_configmap, content_hash, source_commit, source_digest, message, created_by, created_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,'','',$9)
-	`, revision.ID, revision.AppConfigID, revision.RevisionNo, filesJSON, renderedJSON, revision.ContentHash, revision.SourceCommit, revision.SourceDigest, createdAt)
-	return err
+	return s.store.InsertRevision(ctx, revision)
 }
 
 func (s *AppConfigService) updateLatestRevision(ctx context.Context, cfg *domain.AppConfig, revision *domain.AppConfigRevision) error {
 	cfg.LatestRevisionNo = revision.RevisionNo
 	cfg.LatestRevisionID = &revision.ID
 	cfg.WithUpdateDefault()
-	_, err := db.Postgres().ExecContext(ctx, `
-		update configurations
-		set latest_revision_no=$2, latest_revision_id=$3, updated_at=$4
-		where id=$1 and deleted_at is null
-	`, cfg.ID, cfg.LatestRevisionNo, cfg.LatestRevisionID, cfg.UpdatedAt)
-	return err
+	return s.store.UpdateLatestRevision(ctx, cfg.ID, cfg.LatestRevisionNo, revision.ID, cfg.UpdatedAt)
 }
 
 func (s *AppConfigService) updateSourcePath(ctx context.Context, id uuid.UUID, sourcePath string) error {
-	_, err := db.Postgres().ExecContext(ctx, `
-		update configurations
-		set source_path=$2, updated_at=$3
-		where id=$1 and deleted_at is null
-	`, id, sourcePath, time.Now())
-	return err
+	return s.store.UpdateSourcePath(ctx, id, sourcePath, time.Now())
 }
 
 func validateAppConfig(cfg *domain.AppConfig) error {
 	if cfg == nil {
-		return errors.New("app_config is required")
+		return sharederrs.Required("app_config")
 	}
-	if errs := validateAppConfigInput(cfg.ApplicationID, cfg.EnvironmentID); len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
+	if messages := validateAppConfigInput(cfg.ApplicationID, cfg.EnvironmentID); len(messages) > 0 {
+		return sharederrs.JoinInvalid(messages)
 	}
 	if strings.TrimSpace(cfg.Name) == "" {
-		return errors.New("name is required")
+		return sharederrs.Required("name")
 	}
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
 	return nil
@@ -383,7 +290,7 @@ func (s *AppConfigService) readEnvironmentNamedSnapshot(ctx context.Context, cfg
 	return snapshot, resolvedPath, nil
 }
 
-func renderConfigMap(files []domain.File) domain.RenderedConfigMap {
+func renderConfigMap(files []configrepo.File) domain.RenderedConfigMap {
 	data := make(map[string]string, len(files))
 	for _, file := range files {
 		data[file.Name] = file.Content
@@ -391,61 +298,16 @@ func renderConfigMap(files []domain.File) domain.RenderedConfigMap {
 	return domain.RenderedConfigMap{Data: data}
 }
 
-func scanAppConfig(scanner interface{ Scan(dest ...any) error }) (*domain.AppConfig, error) {
-	var (
-		cfg              domain.AppConfig
-		applicationID    sql.NullString
-		labelsJSON       []byte
-		latestRevisionID sql.NullString
-		deletedAt        sql.NullTime
-	)
-	if err := scanner.Scan(&cfg.ID, &applicationID, &cfg.Name, &cfg.EnvironmentID, &cfg.Description, &cfg.Format, &cfg.Data, &cfg.MountPath, &labelsJSON, &cfg.SourcePath, &cfg.LatestRevisionNo, &latestRevisionID, &cfg.CreatedAt, &cfg.UpdatedAt, &deletedAt); err != nil {
-		return nil, err
+func snapshotFilesToDomainFiles(files []configrepo.File) []domain.File {
+	if len(files) == 0 {
+		return nil
 	}
-	if applicationID.Valid {
-		parsed, err := uuid.Parse(applicationID.String)
-		if err != nil {
-			return nil, err
-		}
-		cfg.ApplicationID = parsed
+	out := make([]domain.File, 0, len(files))
+	for _, file := range files {
+		out = append(out, domain.File{
+			Name:    file.Name,
+			Content: file.Content,
+		})
 	}
-	if latestRevisionID.Valid {
-		parsed, err := uuid.Parse(latestRevisionID.String)
-		if err != nil {
-			return nil, err
-		}
-		cfg.LatestRevisionID = &parsed
-	}
-	if len(labelsJSON) > 0 {
-		_ = json.Unmarshal(labelsJSON, &cfg.Labels)
-	}
-	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
-	if deletedAt.Valid {
-		cfg.DeletedAt = &deletedAt.Time
-	}
-	return &cfg, nil
-}
-
-func scanAppConfigRevision(scanner interface{ Scan(dest ...any) error }) (*domain.AppConfigRevision, error) {
-	var (
-		revision     domain.AppConfigRevision
-		filesJSON    []byte
-		renderedJSON []byte
-		createdAt    time.Time
-	)
-	if err := scanner.Scan(&revision.ID, &revision.AppConfigID, &revision.RevisionNo, &filesJSON, &renderedJSON, &revision.ContentHash, &revision.SourceCommit, &revision.SourceDigest, &createdAt); err != nil {
-		return nil, err
-	}
-	if len(filesJSON) > 0 {
-		if err := json.Unmarshal(filesJSON, &revision.Files); err != nil {
-			return nil, err
-		}
-	}
-	if len(renderedJSON) > 0 {
-		if err := json.Unmarshal(renderedJSON, &revision.RenderedConfigMap); err != nil {
-			return nil, err
-		}
-	}
-	revision.CreatedAt = createdAt.Format(time.RFC3339)
-	return &revision, nil
+	return out
 }

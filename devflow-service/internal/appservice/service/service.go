@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/bsonger/devflow-service/internal/appservice/domain"
 	"github.com/bsonger/devflow-service/internal/appservice/repository"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
 
@@ -89,16 +89,16 @@ func (s *serviceService) List(ctx context.Context, filter ServiceListFilter) ([]
 
 func validateService(item *domain.Service) error {
 	if item == nil {
-		return errors.New("service is required")
+		return sharederrs.Required("service")
 	}
 	if item.ApplicationID == uuid.Nil {
-		return errors.New("application_id is required")
+		return sharederrs.Required("application_id")
 	}
 	if strings.TrimSpace(item.Name) == "" {
-		return errors.New("name is required")
+		return sharederrs.Required("name")
 	}
 	if len(item.Ports) == 0 {
-		return errors.New("at least one port is required")
+		return sharederrs.InvalidArgument("at least one port is required")
 	}
 	return nil
 }

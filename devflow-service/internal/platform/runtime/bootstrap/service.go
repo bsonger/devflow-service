@@ -66,9 +66,10 @@ func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 
 	logger.Logger.Info("starting service",
 		zap.String("service", opts.Name),
-		zap.Int("port", port),
-		zap.Int("metrics_port", metricsPort),
-		zap.Int("pprof_port", pprofPort),
+		zap.String("result", "starting"),
+		zap.Int("listen_port", port),
+		zap.Int("metrics_listen_port", metricsPort),
+		zap.Int("pprof_listen_port", pprofPort),
 	)
 
 	return r.Run(fmt.Sprintf(":%d", port))

@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: release-service-image-build-push-
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: devflow
+    app.kubernetes.io/component: ci
+    service: release-service
+spec:
+  pipelineRef:
+    name: devflow-tekton-image-build-push-only
+  params:
+    - name: git-url
+      value: "GIT_URL_PLACEHOLDER"
+    - name: git-revision
+      value: "GIT_REVISION_PLACEHOLDER"
+    - name: image-registry
+      value: "registry.cn-hangzhou.aliyuncs.com/devflow"
+    - name: name
+      value: "release-service"
+    - name: image-tag
+      value: "IMAGE_TAG_PLACEHOLDER"
+    - name: DOCKERFILE
+      value: "Dockerfile"
+    - name: BUILD_ARGS
+      value: "--build-arg SERVICE_NAME=release-service --build-arg SERVICE_PORT=8083"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+          storageClassName: local-path
+    - name: dockerconfig
+      secret:
+        secretName: aliyun-docker-config
+    - name: ssh
+      secret:
+        secretName: git-ssh-secret
+  timeouts:
+    pipeline: 1h0m0s
