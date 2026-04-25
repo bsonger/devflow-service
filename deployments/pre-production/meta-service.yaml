@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: pre-production
+  name: devflow-pre-production
   labels:
     app.kubernetes.io/part-of: devflow
     environment: pre-production
@@ -10,7 +10,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: meta-service-config
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: meta-service
     app.kubernetes.io/part-of: devflow
@@ -35,7 +35,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: meta-service
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: meta-service
     app.kubernetes.io/part-of: devflow
@@ -53,7 +53,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: meta-service
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: meta-service
     app.kubernetes.io/part-of: devflow

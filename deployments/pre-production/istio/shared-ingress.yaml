@@ -2,7 +2,7 @@ apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: devflow-preproduction-gateway
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/part-of: devflow
     environment: pre-production
@@ -21,7 +21,7 @@ apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: devflow-shared-services-edge
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/part-of: devflow
     environment: pre-production
@@ -29,7 +29,7 @@ spec:
   hosts:
     - devflow-pre.example.com
   gateways:
-    - pre-production/devflow-preproduction-gateway
+    - devflow-pre-production/devflow-preproduction-gateway
   http:
     - name: config-service-root
       match:
@@ -39,7 +39,7 @@ spec:
         uri: /
       route:
         - destination:
-            host: config-service.pre-production.svc.cluster.local
+            host: config-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8082
     - name: config-service-prefix
@@ -50,7 +50,7 @@ spec:
         uri: /
       route:
         - destination:
-            host: config-service.pre-production.svc.cluster.local
+            host: config-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8082
     - name: network-service-root
@@ -61,7 +61,7 @@ spec:
         uri: /
       route:
         - destination:
-            host: network-service.pre-production.svc.cluster.local
+            host: network-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8086
     - name: network-service-prefix
@@ -72,7 +72,7 @@ spec:
         uri: /
       route:
         - destination:
-            host: network-service.pre-production.svc.cluster.local
+            host: network-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8086
     - name: runtime-service-root
@@ -83,7 +83,7 @@ spec:
         uri: /
       route:
         - destination:
-            host: runtime-service.pre-production.svc.cluster.local
+            host: runtime-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8084
     - name: runtime-service-prefix
@@ -94,6 +94,6 @@ spec:
         uri: /
       route:
         - destination:
-            host: runtime-service.pre-production.svc.cluster.local
+            host: runtime-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8084

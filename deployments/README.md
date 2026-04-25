@@ -16,7 +16,7 @@ Current local pre-production flow:
 - use `deployments/tekton/network-service-preproduction-build-pipelinerun.yaml` to build and push `network-service:preproduction`
 - use `deployments/tekton/release-service-preproduction-build-pipelinerun.yaml` to build and push `release-service:preproduction`
 - use `deployments/tekton/runtime-service-preproduction-build-pipelinerun.yaml` to build and push `runtime-service:preproduction`
-- use `kubectl apply -f deployments/pre-production/meta-service.yaml` to deploy namespace, configmap, service, and deployment for `meta-service`
+- use `kubectl apply -f deployments/pre-production/meta-service.yaml` to deploy namespace `devflow-pre-production`, configmap, service, and deployment for `meta-service`
 - use `kubectl apply -f deployments/pre-production/config-service.yaml` to deploy `config-service`
 - use `kubectl apply -f deployments/pre-production/network-service.yaml` to deploy `network-service`
 - use `kubectl apply -f deployments/pre-production/release-service.yaml` to deploy `release-service`
@@ -28,6 +28,7 @@ It is not exposed by `deployments/pre-production/istio/shared-ingress.yaml`.
 
 Istio edge note:
 - `deployments/pre-production/istio/shared-ingress.yaml` is the committed pre-production edge contract for extracted service ingress
+- the committed pre-production namespace is `devflow-pre-production`
 - it uses one host, `devflow-pre.example.com`, with service-specific subpaths: `/config`, `/network`, and `/runtime`
 - the `Gateway` and `VirtualService` in that file should be updated together if the shared ingress host or gateway selector changes
 - the backend Kubernetes `Service` objects remain `ClusterIP`; edge exposure belongs to Istio ingress rather than per-service load balancers

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: release-service-config
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: release-service
     app.kubernetes.io/part-of: devflow
@@ -28,14 +28,14 @@ data:
       address: "https://github.com/bsonger/manifests.git"
       path: "manifests"
     runtime:
-      base_url: "http://runtime-service.pre-production.svc.cluster.local:8084"
+      base_url: "http://runtime-service.devflow-pre-production.svc.cluster.local:8084"
     observer:
       shared_token: ""
     downstream:
-      platform_orchestrator_base_url: "http://meta-service.pre-production.svc.cluster.local:8081"
-      app_service_base_url: "http://meta-service.pre-production.svc.cluster.local:8081"
-      network_service_base_url: "http://network-service.pre-production.svc.cluster.local:8086"
-      config_service_base_url: "http://config-service.pre-production.svc.cluster.local:8082"
+      platform_orchestrator_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
+      app_service_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
+      network_service_base_url: "http://network-service.devflow-pre-production.svc.cluster.local:8086"
+      config_service_base_url: "http://config-service.devflow-pre-production.svc.cluster.local:8082"
     image_registry:
       registry: "registry.cn-hangzhou.aliyuncs.com"
       namespace: "devflow"
@@ -50,7 +50,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: release-service
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: release-service
     app.kubernetes.io/part-of: devflow
@@ -68,7 +68,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: release-service
-  namespace: pre-production
+  namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: release-service
     app.kubernetes.io/part-of: devflow
