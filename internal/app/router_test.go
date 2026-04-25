@@ -27,6 +27,7 @@ func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T)
 		Modules: []Module{
 			ModuleProject,
 			ModuleApplication,
+			ModuleApplicationEnv,
 			ModuleCluster,
 			ModuleEnvironment,
 		},
@@ -85,6 +86,7 @@ func TestNewRouterWithOptionsRegistersClusterAndEnvironmentRoutesAlongsideExisti
 		Modules: []Module{
 			ModuleProject,
 			ModuleApplication,
+			ModuleApplicationEnv,
 			ModuleCluster,
 			ModuleEnvironment,
 			ModuleCluster,
@@ -100,6 +102,9 @@ func TestNewRouterWithOptionsRegistersClusterAndEnvironmentRoutesAlongsideExisti
 	for _, path := range []string{
 		"GET /api/v1/projects",
 		"GET /api/v1/applications",
+		"GET /api/v1/applications/:id/environments",
+		"POST /api/v1/applications/:id/environments",
+		"GET /api/v1/platform/applications/:id/environments/:environment_id",
 		"GET /api/v1/clusters",
 		"GET /api/v1/environments",
 		"POST /api/v1/clusters",

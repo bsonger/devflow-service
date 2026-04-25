@@ -40,6 +40,10 @@ It stores the project reference, repository address, descriptive fields, labels,
 - `PUT /api/v1/applications/{id}`
 - `DELETE /api/v1/applications/{id}`
 - `PATCH /api/v1/applications/{id}/active_image`
+- `GET /api/v1/applications/{id}/environments`
+- `POST /api/v1/applications/{id}/environments`
+- `GET /api/v1/applications/{id}/environments/{environment_id}`
+- `DELETE /api/v1/applications/{id}/environments/{environment_id}`
 
 ## Create / update rules
 
@@ -75,3 +79,7 @@ It stores the project reference, repository address, descriptive fields, labels,
 - domain: `internal/application/domain/application.go`
 - service: `internal/application/service/service.go`
 - handler: `internal/application/transport/http/handler.go`
+
+For the application-environment binding sub-resource, see:
+
+- `docs/resources/application-environment.md`

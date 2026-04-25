@@ -19,7 +19,7 @@ The target local layout for this service is:
 
 `meta-service` no longer keeps any runtime Go packages under `modules/`.
 Build, Swagger generation, and Docker packaging now run from root repo surfaces.
-The current domain set still served directly by this process in this repo is `project`, `application`, `cluster`, `environment`, `appconfig`, and `workloadconfig`.
+The current domain set still served directly by this process in this repo is `project`, `application`, `applicationenv`, `cluster`, `environment`, `appconfig`, and `workloadconfig`.
 
 ## Current diagnostics
 
@@ -30,7 +30,7 @@ Use these surfaces when working on or diagnosing this service:
 4. `docs/policies/docker-baseline.md`
 5. `docs/policies/verification.md`
 6. `scripts/README.md`
-7. `docs/resources/application.md`, `docs/resources/project.md`, `docs/resources/cluster.md`, and `docs/resources/environment.md` for current resource contracts
+7. `docs/resources/application.md`, `docs/resources/application-environment.md`, `docs/resources/project.md`, `docs/resources/cluster.md`, and `docs/resources/environment.md` for current resource contracts
 
 Runtime endpoints:
 

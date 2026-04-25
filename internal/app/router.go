@@ -5,6 +5,7 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/appconfig"
 	"github.com/bsonger/devflow-service/internal/application"
+	"github.com/bsonger/devflow-service/internal/applicationenv"
 	"github.com/bsonger/devflow-service/internal/approute"
 	"github.com/bsonger/devflow-service/internal/appservice"
 	"github.com/bsonger/devflow-service/internal/cluster"
@@ -24,6 +25,7 @@ type Module string
 const (
 	ModuleProject        Module = "project"
 	ModuleApplication    Module = "application"
+	ModuleApplicationEnv Module = "application-environment"
 	ModuleCluster        Module = "cluster"
 	ModuleEnvironment    Module = "environment"
 	ModuleAppService     Module = "app-service"
@@ -45,6 +47,7 @@ func NewRouter() *gin.Engine {
 		Modules: []Module{
 			ModuleProject,
 			ModuleApplication,
+			ModuleApplicationEnv,
 			ModuleCluster,
 			ModuleEnvironment,
 			ModuleAppConfig,
@@ -102,6 +105,10 @@ func RegisterApplicationRoutes(rg *gin.RouterGroup) {
 	RegisterApplicationCoreRoutes(rg)
 }
 
+func RegisterApplicationEnvRoutes(rg *gin.RouterGroup) {
+	applicationenv.NewModule().RegisterRoutes(rg)
+}
+
 func RegisterClusterRoutes(rg *gin.RouterGroup) {
 	cluster.NewModule().RegisterRoutes(rg)
 }
@@ -146,6 +153,8 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 			RegisterProjectRoutes(api)
 		case ModuleApplication:
 			RegisterApplicationRoutes(api)
+		case ModuleApplicationEnv:
+			RegisterApplicationEnvRoutes(api)
 		case ModuleCluster:
 			RegisterClusterRoutes(api)
 		case ModuleEnvironment:
@@ -167,6 +176,7 @@ func toStatusModules(modules []Module) []string {
 		modules = []Module{
 			ModuleProject,
 			ModuleApplication,
+			ModuleApplicationEnv,
 			ModuleCluster,
 			ModuleEnvironment,
 			ModuleAppConfig,
