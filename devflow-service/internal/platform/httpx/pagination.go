@@ -87,3 +87,26 @@ func SetPaginationHeaders(c *gin.Context, total int, p Pagination) {
 func IncludeDeleted(c *gin.Context) bool {
 	return strings.EqualFold(strings.TrimSpace(c.Query("include_deleted")), "true")
 }
+
+func ParsePaginationOrWrite(c *gin.Context) (Pagination, bool) {
+	paging, err := ParsePagination(c)
+	if err != nil {
+		_ = c.Error(err)
+		WriteInvalidArgument(c, err.Error())
+		return Pagination{}, false
+	}
+
+	return paging, true
+}
+
+func WritePaginatedList[T any](c *gin.Context, status int, items []T) bool {
+	paging, ok := ParsePaginationOrWrite(c)
+	if !ok {
+		return false
+	}
+
+	total := len(items)
+	items = PaginateSlice(items, paging)
+	WriteList(c, status, items, paging, total)
+	return true
+}

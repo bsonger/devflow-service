@@ -1,6 +1,15 @@
 package httpx
 
-import "github.com/gin-gonic/gin"
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+const (
+	internalErrorMessage      = "internal error"
+	invalidRequestBodyMessage = "invalid request body"
+)
 
 type DataResponse[T any] struct {
 	Data T `json:"data"`
@@ -46,4 +55,38 @@ func WriteError(c *gin.Context, status int, code, message string, details map[st
 			Details: details,
 		},
 	})
+}
+
+func WriteInvalidArgument(c *gin.Context, message string) {
+	WriteError(c, http.StatusBadRequest, "invalid_argument", message, nil)
+}
+
+func WriteNotFound(c *gin.Context, message string) {
+	WriteError(c, http.StatusNotFound, "not_found", message, nil)
+}
+
+func WriteConflict(c *gin.Context, message string) {
+	WriteError(c, http.StatusConflict, "conflict", message, nil)
+}
+
+func WriteFailedPrecondition(c *gin.Context, status int, message string) {
+	if status == 0 {
+		status = http.StatusConflict
+	}
+	WriteError(c, status, "failed_precondition", message, nil)
+}
+
+func WriteUnauthorized(c *gin.Context) {
+	WriteError(c, http.StatusUnauthorized, "unauthorized", "unauthorized", nil)
+}
+
+func WriteInternal(c *gin.Context) {
+	WriteError(c, http.StatusInternalServerError, "internal", internalErrorMessage, nil)
+}
+
+func WriteInternalError(c *gin.Context, err error) {
+	if err != nil {
+		_ = c.Error(err)
+	}
+	WriteInternal(c)
 }
