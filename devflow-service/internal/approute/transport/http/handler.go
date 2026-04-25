@@ -33,14 +33,14 @@ func NewHandler(routes routeService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	routes := rg.Group("/applications/:application_id/routes")
+	routes := rg.Group("/applications/:id/routes")
 	{
 		routes.GET("", h.ListRoutes)
 		routes.POST("", h.CreateRoute)
 		routes.PATCH("/:route_id", h.UpdateRoute)
 		routes.DELETE("/:route_id", h.DeleteRoute)
 	}
-	rg.POST("/applications/:application_id/routes:validate", h.ValidateRoute)
+	rg.POST("/applications/:id/routes:validate", h.ValidateRoute)
 }
 
 // Route handlers
@@ -55,14 +55,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Success 201 {object} httpx.DataResponse[domain.Route]
 // @Router /api/v1/applications/{application_id}/routes [post]
 func (h *Handler) CreateRoute(c *gin.Context) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	var req domain.RouteInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Route{
@@ -75,7 +73,7 @@ func (h *Handler) CreateRoute(c *gin.Context) {
 	}
 	item.WithCreateDefault()
 	if _, err := h.routes.Create(c.Request.Context(), item); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, item)
@@ -93,9 +91,8 @@ func (h *Handler) CreateRoute(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Route]
 // @Router /api/v1/applications/{application_id}/routes [get]
 func (h *Handler) ListRoutes(c *gin.Context) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	items, err := h.routes.List(c.Request.Context(), RouteListFilter{
@@ -104,17 +101,10 @@ func (h *Handler) ListRoutes(c *gin.Context) {
 		Name:           c.Query("name"),
 	})
 	if err != nil {
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
-	paging, err := httpx.ParsePagination(c)
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
-		return
-	}
-	total := len(items)
-	items = httpx.PaginateSlice(items, paging)
-	httpx.WriteList(c, http.StatusOK, items, paging, total)
+	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
 // UpdateRoute godoc
@@ -133,8 +123,7 @@ func (h *Handler) UpdateRoute(c *gin.Context) {
 		return
 	}
 	var req domain.RouteInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Route{
@@ -148,10 +137,10 @@ func (h *Handler) UpdateRoute(c *gin.Context) {
 	item.SetID(id)
 	if err := h.routes.Update(c.Request.Context(), item); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -171,10 +160,10 @@ func (h *Handler) DeleteRoute(c *gin.Context) {
 	}
 	if err := h.routes.Delete(c.Request.Context(), applicationID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(c, http.StatusNotFound, "not_found", "not found", nil)
+			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteError(c, http.StatusInternalServerError, "internal", err.Error(), nil)
+		httpx.WriteInternalError(c, err)
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -190,14 +179,12 @@ func (h *Handler) DeleteRoute(c *gin.Context) {
 // @Success 200 {object} httpx.DataResponse[domain.RouteValidationResult]
 // @Router /api/v1/applications/{application_id}/routes:validate [post]
 func (h *Handler) ValidateRoute(c *gin.Context) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
 	var req domain.RouteInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", err.Error(), nil)
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Route{
@@ -216,14 +203,12 @@ func (h *Handler) ValidateRoute(c *gin.Context) {
 }
 
 func parseApplicationAndResourceID(c *gin.Context, key string) (uuid.UUID, uuid.UUID, bool) {
-	applicationID, err := uuid.Parse(c.Param("application_id"))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid application id", nil)
+	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
 		return uuid.Nil, uuid.Nil, false
 	}
-	id, err := uuid.Parse(c.Param(key))
-	if err != nil {
-		httpx.WriteError(c, http.StatusBadRequest, "invalid_argument", "invalid resource id", nil)
+	id, ok := httpx.ParseUUIDParam(c, key)
+	if !ok {
 		return uuid.Nil, uuid.Nil, false
 	}
 	return applicationID, id, true
