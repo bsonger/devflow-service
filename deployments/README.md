@@ -10,7 +10,7 @@ Examples:
 Keep build-time Docker base-image assets under `docker/`.
 
 Current local pre-production flow:
-- apply `deployments/tekton/devflow-tekton-image-build-and-push.yaml` first when the cluster task needs the monorepo-aware build logic
+- apply `deployments/tekton/devflow-tekton-image-build-and-push.yaml` and `deployments/tekton/devflow-tekton-image-build-push-only.yaml` first when the cluster task or pipeline needs the monorepo-aware build logic
 - use `deployments/tekton/meta-service-preproduction-build-pipelinerun.yaml` to build and push `meta-service:preproduction`
 - use `deployments/tekton/config-service-preproduction-build-pipelinerun.yaml` to build and push `config-service:preproduction`
 - use `deployments/tekton/network-service-preproduction-build-pipelinerun.yaml` to build and push `network-service:preproduction`
@@ -65,6 +65,7 @@ The committed Tekton manifests that make this explicit are:
 
 Tekton task note:
 - `deployments/tekton/devflow-tekton-image-build-and-push.yaml` accepts an optional `BUILD_ARGS` param
+- `deployments/tekton/devflow-tekton-image-build-push-only.yaml` must also forward `BUILD_ARGS` into the build task
 - the committed service manifests already hardcode the non-default build selection, for example:
   - `SERVICE_NAME=config-service --build-arg SERVICE_PORT=8082`
   - `SERVICE_NAME=network-service --build-arg SERVICE_PORT=8086`

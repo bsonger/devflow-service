@@ -45,6 +45,8 @@ spec:
           value: http://192.168.1.5:7890
         - name: NO_PROXY
           value: localhost,127.0.0.1,.svc,.cluster.local
+        - name: GOPROXY
+          value: https://goproxy.cn,direct
         - name: REGISTRY_AUTH_FILE
           value: /.docker/.dockerconfigjson
       script: |
@@ -60,7 +62,7 @@ spec:
         DOCKERFILE_REL="$(params.DOCKERFILE)"
         BUILD_ARGS="$(params.BUILD_ARGS)"
         SSH_DIR="${SRC}/.tekton-ssh"
-        PROXY_BUILD_ARGS="--build-arg HTTP_PROXY=${HTTP_PROXY} --build-arg HTTPS_PROXY=${HTTPS_PROXY} --build-arg NO_PROXY=${NO_PROXY} --build-arg http_proxy=${HTTP_PROXY} --build-arg https_proxy=${HTTPS_PROXY} --build-arg no_proxy=${NO_PROXY}"
+        PROXY_BUILD_ARGS="--build-arg HTTP_PROXY=${HTTP_PROXY} --build-arg HTTPS_PROXY=${HTTPS_PROXY} --build-arg NO_PROXY=${NO_PROXY} --build-arg http_proxy=${HTTP_PROXY} --build-arg https_proxy=${HTTPS_PROXY} --build-arg no_proxy=${NO_PROXY} --build-arg GOPROXY=${GOPROXY}"
 
         cleanup() {
           rm -rf "${SSH_DIR}"

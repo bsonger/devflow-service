@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: devflow-tekton-image-build-push-only
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/component: tekton-pipeline
+    app.kubernetes.io/part-of: devflow
+spec:
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: image-registry
+      type: string
+    - name: name
+      type: string
+    - name: image-tag
+      type: string
+      default: latest
+    - name: DOCKERFILE
+      type: string
+      default: Dockerfile
+    - name: BUILD_ARGS
+      type: string
+      default: ""
+  workspaces:
+    - name: source
+    - name: dockerconfig
+    - name: ssh
+  tasks:
+    - name: git-clone
+      taskRef:
+        kind: Task
+        name: devflow-tekton-git-clone
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+        - name: ssh
+          workspace: ssh
+    - name: image-build-and-push
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: Task
+        name: devflow-tekton-image-build-and-push
+      params:
+        - name: IMAGE_REPOSITORY
+          value: $(params.image-registry)/$(params.name)
+        - name: IMAGE_TAG
+          value: $(params.image-tag)
+        - name: GIT_TAG
+          value: $(tasks.git-clone.results.git-tag)
+        - name: DOCKERFILE
+          value: $(params.DOCKERFILE)
+        - name: BUILD_ARGS
+          value: $(params.BUILD_ARGS)
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+        - name: ssh
+          workspace: ssh
