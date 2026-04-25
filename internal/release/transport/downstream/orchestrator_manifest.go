@@ -26,7 +26,7 @@ func NewOrchestratorManifestClient(baseURL string) *OrchestratorManifestClient {
 
 func (c *OrchestratorManifestClient) GetApplicationEnvironment(ctx context.Context, applicationID, environmentID string) (*ApplicationEnvironment, error) {
 	var out ApplicationEnvironment
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/platform/applications/%s/environments/%s", applicationID, environmentID), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/applications/%s/environments/%s", applicationID, environmentID), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

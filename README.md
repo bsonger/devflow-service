@@ -30,6 +30,27 @@ This repo does **not** treat `modules/` as a valid end-state structure.
 `internal/shared/` is allowed only as a small, controlled area for stable cross-domain helpers such as errors, response helpers, middleware, or id generation.
 It is not a place for business logic, private models, or generic `common`/`util` dumping grounds.
 
+## Kubernetes Database Baseline
+
+Pre-production service manifests in this repo currently share one PostgreSQL 18 cluster in the Kubernetes `database` namespace:
+
+- cluster: `pg18-next`
+- writer endpoint: `pg18-next-rw.database:5432`
+- database: `app`
+- owner: `app`
+
+The repo-managed install and bootstrap artifacts for that database now live under:
+
+```text
+deployments/pre-production/database/
+```
+
+The repo-local operational reference for this contract is:
+
+```text
+docs/system/postgresql.md
+```
+
 ## Build baseline
 
 The target repository baseline is:
@@ -69,9 +90,10 @@ If you are landing here cold, read in this order:
 4. `docs/policies/go-monorepo-layout.md`
 5. `docs/services/meta-service.md`
 6. `docs/resources/` only if the task needs current resource contracts
-7. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
-8. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
-9. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
+7. `docs/system/postgresql.md` only if the task touches PostgreSQL, Kubernetes database bootstrap, or service DSNs
+8. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
+9. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
+10. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
 
 ## Docs layout
 

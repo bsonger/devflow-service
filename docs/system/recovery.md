@@ -24,6 +24,7 @@ After reading it, a fresh engineer or agent should know:
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
 - Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`, while non-default service image selection is hardcoded in committed Tekton manifests for `config-service`, `network-service`, `release-service`, and `runtime-service`
+- Active database baseline: Kubernetes PostgreSQL now targets the parallel `database/pg18-next` cluster, with repo-managed bootstrap artifacts under `deployments/pre-production/database/`
 
 This repository is in an intentional transition state.
 Current local docs are authoritative even when the code migration is not complete yet.
@@ -91,6 +92,17 @@ Inspect next:
 3. `internal/app`
 4. `internal/platform/...`
 5. the affected `internal/<domain>/...` package
+
+### If PostgreSQL bootstrap or connectivity is unclear
+
+Inspect next:
+1. `docs/system/postgresql.md`
+2. `deployments/pre-production/database/`
+3. `deployments/pre-production/meta-service.yaml`
+4. `deployments/pre-production/config-service.yaml`
+5. `deployments/pre-production/network-service.yaml`
+6. `deployments/pre-production/release-service.yaml`
+7. `deployments/pre-production/runtime-service.yaml`
 
 ### If release writeback or observer callbacks fail
 

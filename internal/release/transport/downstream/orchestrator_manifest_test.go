@@ -10,7 +10,7 @@ import (
 
 func TestManifestBindingClientUsesApplicationEnvironmentEndpoint(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/platform/applications/app-1/environments/env-1" {
+		if r.URL.Path != "/api/v1/applications/app-1/environments/env-1" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
 		_, _ = io.WriteString(w, `{"data":{"id":"ae-1","application_id":"app-1","environment":{"id":"env-1","name":"production"}}}`)
@@ -32,7 +32,7 @@ func TestManifestBindingClientUsesApplicationEnvironmentEndpoint(t *testing.T) {
 
 func TestManifestBindingClientAcceptsBareJSONResponse(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/platform/applications/app-1/environments/staging" {
+		if r.URL.Path != "/api/v1/applications/app-1/environments/staging" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
 		_, _ = io.WriteString(w, `{"id":"ae-1","application_id":"app-1","environment":{"id":"staging","name":"staging"}}`)

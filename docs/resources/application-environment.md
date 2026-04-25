@@ -33,10 +33,6 @@ Those two resources continue to use their own tables and are resolved by `applic
 - `GET /api/v1/applications/{id}/environments/{environment_id}`
 - `DELETE /api/v1/applications/{id}/environments/{environment_id}`
 
-Compatibility read route kept for existing release/downstream callers:
-
-- `GET /api/v1/platform/applications/{id}/environments/{environment_id}`
-
 ## Behavior
 
 ### Attach

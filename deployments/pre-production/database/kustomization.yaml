@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: database
+
+resources:
+  - namespace.yaml
+  - pg18-next-bootstrap-app-secret.yaml
+  - pg18-next-cluster.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: pg18-next-init-sql
+    files:
+      - init.sql

@@ -1,0 +1,30 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg18-next
+  namespace: database
+  labels:
+    app.kubernetes.io/name: pg18-next
+    app.kubernetes.io/part-of: devflow
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.3-minimal-trixie
+  instances: 3
+  enableSuperuserAccess: false
+  monitoring:
+    enablePodMonitor: true
+  storage:
+    size: 20Gi
+    storageClass: local-path
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      secret:
+        name: pg18-next-bootstrap-app
+      encoding: UTF8
+      localeCollate: C
+      localeCType: C
+      postInitApplicationSQLRefs:
+        configMapRefs:
+          - name: pg18-next-init-sql
+            key: init.sql

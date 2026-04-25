@@ -35,9 +35,6 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	appEnvironments.GET("/:environment_id", h.Get)
 	appEnvironments.POST("", h.Attach)
 	appEnvironments.DELETE("/:environment_id", h.Delete)
-
-	legacyPlatform := rg.Group("/platform/applications/:id/environments")
-	legacyPlatform.GET("/:environment_id", h.Get)
 }
 
 func (h *Handler) Attach(c *gin.Context) {

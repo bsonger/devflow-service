@@ -28,6 +28,7 @@ The active local execution contract is:
 - one root Go module at the repo root
 - target Go baseline `1.26.2`
 - current runnable process entries include `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`
+- pre-production data persistence is backed by the Kubernetes `database/pg18-next` CloudNativePG cluster exposed through `pg18-next-rw.database:5432`
 
 This repository should not introduce `go.work` or per-service `go.mod` files during the current migration.
 

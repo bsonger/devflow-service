@@ -104,7 +104,7 @@ func TestNewRouterWithOptionsRegistersClusterAndEnvironmentRoutesAlongsideExisti
 		"GET /api/v1/applications",
 		"GET /api/v1/applications/:id/environments",
 		"POST /api/v1/applications/:id/environments",
-		"GET /api/v1/platform/applications/:id/environments/:environment_id",
+		"GET /api/v1/applications/:id/environments/:environment_id",
 		"GET /api/v1/clusters",
 		"GET /api/v1/environments",
 		"POST /api/v1/clusters",
