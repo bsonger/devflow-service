@@ -34,7 +34,7 @@ func TestPublishManifestArtifactPopulatesManifestFields(t *testing.T) {
 			UpdatedAt: time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC),
 		},
 		ApplicationID: mustUUID("22222222-2222-2222-2222-222222222222"),
-		EnvironmentID: "staging",
+		EnvironmentID: "",
 		ImageID:       mustUUID("33333333-3333-3333-3333-333333333333"),
 		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
 		RenderedYAML:  "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: demo-api\n",
@@ -59,7 +59,7 @@ func TestPublishManifestArtifactPopulatesManifestFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Repository != "registry.example.com/devflow/manifests/demo-api/staging" {
+	if got.Repository != "registry.example.com/devflow/manifests/demo-api" {
 		t.Fatalf("repository = %q", got.Repository)
 	}
 	if got.Tag != "demo-api-20260412-110000" {
@@ -135,7 +135,7 @@ func TestPublishManifestArtifactPropagatesPublisherError(t *testing.T) {
 			UpdatedAt: time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC),
 		},
 		ApplicationID: uuid.New(),
-		EnvironmentID: "staging",
+		EnvironmentID: "",
 		ImageID:       uuid.New(),
 		RenderedYAML:  "apiVersion: v1",
 	}

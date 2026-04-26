@@ -36,11 +36,7 @@ func (c ManifestRegistryConfig) RepositoryFor(applicationName, environmentID str
 	if application == "" {
 		application = "application"
 	}
-	environment := normalizeImageSegment(environmentID)
-	if environment == "" {
-		environment = "environment"
-	}
-	return prefix + "/" + application + "/" + environment
+	return prefix + "/" + application
 }
 
 func normalizeImageSegment(value string) string {

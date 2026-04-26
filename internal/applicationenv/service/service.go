@@ -237,24 +237,12 @@ func (s *bindingService) resolveAppConfigs(ctx context.Context, applicationID uu
 	})
 }
 
-func (s *bindingService) resolveWorkloadConfigs(ctx context.Context, applicationID uuid.UUID, environmentID string) ([]workloadconfigdomain.WorkloadConfig, error) {
+func (s *bindingService) resolveWorkloadConfigs(ctx context.Context, applicationID uuid.UUID, _ string) ([]workloadconfigdomain.WorkloadConfig, error) {
 	if s.workloadConfigs == nil {
 		return nil, nil
 	}
 
-	exact, err := s.workloadConfigs.List(ctx, workloadconfigservice.WorkloadConfigListFilter{
-		ApplicationID: &applicationID,
-		EnvironmentID: environmentID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(exact) > 0 {
-		return exact, nil
-	}
-
 	return s.workloadConfigs.List(ctx, workloadconfigservice.WorkloadConfigListFilter{
 		ApplicationID: &applicationID,
-		EnvironmentID: BaseEnvironmentID,
 	})
 }

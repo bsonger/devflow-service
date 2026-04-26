@@ -128,11 +128,8 @@ func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
 			return nil, nil
 		}},
 		stubWorkloadConfigReader{listFn: func(_ context.Context, filter workloadconfigservice.WorkloadConfigListFilter) ([]workloadconfigdomain.WorkloadConfig, error) {
-			if filter.EnvironmentID == environmentID {
-				return nil, nil
-			}
-			if filter.EnvironmentID == BaseEnvironmentID {
-				return []workloadconfigdomain.WorkloadConfig{{Name: "base-workload", EnvironmentID: BaseEnvironmentID}}, nil
+			if filter.ApplicationID != nil && *filter.ApplicationID == applicationID {
+				return []workloadconfigdomain.WorkloadConfig{{Name: "base-workload"}}, nil
 			}
 			return nil, nil
 		}},
@@ -145,7 +142,7 @@ func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
 	if len(item.AppConfigs) != 1 || item.AppConfigs[0].EnvironmentID != BaseEnvironmentID {
 		t.Fatalf("unexpected app configs %+v", item.AppConfigs)
 	}
-	if len(item.WorkloadConfigs) != 1 || item.WorkloadConfigs[0].EnvironmentID != BaseEnvironmentID {
+	if len(item.WorkloadConfigs) != 1 || item.WorkloadConfigs[0].Name != "base-workload" {
 		t.Fatalf("unexpected workload configs %+v", item.WorkloadConfigs)
 	}
 }

@@ -22,13 +22,9 @@ import (
 
 var (
 	ErrManifestImageApplicationMismatch = sharederrs.FailedPrecondition("image does not belong to application")
-	ErrManifestAppConfigMissing         = sharederrs.FailedPrecondition("effective app config is missing")
 	ErrManifestWorkloadConfigMissing    = sharederrs.FailedPrecondition("effective workload config is missing")
-	ErrManifestRouteTargetInvalid       = sharederrs.FailedPrecondition("route points to missing service or port")
 	ErrManifestImageRepositoryMissing   = sharederrs.FailedPrecondition("image repository is not deployable")
 )
-
-const defaultManifestEnvironmentID = "base"
 
 var ManifestService = NewManifestService()
 
@@ -38,12 +34,10 @@ type manifestImageReader interface {
 
 type manifestNetworkReader interface {
 	ListServices(context.Context, string) ([]appservicedownstream.Service, error)
-	ListRoutes(context.Context, string) ([]appservicedownstream.Route, error)
 }
 
 type manifestConfigReader interface {
-	FindAppConfig(context.Context, string, string) (*appconfigdownstream.AppConfig, error)
-	FindWorkloadConfig(context.Context, string, string) (*appconfigdownstream.WorkloadConfig, error)
+	FindWorkloadConfig(context.Context, string) (*appconfigdownstream.WorkloadConfig, error)
 }
 
 type manifestService struct {
@@ -75,7 +69,6 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 		zap.String("resource", "manifest"),
 		zap.String("result", "started"),
 		zap.String("application_id", req.ApplicationID.String()),
-		zap.String("environment_id", defaultManifestEnvironmentID),
 		zap.String("image_id", req.ImageID.String()),
 	)
 
@@ -91,18 +84,7 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	if image.ApplicationID != req.ApplicationID {
 		return nil, ErrManifestImageApplicationMismatch
 	}
-	target, err := releasesupport.ResolveDeployTarget(ctx, req.ApplicationID.String(), defaultManifestEnvironmentID)
-	if err != nil {
-		return nil, err
-	}
-	appConfig, err := configs.FindAppConfig(ctx, req.ApplicationID.String(), defaultManifestEnvironmentID)
-	if err != nil {
-		return nil, err
-	}
-	if appConfig == nil || (len(appConfig.Files) == 0 && len(appConfig.RenderedConfigMap) == 0) {
-		return nil, ErrManifestAppConfigMissing
-	}
-	workloadConfig, err := configs.FindWorkloadConfig(ctx, req.ApplicationID.String(), defaultManifestEnvironmentID)
+	workloadConfig, err := configs.FindWorkloadConfig(ctx, req.ApplicationID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -113,16 +95,12 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	if err != nil {
 		return nil, err
 	}
-	routes, err := networks.ListRoutes(ctx, req.ApplicationID.String())
-	if err != nil {
-		return nil, err
-	}
 	application, err := s.apps.Get(ctx, req.ApplicationID)
 	if err != nil {
 		return nil, err
 	}
 
-	manifest, err := buildManifest(req, image, application.Name, appConfig, workloadConfig, services, routes, target.Namespace, runtimeCfg.ImageRegistry)
+	manifest, err := buildManifest(req, image, application.Name, workloadConfig, services, runtimeCfg.ImageRegistry)
 	if err != nil {
 		return nil, err
 	}
@@ -245,41 +223,14 @@ func decodeManifestRenderedResource(item manifestdomain.ManifestRenderedObject) 
 	return decoded, nil
 }
 
-func buildManifest(req *manifestdomain.CreateManifestRequest, image *imagedomain.Image, applicationName string, appConfig *appconfigdownstream.AppConfig, workload *appconfigdownstream.WorkloadConfig, services []appservicedownstream.Service, routes []appservicedownstream.Route, namespace string, imageRegistry imagedomain.ImageRegistryConfig) (*manifestdomain.Manifest, error) {
+func buildManifest(req *manifestdomain.CreateManifestRequest, image *imagedomain.Image, applicationName string, workload *appconfigdownstream.WorkloadConfig, services []appservicedownstream.Service, imageRegistry imagedomain.ImageRegistryConfig) (*manifestdomain.Manifest, error) {
 	servicesSnapshot := make([]manifestdomain.ManifestService, 0, len(services))
-	servicePorts := make(map[string]map[int]struct{}, len(services))
 	for _, item := range services {
 		ports := make([]manifestdomain.ManifestServicePort, 0, len(item.Ports))
-		knownPorts := make(map[int]struct{}, len(item.Ports))
 		for _, port := range item.Ports {
 			ports = append(ports, manifestdomain.ManifestServicePort{Name: port.Name, ServicePort: port.ServicePort, TargetPort: port.TargetPort, Protocol: port.Protocol})
-			knownPorts[port.ServicePort] = struct{}{}
 		}
 		servicesSnapshot = append(servicesSnapshot, manifestdomain.ManifestService{ID: item.ID, Name: item.Name, Ports: ports})
-		servicePorts[item.Name] = knownPorts
-	}
-	routesSnapshot := make([]manifestdomain.ManifestRoute, 0, len(routes))
-	for _, item := range routes {
-		if _, ok := servicePorts[item.ServiceName]; !ok {
-			return nil, fmt.Errorf("%w: service %s", ErrManifestRouteTargetInvalid, item.ServiceName)
-		}
-		if _, ok := servicePorts[item.ServiceName][item.ServicePort]; !ok {
-			return nil, fmt.Errorf("%w: service %s port %d", ErrManifestRouteTargetInvalid, item.ServiceName, item.ServicePort)
-		}
-		routesSnapshot = append(routesSnapshot, manifestdomain.ManifestRoute{
-			ID: item.ID, Name: item.Name, Host: item.Host, Path: item.Path, ServiceName: item.ServiceName, ServicePort: item.ServicePort,
-		})
-	}
-	configData := appConfig.RenderedConfigMap
-	if len(configData) == 0 && len(appConfig.Files) > 0 {
-		configData = make(map[string]string, len(appConfig.Files))
-	}
-	files := make([]manifestdomain.ManifestFile, 0, len(appConfig.Files))
-	for _, file := range appConfig.Files {
-		files = append(files, manifestdomain.ManifestFile{Name: file.Name, Content: file.Content})
-		if len(configData) > 0 {
-			configData[file.Name] = file.Content
-		}
 	}
 	imageRepository, err := resolveManifestImageRepository(image, imageRegistry)
 	if err != nil {
@@ -290,15 +241,6 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, image *imagedomain
 		return nil, err
 	}
 
-	appConfigSnapshot := manifestdomain.ManifestAppConfig{
-		ID:           appConfig.ID,
-		Name:         appConfig.Name,
-		MountPath:    appConfig.MountPath,
-		Files:        files,
-		Data:         configData,
-		SourcePath:   appConfig.SourcePath,
-		SourceCommit: appConfig.SourceCommit,
-	}
 	workloadSnapshot := manifestdomain.ManifestWorkloadConfig{
 		ID:           workload.ID,
 		Name:         workload.Name,
@@ -310,14 +252,13 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, image *imagedomain
 		Strategy:     workload.Strategy,
 	}
 
-	configMapName := configMapResourceName(appConfigSnapshot, applicationName)
-	renderedObjects, err := renderManifestObjects(namespace, applicationName, req.ApplicationID.String(), defaultManifestEnvironmentID, configMapName, appConfigSnapshot, workloadSnapshot, servicesSnapshot, routesSnapshot, imageRef, annotations)
+	renderedObjects, err := renderManifestObjects("", applicationName, req.ApplicationID.String(), workloadSnapshot, servicesSnapshot, imageRef, annotations)
 	if err != nil {
 		return nil, err
 	}
 	return &manifestdomain.Manifest{
 		ApplicationID:          req.ApplicationID,
-		EnvironmentID:          defaultManifestEnvironmentID,
+		EnvironmentID:          "",
 		ImageID:                req.ImageID,
 		ImageRef:               imageRef,
 		ServicesSnapshot:       servicesSnapshot,
@@ -334,46 +275,4 @@ func toModelEnvVars(items []appconfigdownstream.EnvVar) []model.EnvVar {
 		out = append(out, model.EnvVar{Name: item.Name, Value: item.Value})
 	}
 	return out
-}
-
-func configMapResourceName(appConfig manifestdomain.ManifestAppConfig, applicationName string) string {
-	base := strings.TrimSpace(appConfig.Name)
-	if base == "" {
-		base = strings.TrimSpace(applicationName)
-	}
-	base = sanitizeKubernetesName(base)
-	if base == "" {
-		base = "config"
-	}
-	suffix := uuid.NewString()
-	if len(suffix) > 8 {
-		suffix = suffix[:8]
-	}
-	name := sanitizeKubernetesName(base + "-" + suffix)
-	if len(name) > 63 {
-		name = strings.TrimRight(name[:63], "-")
-	}
-	if name == "" {
-		return "config-" + suffix
-	}
-	return name
-}
-
-func sanitizeKubernetesName(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	var out []rune
-	lastDash := false
-	for _, r := range value {
-		valid := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
-		if valid {
-			out = append(out, r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			out = append(out, '-')
-			lastDash = true
-		}
-	}
-	return strings.Trim(string(out), "-")
 }

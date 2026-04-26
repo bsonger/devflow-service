@@ -9,7 +9,6 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
-	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -197,25 +196,9 @@ func writeManifestError(c *gin.Context, err error) {
 	case errors.Is(err, sql.ErrNoRows):
 		httpx.WriteNotFound(c, "not found")
 	case errors.Is(err, manifestservice.ErrManifestImageApplicationMismatch),
-		errors.Is(err, manifestservice.ErrManifestAppConfigMissing),
 		errors.Is(err, manifestservice.ErrManifestWorkloadConfigMissing),
-		errors.Is(err, manifestservice.ErrManifestRouteTargetInvalid),
 		errors.Is(err, manifestservice.ErrManifestImageRepositoryMissing),
-		errors.Is(err, manifestservice.ErrManifestImageNotDeployable),
-		errors.Is(err, releasesupport.ErrDeployTargetBindingMissing),
-		errors.Is(err, releasesupport.ErrDeployTargetBindingMalformed),
-		errors.Is(err, releasesupport.ErrDeployTargetApplicationMetadataMissing),
-		errors.Is(err, releasesupport.ErrDeployTargetApplicationMetadataMalformed),
-		errors.Is(err, releasesupport.ErrDeployTargetProjectMetadataMissing),
-		errors.Is(err, releasesupport.ErrDeployTargetProjectMetadataMalformed),
-		errors.Is(err, releasesupport.ErrDeployTargetEnvironmentMetadataMissing),
-		errors.Is(err, releasesupport.ErrDeployTargetEnvironmentMetadataMalformed),
-		errors.Is(err, releasesupport.ErrDeployTargetClusterMetadataMissing),
-		errors.Is(err, releasesupport.ErrDeployTargetClusterMetadataMalformed),
-		errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady),
-		errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed),
-		errors.Is(err, releasesupport.ErrDeployTargetNamespaceInvalid),
-		errors.Is(err, releasesupport.ErrDeployTargetClusterServerInvalid):
+		errors.Is(err, manifestservice.ErrManifestImageNotDeployable):
 		httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 	default:
 		httpx.WriteInternalError(c, err)

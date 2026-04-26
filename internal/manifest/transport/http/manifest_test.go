@@ -12,7 +12,7 @@ import (
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
-	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -51,7 +51,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
 				now := mustTime("2026-04-12T11:30:00Z")
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: "base", ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactRepository: "repo/manifests/demo", ArtifactTag: "manifest-tag", ArtifactRef: "repo/manifests/demo:manifest-tag", ArtifactDigest: "sha256:def", ArtifactMediaType: "application/vnd.oci.image.manifest.v1+json", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: "", ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactRepository: "repo/manifests/demo", ArtifactTag: "manifest-tag", ArtifactRef: "repo/manifests/demo:manifest-tag", ArtifactDigest: "sha256:def", ArtifactMediaType: "application/vnd.oci.image.manifest.v1+json", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -77,7 +77,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	}
 }
 
-func TestCreateManifestUsesBaseEnvironmentInternally(t *testing.T) {
+func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ManifestHandler{
 		svc: stubManifestService{
@@ -86,12 +86,12 @@ func TestCreateManifestUsesBaseEnvironmentInternally(t *testing.T) {
 				now := mustTime("2026-04-13T15:00:00Z")
 				item := &manifestdomain.Manifest{
 					ApplicationID:      req.ApplicationID,
-					EnvironmentID:      "base",
+					EnvironmentID:      "",
 					ImageID:            req.ImageID,
 					ImageRef:           "repo/demo@sha256:abc",
-					ArtifactRepository: "repo/manifests/demo/base",
+					ArtifactRepository: "repo/manifests/demo",
 					ArtifactTag:        "demo-20260413-150000",
-					ArtifactRef:        "repo/manifests/demo/base:demo-20260413-150000",
+					ArtifactRef:        "repo/manifests/demo:demo-20260413-150000",
 					ArtifactDigest:     "sha256:def",
 					ArtifactMediaType:  "application/vnd.oci.image.manifest.v1+json",
 					ArtifactPushedAt:   &now,
@@ -118,8 +118,8 @@ func TestCreateManifestUsesBaseEnvironmentInternally(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ArtifactRepository != "repo/manifests/demo/base" {
-		t.Fatalf("ArtifactRepository = %q, want repo/manifests/demo/base", payload.Data.ArtifactRepository)
+	if payload.Data.ArtifactRepository != "repo/manifests/demo" {
+		t.Fatalf("ArtifactRepository = %q, want repo/manifests/demo", payload.Data.ArtifactRepository)
 	}
 }
 
@@ -212,12 +212,12 @@ func TestGetManifestResourcesReturnsGroupedFrozenObjects(t *testing.T) {
 	}
 }
 
-func TestCreateManifestClusterNotReadyReturns409(t *testing.T) {
+func TestCreateManifestMissingWorkloadReturns409(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, _ *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				return nil, releasesupport.ErrDeployTargetClusterNotReady
+				return nil, manifestservice.ErrManifestWorkloadConfigMissing
 			},
 		},
 	}
@@ -232,7 +232,7 @@ func TestCreateManifestClusterNotReadyReturns409(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusConflict {
-		t.Fatalf("got %d want %d for cluster not ready", rec.Code, http.StatusConflict)
+		t.Fatalf("got %d want %d for workload missing", rec.Code, http.StatusConflict)
 	}
 	var resp struct {
 		Error struct {
@@ -248,12 +248,12 @@ func TestCreateManifestClusterNotReadyReturns409(t *testing.T) {
 	}
 }
 
-func TestCreateManifestClusterReadinessMalformedReturns409(t *testing.T) {
+func TestCreateManifestImageRepositoryMissingReturns409(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, _ *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				return nil, releasesupport.ErrDeployTargetClusterReadinessMalformed
+				return nil, manifestservice.ErrManifestImageRepositoryMissing
 			},
 		},
 	}
@@ -268,70 +268,7 @@ func TestCreateManifestClusterReadinessMalformedReturns409(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusConflict {
-		t.Fatalf("got %d want %d for readiness malformed", rec.Code, http.StatusConflict)
-	}
-	var resp struct {
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal body: %v", err)
-	}
-	if resp.Error.Code != "failed_precondition" {
-		t.Fatalf("error code = %q, want failed_precondition", resp.Error.Code)
-	}
-	if resp.Error.Message != releasesupport.ErrDeployTargetClusterReadinessMalformed.Error() {
-		t.Fatalf("error message = %q, want %q", resp.Error.Message, releasesupport.ErrDeployTargetClusterReadinessMalformed.Error())
-	}
-}
-
-func TestCreateManifestClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	handler := &ManifestHandler{
-		svc: stubManifestService{
-			createFn: func(_ context.Context, _ *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				return nil, releasesupport.ErrDeployTargetClusterNotReady
-			},
-		},
-	}
-
-	r := gin.New()
-	r.POST("/api/v1/manifests", handler.Create)
-
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	r.ServeHTTP(rec, req)
-	if rec.Code == http.StatusInternalServerError {
-		t.Fatalf("readiness blocker must not surface as 500 internal, got %d", rec.Code)
-	}
-}
-
-func TestCreateManifestBindingMissingReturns409(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	handler := &ManifestHandler{
-		svc: stubManifestService{
-			createFn: func(_ context.Context, _ *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				return nil, releasesupport.ErrDeployTargetBindingMissing
-			},
-		},
-	}
-
-	r := gin.New()
-	r.POST("/api/v1/manifests", handler.Create)
-
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("got %d want %d for binding missing", rec.Code, http.StatusConflict)
+		t.Fatalf("got %d want %d for image repository missing", rec.Code, http.StatusConflict)
 	}
 	var resp struct {
 		Error struct {

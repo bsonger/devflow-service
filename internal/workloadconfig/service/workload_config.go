@@ -12,7 +12,6 @@ import (
 
 type WorkloadConfigListFilter struct {
 	ApplicationID  *uuid.UUID
-	EnvironmentID  string
 	IncludeDeleted bool
 	Name           string
 }
@@ -57,7 +56,6 @@ func (s *WorkloadConfigService) Delete(ctx context.Context, id uuid.UUID) error 
 func (s *WorkloadConfigService) List(ctx context.Context, filter WorkloadConfigListFilter) ([]domain.WorkloadConfig, error) {
 	return s.store.List(ctx, repository.ListFilter{
 		ApplicationID:  filter.ApplicationID,
-		EnvironmentID:  filter.EnvironmentID,
 		IncludeDeleted: filter.IncludeDeleted,
 		Name:           filter.Name,
 	})

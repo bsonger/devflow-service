@@ -6,7 +6,6 @@ type WorkloadConfig struct {
 	BaseModel
 
 	ApplicationID      uuid.UUID      `json:"application_id" db:"application_id"`
-	EnvironmentID      string         `json:"-" db:"environment_id"`
 	Name               string         `json:"name" db:"name"`
 	Description        string         `json:"description,omitempty" db:"description"`
 	Replicas           int            `json:"replicas" db:"replicas"`

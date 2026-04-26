@@ -108,7 +108,6 @@ func buildManifestArtifactPackage(manifest *manifestdomain.Manifest, application
 	configJSON, err := json.Marshal(map[string]any{
 		"manifest_id":    manifest.ID,
 		"application_id": manifest.ApplicationID,
-		"environment_id": manifest.EnvironmentID,
 		"image_id":       manifest.ImageID,
 		"image_ref":      manifest.ImageRef,
 		"status":         manifest.Status,
@@ -117,7 +116,7 @@ func buildManifestArtifactPackage(manifest *manifestdomain.Manifest, application
 	if err != nil {
 		return manifestArtifactPackage{}, fmt.Errorf("marshal manifest artifact config: %w", err)
 	}
-	repository := cfg.RepositoryFor(applicationName, manifest.EnvironmentID)
+	repository := cfg.RepositoryFor(applicationName, "")
 	tag := manifestArtifactTag(applicationName, manifest.CreatedAt)
 	bundle, err := buildManifestBundle(manifest.RenderedYAML)
 	if err != nil {

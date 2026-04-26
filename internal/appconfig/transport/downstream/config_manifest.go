@@ -37,7 +37,6 @@ type renderedConfigMapEnvelope struct {
 type WorkloadConfig struct {
 	ID            string         `json:"id"`
 	ApplicationID string         `json:"application_id"`
-	EnvironmentID string         `json:"environment_id"`
 	Name          string         `json:"name"`
 	Replicas      int            `json:"replicas"`
 	Resources     map[string]any `json:"resources,omitempty"`
@@ -92,8 +91,8 @@ func (c *Client) GetAppConfig(ctx context.Context, id string) (*AppConfig, error
 	}, nil
 }
 
-func (c *Client) FindWorkloadConfig(ctx context.Context, applicationID, environmentID string) (*WorkloadConfig, error) {
-	item, err := c.findWorkloadConfigMetadata(ctx, applicationID, environmentID)
+func (c *Client) FindWorkloadConfig(ctx context.Context, applicationID string) (*WorkloadConfig, error) {
+	item, err := c.findWorkloadConfigMetadata(ctx, applicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -131,24 +130,16 @@ func (c *Client) GetWorkloadConfig(ctx context.Context, id string) (*WorkloadCon
 	return &item, nil
 }
 
-func (c *Client) findWorkloadConfigMetadata(ctx context.Context, applicationID, environmentID string) (WorkloadConfig, error) {
-	path := fmt.Sprintf("/api/v1/workload-configs?application_id=%s&environment_id=%s", url.QueryEscape(applicationID), url.QueryEscape(environmentID))
-	var items []WorkloadConfig
-	if err := c.GetEnvelopeData(ctx, path, &items); err != nil {
-		return WorkloadConfig{}, err
-	}
-	if len(items) > 0 {
-		item := items[0]
-		if item.ID != "" {
-			return item, nil
-		}
-	}
-	path = fmt.Sprintf("/api/v1/workload-configs?application_id=%s", url.QueryEscape(applicationID))
+func (c *Client) findWorkloadConfigMetadata(ctx context.Context, applicationID string) (WorkloadConfig, error) {
+	path := fmt.Sprintf("/api/v1/workload-configs?application_id=%s", url.QueryEscape(applicationID))
 	var fallback []WorkloadConfig
 	if err := c.GetEnvelopeData(ctx, path, &fallback); err != nil {
 		return WorkloadConfig{}, err
 	}
-	return selectBaseWorkloadConfig(fallback), nil
+	if len(fallback) == 0 {
+		return WorkloadConfig{}, nil
+	}
+	return fallback[0], nil
 }
 
 func selectBaseAppConfig(items []AppConfig) AppConfig {
@@ -164,23 +155,6 @@ func selectBaseAppConfig(items []AppConfig) AppConfig {
 	}
 	if len(items) == 0 {
 		return AppConfig{}
-	}
-	return items[0]
-}
-
-func selectBaseWorkloadConfig(items []WorkloadConfig) WorkloadConfig {
-	for _, item := range items {
-		if item.ID != "" && item.EnvironmentID == "base" {
-			return item
-		}
-	}
-	for _, item := range items {
-		if item.ID != "" && item.EnvironmentID == "" {
-			return item
-		}
-	}
-	if len(items) == 0 {
-		return WorkloadConfig{}
 	}
 	return items[0]
 }
