@@ -31,6 +31,8 @@ CREATE TABLE releases (
   manifest_id TEXT NOT NULL,
   image_id TEXT NOT NULL,
   env TEXT NOT NULL,
+  routes_snapshot TEXT NOT NULL DEFAULT '[]',
+  app_config_snapshot TEXT NOT NULL DEFAULT '{}',
   type TEXT NOT NULL,
   steps TEXT NOT NULL DEFAULT '[]',
   status TEXT NOT NULL,

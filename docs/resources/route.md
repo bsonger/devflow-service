@@ -26,7 +26,8 @@ It stores host/path matching plus the target service name and port, and it expos
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
-| `application_id` | `uuid.UUID` | path-bound | no | 所属应用 ID |
+| `application_id` | `uuid.UUID` | required | user | 所属应用 ID |
+| `environment_id` | `string` | required | user | 环境标识 |
 | `name` | `string` | required | user | 路由名 |
 | `host` | `string` | required | user | 主机名匹配 |
 | `path` | `string` | required | user | 路径匹配 |
@@ -35,17 +36,18 @@ It stores host/path matching plus the target service name and port, and it expos
 
 ## API surface
 
-- `POST /api/v1/applications/{application_id}/routes`
-- `GET /api/v1/applications/{application_id}/routes`
-- `PATCH /api/v1/applications/{application_id}/routes/{route_id}`
-- `DELETE /api/v1/applications/{application_id}/routes/{route_id}`
-- `POST /api/v1/applications/{application_id}/routes:validate`
+- `POST /api/v1/routes`
+- `GET /api/v1/routes`
+- `PATCH /api/v1/routes/{route_id}`
+- `DELETE /api/v1/routes/{route_id}?application_id=...`
+- `POST /api/v1/routes:validate`
 
 ## Create / update rules
 
 ### Create
 - required fields:
-  - `application_id` in path
+  - `application_id`
+  - `environment_id`
   - `name`
   - `host`
   - `path`
@@ -58,16 +60,16 @@ It stores host/path matching plus the target service name and port, and it expos
 
 ### Update
 - mutable fields:
-  - `name`, `host`, `path`, `service_name`, `service_port`
+  - `environment_id`, `name`, `host`, `path`, `service_name`, `service_port`
 - immutable/system-managed fields:
-  - `id`, `application_id`, `created_at`, `deleted_at`
+  - `id`, `created_at`, `deleted_at`
 
 ### Delete
 - supported as soft delete through the handler surface
 
 ## Validation notes
 
-- invalid `application_id` or `route_id` path values return `invalid_argument`
+- invalid `application_id` query/body values or `route_id` path values return `invalid_argument`
 - missing records return `not_found`
 - list endpoints support `name` filtering and `include_deleted`
 - `POST /routes:validate` returns `valid` plus validation errors without persisting the route

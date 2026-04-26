@@ -31,14 +31,6 @@ func (s *PostgresStore) Insert(ctx context.Context, m *manifestdomain.Manifest) 
 	if err != nil {
 		return err
 	}
-	routesJSON, err := dbsql.MarshalJSON(m.RoutesSnapshot, "[]")
-	if err != nil {
-		return err
-	}
-	appConfigJSON, err := dbsql.MarshalJSON(m.AppConfigSnapshot, "{}")
-	if err != nil {
-		return err
-	}
 	workloadJSON, err := dbsql.MarshalJSON(m.WorkloadConfigSnapshot, "{}")
 	if err != nil {
 		return err
@@ -51,12 +43,12 @@ func (s *PostgresStore) Insert(ctx context.Context, m *manifestdomain.Manifest) 
 		insert into manifests (
 			id, application_id, environment_id, image_id, image_ref,
 			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
-			services_snapshot, routes_snapshot, app_config_snapshot, workload_config_snapshot,
+			services_snapshot, workload_config_snapshot,
 			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 	`, m.ID, m.ApplicationID, m.EnvironmentID, m.ImageID, m.ImageRef,
 		m.ArtifactRepository, m.ArtifactTag, m.ArtifactRef, m.ArtifactDigest, m.ArtifactMediaType, dbsql.NullableTimePtr(m.ArtifactPushedAt),
-		servicesJSON, routesJSON, appConfigJSON, workloadJSON, renderedJSON, m.RenderedYAML,
+		servicesJSON, workloadJSON, renderedJSON, m.RenderedYAML,
 		m.Status, m.CreatedAt, m.UpdatedAt, m.DeletedAt)
 	return err
 }
@@ -65,7 +57,7 @@ func (s *PostgresStore) List(ctx context.Context, filter manifestdomain.Manifest
 	query := `
 		select id, application_id, environment_id, image_id, image_ref,
 			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
-			services_snapshot, routes_snapshot, app_config_snapshot, workload_config_snapshot,
+			services_snapshot, workload_config_snapshot,
 			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
 		from manifests
 	`
@@ -77,10 +69,6 @@ func (s *PostgresStore) List(ctx context.Context, filter manifestdomain.Manifest
 	if filter.ApplicationID != nil {
 		args = append(args, *filter.ApplicationID)
 		clauses = append(clauses, dbsql.PlaceholderClause("application_id", len(args)))
-	}
-	if filter.EnvironmentID != nil {
-		args = append(args, *filter.EnvironmentID)
-		clauses = append(clauses, dbsql.PlaceholderClause("environment_id", len(args)))
 	}
 	if filter.ImageID != nil {
 		args = append(args, *filter.ImageID)
@@ -110,7 +98,7 @@ func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*manifestdomain.
 	return scanManifest(db.DB().QueryRowContext(ctx, `
 		select id, application_id, environment_id, image_id, image_ref,
 			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
-			services_snapshot, routes_snapshot, app_config_snapshot, workload_config_snapshot,
+			services_snapshot, workload_config_snapshot,
 			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
 		from manifests
 		where id = $1 and deleted_at is null
@@ -134,8 +122,6 @@ func scanManifest(scanner interface{ Scan(dest ...any) error }) (*manifestdomain
 		item                manifestdomain.Manifest
 		artifactPushedAt    sql.NullTime
 		servicesJSON        []byte
-		routesJSON          []byte
-		appConfigJSON       []byte
 		workloadConfigJSON  []byte
 		renderedObjectsJSON []byte
 		deletedAt           sql.NullTime
@@ -153,8 +139,6 @@ func scanManifest(scanner interface{ Scan(dest ...any) error }) (*manifestdomain
 		&item.ArtifactMediaType,
 		&artifactPushedAt,
 		&servicesJSON,
-		&routesJSON,
-		&appConfigJSON,
 		&workloadConfigJSON,
 		&renderedObjectsJSON,
 		&item.RenderedYAML,
@@ -167,16 +151,6 @@ func scanManifest(scanner interface{ Scan(dest ...any) error }) (*manifestdomain
 	}
 	if len(servicesJSON) > 0 {
 		if err := json.Unmarshal(servicesJSON, &item.ServicesSnapshot); err != nil {
-			return nil, err
-		}
-	}
-	if len(routesJSON) > 0 {
-		if err := json.Unmarshal(routesJSON, &item.RoutesSnapshot); err != nil {
-			return nil, err
-		}
-	}
-	if len(appConfigJSON) > 0 {
-		if err := json.Unmarshal(appConfigJSON, &item.AppConfigSnapshot); err != nil {
 			return nil, err
 		}
 	}

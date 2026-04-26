@@ -21,6 +21,7 @@ func main() {
 			Modules: []app.Module{
 				app.ModuleProject,
 				app.ModuleApplication,
+				app.ModuleApplicationEnv,
 				app.ModuleCluster,
 				app.ModuleEnvironment,
 				app.ModuleAppConfig,

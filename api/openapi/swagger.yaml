@@ -177,6 +177,8 @@ definitions:
         type: string
       deleted_at:
         type: string
+      environment_id:
+        type: string
       host:
         type: string
       id:
@@ -194,6 +196,10 @@ definitions:
     type: object
   github_com_bsonger_devflow-service_internal_approute_domain.RouteInput:
     properties:
+      application_id:
+        type: string
+      environment_id:
+        type: string
       host:
         type: string
       name:
@@ -235,6 +241,8 @@ definitions:
     type: object
   github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput:
     properties:
+      application_id:
+        type: string
       name:
         type: string
       ports:
@@ -552,10 +560,6 @@ definitions:
         items:
           $ref: '#/definitions/domain.EnvVar'
         type: array
-      environment_id:
-        type: string
-      exposed:
-        type: boolean
       id:
         type: string
       labels:
@@ -572,6 +576,8 @@ definitions:
       resources:
         additionalProperties: {}
         type: object
+      service_account_name:
+        type: string
       strategy:
         type: string
       updated_at:
@@ -589,10 +595,6 @@ definitions:
         items:
           $ref: '#/definitions/domain.EnvVar'
         type: array
-      environment_id:
-        type: string
-      exposed:
-        type: boolean
       labels:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem'
@@ -607,6 +609,8 @@ definitions:
       resources:
         additionalProperties: {}
         type: object
+      service_account_name:
+        type: string
       strategy:
         type: string
       workload_type:
@@ -632,14 +636,12 @@ definitions:
     properties:
       application_id:
         type: string
-      environment_id:
-        type: string
       image_id:
         type: string
     type: object
   http.CreateReleaseRequest:
     properties:
-      env:
+      environment_id:
         type: string
       manifest_id:
         type: string
@@ -782,13 +784,38 @@ definitions:
       data:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
     type: object
+  http.ReleaseAppConfigDoc:
+    properties:
+      data:
+        additionalProperties:
+          type: string
+        type: object
+      files:
+        items:
+          $ref: '#/definitions/http.ReleaseFileDoc'
+        type: array
+      id:
+        type: string
+      mount_path:
+        type: string
+      name:
+        type: string
+      revision_id:
+        type: string
+      source_commit:
+        type: string
+      source_path:
+        type: string
+    type: object
   http.ReleaseDoc:
     properties:
+      app_config_snapshot:
+        $ref: '#/definitions/http.ReleaseAppConfigDoc'
       application_id:
         type: string
       created_at:
         type: string
-      env:
+      environment_id:
         type: string
       execution_intent_id:
         type: string
@@ -800,6 +827,10 @@ definitions:
         type: string
       manifest_id:
         type: string
+      routes_snapshot:
+        items:
+          $ref: '#/definitions/http.ReleaseRouteDoc'
+        type: array
       status:
         type: string
       steps:
@@ -809,6 +840,13 @@ definitions:
       type:
         type: string
       updated_at:
+        type: string
+    type: object
+  http.ReleaseFileDoc:
+    properties:
+      content:
+        type: string
+      name:
         type: string
     type: object
   http.ReleaseListResponse:
@@ -824,6 +862,21 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/http.ReleaseDoc'
+    type: object
+  http.ReleaseRouteDoc:
+    properties:
+      host:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      service_name:
+        type: string
+      service_port:
+        type: integer
     type: object
   http.ReleaseStepDoc:
     properties:
@@ -1001,31 +1054,8 @@ definitions:
       updated_at:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestAppConfigDoc:
-    properties:
-      data:
-        additionalProperties:
-          type: string
-        type: object
-      files:
-        items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestFileDoc'
-        type: array
-      id:
-        type: string
-      name:
-        type: string
-      revision_id:
-        type: string
-      source_commit:
-        type: string
-      source_path:
-        type: string
-    type: object
   internal_manifest_transport_http.ManifestDoc:
     properties:
-      app_config_snapshot:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestAppConfigDoc'
       application_id:
         type: string
       artifact_digest:
@@ -1042,8 +1072,6 @@ definitions:
         type: string
       created_at:
         type: string
-      environment_id:
-        type: string
       id:
         type: string
       image_id:
@@ -1056,10 +1084,6 @@ definitions:
         type: array
       rendered_yaml:
         type: string
-      routes_snapshot:
-        items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestRouteDoc'
-        type: array
       services_snapshot:
         items:
           $ref: '#/definitions/internal_manifest_transport_http.ManifestServiceDoc'
@@ -1076,13 +1100,6 @@ definitions:
       name:
         type: string
       value:
-        type: string
-    type: object
-  internal_manifest_transport_http.ManifestFileDoc:
-    properties:
-      content:
-        type: string
-      name:
         type: string
     type: object
   internal_manifest_transport_http.ManifestGroupedResourcesDoc:
@@ -1129,8 +1146,6 @@ definitions:
     properties:
       application_id:
         type: string
-      environment_id:
-        type: string
       manifest_id:
         type: string
       rendered_objects:
@@ -1139,21 +1154,6 @@ definitions:
         type: array
       resources:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc'
-    type: object
-  internal_manifest_transport_http.ManifestRouteDoc:
-    properties:
-      host:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      path:
-        type: string
-      service_name:
-        type: string
-      service_port:
-        type: integer
     type: object
   internal_manifest_transport_http.ManifestServiceDoc:
     properties:
@@ -1382,244 +1382,6 @@ paths:
       summary: 创建应用
       tags:
       - Application
-  /api/v1/applications/{application_id}/routes:
-    get:
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Route name
-        in: query
-        name: name
-        type: string
-      - description: Include deleted items
-        in: query
-        name: include_deleted
-        type: boolean
-      - description: Page
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: page_size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route'
-      summary: List application routes
-      tags:
-      - Route
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Route data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route'
-      summary: Create application route
-      tags:
-      - Route
-  /api/v1/applications/{application_id}/routes/{route_id}:
-    delete:
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Route ID
-        in: path
-        name: route_id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-      summary: Delete application route
-      tags:
-      - Route
-    patch:
-      consumes:
-      - application/json
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Route ID
-        in: path
-        name: route_id
-        required: true
-        type: string
-      - description: Route data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-      summary: Update application route
-      tags:
-      - Route
-  /api/v1/applications/{application_id}/routes:validate:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Route data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult'
-      summary: Validate application route
-      tags:
-      - Route
-  /api/v1/applications/{application_id}/services:
-    get:
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Service name
-        in: query
-        name: name
-        type: string
-      - description: Include deleted items
-        in: query
-        name: include_deleted
-        type: boolean
-      - description: Page
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: page_size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service'
-      summary: List application services
-      tags:
-      - Service
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Service data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service'
-      summary: Create application service
-      tags:
-      - Service
-  /api/v1/applications/{application_id}/services/{service_id}:
-    delete:
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Service ID
-        in: path
-        name: service_id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-      summary: Delete application service
-      tags:
-      - Service
-    patch:
-      consumes:
-      - application/json
-      parameters:
-      - description: Application ID
-        in: path
-        name: application_id
-        required: true
-        type: string
-      - description: Service ID
-        in: path
-        name: service_id
-        required: true
-        type: string
-      - description: Service data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-      summary: Update application service
-      tags:
-      - Service
   /api/v1/applications/{id}:
     delete:
       parameters:
@@ -2077,10 +1839,6 @@ paths:
         in: query
         name: application_id
         type: string
-      - description: Environment ID
-        in: query
-        name: environment_id
-        type: string
       - description: Image ID
         in: query
         name: image_id
@@ -2399,6 +2157,223 @@ paths:
       summary: 获取Release
       tags:
       - Release
+  /api/v1/routes:
+    get:
+      parameters:
+      - description: Application ID
+        in: query
+        name: application_id
+        type: string
+      - description: Route name
+        in: query
+        name: name
+        type: string
+      - description: Include deleted items
+        in: query
+        name: include_deleted
+        type: boolean
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route'
+      summary: List application routes
+      tags:
+      - Route
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Route data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route'
+      summary: Create application route
+      tags:
+      - Route
+  /api/v1/routes/{route_id}:
+    delete:
+      parameters:
+      - description: Route ID
+        in: path
+        name: route_id
+        required: true
+        type: string
+      - description: Application ID
+        in: query
+        name: application_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete application route
+      tags:
+      - Route
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Route ID
+        in: path
+        name: route_id
+        required: true
+        type: string
+      - description: Route data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Update application route
+      tags:
+      - Route
+  /api/v1/routes:validate:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Route data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult'
+      summary: Validate application route
+      tags:
+      - Route
+  /api/v1/services:
+    get:
+      parameters:
+      - description: Application ID
+        in: query
+        name: application_id
+        type: string
+      - description: Service name
+        in: query
+        name: name
+        type: string
+      - description: Include deleted items
+        in: query
+        name: include_deleted
+        type: boolean
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service'
+      summary: List application services
+      tags:
+      - Service
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Service data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
+      - description: Service data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service'
+      summary: Create application service
+      tags:
+      - Service
+  /api/v1/services/{service_id}:
+    delete:
+      parameters:
+      - description: Service ID
+        in: path
+        name: service_id
+        required: true
+        type: string
+      - description: Application ID
+        in: query
+        name: application_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete application service
+      tags:
+      - Service
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Service ID
+        in: path
+        name: service_id
+        required: true
+        type: string
+      - description: Service data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Update application service
+      tags:
+      - Service
   /api/v1/verify/argo/events:
     post:
       consumes:
@@ -2463,10 +2438,6 @@ paths:
       - description: Application ID
         in: query
         name: application_id
-        type: string
-      - description: Environment ID
-        in: query
-        name: environment_id
         type: string
       - description: Name
         in: query

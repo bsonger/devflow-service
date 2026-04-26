@@ -18,7 +18,6 @@ Use these files as the primary repo-local observability surfaces:
 - `docs/policies/docker-baseline.md` for packaging and base-image rules
 - `docs/policies/verification.md` for the target proof stack
 - `scripts/README.md` for repo script behavior
-- `.github/workflows/ci.yml` for the automated proof surface
 - `go.mod` for the active Go baseline
 
 ## Runtime inspection endpoints

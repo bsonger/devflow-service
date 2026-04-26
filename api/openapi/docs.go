@@ -253,368 +253,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/applications/{application_id}/routes": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Route"
-                ],
-                "summary": "List application routes",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Route name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Include deleted items",
-                        "name": "include_deleted",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Route"
-                ],
-                "summary": "Create application route",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Route data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/applications/{application_id}/routes/{route_id}": {
-            "delete": {
-                "tags": [
-                    "Route"
-                ],
-                "summary": "Delete application route",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Route ID",
-                        "name": "route_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Route"
-                ],
-                "summary": "Update application route",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Route ID",
-                        "name": "route_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Route data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/api/v1/applications/{application_id}/routes:validate": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Route"
-                ],
-                "summary": "Validate application route",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Route data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/applications/{application_id}/services": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Service"
-                ],
-                "summary": "List application services",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Service name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Include deleted items",
-                        "name": "include_deleted",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Service"
-                ],
-                "summary": "Create application service",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Service data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/applications/{application_id}/services/{service_id}": {
-            "delete": {
-                "tags": [
-                    "Service"
-                ],
-                "summary": "Delete application service",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Service ID",
-                        "name": "service_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Service"
-                ],
-                "summary": "Update application service",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Service ID",
-                        "name": "service_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Service data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/api/v1/applications/{id}": {
             "get": {
                 "tags": [
@@ -1327,12 +965,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Environment ID",
-                        "name": "environment_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "description": "Image ID",
                         "name": "image_id",
                         "in": "query"
@@ -1815,6 +1447,340 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/routes": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Route"
+                ],
+                "summary": "List application routes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "application_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Route name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include deleted items",
+                        "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Route"
+                ],
+                "summary": "Create application route",
+                "parameters": [
+                    {
+                        "description": "Route data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/routes/{route_id}": {
+            "delete": {
+                "tags": [
+                    "Route"
+                ],
+                "summary": "Delete application route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Route ID",
+                        "name": "route_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "application_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Route"
+                ],
+                "summary": "Update application route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Route ID",
+                        "name": "route_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Route data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/api/v1/routes:validate": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Route"
+                ],
+                "summary": "Validate application route",
+                "parameters": [
+                    {
+                        "description": "Route data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/services": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Service"
+                ],
+                "summary": "List application services",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "application_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Service name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include deleted items",
+                        "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Service"
+                ],
+                "summary": "Create application service",
+                "parameters": [
+                    {
+                        "description": "Service data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
+                        }
+                    },
+                    {
+                        "description": "Service data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/services/{service_id}": {
+            "delete": {
+                "tags": [
+                    "Service"
+                ],
+                "summary": "Delete application service",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "service_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "application_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Service"
+                ],
+                "summary": "Update application service",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "service_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Service data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/v1/verify/argo/events": {
             "post": {
                 "consumes": [
@@ -1919,12 +1885,6 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Application ID",
                         "name": "application_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Environment ID",
-                        "name": "environment_id",
                         "in": "query"
                     },
                     {
@@ -2340,6 +2300,9 @@ const docTemplate = `{
                 "deleted_at": {
                     "type": "string"
                 },
+                "environment_id": {
+                    "type": "string"
+                },
                 "host": {
                     "type": "string"
                 },
@@ -2366,6 +2329,12 @@ const docTemplate = `{
         "github_com_bsonger_devflow-service_internal_approute_domain.RouteInput": {
             "type": "object",
             "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "environment_id": {
+                    "type": "string"
+                },
                 "host": {
                     "type": "string"
                 },
@@ -2429,6 +2398,9 @@ const docTemplate = `{
         "github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput": {
             "type": "object",
             "properties": {
+                "application_id": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -2920,12 +2892,6 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.EnvVar"
                     }
                 },
-                "environment_id": {
-                    "type": "string"
-                },
-                "exposed": {
-                    "type": "boolean"
-                },
                 "id": {
                     "type": "string"
                 },
@@ -2948,6 +2914,9 @@ const docTemplate = `{
                 "resources": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "service_account_name": {
+                    "type": "string"
                 },
                 "strategy": {
                     "type": "string"
@@ -2975,12 +2944,6 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.EnvVar"
                     }
                 },
-                "environment_id": {
-                    "type": "string"
-                },
-                "exposed": {
-                    "type": "boolean"
-                },
                 "labels": {
                     "type": "array",
                     "items": {
@@ -3000,6 +2963,9 @@ const docTemplate = `{
                 "resources": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "service_account_name": {
+                    "type": "string"
                 },
                 "strategy": {
                     "type": "string"
@@ -3039,9 +3005,6 @@ const docTemplate = `{
                 "application_id": {
                     "type": "string"
                 },
-                "environment_id": {
-                    "type": "string"
-                },
                 "image_id": {
                     "type": "string"
                 }
@@ -3050,7 +3013,7 @@ const docTemplate = `{
         "http.CreateReleaseRequest": {
             "type": "object",
             "properties": {
-                "env": {
+                "environment_id": {
                     "type": "string"
                 },
                 "manifest_id": {
@@ -3269,16 +3232,54 @@ const docTemplate = `{
                 }
             }
         },
+        "http.ReleaseAppConfigDoc": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseFileDoc"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mount_path": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "revision_id": {
+                    "type": "string"
+                },
+                "source_commit": {
+                    "type": "string"
+                },
+                "source_path": {
+                    "type": "string"
+                }
+            }
+        },
         "http.ReleaseDoc": {
             "type": "object",
             "properties": {
+                "app_config_snapshot": {
+                    "$ref": "#/definitions/http.ReleaseAppConfigDoc"
+                },
                 "application_id": {
                     "type": "string"
                 },
                 "created_at": {
                     "type": "string"
                 },
-                "env": {
+                "environment_id": {
                     "type": "string"
                 },
                 "execution_intent_id": {
@@ -3296,6 +3297,12 @@ const docTemplate = `{
                 "manifest_id": {
                     "type": "string"
                 },
+                "routes_snapshot": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseRouteDoc"
+                    }
+                },
                 "status": {
                     "type": "string"
                 },
@@ -3309,6 +3316,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.ReleaseFileDoc": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -3332,6 +3350,29 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/http.ReleaseDoc"
+                }
+            }
+        },
+        "http.ReleaseRouteDoc": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "service_name": {
+                    "type": "string"
+                },
+                "service_port": {
+                    "type": "integer"
                 }
             }
         },
@@ -3600,44 +3641,9 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestAppConfigDoc": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "files": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestFileDoc"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "revision_id": {
-                    "type": "string"
-                },
-                "source_commit": {
-                    "type": "string"
-                },
-                "source_path": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_manifest_transport_http.ManifestDoc": {
             "type": "object",
             "properties": {
-                "app_config_snapshot": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestAppConfigDoc"
-                },
                 "application_id": {
                     "type": "string"
                 },
@@ -3662,9 +3668,6 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
-                "environment_id": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
@@ -3682,12 +3685,6 @@ const docTemplate = `{
                 },
                 "rendered_yaml": {
                     "type": "string"
-                },
-                "routes_snapshot": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRouteDoc"
-                    }
                 },
                 "services_snapshot": {
                     "type": "array",
@@ -3713,17 +3710,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_manifest_transport_http.ManifestFileDoc": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "name": {
                     "type": "string"
                 }
             }
@@ -3795,9 +3781,6 @@ const docTemplate = `{
                 "application_id": {
                     "type": "string"
                 },
-                "environment_id": {
-                    "type": "string"
-                },
                 "manifest_id": {
                     "type": "string"
                 },
@@ -3809,29 +3792,6 @@ const docTemplate = `{
                 },
                 "resources": {
                     "$ref": "#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc"
-                }
-            }
-        },
-        "internal_manifest_transport_http.ManifestRouteDoc": {
-            "type": "object",
-            "properties": {
-                "host": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "service_name": {
-                    "type": "string"
-                },
-                "service_port": {
-                    "type": "integer"
                 }
             }
         },

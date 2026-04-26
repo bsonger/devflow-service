@@ -8,6 +8,8 @@ import (
 
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	argoutil "github.com/argoproj/argo-cd/v3/util/argo"
+	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
+	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	imageservice "github.com/bsonger/devflow-service/internal/image/service"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
@@ -43,11 +45,20 @@ var (
 	ErrImageMissingRuntimeSpecRevision                      = sharederrs.FailedPrecondition("image runtime_spec_revision_id is required")
 	ErrRuntimeSpecBindingMismatch                           = sharederrs.FailedPrecondition("image runtime_spec_revision_id does not match release application and env")
 	ErrReleaseManifestNotReady                              = sharederrs.FailedPrecondition("manifest is not ready")
+	ErrReleaseAppConfigMissing                              = sharederrs.FailedPrecondition("effective app config is missing")
 	runtimeLookupClient                runtimeclient.Lookup = runtimeclient.New("")
 )
 
 type releaseManifestReader interface {
 	Get(context.Context, uuid.UUID) (*manifestdomain.Manifest, error)
+}
+
+type releaseNetworkReader interface {
+	ListRoutes(context.Context, string) ([]appservicedownstream.Route, error)
+}
+
+type releaseConfigReader interface {
+	FindAppConfig(context.Context, string, string) (*appconfigdownstream.AppConfig, error)
 }
 
 var releaseManifestSource releaseManifestReader = manifestservice.ManifestService
@@ -67,13 +78,13 @@ func SetRuntimeClient(client runtimeclient.Lookup) {
 	runtimeLookupClient = client
 }
 
-func populateReleaseDefaults(release *model.Release, image *imagedomain.Image, env string) {
+func populateReleaseDefaults(release *model.Release, image *imagedomain.Image, environmentID string) {
 	release.ApplicationID = image.ApplicationID
 	if release.Type == "" {
 		release.Type = model.ReleaseUpgrade
 	}
-	if release.Env == "" {
-		release.Env = env
+	if release.EnvironmentID == "" {
+		release.EnvironmentID = environmentID
 	}
 	release.Status = model.ReleasePending
 	if len(release.Steps) == 0 {
@@ -81,10 +92,99 @@ func populateReleaseDefaults(release *model.Release, image *imagedomain.Image, e
 	}
 }
 
+func releaseTargetEnvironment(release *model.Release) string {
+	if release == nil {
+		return ""
+	}
+	return strings.TrimSpace(release.EnvironmentID)
+}
+
+func newReleaseNetworkReader() releaseNetworkReader {
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	return appservicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
+}
+
+func newReleaseConfigReader() releaseConfigReader {
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	return appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
+}
+
+func selectReleaseRoutes(items []appservicedownstream.Route, environmentID string) []appservicedownstream.Route {
+	environmentID = strings.TrimSpace(environmentID)
+	out := make([]appservicedownstream.Route, 0, len(items))
+	for _, item := range items {
+		routeEnv := strings.TrimSpace(item.EnvironmentID)
+		switch {
+		case routeEnv == "":
+			out = append(out, item)
+		case routeEnv == "base":
+			out = append(out, item)
+		case environmentID != "" && routeEnv == environmentID:
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error {
+	if release == nil {
+		return nil
+	}
+	configReader := newReleaseConfigReader()
+	appConfig, err := configReader.FindAppConfig(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
+	if err != nil {
+		return err
+	}
+	if appConfig == nil || (len(appConfig.Files) == 0 && len(appConfig.RenderedConfigMap) == 0) {
+		return ErrReleaseAppConfigMissing
+	}
+	files := make([]model.ReleaseFile, 0, len(appConfig.Files))
+	for _, item := range appConfig.Files {
+		files = append(files, model.ReleaseFile{Name: item.Name, Content: item.Content})
+	}
+	data := make(map[string]string, len(appConfig.RenderedConfigMap))
+	for key, value := range appConfig.RenderedConfigMap {
+		data[key] = value
+	}
+	if len(data) == 0 {
+		for _, item := range appConfig.Files {
+			data[item.Name] = item.Content
+		}
+	}
+	release.AppConfigSnapshot = model.ReleaseAppConfig{
+		ID:           appConfig.ID,
+		Name:         appConfig.Name,
+		MountPath:    appConfig.MountPath,
+		Files:        files,
+		Data:         data,
+		SourcePath:   appConfig.SourcePath,
+		SourceCommit: appConfig.SourceCommit,
+	}
+
+	networkReader := newReleaseNetworkReader()
+	routes, err := networkReader.ListRoutes(ctx, release.ApplicationID.String())
+	if err != nil {
+		return err
+	}
+	selectedRoutes := selectReleaseRoutes(routes, releaseTargetEnvironment(release))
+	release.RoutesSnapshot = make([]model.ReleaseRoute, 0, len(selectedRoutes))
+	for _, item := range selectedRoutes {
+		release.RoutesSnapshot = append(release.RoutesSnapshot, model.ReleaseRoute{
+			ID:          item.ID,
+			Name:        item.Name,
+			Host:        item.Host,
+			Path:        item.Path,
+			ServiceName: item.ServiceName,
+			ServicePort: item.ServicePort,
+		})
+	}
+	return nil
+}
+
 func (s *releaseService) resolveReleaseEnvironment(ctx context.Context, release *model.Release, image *imagedomain.Image) (string, error) {
 	if image.RuntimeSpecRevisionID == nil || *image.RuntimeSpecRevisionID == uuid.Nil {
-		if strings.TrimSpace(release.Env) != "" {
-			return strings.TrimSpace(release.Env), nil
+		if strings.TrimSpace(release.EnvironmentID) != "" {
+			return strings.TrimSpace(release.EnvironmentID), nil
 		}
 		return "", ErrImageMissingRuntimeSpecRevision
 	}
@@ -99,8 +199,8 @@ func (s *releaseService) resolveReleaseEnvironment(ctx context.Context, release 
 	if spec.ApplicationID != image.ApplicationID {
 		return "", fmt.Errorf("%w: spec application=%s image application=%s", ErrRuntimeSpecBindingMismatch, spec.ApplicationID, image.ApplicationID)
 	}
-	if release.Env != "" && release.Env != spec.Environment {
-		return "", fmt.Errorf("%w: spec env=%s release env=%s", ErrRuntimeSpecBindingMismatch, spec.Environment, release.Env)
+	if release.EnvironmentID != "" && release.EnvironmentID != spec.Environment {
+		return "", fmt.Errorf("%w: spec env=%s release env=%s", ErrRuntimeSpecBindingMismatch, spec.Environment, release.EnvironmentID)
 	}
 	return spec.Environment, nil
 }
@@ -127,20 +227,19 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 	}
 	release.ApplicationID = manifest.ApplicationID
 	release.ImageID = manifest.ImageID
-	if strings.TrimSpace(release.Env) == "" {
-		release.Env = strings.TrimSpace(manifest.EnvironmentID)
-	}
-
 	image, err := imageservice.ImageService.Get(ctx, release.ImageID)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	env, err := s.resolveReleaseEnvironment(ctx, release, image)
+	environmentID, err := s.resolveReleaseEnvironment(ctx, release, image)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	populateReleaseDefaults(release, image, env)
+	populateReleaseDefaults(release, image, environmentID)
+	if err := freezeReleaseLiveInputs(ctx, release); err != nil {
+		return uuid.Nil, err
+	}
 	release.WithCreateDefault()
 	annotateReleaseSpan(ctx, release)
 	if err := s.repoStore().Insert(ctx, release); err != nil {
@@ -357,11 +456,7 @@ func (s *releaseService) syncArgo(ctx context.Context, release *model.Release) e
 	if err != nil {
 		return err
 	}
-	environmentID := strings.TrimSpace(release.Env)
-	if manifest != nil && strings.TrimSpace(manifest.EnvironmentID) != "" {
-		environmentID = strings.TrimSpace(manifest.EnvironmentID)
-	}
-	target, err := releasesupport.ResolveDeployTarget(ctx, release.ApplicationID.String(), environmentID)
+	target, err := releasesupport.ResolveDeployTarget(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
 	if err != nil {
 		return err
 	}
@@ -412,7 +507,7 @@ func annotateReleaseSpan(ctx context.Context, release *model.Release) {
 		attribute.String("release.type", release.Type),
 		attribute.String("application.id", release.ApplicationID.String()),
 		attribute.String("manifest.id", release.ManifestID.String()),
-		attribute.String("deployment.environment", strings.TrimSpace(release.Env)),
+		attribute.String("deployment.environment", strings.TrimSpace(release.EnvironmentID)),
 	}
 	if release.ImageID != uuid.Nil {
 		attrs = append(attrs, attribute.String("image.id", release.ImageID.String()))
@@ -476,8 +571,8 @@ func buildOCIApplicationSource(manifest *manifestdomain.Manifest) *appv1.Applica
 
 func buildRepoPluginApplicationSource(release *model.Release) *appv1.ApplicationSource {
 	manifestRepo := model.GetConfigRepo()
+	applicationID := release.ApplicationID.String()
 	imageID := release.ImageID.String()
-	manifestID := release.ManifestID.String()
 	releaseID := release.ID.String()
 	return &appv1.ApplicationSource{
 		RepoURL: manifestRepo.Address,
@@ -485,8 +580,8 @@ func buildRepoPluginApplicationSource(release *model.Release) *appv1.Application
 		Plugin: &appv1.ApplicationSourcePlugin{
 			Name: "plugin",
 			Parameters: []appv1.ApplicationSourcePluginParameter{
-				{Name: "env", String_: &release.Env},
-				{Name: "manifest-id", String_: &manifestID},
+				{Name: "env", String_: &release.EnvironmentID},
+				{Name: "application-id", String_: &applicationID},
 				{Name: "image-id", String_: &imageID},
 				{Name: "release-id", String_: &releaseID},
 			},

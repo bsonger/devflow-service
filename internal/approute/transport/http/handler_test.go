@@ -16,11 +16,11 @@ import (
 )
 
 type mockRouteService struct {
-	createFunc  func(ctx context.Context, route *domain.Route) (uuid.UUID, error)
-	getFunc     func(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error)
-	updateFunc  func(ctx context.Context, route *domain.Route) error
-	deleteFunc  func(ctx context.Context, applicationID, id uuid.UUID) error
-	listFunc    func(ctx context.Context, filter RouteListFilter) ([]domain.Route, error)
+	createFunc   func(ctx context.Context, route *domain.Route) (uuid.UUID, error)
+	getFunc      func(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error)
+	updateFunc   func(ctx context.Context, route *domain.Route) error
+	deleteFunc   func(ctx context.Context, applicationID, id uuid.UUID) error
+	listFunc     func(ctx context.Context, filter RouteListFilter) ([]domain.Route, error)
 	validateFunc func(ctx context.Context, route *domain.Route) []string
 }
 
@@ -80,8 +80,8 @@ func TestCreateRoute(t *testing.T) {
 	r := setupTestRouter(h)
 
 	appID := uuid.New()
-	reqBody, _ := json.Marshal(domain.RouteInput{Name: "test-route", Host: "example.com", Path: "/api", ServiceName: "svc", ServicePort: 80})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/applications/"+appID.String()+"/routes", bytes.NewReader(reqBody))
+	reqBody, _ := json.Marshal(domain.RouteInput{ApplicationID: appID, EnvironmentID: "staging", Name: "test-route", Host: "example.com", Path: "/api", ServiceName: "svc", ServicePort: 80})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/routes", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -101,7 +101,7 @@ func TestListRoutes(t *testing.T) {
 	h := NewHandler(routeSvc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/applications/"+appID.String()+"/routes", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/routes?application_id="+appID.String(), nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -120,8 +120,8 @@ func TestValidateRoute(t *testing.T) {
 	h := NewHandler(routeSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.RouteInput{Name: "test-route", Host: "example.com", Path: "/api", ServiceName: "svc", ServicePort: 80})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/applications/"+appID.String()+"/routes:validate", bytes.NewReader(reqBody))
+	reqBody, _ := json.Marshal(domain.RouteInput{ApplicationID: appID, EnvironmentID: "staging", Name: "test-route", Host: "example.com", Path: "/api", ServiceName: "svc", ServicePort: 80})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/routes:validate", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -151,8 +151,8 @@ func TestValidateRouteInvalid(t *testing.T) {
 	h := NewHandler(routeSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.RouteInput{Name: "test-route", Host: "example.com", Path: "/api", ServiceName: "missing", ServicePort: 80})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/applications/"+appID.String()+"/routes:validate", bytes.NewReader(reqBody))
+	reqBody, _ := json.Marshal(domain.RouteInput{ApplicationID: appID, EnvironmentID: "staging", Name: "test-route", Host: "example.com", Path: "/api", ServiceName: "missing", ServicePort: 80})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/routes:validate", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -186,7 +186,7 @@ func TestDeleteRouteNotFound(t *testing.T) {
 	h := NewHandler(routeSvc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/applications/"+appID.String()+"/routes/"+routeID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/routes/"+routeID.String()+"?application_id="+appID.String(), nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -196,7 +196,6 @@ func TestDeleteRouteNotFound(t *testing.T) {
 }
 
 func TestCreateRouteValidationError(t *testing.T) {
-	appID := uuid.New()
 	routeSvc := &mockRouteService{
 		createFunc: func(ctx context.Context, route *domain.Route) (uuid.UUID, error) {
 			return uuid.Nil, errors.New("name is required")
@@ -206,7 +205,7 @@ func TestCreateRouteValidationError(t *testing.T) {
 	r := setupTestRouter(h)
 
 	reqBody, _ := json.Marshal(domain.RouteInput{})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/applications/"+appID.String()+"/routes", bytes.NewReader(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/routes", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)

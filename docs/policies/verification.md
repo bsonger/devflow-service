@@ -20,7 +20,7 @@ bash scripts/verify.sh
 ```
 
 Local ad-hoc Docker image builds are intentionally outside the canonical proof stack.
-For service image packaging, rely on committed Tekton manifests under `deployments/tekton/` rather than a one-off local `docker build` command.
+For packaging-related changes, verify the root `Dockerfile` and `scripts/check-docker-policy.sh`; CI manifests are not part of the canonical verification contract.
 
 The repo-level convenience target for the same contract is:
 
@@ -28,11 +28,6 @@ The repo-level convenience target for the same contract is:
 make ci
 ```
 
-The matching CI workflow is:
-
-```text
-.github/workflows/ci.yml
-```
 
 ## Expectations
 

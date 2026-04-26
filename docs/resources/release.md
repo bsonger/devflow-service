@@ -9,8 +9,8 @@
 
 ## Purpose
 
-`Release` tracks an actual deployment attempt derived from a frozen manifest.
-It records the application, image, target environment, release type, execution steps, current status, and any external runtime or orchestrator reference used during rollout.
+`Release` tracks an actual deployment attempt derived from a packaged manifest artifact.
+它除了记录发布执行状态，还负责冻结 rollout 阶段真正使用的 `app_config` 与 `route` 视图。
 
 ## Common base fields
 
@@ -29,7 +29,9 @@ It records the application, image, target environment, release type, execution s
 | `application_id` | `uuid.UUID` | system-managed | no | 关联应用 ID |
 | `manifest_id` | `uuid.UUID` | required | user | 关联 manifest |
 | `image_id` | `uuid.UUID` | system-managed | no | 关联 image |
-| `env` | `string` | optional | user | 目标环境名 |
+| `environment_id` | `string` | required | user | 目标环境标识 |
+| `routes_snapshot` | `[]ReleaseRoute` | system-managed | no | release 创建时冻结的路由快照 |
+| `app_config_snapshot` | `ReleaseAppConfig` | system-managed | no | release 创建时冻结的应用配置快照 |
 | `type` | `string` | optional | user | 发布动作类型 |
 | `steps` | `[]ReleaseStep` | system-managed | no | 发布步骤 |
 | `status` | `ReleaseStatus` | system-managed | no | 发布状态 |
@@ -73,14 +75,16 @@ It records the application, image, target environment, release type, execution s
 ### Create
 - required fields:
   - `manifest_id`
+  - `environment_id`
 - optional fields:
-  - `env`
   - `type`
 - server-managed fields:
   - `id`
   - `application_id`
   - `image_id`
   - `execution_intent_id`
+  - `routes_snapshot`
+  - `app_config_snapshot`
   - `steps`
   - `status`
   - `external_ref`
@@ -99,6 +103,9 @@ It records the application, image, target environment, release type, execution s
 - invalid UUID path or query parameters return `invalid_argument`
 - missing records return `not_found`
 - create-time runtime or deploy-target readiness problems return `failed_precondition`
+- release 创建时会直接读取当前 config-service / network-service 数据，并冻结为自己的 `app_config_snapshot` 与 `routes_snapshot`
+- release rollout 解析目标环境时只使用 release 自身的 `environment_id`
+- 当 OCI manifest artifact 不可用时，repo plugin fallback 也应以 `release-id` 为主输入，而不是继续依赖旧的 `manifest-id` 语义
 - list endpoints support `application_id`, `manifest_id`, `image_id`, `status`, `type`, and `include_deleted`
 
 ## Source pointers

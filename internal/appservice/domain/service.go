@@ -18,6 +18,7 @@ type Service struct {
 }
 
 type ServiceInput struct {
-	Name  string        `json:"name"`
-	Ports []ServicePort `json:"ports,omitempty"`
+	ApplicationID uuid.UUID     `json:"application_id"`
+	Name          string        `json:"name"`
+	Ports         []ServicePort `json:"ports,omitempty"`
 }

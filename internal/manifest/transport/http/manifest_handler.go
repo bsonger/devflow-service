@@ -82,7 +82,6 @@ func (h *ManifestHandler) Create(c *gin.Context) {
 // @Tags Manifest
 // @Produce json
 // @Param application_id query string false "Application ID"
-// @Param environment_id query string false "Environment ID"
 // @Param image_id query string false "Image ID"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
@@ -98,9 +97,6 @@ func (h *ManifestHandler) List(c *gin.Context) {
 	}
 	if applicationID != nil {
 		filter.ApplicationID = applicationID
-	}
-	if value := c.Query("environment_id"); value != "" {
-		filter.EnvironmentID = &value
 	}
 	imageID, ok := httpx.ParseUUIDQuery(c, "image_id")
 	if !ok {

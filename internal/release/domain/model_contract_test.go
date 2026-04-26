@@ -9,7 +9,7 @@ import (
 
 func TestReleaseContract(t *testing.T) {
 	typ := reflect.TypeOf(Release{})
-	for _, field := range []string{"ExecutionIntentID", "ApplicationID", "ManifestID", "ImageID", "Env", "Type", "Status"} {
+	for _, field := range []string{"ExecutionIntentID", "ApplicationID", "ManifestID", "ImageID", "EnvironmentID", "RoutesSnapshot", "AppConfigSnapshot", "Type", "Status"} {
 		f, ok := typ.FieldByName(field)
 		if !ok {
 			t.Fatalf("Release missing field %s", field)

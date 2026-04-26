@@ -71,20 +71,11 @@ make ci
 ```
 
 Local ad-hoc Docker image builds are not part of the active verification or deployment contract.
-For non-default service images, rely on committed Tekton manifests instead:
-- `deployments/tekton/config-service-preproduction-build-pipelinerun.yaml`
-- `deployments/tekton/network-service-preproduction-build-pipelinerun.yaml`
-- `deployments/tekton/release-service-preproduction-build-pipelinerun.yaml`
-- `deployments/tekton/runtime-service-preproduction-build-pipelinerun.yaml`
+For packaging-related work, verify the root `Dockerfile` and Docker policy instead.
 
 Only runnable repo entrypoints under `cmd/` may be packaged this way.
 Current runnable entries are `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`.
 
-The matching automated workflow is:
-
-```text
-.github/workflows/ci.yml
-```
 
 ## What this verifier should not claim
 

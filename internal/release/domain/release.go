@@ -5,15 +5,42 @@ import "github.com/google/uuid"
 type Release struct {
 	BaseModel
 
-	ExecutionIntentID *uuid.UUID    `json:"execution_intent_id,omitempty" db:"execution_intent_id"`
-	ApplicationID     uuid.UUID     `json:"application_id" db:"application_id"`
-	ManifestID        uuid.UUID     `json:"manifest_id" db:"manifest_id"`
-	ImageID           uuid.UUID     `json:"image_id" db:"image_id"`
-	Env               string        `json:"env" db:"env"`
-	Type              string        `json:"type" db:"type"`
-	Steps             []ReleaseStep `json:"steps,omitempty" db:"steps"`
-	Status            ReleaseStatus `json:"status" db:"status"`
-	ExternalRef       string        `json:"external_ref,omitempty" db:"external_ref"`
+	ExecutionIntentID *uuid.UUID       `json:"execution_intent_id,omitempty" db:"execution_intent_id"`
+	ApplicationID     uuid.UUID        `json:"application_id" db:"application_id"`
+	ManifestID        uuid.UUID        `json:"manifest_id" db:"manifest_id"`
+	ImageID           uuid.UUID        `json:"image_id" db:"image_id"`
+	EnvironmentID     string           `json:"environment_id" db:"env"`
+	RoutesSnapshot    []ReleaseRoute   `json:"routes_snapshot,omitempty" db:"routes_snapshot"`
+	AppConfigSnapshot ReleaseAppConfig `json:"app_config_snapshot" db:"app_config_snapshot"`
+	Type              string           `json:"type" db:"type"`
+	Steps             []ReleaseStep    `json:"steps,omitempty" db:"steps"`
+	Status            ReleaseStatus    `json:"status" db:"status"`
+	ExternalRef       string           `json:"external_ref,omitempty" db:"external_ref"`
+}
+
+type ReleaseRoute struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name"`
+	Host        string `json:"host"`
+	Path        string `json:"path"`
+	ServiceName string `json:"service_name"`
+	ServicePort int    `json:"service_port"`
+}
+
+type ReleaseFile struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+type ReleaseAppConfig struct {
+	ID           string            `json:"id,omitempty"`
+	Name         string            `json:"name,omitempty"`
+	MountPath    string            `json:"mount_path,omitempty"`
+	Files        []ReleaseFile     `json:"files,omitempty"`
+	Data         map[string]string `json:"data,omitempty"`
+	SourcePath   string            `json:"source_path,omitempty"`
+	RevisionID   string            `json:"revision_id,omitempty"`
+	SourceCommit string            `json:"source_commit,omitempty"`
 }
 
 func (r *Release) CollectionName() string { return "releases" }

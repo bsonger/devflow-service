@@ -71,8 +71,8 @@ func TestCreateService(t *testing.T) {
 	r := setupTestRouter(h)
 
 	appID := uuid.New()
-	reqBody, _ := json.Marshal(domain.ServiceInput{Name: "test-svc", Ports: []domain.ServicePort{{ServicePort: 80}}})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/applications/"+appID.String()+"/services", bytes.NewReader(reqBody))
+	reqBody, _ := json.Marshal(domain.ServiceInput{ApplicationID: appID, Name: "test-svc", Ports: []domain.ServicePort{{ServicePort: 80}}})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/services", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -87,8 +87,7 @@ func TestCreateServiceInvalidApplicationID(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.ServiceInput{Name: "test-svc", Ports: []domain.ServicePort{{ServicePort: 80}}})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/applications/invalid-id/services", bytes.NewReader(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/services", bytes.NewBufferString(`{"application_id":"invalid-id","name":"test-svc","ports":[{"service_port":80}]}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -108,7 +107,7 @@ func TestListServices(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/applications/"+appID.String()+"/services", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/services?application_id="+appID.String(), nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -128,8 +127,8 @@ func TestUpdateService(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.ServiceInput{Name: "updated-svc", Ports: []domain.ServicePort{{ServicePort: 8080}}})
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/applications/"+appID.String()+"/services/"+svcID.String(), bytes.NewReader(reqBody))
+	reqBody, _ := json.Marshal(domain.ServiceInput{ApplicationID: appID, Name: "updated-svc", Ports: []domain.ServicePort{{ServicePort: 8080}}})
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/services/"+svcID.String(), bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -150,7 +149,7 @@ func TestDeleteService(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/applications/"+appID.String()+"/services/"+svcID.String(), nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/services/"+svcID.String()+"?application_id="+appID.String(), nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -158,4 +157,3 @@ func TestDeleteService(t *testing.T) {
 		t.Fatalf("expected 204, got %d", rec.Code)
 	}
 }
-

@@ -56,18 +56,17 @@ func (h *Handler) CreateWorkloadConfig(c *gin.Context) {
 		return
 	}
 	item := &domain.WorkloadConfig{
-		ApplicationID: req.ApplicationID,
-		EnvironmentID: req.EnvironmentID,
-		Name:          req.Name,
-		Description:   req.Description,
+		ApplicationID:      req.ApplicationID,
+		Name:               req.Name,
+		Description:        req.Description,
 		Replicas:           req.Replicas,
 		ServiceAccountName: req.ServiceAccountName,
 		Resources:          req.Resources,
-		Probes:        req.Probes,
-		Env:           req.Env,
-		Labels:        req.Labels,
-		WorkloadType:  req.WorkloadType,
-		Strategy:      req.Strategy,
+		Probes:             req.Probes,
+		Env:                req.Env,
+		Labels:             req.Labels,
+		WorkloadType:       req.WorkloadType,
+		Strategy:           req.Strategy,
 	}
 	item.WithCreateDefault()
 	if _, err := h.workloadConfigs.Create(c.Request.Context(), item); err != nil {
@@ -119,18 +118,17 @@ func (h *Handler) UpdateWorkloadConfig(c *gin.Context) {
 		return
 	}
 	item := &domain.WorkloadConfig{
-		ApplicationID: req.ApplicationID,
-		EnvironmentID: req.EnvironmentID,
-		Name:          req.Name,
-		Description:   req.Description,
+		ApplicationID:      req.ApplicationID,
+		Name:               req.Name,
+		Description:        req.Description,
 		Replicas:           req.Replicas,
 		ServiceAccountName: req.ServiceAccountName,
 		Resources:          req.Resources,
-		Probes:        req.Probes,
-		Env:           req.Env,
-		Labels:        req.Labels,
-		WorkloadType:  req.WorkloadType,
-		Strategy:      req.Strategy,
+		Probes:             req.Probes,
+		Env:                req.Env,
+		Labels:             req.Labels,
+		WorkloadType:       req.WorkloadType,
+		Strategy:           req.Strategy,
 	}
 	item.SetID(id)
 	if err := h.workloadConfigs.Update(c.Request.Context(), item); err != nil {
@@ -171,7 +169,6 @@ func (h *Handler) DeleteWorkloadConfig(c *gin.Context) {
 // @Tags WorkloadConfig
 // @Produce json
 // @Param application_id query string false "Application ID"
-// @Param environment_id query string false "Environment ID"
 // @Param name query string false "Name"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
@@ -186,7 +183,6 @@ func (h *Handler) ListWorkloadConfigs(c *gin.Context) {
 	if appID != nil {
 		filter.ApplicationID = appID
 	}
-	filter.EnvironmentID = c.Query("environment_id")
 	filter.Name = c.Query("name")
 	filter.IncludeDeleted = httpx.IncludeDeleted(c)
 	items, err := h.workloadConfigs.List(c.Request.Context(), filter)

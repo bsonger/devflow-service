@@ -29,18 +29,45 @@ type IntentDoc struct {
 }
 
 type ReleaseDoc struct {
-	ID                uuid.UUID        `json:"id"`
-	ExecutionIntentID *uuid.UUID       `json:"execution_intent_id,omitempty"`
-	ApplicationID     uuid.UUID        `json:"application_id"`
-	ManifestID        uuid.UUID        `json:"manifest_id"`
-	ImageID           uuid.UUID        `json:"image_id"`
-	Env               string           `json:"env"`
-	Type              string           `json:"type"`
-	Steps             []ReleaseStepDoc `json:"steps,omitempty"`
-	Status            string           `json:"status"`
-	ExternalRef       string           `json:"external_ref,omitempty"`
-	CreatedAt         string           `json:"created_at,omitempty"`
-	UpdatedAt         string           `json:"updated_at,omitempty"`
+	ID                uuid.UUID           `json:"id"`
+	ExecutionIntentID *uuid.UUID          `json:"execution_intent_id,omitempty"`
+	ApplicationID     uuid.UUID           `json:"application_id"`
+	ManifestID        uuid.UUID           `json:"manifest_id"`
+	ImageID           uuid.UUID           `json:"image_id"`
+	EnvironmentID     string              `json:"environment_id"`
+	RoutesSnapshot    []ReleaseRouteDoc   `json:"routes_snapshot,omitempty"`
+	AppConfigSnapshot ReleaseAppConfigDoc `json:"app_config_snapshot"`
+	Type              string              `json:"type"`
+	Steps             []ReleaseStepDoc    `json:"steps,omitempty"`
+	Status            string              `json:"status"`
+	ExternalRef       string              `json:"external_ref,omitempty"`
+	CreatedAt         string              `json:"created_at,omitempty"`
+	UpdatedAt         string              `json:"updated_at,omitempty"`
+}
+
+type ReleaseRouteDoc struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name"`
+	Host        string `json:"host"`
+	Path        string `json:"path"`
+	ServiceName string `json:"service_name"`
+	ServicePort int    `json:"service_port"`
+}
+
+type ReleaseFileDoc struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+type ReleaseAppConfigDoc struct {
+	ID           string            `json:"id,omitempty"`
+	Name         string            `json:"name,omitempty"`
+	MountPath    string            `json:"mount_path,omitempty"`
+	Files        []ReleaseFileDoc  `json:"files,omitempty"`
+	Data         map[string]string `json:"data,omitempty"`
+	SourcePath   string            `json:"source_path,omitempty"`
+	RevisionID   string            `json:"revision_id,omitempty"`
+	SourceCommit string            `json:"source_commit,omitempty"`
 }
 
 type ManifestServicePortDoc struct {
@@ -122,7 +149,6 @@ type ManifestGroupedResourcesDoc struct {
 type ManifestResourcesViewDoc struct {
 	ManifestID      uuid.UUID                     `json:"manifest_id"`
 	ApplicationID   uuid.UUID                     `json:"application_id"`
-	EnvironmentID   string                        `json:"environment_id"`
 	Resources       ManifestGroupedResourcesDoc   `json:"resources"`
 	RenderedObjects []ManifestRenderedResourceDoc `json:"rendered_objects,omitempty"`
 }
@@ -130,7 +156,6 @@ type ManifestResourcesViewDoc struct {
 type ManifestDoc struct {
 	ID                     uuid.UUID                   `json:"id"`
 	ApplicationID          uuid.UUID                   `json:"application_id"`
-	EnvironmentID          string                      `json:"environment_id"`
 	ImageID                uuid.UUID                   `json:"image_id"`
 	ImageRef               string                      `json:"image_ref"`
 	ArtifactRepository     string                      `json:"artifact_repository,omitempty"`
@@ -140,8 +165,6 @@ type ManifestDoc struct {
 	ArtifactMediaType      string                      `json:"artifact_media_type,omitempty"`
 	ArtifactPushedAt       string                      `json:"artifact_pushed_at,omitempty"`
 	ServicesSnapshot       []ManifestServiceDoc        `json:"services_snapshot"`
-	RoutesSnapshot         []ManifestRouteDoc          `json:"routes_snapshot"`
-	AppConfigSnapshot      ManifestAppConfigDoc        `json:"app_config_snapshot"`
 	WorkloadConfigSnapshot ManifestWorkloadConfigDoc   `json:"workload_config_snapshot"`
 	RenderedObjects        []ManifestRenderedObjectDoc `json:"rendered_objects"`
 	RenderedYAML           string                      `json:"rendered_yaml"`
@@ -168,6 +191,5 @@ type ReleaseStepRequest struct {
 
 type CreateManifestRequestDoc struct {
 	ApplicationID string `json:"application_id"`
-	EnvironmentID string `json:"environment_id"`
 	ImageID       string `json:"image_id"`
 }

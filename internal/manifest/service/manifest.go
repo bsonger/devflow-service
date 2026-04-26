@@ -28,6 +28,8 @@ var (
 	ErrManifestImageRepositoryMissing   = sharederrs.FailedPrecondition("image repository is not deployable")
 )
 
+const defaultManifestEnvironmentID = "base"
+
 var ManifestService = NewManifestService()
 
 type manifestImageReader interface {
@@ -73,7 +75,7 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 		zap.String("resource", "manifest"),
 		zap.String("result", "started"),
 		zap.String("application_id", req.ApplicationID.String()),
-		zap.String("environment_id", req.EnvironmentID),
+		zap.String("environment_id", defaultManifestEnvironmentID),
 		zap.String("image_id", req.ImageID.String()),
 	)
 
@@ -89,18 +91,18 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	if image.ApplicationID != req.ApplicationID {
 		return nil, ErrManifestImageApplicationMismatch
 	}
-	target, err := releasesupport.ResolveDeployTarget(ctx, req.ApplicationID.String(), req.EnvironmentID)
+	target, err := releasesupport.ResolveDeployTarget(ctx, req.ApplicationID.String(), defaultManifestEnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	appConfig, err := configs.FindAppConfig(ctx, req.ApplicationID.String(), req.EnvironmentID)
+	appConfig, err := configs.FindAppConfig(ctx, req.ApplicationID.String(), defaultManifestEnvironmentID)
 	if err != nil {
 		return nil, err
 	}
 	if appConfig == nil || (len(appConfig.Files) == 0 && len(appConfig.RenderedConfigMap) == 0) {
 		return nil, ErrManifestAppConfigMissing
 	}
-	workloadConfig, err := configs.FindWorkloadConfig(ctx, req.ApplicationID.String(), req.EnvironmentID)
+	workloadConfig, err := configs.FindWorkloadConfig(ctx, req.ApplicationID.String(), defaultManifestEnvironmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +202,6 @@ func buildManifestResourcesView(item *manifestdomain.Manifest) (*manifestdomain.
 	view := &manifestdomain.ManifestResourcesView{
 		ManifestID:      item.ID,
 		ApplicationID:   item.ApplicationID,
-		EnvironmentID:   item.EnvironmentID,
 		Resources:       manifestdomain.ManifestGroupedResources{Services: []manifestdomain.ManifestRenderedResource{}},
 		RenderedObjects: make([]manifestdomain.ManifestRenderedResource, 0, len(item.RenderedObjects)),
 	}
@@ -310,18 +311,16 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, image *imagedomain
 	}
 
 	configMapName := configMapResourceName(appConfigSnapshot, applicationName)
-	renderedObjects, err := renderManifestObjects(namespace, applicationName, req.ApplicationID.String(), req.EnvironmentID, configMapName, appConfigSnapshot, workloadSnapshot, servicesSnapshot, routesSnapshot, imageRef, annotations)
+	renderedObjects, err := renderManifestObjects(namespace, applicationName, req.ApplicationID.String(), defaultManifestEnvironmentID, configMapName, appConfigSnapshot, workloadSnapshot, servicesSnapshot, routesSnapshot, imageRef, annotations)
 	if err != nil {
 		return nil, err
 	}
 	return &manifestdomain.Manifest{
 		ApplicationID:          req.ApplicationID,
-		EnvironmentID:          req.EnvironmentID,
+		EnvironmentID:          defaultManifestEnvironmentID,
 		ImageID:                req.ImageID,
 		ImageRef:               imageRef,
 		ServicesSnapshot:       servicesSnapshot,
-		RoutesSnapshot:         routesSnapshot,
-		AppConfigSnapshot:      appConfigSnapshot,
 		WorkloadConfigSnapshot: workloadSnapshot,
 		RenderedObjects:        renderedObjects,
 		RenderedYAML:           joinRenderedYAML(renderedObjects),

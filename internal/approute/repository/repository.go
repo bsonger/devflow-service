@@ -14,6 +14,7 @@ import (
 
 type ListFilter struct {
 	ApplicationID  uuid.UUID
+	EnvironmentID  string
 	IncludeDeleted bool
 	Name           string
 }
@@ -35,9 +36,9 @@ func NewPostgresStore() Store {
 func (s *PostgresStore) Create(ctx context.Context, item *domain.Route) (uuid.UUID, error) {
 	_, err := db.Postgres().ExecContext(ctx, `
 		insert into routes (
-			id, application_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, item.ID, dbsql.NullableUUID(item.ApplicationID), item.Name, item.Host, item.Path, item.ServiceName, item.ServicePort, item.CreatedAt, item.UpdatedAt, item.DeletedAt)
+			id, application_id, environment_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+	`, item.ID, dbsql.NullableUUID(item.ApplicationID), item.EnvironmentID, item.Name, item.Host, item.Path, item.ServiceName, item.ServicePort, item.CreatedAt, item.UpdatedAt, item.DeletedAt)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -46,7 +47,7 @@ func (s *PostgresStore) Create(ctx context.Context, item *domain.Route) (uuid.UU
 
 func (s *PostgresStore) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error) {
 	return scanRoute(db.Postgres().QueryRowContext(ctx, `
-		select id, application_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
+		select id, application_id, environment_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
 		from routes
 		where application_id = $1 and id = $2 and deleted_at is null
 	`, applicationID, id))
@@ -62,9 +63,9 @@ func (s *PostgresStore) Update(ctx context.Context, item *domain.Route) error {
 	item.WithUpdateDefault()
 	result, err := db.Postgres().ExecContext(ctx, `
 		update routes
-		set name=$3, host=$4, path=$5, service_name=$6, service_port=$7, updated_at=$8
+		set environment_id=$3, name=$4, host=$5, path=$6, service_name=$7, service_port=$8, updated_at=$9
 		where application_id=$1 and id=$2 and deleted_at is null
-	`, item.ApplicationID, item.ID, item.Name, item.Host, item.Path, item.ServiceName, item.ServicePort, item.UpdatedAt)
+	`, item.ApplicationID, item.ID, item.EnvironmentID, item.Name, item.Host, item.Path, item.ServiceName, item.ServicePort, item.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -85,11 +86,15 @@ func (s *PostgresStore) Delete(ctx context.Context, applicationID, id uuid.UUID)
 
 func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.Route, error) {
 	query := `
-		select id, application_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
+		select id, application_id, environment_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
 		from routes
 	`
 	clauses := []string{"application_id = $1"}
 	args := []any{filter.ApplicationID}
+	if filter.EnvironmentID != "" {
+		args = append(args, filter.EnvironmentID)
+		clauses = append(clauses, dbsql.PlaceholderClause("environment_id", len(args)))
+	}
 	if !filter.IncludeDeleted {
 		clauses = append(clauses, "deleted_at is null")
 	}
@@ -118,9 +123,10 @@ func scanRoute(scanner interface{ Scan(dest ...any) error }) (*domain.Route, err
 	var (
 		item          domain.Route
 		applicationID sql.NullString
+		environmentID sql.NullString
 		deletedAt     sql.NullTime
 	)
-	if err := scanner.Scan(&item.ID, &applicationID, &item.Name, &item.Host, &item.Path, &item.ServiceName, &item.ServicePort, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&item.ID, &applicationID, &environmentID, &item.Name, &item.Host, &item.Path, &item.ServiceName, &item.ServicePort, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
 	applicationUUID, err := dbsql.ParseNullUUID(applicationID)
@@ -130,6 +136,7 @@ func scanRoute(scanner interface{ Scan(dest ...any) error }) (*domain.Route, err
 	if applicationUUID != nil {
 		item.ApplicationID = *applicationUUID
 	}
+	item.EnvironmentID = environmentID.String
 	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	return &item, nil
 }

@@ -9,7 +9,7 @@ Use this file as the repo-local summary for where release-owned behavior now liv
 - `Image`
 - `Release`
 - `Intent`
-- build and release lifecycle records around frozen manifest snapshots and OCI deployment artifacts
+- build and release lifecycle records around manifest OCI deployment artifacts plus release-owned rollout snapshots
 - verify ingress and verification writeback responsibilities that were previously modeled as `verify-service`
 
 ## Does Not Own

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
@@ -22,13 +23,13 @@ func TestPopulateReleaseDefaultsPreservesProvidedEnv(t *testing.T) {
 	imageID := uuid.New()
 	manifestID := uuid.New()
 	appID := uuid.New()
-	release := &model.Release{ManifestID: manifestID, ImageID: imageID, Env: "staging"}
+	release := &model.Release{ManifestID: manifestID, ImageID: imageID, EnvironmentID: "staging"}
 	image := &imagedomain.Image{BaseModel: model.BaseModel{ID: imageID}, Name: "demo-main", ApplicationID: appID}
 
 	populateReleaseDefaults(release, image, "prod")
 
-	if release.Env != "staging" {
-		t.Fatalf("got env %s want staging", release.Env)
+	if release.EnvironmentID != "staging" {
+		t.Fatalf("got env %s want staging", release.EnvironmentID)
 	}
 }
 
@@ -41,8 +42,8 @@ func TestPopulateReleaseDefaultsFallsBackToProd(t *testing.T) {
 
 	populateReleaseDefaults(release, image, "prod")
 
-	if release.Env != "prod" {
-		t.Fatalf("got env %s want prod", release.Env)
+	if release.EnvironmentID != "prod" {
+		t.Fatalf("got env %s want prod", release.EnvironmentID)
 	}
 	if release.Type != model.ReleaseUpgrade {
 		t.Fatalf("got type %s want %s", release.Type, model.ReleaseUpgrade)
@@ -81,9 +82,9 @@ func TestResolveReleaseEnvironmentFallsBackToReleaseEnvWhenRuntimeSpecRevisionID
 	svc := &releaseService{}
 	image := &imagedomain.Image{ApplicationID: uuid.New()}
 	release := &model.Release{
-		ManifestID: uuid.New(),
-		ImageID:    uuid.New(),
-		Env:        "staging",
+		ManifestID:    uuid.New(),
+		ImageID:       uuid.New(),
+		EnvironmentID: "staging",
 	}
 
 	env, err := svc.resolveReleaseEnvironment(context.Background(), release, image)
@@ -120,5 +121,33 @@ func TestCreateReleaseRejectsManifestThatIsNotReady(t *testing.T) {
 	}
 	if err != ErrReleaseManifestNotReady {
 		t.Fatalf("got err %v want %v", err, ErrReleaseManifestNotReady)
+	}
+}
+
+func TestReleaseTargetEnvironmentUsesReleaseEnvironmentOnly(t *testing.T) {
+	release := &model.Release{EnvironmentID: "  staging "}
+
+	got := releaseTargetEnvironment(release)
+
+	if got != "staging" {
+		t.Fatalf("releaseTargetEnvironment() = %q want staging", got)
+	}
+}
+
+func TestSelectReleaseRoutesIncludesBaseAndTargetEnvironment(t *testing.T) {
+	routes := []appservicedownstream.Route{
+		{Name: "base", EnvironmentID: "base"},
+		{Name: "target", EnvironmentID: "staging"},
+		{Name: "other", EnvironmentID: "prod"},
+		{Name: "empty", EnvironmentID: ""},
+	}
+
+	got := selectReleaseRoutes(routes, "staging")
+
+	if len(got) != 3 {
+		t.Fatalf("len(selectReleaseRoutes) = %d want 3", len(got))
+	}
+	if got[0].Name != "base" || got[1].Name != "target" || got[2].Name != "empty" {
+		t.Fatalf("unexpected selected routes: %+v", got)
 	}
 }

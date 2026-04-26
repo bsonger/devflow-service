@@ -48,9 +48,9 @@ func (h *ReleaseHandler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 type CreateReleaseRequest struct {
-	ManifestID uuid.UUID `json:"manifest_id"`
-	Env        string    `json:"env,omitempty"`
-	Type       string    `json:"type,omitempty"`
+	ManifestID    uuid.UUID `json:"manifest_id"`
+	EnvironmentID string    `json:"environment_id"`
+	Type          string    `json:"type,omitempty"`
 }
 
 // Create
@@ -68,14 +68,14 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 		return
 	}
 	release := &model.Release{
-		ManifestID: req.ManifestID,
-		Env:        req.Env,
-		Type:       req.Type,
+		ManifestID:    req.ManifestID,
+		EnvironmentID: req.EnvironmentID,
+		Type:          req.Type,
 	}
 	release.WithCreateDefault()
 	_, err := h.svc.Create(c.Request.Context(), release)
 	if err != nil {
-		if errors.Is(err, service.ErrImageMissingRuntimeSpecRevision) || errors.Is(err, service.ErrRuntimeSpecBindingMismatch) || errors.Is(err, service.ErrReleaseManifestNotReady) || errors.Is(err, runtimeclient.ErrRuntimeServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
+		if errors.Is(err, service.ErrImageMissingRuntimeSpecRevision) || errors.Is(err, service.ErrRuntimeSpecBindingMismatch) || errors.Is(err, service.ErrReleaseManifestNotReady) || errors.Is(err, service.ErrReleaseAppConfigMissing) || errors.Is(err, runtimeclient.ErrRuntimeServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
 			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 			return
 		}

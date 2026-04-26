@@ -56,7 +56,7 @@ func TestCreateReleaseReturnsEnvelope(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/releases", handler.Create)
 
-	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","env":"prod","type":"upgrade"}`)
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","type":"upgrade"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestCreateReleaseReturnsEnvelope(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ManifestID == uuid.Nil || payload.Data.Env != "prod" {
+	if payload.Data.ManifestID == uuid.Nil || payload.Data.EnvironmentID != "prod" {
 		t.Fatalf("unexpected payload: %#v", payload.Data)
 	}
 }

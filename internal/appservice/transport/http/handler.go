@@ -32,7 +32,7 @@ func NewHandler(services serviceService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	services := rg.Group("/applications/:id/services")
+	services := rg.Group("/services")
 	{
 		services.GET("", h.ListServices)
 		services.POST("", h.CreateService)
@@ -48,20 +48,16 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Tags Service
 // @Accept json
 // @Produce json
-// @Param application_id path string true "Application ID"
+// @Param data body domain.ServiceInput true "Service data"
 // @Param data body domain.ServiceInput true "Service data"
 // @Success 201 {object} httpx.DataResponse[domain.Service]
-// @Router /api/v1/applications/{application_id}/services [post]
+// @Router /api/v1/services [post]
 func (h *Handler) CreateService(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
 	var req domain.ServiceInput
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	item := &domain.Service{ApplicationID: applicationID, Name: req.Name, Ports: req.Ports}
+	item := &domain.Service{ApplicationID: req.ApplicationID, Name: req.Name, Ports: req.Ports}
 	item.WithCreateDefault()
 	if _, err := h.services.Create(c.Request.Context(), item); err != nil {
 		httpx.WriteInvalidArgument(c, err.Error())
@@ -74,23 +70,26 @@ func (h *Handler) CreateService(c *gin.Context) {
 // @Summary List application services
 // @Tags Service
 // @Produce json
-// @Param application_id path string true "Application ID"
+// @Param application_id query string false "Application ID"
 // @Param name query string false "Service name"
 // @Param include_deleted query bool false "Include deleted items"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
 // @Success 200 {object} httpx.ListResponse[domain.Service]
-// @Router /api/v1/applications/{application_id}/services [get]
+// @Router /api/v1/services [get]
 func (h *Handler) ListServices(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
 	if !ok {
 		return
 	}
-	items, err := h.services.List(c.Request.Context(), ServiceListFilter{
-		ApplicationID:  applicationID,
+	filter := ServiceListFilter{
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
-	})
+	}
+	if applicationID != nil {
+		filter.ApplicationID = *applicationID
+	}
+	items, err := h.services.List(c.Request.Context(), filter)
 	if err != nil {
 		httpx.WriteInternalError(c, err)
 		return
@@ -103,13 +102,12 @@ func (h *Handler) ListServices(c *gin.Context) {
 // @Tags Service
 // @Accept json
 // @Produce json
-// @Param application_id path string true "Application ID"
 // @Param service_id path string true "Service ID"
 // @Param data body domain.ServiceInput true "Service data"
 // @Success 204
-// @Router /api/v1/applications/{application_id}/services/{service_id} [patch]
+// @Router /api/v1/services/{service_id} [patch]
 func (h *Handler) UpdateService(c *gin.Context) {
-	applicationID, id, ok := parseApplicationAndResourceID(c, "service_id")
+	id, ok := httpx.ParseUUIDParam(c, "service_id")
 	if !ok {
 		return
 	}
@@ -117,7 +115,7 @@ func (h *Handler) UpdateService(c *gin.Context) {
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	item := &domain.Service{ApplicationID: applicationID, Name: req.Name, Ports: req.Ports}
+	item := &domain.Service{ApplicationID: req.ApplicationID, Name: req.Name, Ports: req.Ports}
 	item.SetID(id)
 	if err := h.services.Update(c.Request.Context(), item); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -133,16 +131,23 @@ func (h *Handler) UpdateService(c *gin.Context) {
 // DeleteService godoc
 // @Summary Delete application service
 // @Tags Service
-// @Param application_id path string true "Application ID"
 // @Param service_id path string true "Service ID"
 // @Success 204
-// @Router /api/v1/applications/{application_id}/services/{service_id} [delete]
+// @Param application_id query string true "Application ID"
+// @Router /api/v1/services/{service_id} [delete]
 func (h *Handler) DeleteService(c *gin.Context) {
-	applicationID, id, ok := parseApplicationAndResourceID(c, "service_id")
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok || applicationID == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "invalid application_id")
+		}
+		return
+	}
+	id, ok := httpx.ParseUUIDParam(c, "service_id")
 	if !ok {
 		return
 	}
-	if err := h.services.Delete(c.Request.Context(), applicationID, id); err != nil {
+	if err := h.services.Delete(c.Request.Context(), *applicationID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteNotFound(c, "not found")
 			return
@@ -151,16 +156,4 @@ func (h *Handler) DeleteService(c *gin.Context) {
 		return
 	}
 	httpx.WriteNoContent(c)
-}
-
-func parseApplicationAndResourceID(c *gin.Context, key string) (uuid.UUID, uuid.UUID, bool) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return uuid.Nil, uuid.Nil, false
-	}
-	id, ok := httpx.ParseUUIDParam(c, key)
-	if !ok {
-		return uuid.Nil, uuid.Nil, false
-	}
-	return applicationID, id, true
 }

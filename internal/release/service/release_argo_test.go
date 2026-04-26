@@ -18,7 +18,7 @@ func TestBuildArgoApplicationUsesManifestOCIArtifactWhenPresent(t *testing.T) {
 		ApplicationID: uuid.New(),
 		ManifestID:    uuid.New(),
 		ImageID:       uuid.New(),
-		Env:           "staging",
+		EnvironmentID: "staging",
 	}
 	manifest := &manifestdomain.Manifest{
 		BaseModel:          model.BaseModel{ID: release.ManifestID},
@@ -63,7 +63,7 @@ func TestBuildArgoApplicationFallsBackToRepoPluginWithoutArtifact(t *testing.T) 
 		ApplicationID: uuid.New(),
 		ManifestID:    uuid.New(),
 		ImageID:       uuid.New(),
-		Env:           "production",
+		EnvironmentID: "production",
 	}
 	manifest := &manifestdomain.Manifest{BaseModel: model.BaseModel{ID: release.ManifestID}}
 	target := releasesupport.DeployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
@@ -84,6 +84,21 @@ func TestBuildArgoApplicationFallsBackToRepoPluginWithoutArtifact(t *testing.T) 
 	}
 	if len(app.Spec.Source.Plugin.Parameters) != 4 {
 		t.Fatalf("plugin parameters = %d", len(app.Spec.Source.Plugin.Parameters))
+	}
+	got := map[string]string{}
+	for _, item := range app.Spec.Source.Plugin.Parameters {
+		if item.String_ != nil {
+			got[item.Name] = *item.String_
+		}
+	}
+	if _, ok := got["manifest-id"]; ok {
+		t.Fatalf("unexpected legacy manifest-id parameter: %+v", got)
+	}
+	if got["application-id"] != release.ApplicationID.String() {
+		t.Fatalf("application-id = %q want %q", got["application-id"], release.ApplicationID.String())
+	}
+	if got["release-id"] != release.ID.String() {
+		t.Fatalf("release-id = %q want %q", got["release-id"], release.ID.String())
 	}
 	if app.Spec.Destination.Namespace != target.Namespace {
 		t.Fatalf("namespace = %q", app.Spec.Destination.Namespace)

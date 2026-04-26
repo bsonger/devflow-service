@@ -7,6 +7,15 @@ metadata:
     environment: pre-production
 ---
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: meta-service
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: meta-service
+    app.kubernetes.io/part-of: devflow
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: meta-service-config
@@ -74,6 +83,7 @@ spec:
         app.kubernetes.io/name: meta-service
         app.kubernetes.io/part-of: devflow
     spec:
+      serviceAccountName: meta-service
       containers:
         - name: meta-service
           image: registry.cn-hangzhou.aliyuncs.com/devflow/meta-service:preproduction

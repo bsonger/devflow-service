@@ -19,8 +19,6 @@ func TestManifestContract(t *testing.T) {
 		"ArtifactMediaType",
 		"ArtifactPushedAt",
 		"ServicesSnapshot",
-		"RoutesSnapshot",
-		"AppConfigSnapshot",
 		"WorkloadConfigSnapshot",
 		"RenderedObjects",
 		"RenderedYAML",

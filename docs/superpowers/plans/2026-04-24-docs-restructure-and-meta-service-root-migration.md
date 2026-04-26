@@ -449,3 +449,163 @@ Type consistency:
 - service name is consistently `meta-service`
 - root build target is consistently `./cmd/meta-service`
 - infrastructure destination is consistently `internal/platform/*`
+
+## Follow-up backlog
+
+- manifest/image ownership migration:
+  - move image packaging ownership into the manifest flow
+  - after image handling is absorbed by manifest, remove the now-obsolete legacy manifest path/logic that existed before the migration
+  - keep manifest responsible for freezing deployment inputs after image packaging completes
+  - manifest snapshots must include at least:
+    - `workload_config_snapshot`
+    - `services_snapshot`
+
+### Suggested implementation checklist
+
+1. manifest becomes the packaging entry
+   - make manifest creation the place that resolves the deployable image reference or artifact
+   - define one authoritative manifest input contract for image selection and packaging output
+   - ensure release creation consumes the manifest-owned packaged result instead of re-deriving image packaging state elsewhere
+
+2. collapse legacy manifest logic
+   - identify the pre-migration manifest path that overlaps with the new manifest-owned packaging flow
+   - delete duplicate assembly logic once the manifest-owned path produces equivalent output
+   - keep only one manifest rendering and artifact publishing path in `internal/manifest`
+
+3. freeze snapshots during manifest creation
+   - persist `workload_config_snapshot`
+   - persist `services_snapshot`
+   - keep existing route/app-config snapshots aligned with the same freeze point when still needed by rendering
+   - make snapshot capture happen before release dispatch so later resource changes do not mutate the already-created manifest
+
+4. move the remaining old manifest responsibilities to release where appropriate
+   - migrate the legacy manifest-side freeze logic for:
+     - `app_config_snapshot`
+     - `routes_snapshot`
+   - make `release` the owner of the final frozen deployment payload assembly boundary when that better matches the current runtime contract
+   - keep manifest/release ownership explicit so snapshot freeze does not happen twice in competing paths
+
+5. YAML packaging and OCI upload contract
+   - the frozen rendered YAML must be packaged as an OCI artifact
+   - the OCI upload step and resulting artifact reference must be part of the manifest/release-owned contract, not an implicit side effect
+   - docs and code should clearly state which layer:
+     - renders YAML
+     - packages YAML
+     - uploads OCI
+     - stores the final artifact reference
+
+### Proposed ownership boundary
+
+| Concern | Owner | Notes |
+|---|---|---|
+| resolve image input | `manifest` | manifest entry decides which deployable image/artifact is being packaged |
+| freeze `workload_config_snapshot` | `manifest` | frozen at manifest creation time |
+| freeze `services_snapshot` | `manifest` | frozen at manifest creation time |
+| freeze `app_config_snapshot` | `release` | migrated from old manifest-side logic |
+| freeze `routes_snapshot` | `release` | migrated from old manifest-side logic |
+| render deployment YAML | `manifest` | rendering contract should stay singular |
+| package rendered YAML | `manifest` | produces the OCI payload boundary |
+| upload OCI artifact | `manifest` | upload should not be hidden in a second path |
+| persist artifact reference/digest | `manifest` | stored on the manifest record |
+| consume frozen artifact for rollout | `release` | release should consume, not rebuild |
+| execute runtime rollout / writeback | `release` | release remains rollout owner |
+
+Boundary rule:
+- `manifest` should own packaging-time assembly and OCI artifact publication
+- `release` should own rollout-time freeze responsibilities that remain outside the manifest packaging boundary
+- no resource should be frozen twice by both layers for the same purpose
+
+### Likely code touchpoints
+
+Manifest-owned work will likely land in:
+- `internal/manifest/service/manifest.go`
+- `internal/manifest/service/manifest_artifact.go`
+- `internal/manifest/service/manifest_renderer.go`
+- `internal/manifest/domain/manifest.go`
+- `internal/manifest/repository/repository.go`
+- `internal/manifest/transport/http/manifest_handler.go`
+- `docs/resources/manifest.md`
+
+Release-owned migrated freeze work will likely land in:
+- `internal/release/service/release.go`
+- `internal/release/domain/release.go`
+- `internal/release/repository/repository.go`
+- `internal/release/transport/http/release_handler.go`
+- `docs/resources/release.md`
+- `docs/services/release-service.md`
+
+Downstream readers affected by the boundary split will likely land in:
+- `internal/appconfig/transport/downstream/config_manifest.go`
+- `internal/appservice/transport/downstream/service.go`
+- `internal/release/support/deploy_target.go`
+
+Verification and contract sync will likely land in:
+- `internal/manifest/service/*_test.go`
+- `internal/release/service/*_test.go`
+- `internal/release/transport/http/*_test.go`
+- `api/openapi/docs.go`
+- `api/openapi/swagger.json`
+- `api/openapi/swagger.yaml`
+
+### Suggested execution phases
+
+#### Phase 1 — make ownership explicit without changing rollout behavior
+- rename and document the intended boundaries first
+- ensure manifest remains the only YAML render + OCI publish path
+- add or update tests that lock current packaged artifact behavior
+
+Exit gate:
+- one code path renders YAML
+- one code path publishes OCI
+- docs clearly say who owns what
+
+#### Phase 2 — migrate freeze responsibilities
+- move `app_config_snapshot` freeze logic into `release`
+- move `routes_snapshot` freeze logic into `release`
+- keep `workload_config_snapshot` and `services_snapshot` in `manifest`
+- prove no duplicate freeze happens in both layers
+
+Exit gate:
+- manifest and release each freeze only their assigned resources
+- test coverage shows deterministic snapshot capture
+
+#### Phase 3 — remove obsolete legacy manifest logic
+- delete superseded assembly branches
+- remove stale fields/helpers that only existed for the old path
+- simplify docs and handlers to the new single flow
+
+Exit gate:
+- no dead alternate manifest flow remains
+- code and docs describe the same single path
+
+#### Phase 4 — final contract hardening
+- regenerate OpenAPI
+- re-check docs/resources and service docs
+- verify release consumes frozen manifest artifact instead of rebuilding mutable state
+
+Exit gate:
+- `go test ./...`
+- `bash scripts/verify.sh`
+- no doc/API drift remains
+
+6. tighten API and docs contract
+   - document that manifest owns the packaged deployment artifact
+   - document which upstream resources are snapshotted into the manifest
+   - document which legacy freeze responsibilities moved to `release`
+   - document that rendered YAML is packaged and uploaded as OCI
+   - remove docs that imply image packaging and manifest freezing are separate user-facing workflows if that is no longer true
+
+7. verification expectations
+   - add tests proving manifest creation captures the expected snapshots
+   - add tests proving release-side migrated freeze logic still captures `appconfig` and `route` deterministically
+   - add tests proving rendered YAML is packaged and uploaded as OCI with the stored artifact reference
+   - add tests proving release uses manifest-frozen data rather than reloading mutable live config
+   - keep `docs/resources/manifest.md`, `internal/manifest/service`, and OpenAPI generated artifacts in sync
+
+### Acceptance target
+
+- one clear flow: image input -> manifest packaging -> snapshot freeze -> release consume
+- no duplicated old/new manifest assembly paths remain
+- manifest record is sufficient to replay or inspect the frozen deployment payload without re-querying mutable live config for the core packaged result
+- release-owned migrated freeze responsibilities are explicit and non-duplicated
+- rendered YAML OCI packaging/upload ownership is explicit in both code and docs

@@ -134,26 +134,14 @@ bash scripts/verify.sh
 ```
 
 Local ad-hoc Docker image builds are intentionally **not** part of that proof stack.
-Service image selection belongs in committed Tekton manifests such as:
+When packaging work is involved, validate the root `Dockerfile` and Docker policy instead.
 
-```text
-deployments/tekton/config-service-preproduction-build-pipelinerun.yaml
-deployments/tekton/network-service-preproduction-build-pipelinerun.yaml
-deployments/tekton/release-service-preproduction-build-pipelinerun.yaml
-deployments/tekton/runtime-service-preproduction-build-pipelinerun.yaml
-```
-
-The repo-level automation entrypoint for the same stack is:
+The repo-level convenience entrypoint for the same stack is:
 
 ```sh
 make ci
 ```
 
-The matching CI workflow lives at:
-
-```text
-.github/workflows/ci.yml
-```
 
 For the detailed Go monorepo layout contract, read:
 

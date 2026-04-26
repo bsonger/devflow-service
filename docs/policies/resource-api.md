@@ -41,10 +41,16 @@ Preferred resource surface:
 - `PUT` or `PATCH /api/v1/<resources>/{id}` for update
 - `DELETE /api/v1/<resources>/{id}` for soft delete when deletion is supported
 
-Nested resources may use parent-bound paths when ownership is path-scoped, such as:
+Default rule: do not add `/applications/{application_id}` to resource paths.
 
-- `/api/v1/applications/{application_id}/services`
-- `/api/v1/applications/{application_id}/routes`
+Prefer flat resources plus explicit `application_id` in request body or query filters, such as:
+
+- `POST /api/v1/services` with `application_id` in body
+- `GET /api/v1/services?application_id=...`
+- `POST /api/v1/routes` with `application_id` in body
+- `GET /api/v1/routes?application_id=...`
+
+Only use parent-bound paths when a resource is intentionally path-scoped and the exception is explicitly documented in both the handler contract and `docs/resources/*.md`.
 
 ## List endpoint rules
 
@@ -111,7 +117,7 @@ If the resource has special behavior, also document the smallest additional sect
 - status values
 - writeback routes
 - validation endpoints
-- nested route ownership
+- explicitly-declared path-scoped exceptions
 
 ## Resource doc behavior rules
 

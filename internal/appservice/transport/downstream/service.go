@@ -21,12 +21,13 @@ type Service struct {
 }
 
 type Route struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Host        string `json:"host"`
-	Path        string `json:"path"`
-	ServiceName string `json:"service_name"`
-	ServicePort int    `json:"service_port"`
+	EnvironmentID string `json:"environment_id,omitempty"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Host          string `json:"host"`
+	Path          string `json:"path"`
+	ServiceName   string `json:"service_name"`
+	ServicePort   int    `json:"service_port"`
 }
 
 type Client struct{ *downstreamhttp.Client }
@@ -37,7 +38,7 @@ func New(baseURL string) *Client {
 
 func (c *Client) ListServices(ctx context.Context, applicationID string) ([]Service, error) {
 	var out []Service
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/applications/%s/services", applicationID), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/services?application_id=%s", applicationID), &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -45,7 +46,7 @@ func (c *Client) ListServices(ctx context.Context, applicationID string) ([]Serv
 
 func (c *Client) ListRoutes(ctx context.Context, applicationID string) ([]Route, error) {
 	var out []Route
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/applications/%s/routes", applicationID), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/routes?application_id=%s", applicationID), &out); err != nil {
 		return nil, err
 	}
 	return out, nil

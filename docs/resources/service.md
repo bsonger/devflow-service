@@ -26,7 +26,7 @@ It stores the logical service name plus the exposed service ports and target por
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
-| `application_id` | `uuid.UUID` | path-bound | no | 所属应用 ID |
+| `application_id` | `uuid.UUID` | required | user | 所属应用 ID |
 | `name` | `string` | required | user | 服务名 |
 | `ports` | `[]ServicePort` | optional | user | 端口定义集合 |
 
@@ -41,16 +41,16 @@ It stores the logical service name plus the exposed service ports and target por
 
 ## API surface
 
-- `POST /api/v1/applications/{application_id}/services`
-- `GET /api/v1/applications/{application_id}/services`
-- `PATCH /api/v1/applications/{application_id}/services/{service_id}`
-- `DELETE /api/v1/applications/{application_id}/services/{service_id}`
+- `POST /api/v1/services`
+- `GET /api/v1/services`
+- `PATCH /api/v1/services/{service_id}`
+- `DELETE /api/v1/services/{service_id}?application_id=...`
 
 ## Create / update rules
 
 ### Create
 - required fields:
-  - `application_id` in path
+  - `application_id`
   - `name`
 - server-managed fields:
   - `id`
@@ -61,14 +61,14 @@ It stores the logical service name plus the exposed service ports and target por
 - mutable fields:
   - `name`, `ports`
 - immutable/system-managed fields:
-  - `id`, `application_id`, `created_at`, `deleted_at`
+  - `id`, `created_at`, `deleted_at`
 
 ### Delete
 - supported as soft delete through the handler surface
 
 ## Validation notes
 
-- invalid `application_id` or `service_id` path values return `invalid_argument`
+- invalid `application_id` query/body values or `service_id` path values return `invalid_argument`
 - missing records return `not_found`
 - list endpoints support `name` filtering and `include_deleted`
 

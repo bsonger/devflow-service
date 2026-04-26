@@ -10,7 +10,7 @@
 
 ## Purpose
 
-`WorkloadConfig` stores deployment-shape configuration for an application in a specific environment.
+`WorkloadConfig` stores deployment-shape configuration for an application.
 It captures replicas, resource and probe settings, environment variables, workload type, and rollout strategy.
 
 ## Common base fields
@@ -27,7 +27,6 @@ It captures replicas, resource and probe settings, environment variables, worklo
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
 | `application_id` | `uuid.UUID` | required | user | 关联应用 ID |
-| `environment_id` | `string` | optional | user | 环境标识 |
 | `name` | `string` | required | user | 配置名 |
 | `description` | `string` | optional | user | 配置描述 |
 | `replicas` | `int` | required | user | 副本数 |
@@ -61,7 +60,7 @@ It captures replicas, resource and probe settings, environment variables, worklo
 
 ### Update
 - mutable fields:
-  - `application_id`, `environment_id`, `name`, `description`, `replicas`, `service_account_name`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
+  - `application_id`, `name`, `description`, `replicas`, `service_account_name`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
 - immutable/system-managed fields:
   - `id`, `created_at`, `deleted_at`
 
@@ -72,7 +71,7 @@ It captures replicas, resource and probe settings, environment variables, worklo
 
 - invalid UUID path or query parameters return `invalid_argument`
 - missing records return `not_found`
-- list endpoints support `application_id`, `environment_id`, `name`, and `include_deleted`
+- list endpoints support `application_id`, `name`, and `include_deleted`
 
 ## Source pointers
 

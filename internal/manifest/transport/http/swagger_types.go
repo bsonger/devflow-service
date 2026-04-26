@@ -81,7 +81,6 @@ type ManifestGroupedResourcesDoc struct {
 type ManifestResourcesViewDoc struct {
 	ManifestID      uuid.UUID                     `json:"manifest_id"`
 	ApplicationID   uuid.UUID                     `json:"application_id"`
-	EnvironmentID   string                        `json:"environment_id"`
 	Resources       ManifestGroupedResourcesDoc   `json:"resources"`
 	RenderedObjects []ManifestRenderedResourceDoc `json:"rendered_objects,omitempty"`
 }
@@ -89,7 +88,6 @@ type ManifestResourcesViewDoc struct {
 type ManifestDoc struct {
 	ID                     uuid.UUID                   `json:"id"`
 	ApplicationID          uuid.UUID                   `json:"application_id"`
-	EnvironmentID          string                      `json:"environment_id"`
 	ImageID                uuid.UUID                   `json:"image_id"`
 	ImageRef               string                      `json:"image_ref"`
 	ArtifactRepository     string                      `json:"artifact_repository,omitempty"`
@@ -99,8 +97,6 @@ type ManifestDoc struct {
 	ArtifactMediaType      string                      `json:"artifact_media_type,omitempty"`
 	ArtifactPushedAt       string                      `json:"artifact_pushed_at,omitempty"`
 	ServicesSnapshot       []ManifestServiceDoc        `json:"services_snapshot"`
-	RoutesSnapshot         []ManifestRouteDoc          `json:"routes_snapshot"`
-	AppConfigSnapshot      ManifestAppConfigDoc        `json:"app_config_snapshot"`
 	WorkloadConfigSnapshot ManifestWorkloadConfigDoc   `json:"workload_config_snapshot"`
 	RenderedObjects        []ManifestRenderedObjectDoc `json:"rendered_objects"`
 	RenderedYAML           string                      `json:"rendered_yaml"`

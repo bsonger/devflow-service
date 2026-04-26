@@ -37,8 +37,6 @@ CREATE TABLE manifests (
   artifact_media_type TEXT NOT NULL DEFAULT '',
   artifact_pushed_at DATETIME NULL,
   services_snapshot TEXT NOT NULL DEFAULT '[]',
-  routes_snapshot TEXT NOT NULL DEFAULT '[]',
-  app_config_snapshot TEXT NOT NULL DEFAULT '{}',
   workload_config_snapshot TEXT NOT NULL DEFAULT '{}',
   rendered_objects TEXT NOT NULL DEFAULT '[]',
   rendered_yaml TEXT NOT NULL DEFAULT '',
@@ -61,7 +59,6 @@ CREATE TABLE manifests (
 func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 	req := &manifestdomain.CreateManifestRequest{
 		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
-		EnvironmentID: "staging",
 		ImageID:       mustUUID("33333333-3333-3333-3333-333333333333"),
 	}
 	image := &imagedomain.Image{
@@ -122,7 +119,6 @@ func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 func TestBuildManifestRejectsInvalidRouteTarget(t *testing.T) {
 	req := &manifestdomain.CreateManifestRequest{
 		ApplicationID: uuid.New(),
-		EnvironmentID: "staging",
 		ImageID:       uuid.New(),
 	}
 	image := &imagedomain.Image{
@@ -148,7 +144,6 @@ func TestBuildManifestRejectsInvalidRouteTarget(t *testing.T) {
 func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.T) {
 	req := &manifestdomain.CreateManifestRequest{
 		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
-		EnvironmentID: "staging",
 		ImageID:       mustUUID("33333333-3333-3333-3333-333333333333"),
 	}
 	image := &imagedomain.Image{
@@ -192,7 +187,7 @@ func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.
 			if strings.Contains(item.YAML, "envFrom:") {
 				t.Fatalf("did not expect config yaml to be exposed through envFrom, got:\n%s", item.YAML)
 			}
-			if !strings.Contains(item.YAML, "devflow.application/id: 11111111-1111-1111-1111-111111111111") || !strings.Contains(item.YAML, "devflow.environment/id: staging") {
+			if !strings.Contains(item.YAML, "devflow.application/id: 11111111-1111-1111-1111-111111111111") || !strings.Contains(item.YAML, "devflow.environment/id: base") {
 				t.Fatalf("expected deployment to carry devflow routing labels, got:\n%s", item.YAML)
 			}
 		}

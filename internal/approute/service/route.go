@@ -22,6 +22,7 @@ type RouteService interface {
 
 type RouteListFilter struct {
 	ApplicationID  uuid.UUID
+	EnvironmentID  string
 	IncludeDeleted bool
 	Name           string
 }
@@ -62,6 +63,7 @@ func (s *routeService) Delete(ctx context.Context, applicationID, id uuid.UUID) 
 func (s *routeService) List(ctx context.Context, filter RouteListFilter) ([]domain.Route, error) {
 	return s.store.List(ctx, repository.ListFilter{
 		ApplicationID:  filter.ApplicationID,
+		EnvironmentID:  filter.EnvironmentID,
 		IncludeDeleted: filter.IncludeDeleted,
 		Name:           filter.Name,
 	})
@@ -74,6 +76,9 @@ func (s *routeService) Validate(ctx context.Context, item *domain.Route) []strin
 	}
 	if item.ApplicationID == uuid.Nil {
 		errs = append(errs, "application_id is required")
+	}
+	if strings.TrimSpace(item.EnvironmentID) == "" {
+		errs = append(errs, "environment_id is required")
 	}
 	if strings.TrimSpace(item.Name) == "" {
 		errs = append(errs, "name is required")

@@ -33,14 +33,14 @@ func NewHandler(routes routeService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	routes := rg.Group("/applications/:id/routes")
+	routes := rg.Group("/routes")
 	{
 		routes.GET("", h.ListRoutes)
 		routes.POST("", h.CreateRoute)
 		routes.PATCH("/:route_id", h.UpdateRoute)
 		routes.DELETE("/:route_id", h.DeleteRoute)
 	}
-	rg.POST("/applications/:id/routes:validate", h.ValidateRoute)
+	rg.POST("/routes:validate", h.ValidateRoute)
 }
 
 // Route handlers
@@ -50,21 +50,17 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Tags Route
 // @Accept json
 // @Produce json
-// @Param application_id path string true "Application ID"
 // @Param data body domain.RouteInput true "Route data"
 // @Success 201 {object} httpx.DataResponse[domain.Route]
-// @Router /api/v1/applications/{application_id}/routes [post]
+// @Router /api/v1/routes [post]
 func (h *Handler) CreateRoute(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
 	var req domain.RouteInput
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Route{
-		ApplicationID: applicationID,
+		ApplicationID: req.ApplicationID,
+		EnvironmentID: req.EnvironmentID,
 		Name:          req.Name,
 		Host:          req.Host,
 		Path:          req.Path,
@@ -83,23 +79,27 @@ func (h *Handler) CreateRoute(c *gin.Context) {
 // @Summary List application routes
 // @Tags Route
 // @Produce json
-// @Param application_id path string true "Application ID"
+// @Param application_id query string false "Application ID"
 // @Param name query string false "Route name"
 // @Param include_deleted query bool false "Include deleted items"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
 // @Success 200 {object} httpx.ListResponse[domain.Route]
-// @Router /api/v1/applications/{application_id}/routes [get]
+// @Router /api/v1/routes [get]
 func (h *Handler) ListRoutes(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
 	if !ok {
 		return
 	}
-	items, err := h.routes.List(c.Request.Context(), RouteListFilter{
-		ApplicationID:  applicationID,
+	filter := RouteListFilter{
+		EnvironmentID:  c.Query("environment_id"),
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
-	})
+	}
+	if applicationID != nil {
+		filter.ApplicationID = *applicationID
+	}
+	items, err := h.routes.List(c.Request.Context(), filter)
 	if err != nil {
 		httpx.WriteInternalError(c, err)
 		return
@@ -112,13 +112,12 @@ func (h *Handler) ListRoutes(c *gin.Context) {
 // @Tags Route
 // @Accept json
 // @Produce json
-// @Param application_id path string true "Application ID"
 // @Param route_id path string true "Route ID"
 // @Param data body domain.RouteInput true "Route data"
 // @Success 204
-// @Router /api/v1/applications/{application_id}/routes/{route_id} [patch]
+// @Router /api/v1/routes/{route_id} [patch]
 func (h *Handler) UpdateRoute(c *gin.Context) {
-	applicationID, id, ok := parseApplicationAndResourceID(c, "route_id")
+	id, ok := httpx.ParseUUIDParam(c, "route_id")
 	if !ok {
 		return
 	}
@@ -127,7 +126,8 @@ func (h *Handler) UpdateRoute(c *gin.Context) {
 		return
 	}
 	item := &domain.Route{
-		ApplicationID: applicationID,
+		ApplicationID: req.ApplicationID,
+		EnvironmentID: req.EnvironmentID,
 		Name:          req.Name,
 		Host:          req.Host,
 		Path:          req.Path,
@@ -149,16 +149,23 @@ func (h *Handler) UpdateRoute(c *gin.Context) {
 // DeleteRoute godoc
 // @Summary Delete application route
 // @Tags Route
-// @Param application_id path string true "Application ID"
 // @Param route_id path string true "Route ID"
 // @Success 204
-// @Router /api/v1/applications/{application_id}/routes/{route_id} [delete]
+// @Param application_id query string true "Application ID"
+// @Router /api/v1/routes/{route_id} [delete]
 func (h *Handler) DeleteRoute(c *gin.Context) {
-	applicationID, id, ok := parseApplicationAndResourceID(c, "route_id")
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok || applicationID == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "invalid application_id")
+		}
+		return
+	}
+	id, ok := httpx.ParseUUIDParam(c, "route_id")
 	if !ok {
 		return
 	}
-	if err := h.routes.Delete(c.Request.Context(), applicationID, id); err != nil {
+	if err := h.routes.Delete(c.Request.Context(), *applicationID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteNotFound(c, "not found")
 			return
@@ -174,21 +181,17 @@ func (h *Handler) DeleteRoute(c *gin.Context) {
 // @Tags Route
 // @Accept json
 // @Produce json
-// @Param application_id path string true "Application ID"
 // @Param data body domain.RouteInput true "Route data"
 // @Success 200 {object} httpx.DataResponse[domain.RouteValidationResult]
-// @Router /api/v1/applications/{application_id}/routes:validate [post]
+// @Router /api/v1/routes:validate [post]
 func (h *Handler) ValidateRoute(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
 	var req domain.RouteInput
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	item := &domain.Route{
-		ApplicationID: applicationID,
+		ApplicationID: req.ApplicationID,
+		EnvironmentID: req.EnvironmentID,
 		Name:          req.Name,
 		Host:          req.Host,
 		Path:          req.Path,
@@ -200,16 +203,4 @@ func (h *Handler) ValidateRoute(c *gin.Context) {
 		Valid:  len(errs) == 0,
 		Errors: errs,
 	})
-}
-
-func parseApplicationAndResourceID(c *gin.Context, key string) (uuid.UUID, uuid.UUID, bool) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return uuid.Nil, uuid.Nil, false
-	}
-	id, ok := httpx.ParseUUIDParam(c, key)
-	if !ok {
-		return uuid.Nil, uuid.Nil, false
-	}
-	return applicationID, id, true
 }

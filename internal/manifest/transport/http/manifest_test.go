@@ -51,7 +51,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
 				now := mustTime("2026-04-12T11:30:00Z")
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: req.EnvironmentID, ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactRepository: "repo/manifests/demo", ArtifactTag: "manifest-tag", ArtifactRef: "repo/manifests/demo:manifest-tag", ArtifactDigest: "sha256:def", ArtifactMediaType: "application/vnd.oci.image.manifest.v1+json", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: "base", ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactRepository: "repo/manifests/demo", ArtifactTag: "manifest-tag", ArtifactRef: "repo/manifests/demo:manifest-tag", ArtifactDigest: "sha256:def", ArtifactMediaType: "application/vnd.oci.image.manifest.v1+json", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -59,7 +59,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	}
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","environment_id":"22222222-2222-2222-2222-222222222222","image_id":"33333333-3333-3333-3333-333333333333"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -77,23 +77,21 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	}
 }
 
-func TestCreateManifestAcceptsNamedEnvironmentID(t *testing.T) {
+func TestCreateManifestUsesBaseEnvironmentInternally(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				if req.EnvironmentID != "staging" {
-					t.Fatalf("EnvironmentID = %q, want staging", req.EnvironmentID)
-				}
+
 				now := mustTime("2026-04-13T15:00:00Z")
 				item := &manifestdomain.Manifest{
 					ApplicationID:      req.ApplicationID,
-					EnvironmentID:      req.EnvironmentID,
+					EnvironmentID:      "base",
 					ImageID:            req.ImageID,
 					ImageRef:           "repo/demo@sha256:abc",
-					ArtifactRepository: "repo/manifests/demo/staging",
+					ArtifactRepository: "repo/manifests/demo/base",
 					ArtifactTag:        "demo-20260413-150000",
-					ArtifactRef:        "repo/manifests/demo/staging:demo-20260413-150000",
+					ArtifactRef:        "repo/manifests/demo/base:demo-20260413-150000",
 					ArtifactDigest:     "sha256:def",
 					ArtifactMediaType:  "application/vnd.oci.image.manifest.v1+json",
 					ArtifactPushedAt:   &now,
@@ -107,7 +105,7 @@ func TestCreateManifestAcceptsNamedEnvironmentID(t *testing.T) {
 	}
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","environment_id":"staging","image_id":"33333333-3333-3333-3333-333333333333"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -120,8 +118,8 @@ func TestCreateManifestAcceptsNamedEnvironmentID(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.EnvironmentID != "staging" {
-		t.Fatalf("EnvironmentID = %q, want staging", payload.Data.EnvironmentID)
+	if payload.Data.ArtifactRepository != "repo/manifests/demo/base" {
+		t.Fatalf("ArtifactRepository = %q, want repo/manifests/demo/base", payload.Data.ArtifactRepository)
 	}
 }
 
@@ -162,7 +160,6 @@ func TestGetManifestResourcesReturnsGroupedFrozenObjects(t *testing.T) {
 				return &manifestdomain.ManifestResourcesView{
 					ManifestID:    manifestID,
 					ApplicationID: uuid.MustParse("22222222-2222-2222-2222-222222222222"),
-					EnvironmentID: "staging",
 					Resources: manifestdomain.ManifestGroupedResources{
 						ConfigMap: &manifestdomain.ManifestRenderedResource{
 							Kind:      "ConfigMap",
@@ -228,7 +225,7 @@ func TestCreateManifestClusterNotReadyReturns409(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
 
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","environment_id":"env-1","image_id":"33333333-3333-3333-3333-333333333333"}`)
+	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -264,7 +261,7 @@ func TestCreateManifestClusterReadinessMalformedReturns409(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
 
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","environment_id":"env-1","image_id":"33333333-3333-3333-3333-333333333333"}`)
+	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -303,7 +300,7 @@ func TestCreateManifestClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
 
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","environment_id":"env-1","image_id":"33333333-3333-3333-3333-333333333333"}`)
+	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -327,7 +324,7 @@ func TestCreateManifestBindingMissingReturns409(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
 
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","environment_id":"env-1","image_id":"33333333-3333-3333-3333-333333333333"}`)
+	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
