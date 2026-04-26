@@ -7,9 +7,12 @@ Use this file as the repo-local summary for where runtime-owned behavior now liv
 
 - `RuntimeSpec`
 - `RuntimeSpecRevision`
+- `RuntimeObservedPod`
+- `RuntimeOperation`
 - runtime desired state for `application + environment`
 - immutable runtime revisions
 - live runtime observation responsibilities that were previously modeled as `resource-observer`
+- direct K8s pod lifecycle operations (delete, deployment restart)
 
 ## Does Not Own
 
@@ -50,6 +53,9 @@ The extracted HTTP surface in this repo now includes:
 - `GET /api/v1/runtime-specs/{id}/revisions`
 - `GET /api/v1/runtime-spec-revisions/{id}`
 - `GET /api/v1/runtime-specs/{id}/pods`
+- `POST /api/v1/runtime-specs/{id}/pods/{pod_name}/delete`
+- `POST /api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart`
+- `GET /api/v1/runtime-specs/{id}/operations`
 - `POST /api/v1/internal/runtime-spec-pods/sync`
 - `POST /api/v1/internal/runtime-spec-pods/delete`
 
@@ -57,6 +63,8 @@ The internal observed-pod write endpoints are token-gated through:
 
 - `X-Devflow-Observer-Token`
 - `X-Devflow-Verify-Token`
+
+K8s operation endpoints (`delete`, `restart`) run against the in-cluster K8s API and persist an audit record to `runtime_operations`.
 
 In the current repo-local layout, the migrated implementation lives under:
 
