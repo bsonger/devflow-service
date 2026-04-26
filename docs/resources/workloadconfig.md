@@ -11,7 +11,7 @@
 ## Purpose
 
 `WorkloadConfig` stores deployment-shape configuration for an application in a specific environment.
-It captures replicas, exposure intent, resource and probe settings, environment variables, workload type, and rollout strategy.
+It captures replicas, resource and probe settings, environment variables, workload type, and rollout strategy.
 
 ## Common base fields
 
@@ -31,7 +31,6 @@ It captures replicas, exposure intent, resource and probe settings, environment 
 | `name` | `string` | required | user | 配置名 |
 | `description` | `string` | optional | user | 配置描述 |
 | `replicas` | `int` | required | user | 副本数 |
-| `exposed` | `bool` | required | user | 是否对外暴露 |
 | `resources` | `map[string]any` | optional | user | 资源约束 |
 | `probes` | `map[string]any` | optional | user | 探针配置 |
 | `env` | `[]EnvVar` | optional | user | 环境变量 |
@@ -61,7 +60,7 @@ It captures replicas, exposure intent, resource and probe settings, environment 
 
 ### Update
 - mutable fields:
-  - `application_id`, `environment_id`, `name`, `description`, `replicas`, `exposed`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
+  - `application_id`, `environment_id`, `name`, `description`, `replicas`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
 - immutable/system-managed fields:
   - `id`, `created_at`, `deleted_at`
 
