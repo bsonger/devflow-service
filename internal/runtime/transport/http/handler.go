@@ -27,6 +27,9 @@ type runtimeService interface {
 	ListObservedPods(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, runtimeservice.DeleteObservedPodInput) error
+	DeletePod(context.Context, uuid.UUID, string, string) error
+	RestartDeployment(context.Context, uuid.UUID, string, string) error
+	ListRuntimeOperations(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
 type Handler struct {
@@ -97,6 +100,9 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		runtimeSpecs.POST("/:id/revisions", h.CreateRuntimeSpecRevision)
 		runtimeSpecs.GET("/:id/revisions", h.ListRuntimeSpecRevisions)
 		runtimeSpecs.GET("/:id/pods", h.ListObservedPods)
+		runtimeSpecs.POST("/:id/pods/:pod_name/delete", h.DeletePod)
+		runtimeSpecs.POST("/:id/deployments/:deployment_name/restart", h.RestartDeployment)
+		runtimeSpecs.GET("/:id/operations", h.ListRuntimeOperations)
 	}
 
 	rg.GET("/runtime-spec-revisions/:id", h.GetRuntimeSpecRevision)
@@ -226,6 +232,65 @@ func (h *Handler) ListObservedPods(c *gin.Context) {
 	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
+func (h *Handler) DeletePod(c *gin.Context) {
+	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+	podName := strings.TrimSpace(c.Param("pod_name"))
+	if podName == "" {
+		httpx.WriteInvalidArgument(c, "pod_name is required")
+		return
+	}
+	var req struct {
+		Operator string `json:"operator"`
+	}
+	if !httpx.BindJSON(c, &req) {
+		return
+	}
+	if err := h.runtime.DeletePod(c.Request.Context(), runtimeSpecID, podName, req.Operator); err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
+}
+
+func (h *Handler) RestartDeployment(c *gin.Context) {
+	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+	deploymentName := strings.TrimSpace(c.Param("deployment_name"))
+	if deploymentName == "" {
+		httpx.WriteInvalidArgument(c, "deployment_name is required")
+		return
+	}
+	var req struct {
+		Operator string `json:"operator"`
+	}
+	if !httpx.BindJSON(c, &req) {
+		return
+	}
+	if err := h.runtime.RestartDeployment(c.Request.Context(), runtimeSpecID, deploymentName, req.Operator); err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
+}
+
+func (h *Handler) ListRuntimeOperations(c *gin.Context) {
+	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+	items, err := h.runtime.ListRuntimeOperations(c.Request.Context(), runtimeSpecID)
+	if err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WritePaginatedList(c, http.StatusOK, items)
+}
+
 func (h *Handler) SyncObservedPod(c *gin.Context) {
 	var req SyncObservedPodRequest
 	if !httpx.BindJSON(c, &req) {
@@ -301,6 +366,8 @@ func writeRuntimeError(c *gin.Context, err error) {
 		httpx.WriteConflict(c, err.Error())
 	case sharederrs.HasCode(err, sharederrs.CodeNotFound):
 		httpx.WriteNotFound(c, err.Error())
+	case sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition):
+		httpx.WriteFailedPrecondition(c, http.StatusPreconditionFailed, err.Error())
 	default:
 		httpx.WriteInternalError(c, err)
 	}

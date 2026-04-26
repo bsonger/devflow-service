@@ -58,3 +58,12 @@ type RuntimeObservedPodContainer struct {
 	RestartCount int    `json:"restart_count"`
 	State        string `json:"state,omitempty"`
 }
+
+type RuntimeOperation struct {
+	ID            uuid.UUID `json:"id" db:"id"`
+	RuntimeSpecID uuid.UUID `json:"runtime_spec_id" db:"runtime_spec_id"`
+	OperationType string    `json:"operation_type" db:"operation_type"`
+	TargetName    string    `json:"target_name" db:"target_name"`
+	Operator      string    `json:"operator" db:"operator"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+}

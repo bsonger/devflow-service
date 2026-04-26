@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,11 +11,24 @@ import (
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var ErrDuplicateRuntimeSpec = sharederrs.Conflict("runtime spec already exists for application and environment")
 var ErrRuntimeSpecNotFound = sharederrs.NotFound("runtime spec not found")
 var ErrNamespaceMismatch = sharederrs.InvalidArgument("observed pod namespace does not match derived runtime namespace")
+var ErrK8sClientInit = sharederrs.FailedPrecondition("kubernetes client initialization failed")
+var ErrK8sNotFound = sharederrs.NotFound("kubernetes resource not found")
+var ErrK8sForbidden = sharederrs.FailedPrecondition("kubernetes operation forbidden")
+
+type K8sExecutor interface {
+	DeletePod(ctx context.Context, namespace, name string) error
+	RestartDeployment(ctx context.Context, namespace, name string) error
+}
 
 type Service interface {
 	CreateRuntimeSpec(context.Context, CreateRuntimeSpecInput) (*domain.RuntimeSpec, error)
@@ -27,16 +41,20 @@ type Service interface {
 	ListObservedPods(context.Context, uuid.UUID) ([]*domain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, SyncObservedPodInput) (*domain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, DeleteObservedPodInput) error
+	DeletePod(context.Context, uuid.UUID, string, string) error
+	RestartDeployment(context.Context, uuid.UUID, string, string) error
+	ListRuntimeOperations(context.Context, uuid.UUID) ([]*domain.RuntimeOperation, error)
 }
 
 type runtimeService struct {
-	store repository.Store
+	store       repository.Store
+	k8sExecutor K8sExecutor
 }
 
-var DefaultService Service = New(repository.NewPostgresStore())
+var DefaultService Service = New(repository.NewPostgresStore(), nil)
 
-func New(store repository.Store) Service {
-	return &runtimeService{store: store}
+func New(store repository.Store, k8s K8sExecutor) Service {
+	return &runtimeService{store: store, k8sExecutor: k8s}
 }
 
 type CreateRuntimeSpecInput struct {
@@ -94,6 +112,36 @@ func (s *runtimeService) repoStore() repository.Store {
 		s.store = repository.NewPostgresStore()
 	}
 	return s.store
+}
+
+func (s *runtimeService) k8s() (K8sExecutor, error) {
+	if s.k8sExecutor != nil {
+		return s.k8sExecutor, nil
+	}
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrK8sClientInit, err)
+	}
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrK8sClientInit, err)
+	}
+	s.k8sExecutor = &k8sExecutor{clientset: clientset}
+	return s.k8sExecutor, nil
+}
+
+type k8sExecutor struct {
+	clientset kubernetes.Interface
+}
+
+func (k *k8sExecutor) DeletePod(ctx context.Context, namespace, name string) error {
+	return k.clientset.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+}
+
+func (k *k8sExecutor) RestartDeployment(ctx context.Context, namespace, name string) error {
+	patch := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().Format(time.RFC3339)))
+	_, err := k.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+	return err
 }
 
 func (s *runtimeService) CreateRuntimeSpec(ctx context.Context, in CreateRuntimeSpecInput) (*domain.RuntimeSpec, error) {
@@ -293,6 +341,104 @@ func (s *runtimeService) DeleteObservedPod(ctx context.Context, in DeleteObserve
 		return ErrNamespaceMismatch
 	}
 	return s.repoStore().DeleteObservedPod(ctx, spec.ID, derivedNamespace, in.PodName, observedAt)
+}
+
+func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID, podName, operator string) error {
+	if runtimeSpecID == uuid.Nil {
+		return sharederrs.Required("id")
+	}
+	if strings.TrimSpace(podName) == "" {
+		return sharederrs.Required("pod_name")
+	}
+
+	spec, err := s.repoStore().GetRuntimeSpec(ctx, runtimeSpecID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrRuntimeSpecNotFound
+		}
+		return err
+	}
+	if spec == nil {
+		return ErrRuntimeSpecNotFound
+	}
+
+	k8s, err := s.k8s()
+	if err != nil {
+		return err
+	}
+
+	namespace := deriveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	if err := k8s.DeletePod(ctx, namespace, podName); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ErrK8sNotFound
+		}
+		if apierrors.IsForbidden(err) {
+			return ErrK8sForbidden
+		}
+		return err
+	}
+
+	return s.recordOperation(ctx, spec.ID, "pod_delete", podName, operator)
+}
+
+func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uuid.UUID, deploymentName, operator string) error {
+	if runtimeSpecID == uuid.Nil {
+		return sharederrs.Required("id")
+	}
+	if strings.TrimSpace(deploymentName) == "" {
+		return sharederrs.Required("deployment_name")
+	}
+
+	spec, err := s.repoStore().GetRuntimeSpec(ctx, runtimeSpecID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrRuntimeSpecNotFound
+		}
+		return err
+	}
+	if spec == nil {
+		return ErrRuntimeSpecNotFound
+	}
+
+	k8s, err := s.k8s()
+	if err != nil {
+		return err
+	}
+
+	namespace := deriveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	if err := k8s.RestartDeployment(ctx, namespace, deploymentName); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ErrK8sNotFound
+		}
+		if apierrors.IsForbidden(err) {
+			return ErrK8sForbidden
+		}
+		return err
+	}
+
+	return s.recordOperation(ctx, spec.ID, "deployment_restart", deploymentName, operator)
+}
+
+func (s *runtimeService) ListRuntimeOperations(ctx context.Context, runtimeSpecID uuid.UUID) ([]*domain.RuntimeOperation, error) {
+	if runtimeSpecID == uuid.Nil {
+		return nil, sharederrs.Required("id")
+	}
+	return s.repoStore().ListRuntimeOperations(ctx, runtimeSpecID)
+}
+
+func (s *runtimeService) recordOperation(ctx context.Context, runtimeSpecID uuid.UUID, operationType, targetName, operator string) error {
+	op := &domain.RuntimeOperation{
+		ID:            uuid.New(),
+		RuntimeSpecID: runtimeSpecID,
+		OperationType: operationType,
+		TargetName:    targetName,
+		Operator:      strings.TrimSpace(operator),
+		CreatedAt:     time.Now().UTC(),
+	}
+	if err := s.repoStore().CreateRuntimeOperation(ctx, op); err != nil {
+		return err
+	}
+	return nil
 }
 
 func validateRuntimeSpecInput(applicationID uuid.UUID, environment string) error {

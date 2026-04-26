@@ -25,6 +25,8 @@ type stubStore struct {
 	upsertObservedPodFunc                 func(context.Context, *runtimedomain.RuntimeObservedPod) error
 	deleteObservedPodFunc                 func(context.Context, uuid.UUID, string, string, time.Time) error
 	listObservedPodsFunc                  func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
+	createRuntimeOperationFunc            func(context.Context, *runtimedomain.RuntimeOperation) error
+	listRuntimeOperationsFunc             func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
 func (s stubStore) CreateRuntimeSpec(ctx context.Context, item *runtimedomain.RuntimeSpec) error {
@@ -118,13 +120,27 @@ func (s stubStore) ListObservedPods(ctx context.Context, runtimeSpecID uuid.UUID
 	return nil, nil
 }
 
+func (s stubStore) CreateRuntimeOperation(ctx context.Context, item *runtimedomain.RuntimeOperation) error {
+	if s.createRuntimeOperationFunc != nil {
+		return s.createRuntimeOperationFunc(ctx, item)
+	}
+	return nil
+}
+
+func (s stubStore) ListRuntimeOperations(ctx context.Context, runtimeSpecID uuid.UUID) ([]*runtimedomain.RuntimeOperation, error) {
+	if s.listRuntimeOperationsFunc != nil {
+		return s.listRuntimeOperationsFunc(ctx, runtimeSpecID)
+	}
+	return nil, nil
+}
+
 func TestCreateRuntimeSpecRejectsDuplicate(t *testing.T) {
 	applicationID := uuid.New()
 	svc := New(stubStore{
 		getRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationID, Environment: "staging"}, nil
 		},
-	})
+	}, nil)
 
 	_, err := svc.CreateRuntimeSpec(context.Background(), CreateRuntimeSpecInput{
 		ApplicationID: applicationID,
@@ -157,7 +173,7 @@ func TestCreateRuntimeSpecRevisionUsesNextRevisionAndUpdatesCurrent(t *testing.T
 			updatedRevisionID = revisionID
 			return nil
 		},
-	})
+	}, nil)
 
 	item, err := svc.CreateRuntimeSpecRevision(context.Background(), runtimeSpecID, CreateRuntimeSpecRevisionInput{CreatedBy: "tester"})
 	if err != nil {
@@ -183,7 +199,7 @@ func TestSyncObservedPodRejectsNamespaceMismatch(t *testing.T) {
 		getRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationID, Environment: "staging"}, nil
 		},
-	})
+	}, nil)
 
 	_, err := svc.SyncObservedPod(context.Background(), SyncObservedPodInput{
 		ApplicationID: applicationID,

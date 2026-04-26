@@ -1035,5 +1035,42 @@ ALTER TABLE ONLY public.runtime_observed_pods
 
 
 --
+-- Name: runtime_operations; Type: TABLE; Schema: public; Owner: app
+--
+
+CREATE TABLE public.runtime_operations (
+    id uuid NOT NULL,
+    runtime_spec_id uuid NOT NULL,
+    operation_type text NOT NULL,
+    target_name text NOT NULL,
+    operator text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.runtime_operations OWNER TO app;
+
+--
+-- Name: runtime_operations runtime_operations_pkey; Type: CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.runtime_operations
+    ADD CONSTRAINT runtime_operations_pkey PRIMARY KEY (id);
+
+--
+-- Name: idx_runtime_operations_runtime_spec_id; Type: INDEX; Schema: public; Owner: app
+--
+
+CREATE INDEX idx_runtime_operations_runtime_spec_id ON public.runtime_operations USING btree (runtime_spec_id);
+
+--
+-- Name: runtime_operations runtime_operations_runtime_spec_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.runtime_operations
+    ADD CONSTRAINT runtime_operations_runtime_spec_id_fkey FOREIGN KEY (runtime_spec_id) REFERENCES public.application_runtime_specs(id) ON DELETE CASCADE;
+
+
+--
 -- PostgreSQL database dump complete
 --

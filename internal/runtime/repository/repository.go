@@ -26,6 +26,8 @@ type Store interface {
 	UpsertObservedPod(context.Context, *runtimedomain.RuntimeObservedPod) error
 	DeleteObservedPod(context.Context, uuid.UUID, string, string, time.Time) error
 	ListObservedPods(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
+	CreateRuntimeOperation(context.Context, *runtimedomain.RuntimeOperation) error
+	ListRuntimeOperations(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
 var RuntimeStore Store = NewPostgresStore()
@@ -272,6 +274,38 @@ func (s *postgresStore) ListObservedPods(ctx context.Context, runtimeSpecID uuid
 	return items, rows.Err()
 }
 
+func (s *postgresStore) CreateRuntimeOperation(ctx context.Context, op *runtimedomain.RuntimeOperation) error {
+	_, err := platformdb.Postgres().ExecContext(ctx, `
+		insert into runtime_operations (
+			id, runtime_spec_id, operation_type, target_name, operator, created_at
+		) values ($1, $2, $3, $4, $5, $6)
+	`, op.ID, op.RuntimeSpecID, op.OperationType, op.TargetName, op.Operator, op.CreatedAt)
+	return err
+}
+
+func (s *postgresStore) ListRuntimeOperations(ctx context.Context, runtimeSpecID uuid.UUID) ([]*runtimedomain.RuntimeOperation, error) {
+	rows, err := platformdb.Postgres().QueryContext(ctx, `
+		select id, runtime_spec_id, operation_type, target_name, operator, created_at
+		from runtime_operations
+		where runtime_spec_id = $1
+		order by created_at desc
+	`, runtimeSpecID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]*runtimedomain.RuntimeOperation, 0)
+	for rows.Next() {
+		item, scanErr := scanRuntimeOperation(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func scanRuntimeSpec(scanner interface{ Scan(dest ...any) error }) (*runtimedomain.RuntimeSpec, error) {
 	var (
 		item              runtimedomain.RuntimeSpec
@@ -324,6 +358,21 @@ func scanRuntimeSpecRevision(scanner interface{ Scan(dest ...any) error }) (*run
 	item.Autoscaling = normalizeJSONText(autoscaling, "{}")
 	item.Scheduling = normalizeJSONText(scheduling, "{}")
 	item.PodEnvs = normalizeJSONText(podEnvs, "[]")
+	return &item, nil
+}
+
+func scanRuntimeOperation(scanner interface{ Scan(dest ...any) error }) (*runtimedomain.RuntimeOperation, error) {
+	var item runtimedomain.RuntimeOperation
+	if err := scanner.Scan(
+		&item.ID,
+		&item.RuntimeSpecID,
+		&item.OperationType,
+		&item.TargetName,
+		&item.Operator,
+		&item.CreatedAt,
+	); err != nil {
+		return nil, err
+	}
 	return &item, nil
 }
 
