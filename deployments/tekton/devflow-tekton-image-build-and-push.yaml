@@ -39,18 +39,22 @@ spec:
       securityContext:
         privileged: true
       env:
-        - name: HTTP_PROXY
-          value: http://192.168.1.5:7890
-        - name: HTTPS_PROXY
-          value: http://192.168.1.5:7890
-        - name: NO_PROXY
-          value: localhost,127.0.0.1,.svc,.cluster.local
         - name: GOPROXY
           value: https://goproxy.cn,direct
         - name: REGISTRY_AUTH_FILE
           value: /.docker/.dockerconfigjson
       script: |
         set -euo pipefail
+
+        echo "=== devflow image build and push task started ==="
+        echo "workspace.source=$(workspaces.source.path)"
+        echo "workspace.dockerconfig=$(workspaces.dockerconfig.path)"
+        echo "workspace.ssh=$(workspaces.ssh.path)"
+        echo "param.IMAGE_REPOSITORY=$(params.IMAGE_REPOSITORY)"
+        echo "param.IMAGE_TAG=$(params.IMAGE_TAG)"
+        echo "param.GIT_TAG=$(params.GIT_TAG)"
+        echo "param.DOCKERFILE=$(params.DOCKERFILE)"
+        echo "param.BUILD_ARGS=$(params.BUILD_ARGS)"
 
         TAG="$(params.GIT_TAG)"
         if [ -z "${TAG}" ]; then
@@ -62,7 +66,7 @@ spec:
         DOCKERFILE_REL="$(params.DOCKERFILE)"
         BUILD_ARGS="$(params.BUILD_ARGS)"
         SSH_DIR="${SRC}/.tekton-ssh"
-        PROXY_BUILD_ARGS="--build-arg HTTP_PROXY=${HTTP_PROXY} --build-arg HTTPS_PROXY=${HTTPS_PROXY} --build-arg NO_PROXY=${NO_PROXY} --build-arg http_proxy=${HTTP_PROXY} --build-arg https_proxy=${HTTPS_PROXY} --build-arg no_proxy=${NO_PROXY} --build-arg GOPROXY=${GOPROXY}"
+        DEFAULT_BUILD_ARGS="--build-arg GOPROXY=${GOPROXY}"
 
         cleanup() {
           rm -rf "${SSH_DIR}"
@@ -73,6 +77,7 @@ spec:
         cp "$(workspaces.ssh.path)/id_rsa" "${SSH_DIR}/id_rsa"
         chmod 600 "${SSH_DIR}/id_rsa"
         ssh-keyscan github.com > "${SSH_DIR}/known_hosts"
+        echo "Prepared SSH material under ${SSH_DIR}"
 
         find_repo_root() {
           if [ -f "${SRC}/${DOCKERFILE_REL}" ]; then
@@ -104,9 +109,13 @@ spec:
 
         echo "Resolved build context: ${CONTEXT}"
         echo "Resolved dockerfile: ${DOCKERFILE_PATH}"
+        echo "Resolved final image tag: ${TAG}"
+        echo "Resolved final image ref: ${IMAGE}"
+        echo "Listing build context root:"
+        ls -la "${CONTEXT}"
         echo "🔧 Build image ${IMAGE}"
         # shellcheck disable=SC2086
-        buildah bud ${PROXY_BUILD_ARGS} ${BUILD_ARGS} -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${CONTEXT}"
+        buildah bud ${DEFAULT_BUILD_ARGS} ${BUILD_ARGS} -f "${DOCKERFILE_PATH}" -t "${IMAGE}" "${CONTEXT}"
 
         echo "🚀 Push image to registry"
         buildah push "${IMAGE}" "docker://${IMAGE}"
@@ -114,5 +123,7 @@ spec:
 
         DIGEST="$(cat /tmp/digest)"
         echo "✅ Image digest: ${DIGEST}"
+        echo "Writing Tekton results"
         printf "%s" "${DIGEST}" > /tekton/results/IMAGE_DIGEST
         printf "%s" "${TAG}" > /tekton/results/IMAGE_TAG
+        echo "=== devflow image build and push task finished ==="

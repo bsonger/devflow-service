@@ -1,0 +1,54 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: release-service-manifest-delivery-
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: devflow
+    app.kubernetes.io/component: ci
+    service: release-service
+    stage: manifest-delivery-example
+spec:
+  pipelineRef:
+    name: devflow-manifest-delivery-example
+  params:
+    - name: git-url
+      value: "ssh://git@github.com/bsonger/devflow-service.git"
+    - name: git-revision
+      value: "main"
+    - name: image-registry
+      value: "registry.cn-hangzhou.aliyuncs.com/devflow"
+    - name: name
+      value: "release-service"
+    - name: image-id
+      value: "release-service"
+    - name: image-tag
+      value: "preproduction"
+    - name: dockerfile
+      value: "Dockerfile"
+    - name: build-args
+      value: "--build-arg SERVICE_NAME=release-service --build-arg SERVICE_PORT=8083"
+    - name: manifest-git-url
+      value: "ssh://git@github.com/bsonger/devflow-manifests.git"
+    - name: manifest-git-revision
+      value: "main"
+    - name: manifest-file
+      value: "apps/release-service/preproduction/manifest.yaml"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+          storageClassName: local-path
+    - name: dockerconfig
+      secret:
+        secretName: aliyun-docker-config
+    - name: ssh
+      secret:
+        secretName: git-ssh-secret
+  timeouts:
+    pipeline: 1h0m0s

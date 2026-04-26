@@ -1,0 +1,54 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: manifest-delivery-
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: devflow
+    app.kubernetes.io/component: ci
+    pipeline: manifest-delivery
+    devflow.io/stage: staged
+spec:
+  pipelineRef:
+    name: devflow-manifest-delivery-staged
+  params:
+    - name: git-url
+      value: "GIT_URL_PLACEHOLDER"
+    - name: git-revision
+      value: "GIT_REVISION_PLACEHOLDER"
+    - name: image-registry
+      value: "registry.cn-hangzhou.aliyuncs.com/devflow"
+    - name: name
+      value: "SERVICE_NAME_PLACEHOLDER"
+    - name: image-id
+      value: "IMAGE_ID_PLACEHOLDER"
+    - name: image-tag
+      value: "IMAGE_TAG_PLACEHOLDER"
+    - name: dockerfile
+      value: "Dockerfile"
+    - name: build-args
+      value: "BUILD_ARGS_PLACEHOLDER"
+    - name: manifest-git-url
+      value: "MANIFEST_GIT_URL_PLACEHOLDER"
+    - name: manifest-git-revision
+      value: "MANIFEST_GIT_REVISION_PLACEHOLDER"
+    - name: manifest-file
+      value: "MANIFEST_FILE_PLACEHOLDER"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+          storageClassName: local-path
+    - name: dockerconfig
+      secret:
+        secretName: aliyun-docker-config
+    - name: ssh
+      secret:
+        secretName: git-ssh-secret
+  timeouts:
+    pipeline: 1h0m0s

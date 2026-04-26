@@ -1,0 +1,324 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: devflow-manifest-patch
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/component: tekton-task
+    app.kubernetes.io/part-of: devflow
+    devflow.io/stage: staged
+spec:
+  description: Clone the manifest repo, patch the target image block, commit, and push.
+  params:
+    - name: APPLICATION_NAME
+      type: string
+    - name: IMAGE_ID
+      type: string
+      default: ""
+    - name: IMAGE_REF
+      type: string
+    - name: IMAGE_DIGEST
+      type: string
+    - name: SOURCE_COMMIT
+      type: string
+    - name: MANIFEST_GIT_URL
+      type: string
+    - name: MANIFEST_GIT_REVISION
+      type: string
+      default: main
+    - name: MANIFEST_FILE
+      type: string
+  results:
+    - name: PATCHED_COMMIT
+      type: string
+    - name: PATCHED_PATH
+      type: string
+  workspaces:
+    - name: ssh
+  steps:
+    - name: clone-manifest-repo
+      image: alpine/git:2.49.1
+      env:
+        - name: HOME
+          value: /root
+      script: |
+        set -euo pipefail
+        echo "=== devflow manifest patch clone started ==="
+        echo "param.MANIFEST_GIT_URL=$(params.MANIFEST_GIT_URL)"
+        echo "param.MANIFEST_GIT_REVISION=$(params.MANIFEST_GIT_REVISION)"
+        echo "workspace.ssh=$(workspaces.ssh.path)"
+
+        mkdir -p /root/.ssh /workspace/manifest-repo
+        cp "$(workspaces.ssh.path)/id_rsa" /root/.ssh/id_rsa
+        chmod 600 /root/.ssh/id_rsa
+        ssh-keyscan github.com > /root/.ssh/known_hosts
+
+        export GIT_SSH_COMMAND='ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts'
+        rm -rf /workspace/manifest-repo
+        git clone --depth=1 --branch "$(params.MANIFEST_GIT_REVISION)" "$(params.MANIFEST_GIT_URL)" /workspace/manifest-repo
+        echo "=== devflow manifest patch clone finished ==="
+    - name: patch-manifest-file
+      image: mikefarah/yq:4.44.3
+      env:
+        - name: APPLICATION_NAME
+          value: $(params.APPLICATION_NAME)
+        - name: IMAGE_ID
+          value: $(params.IMAGE_ID)
+        - name: IMAGE_REF
+          value: $(params.IMAGE_REF)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
+        - name: SOURCE_COMMIT
+          value: $(params.SOURCE_COMMIT)
+        - name: MANIFEST_FILE
+          value: $(params.MANIFEST_FILE)
+      script: |
+        set -euo pipefail
+        echo "=== devflow manifest patch mutate started ==="
+        FILE="/workspace/manifest-repo/${MANIFEST_FILE}"
+        TARGET_IMAGE_ID="${IMAGE_ID}"
+        if [ -z "${TARGET_IMAGE_ID}" ]; then
+          TARGET_IMAGE_ID="${APPLICATION_NAME}"
+        fi
+        export TARGET_IMAGE_ID
+
+        echo "param.APPLICATION_NAME=${APPLICATION_NAME}"
+        echo "param.IMAGE_ID=${TARGET_IMAGE_ID}"
+        echo "param.IMAGE_REF=${IMAGE_REF}"
+        echo "param.IMAGE_DIGEST=${IMAGE_DIGEST}"
+        echo "param.SOURCE_COMMIT=${SOURCE_COMMIT}"
+        echo "param.MANIFEST_FILE=${MANIFEST_FILE}"
+
+        if [ ! -f "${FILE}" ]; then
+          echo "ERROR: manifest file not found: ${FILE}"
+          exit 1
+        fi
+
+        yq -i '.images = (.images // [])' "${FILE}"
+        COUNT="$(yq e '[.images[]? | select(.id == env(TARGET_IMAGE_ID))] | length' "${FILE}")"
+
+        if [ "${COUNT}" = "0" ]; then
+          echo "Appending new image block for id=${TARGET_IMAGE_ID}"
+          yq -i '
+            .images += [{
+              "id": env(TARGET_IMAGE_ID),
+              "image": env(IMAGE_REF),
+              "image_ref": env(IMAGE_REF),
+              "digest": env(IMAGE_DIGEST),
+              "commit": env(SOURCE_COMMIT),
+              "source_commit": env(SOURCE_COMMIT)
+            }]
+          ' "${FILE}"
+        else
+          echo "Updating existing image block for id=${TARGET_IMAGE_ID}"
+          yq -i '
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).image = env(IMAGE_REF) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).image_ref = env(IMAGE_REF) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).digest = env(IMAGE_DIGEST) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).commit = env(SOURCE_COMMIT) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).source_commit = env(SOURCE_COMMIT)
+          ' "${FILE}"
+        fi
+
+        echo "Patched manifest file: ${FILE}"
+        yq e '.images' "${FILE}"
+        echo "=== devflow manifest patch mutate finished ==="
+    - name: commit-and-push
+      image: alpine/git:2.49.1
+      env:
+        - name: HOME
+          value: /root
+      script: |
+        set -euo pipefail
+        echo "=== devflow manifest patch commit started ==="
+        TARGET_DIR="/workspace/manifest-repo"
+        FILE_REL="$(params.MANIFEST_FILE)"
+
+        mkdir -p /root/.ssh
+        cp "$(workspaces.ssh.path)/id_rsa" /root/.ssh/id_rsa
+        chmod 600 /root/.ssh/id_rsa
+        ssh-keyscan github.com > /root/.ssh/known_hosts
+
+        export GIT_SSH_COMMAND='ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts'
+        cd "${TARGET_DIR}"
+        git config user.name "devflow-tekton"
+        git config user.email "devflow-tekton@local"
+
+        git add "${FILE_REL}"
+        if git diff --cached --quiet; then
+          PATCHED_COMMIT="$(git rev-parse HEAD)"
+          echo "No manifest diff detected; skip commit/push"
+        else
+          git commit -m "chore(manifest): update $(params.APPLICATION_NAME) image metadata"
+          git push origin "HEAD:$(params.MANIFEST_GIT_REVISION)"
+          PATCHED_COMMIT="$(git rev-parse HEAD)"
+          echo "Pushed manifest update commit: ${PATCHED_COMMIT}"
+        fi
+
+        printf "%s" "${PATCHED_COMMIT}" > /tekton/results/PATCHED_COMMIT
+        printf "%s" "${FILE_REL}" > /tekton/results/PATCHED_PATH
+        echo "=== devflow manifest patch commit finished ==="
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: devflow-notification
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/component: tekton-task
+    app.kubernetes.io/part-of: devflow
+    devflow.io/stage: staged
+spec:
+  description: Staged task contract for final delivery notifications.
+  params:
+    - name: APPLICATION_NAME
+      type: string
+    - name: IMAGE_ID
+      type: string
+    - name: IMAGE_REF
+      type: string
+    - name: IMAGE_DIGEST
+      type: string
+    - name: PATCHED_COMMIT
+      type: string
+    - name: PATCHED_PATH
+      type: string
+  steps:
+    - name: notify
+      image: alpine:3.22
+      script: |
+        set -euo pipefail
+        echo "=== devflow notification started ==="
+        echo "param.APPLICATION_NAME=$(params.APPLICATION_NAME)"
+        echo "param.IMAGE_ID=$(params.IMAGE_ID)"
+        echo "param.IMAGE_REF=$(params.IMAGE_REF)"
+        echo "param.IMAGE_DIGEST=$(params.IMAGE_DIGEST)"
+        echo "param.PATCHED_COMMIT=$(params.PATCHED_COMMIT)"
+        echo "param.PATCHED_PATH=$(params.PATCHED_PATH)"
+        echo "This is a staged task contract. Replace the placeholder notifier before promoting to active."
+        echo "=== devflow notification finished ==="
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: devflow-manifest-delivery-staged
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/component: tekton-pipeline
+    app.kubernetes.io/part-of: devflow
+    devflow.io/stage: staged
+spec:
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: image-registry
+      type: string
+    - name: name
+      type: string
+    - name: image-id
+      type: string
+      default: ""
+    - name: image-tag
+      type: string
+      default: latest
+    - name: dockerfile
+      type: string
+      default: Dockerfile
+    - name: build-args
+      type: string
+      default: ""
+    - name: manifest-git-url
+      type: string
+    - name: manifest-git-revision
+      type: string
+      default: main
+    - name: manifest-file
+      type: string
+  workspaces:
+    - name: source
+    - name: dockerconfig
+    - name: ssh
+  tasks:
+    - name: git-clone
+      taskRef:
+        kind: Task
+        name: devflow-tekton-git-clone
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+        - name: ssh
+          workspace: ssh
+    - name: image-build-and-push
+      runAfter: [git-clone]
+      taskRef:
+        kind: Task
+        name: devflow-tekton-image-build-and-push
+      params:
+        - name: IMAGE_REPOSITORY
+          value: $(params.image-registry)/$(params.name)
+        - name: IMAGE_TAG
+          value: $(params.image-tag)
+        - name: GIT_TAG
+          value: $(tasks.git-clone.results.git-tag)
+        - name: DOCKERFILE
+          value: $(params.dockerfile)
+        - name: BUILD_ARGS
+          value: $(params.build-args)
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+        - name: ssh
+          workspace: ssh
+    - name: manifest-patch
+      runAfter: [image-build-and-push]
+      taskRef:
+        kind: Task
+        name: devflow-manifest-patch
+      params:
+        - name: APPLICATION_NAME
+          value: $(params.name)
+        - name: IMAGE_ID
+          value: $(params.image-id)
+        - name: IMAGE_REF
+          value: $(params.image-registry)/$(params.name):$(tasks.image-build-and-push.results.IMAGE_TAG)
+        - name: IMAGE_DIGEST
+          value: $(tasks.image-build-and-push.results.IMAGE_DIGEST)
+        - name: SOURCE_COMMIT
+          value: $(tasks.git-clone.results.commit)
+        - name: MANIFEST_GIT_URL
+          value: $(params.manifest-git-url)
+        - name: MANIFEST_GIT_REVISION
+          value: $(params.manifest-git-revision)
+        - name: MANIFEST_FILE
+          value: $(params.manifest-file)
+      workspaces:
+        - name: ssh
+          workspace: ssh
+    - name: notification
+      runAfter: [manifest-patch]
+      taskRef:
+        kind: Task
+        name: devflow-notification
+      params:
+        - name: APPLICATION_NAME
+          value: $(params.name)
+        - name: IMAGE_ID
+          value: $(params.image-id)
+        - name: IMAGE_REF
+          value: $(params.image-registry)/$(params.name):$(tasks.image-build-and-push.results.IMAGE_TAG)
+        - name: IMAGE_DIGEST
+          value: $(tasks.image-build-and-push.results.IMAGE_DIGEST)
+        - name: PATCHED_COMMIT
+          value: $(tasks.manifest-patch.results.PATCHED_COMMIT)
+        - name: PATCHED_PATH
+          value: $(tasks.manifest-patch.results.PATCHED_PATH)

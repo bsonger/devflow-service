@@ -1,0 +1,120 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: devflow-manifest-delivery-example
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: image-registry
+      type: string
+    - name: name
+      type: string
+    - name: image-id
+      type: string
+      default: ""
+    - name: image-tag
+      type: string
+      default: latest
+    - name: dockerfile
+      type: string
+      default: Dockerfile
+    - name: build-args
+      type: string
+      default: ""
+    - name: manifest-git-url
+      type: string
+    - name: manifest-git-revision
+      type: string
+      default: main
+    - name: manifest-file
+      type: string
+  workspaces:
+    - name: source
+    - name: dockerconfig
+    - name: ssh
+  tasks:
+    - name: git-clone
+      taskRef:
+        kind: Task
+        name: devflow-tekton-git-clone
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+        - name: ssh
+          workspace: ssh
+    - name: image-build-and-push
+      runAfter: [git-clone]
+      taskRef:
+        kind: Task
+        name: devflow-tekton-image-build-and-push
+      params:
+        - name: IMAGE_REPOSITORY
+          value: $(params.image-registry)/$(params.name)
+        - name: IMAGE_TAG
+          value: $(params.image-tag)
+        - name: GIT_TAG
+          value: $(tasks.git-clone.results.git-tag)
+        - name: DOCKERFILE
+          value: $(params.dockerfile)
+        - name: BUILD_ARGS
+          value: $(params.build-args)
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+        - name: ssh
+          workspace: ssh
+    - name: manifest-patch
+      runAfter: [image-build-and-push]
+      taskRef:
+        kind: Task
+        name: devflow-manifest-patch
+      params:
+        - name: APPLICATION_NAME
+          value: $(params.name)
+        - name: IMAGE_ID
+          value: $(params.image-id)
+        - name: IMAGE_REF
+          value: $(params.image-registry)/$(params.name):$(tasks.image-build-and-push.results.IMAGE_TAG)
+        - name: IMAGE_DIGEST
+          value: $(tasks.image-build-and-push.results.IMAGE_DIGEST)
+        - name: SOURCE_COMMIT
+          value: $(tasks.git-clone.results.commit)
+        - name: MANIFEST_GIT_URL
+          value: $(params.manifest-git-url)
+        - name: MANIFEST_GIT_REVISION
+          value: $(params.manifest-git-revision)
+        - name: MANIFEST_FILE
+          value: $(params.manifest-file)
+      workspaces:
+        - name: ssh
+          workspace: ssh
+    - name: notification
+      runAfter: [manifest-patch]
+      taskRef:
+        kind: Task
+        name: devflow-notification
+      params:
+        - name: APPLICATION_NAME
+          value: $(params.name)
+        - name: IMAGE_ID
+          value: $(params.image-id)
+        - name: IMAGE_REF
+          value: $(params.image-registry)/$(params.name):$(tasks.image-build-and-push.results.IMAGE_TAG)
+        - name: IMAGE_DIGEST
+          value: $(tasks.image-build-and-push.results.IMAGE_DIGEST)
+        - name: PATCHED_COMMIT
+          value: $(tasks.manifest-patch.results.PATCHED_COMMIT)
+        - name: PATCHED_PATH
+          value: $(tasks.manifest-patch.results.PATCHED_PATH)

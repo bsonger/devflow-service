@@ -1,0 +1,154 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: devflow-manifest-patch
+  namespace: tekton-pipelines
+spec:
+  description: Clone the manifest repo, patch the target image block, commit, and push.
+  params:
+    - name: APPLICATION_NAME
+      type: string
+    - name: IMAGE_ID
+      type: string
+      default: ""
+    - name: IMAGE_REF
+      type: string
+    - name: IMAGE_DIGEST
+      type: string
+    - name: SOURCE_COMMIT
+      type: string
+    - name: MANIFEST_GIT_URL
+      type: string
+    - name: MANIFEST_GIT_REVISION
+      type: string
+      default: main
+    - name: MANIFEST_FILE
+      type: string
+  results:
+    - name: PATCHED_COMMIT
+      type: string
+    - name: PATCHED_PATH
+      type: string
+  workspaces:
+    - name: ssh
+  steps:
+    - name: clone-manifest-repo
+      image: alpine/git:2.49.1
+      env:
+        - name: HOME
+          value: /root
+      script: |
+        set -euo pipefail
+        mkdir -p /root/.ssh /workspace/manifest-repo
+        cp "$(workspaces.ssh.path)/id_rsa" /root/.ssh/id_rsa
+        chmod 600 /root/.ssh/id_rsa
+        ssh-keyscan github.com > /root/.ssh/known_hosts
+        export GIT_SSH_COMMAND='ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts'
+        rm -rf /workspace/manifest-repo
+        git clone --depth=1 --branch "$(params.MANIFEST_GIT_REVISION)" "$(params.MANIFEST_GIT_URL)" /workspace/manifest-repo
+    - name: patch-manifest-file
+      image: mikefarah/yq:4.44.3
+      env:
+        - name: APPLICATION_NAME
+          value: $(params.APPLICATION_NAME)
+        - name: IMAGE_ID
+          value: $(params.IMAGE_ID)
+        - name: IMAGE_REF
+          value: $(params.IMAGE_REF)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
+        - name: SOURCE_COMMIT
+          value: $(params.SOURCE_COMMIT)
+        - name: MANIFEST_FILE
+          value: $(params.MANIFEST_FILE)
+      script: |
+        set -euo pipefail
+        FILE="/workspace/manifest-repo/${MANIFEST_FILE}"
+        TARGET_IMAGE_ID="${IMAGE_ID}"
+        if [ -z "${TARGET_IMAGE_ID}" ]; then
+          TARGET_IMAGE_ID="${APPLICATION_NAME}"
+        fi
+        export TARGET_IMAGE_ID
+        test -f "${FILE}"
+        yq -i '.images = (.images // [])' "${FILE}"
+        COUNT="$(yq e '[.images[]? | select(.id == env(TARGET_IMAGE_ID))] | length' "${FILE}")"
+        if [ "${COUNT}" = "0" ]; then
+          yq -i '
+            .images += [{
+              "id": env(TARGET_IMAGE_ID),
+              "image": env(IMAGE_REF),
+              "image_ref": env(IMAGE_REF),
+              "digest": env(IMAGE_DIGEST),
+              "commit": env(SOURCE_COMMIT),
+              "source_commit": env(SOURCE_COMMIT)
+            }]
+          ' "${FILE}"
+        else
+          yq -i '
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).image = env(IMAGE_REF) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).image_ref = env(IMAGE_REF) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).digest = env(IMAGE_DIGEST) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).commit = env(SOURCE_COMMIT) |
+            (.images[] | select(.id == env(TARGET_IMAGE_ID))).source_commit = env(SOURCE_COMMIT)
+          ' "${FILE}"
+        fi
+    - name: commit-and-push
+      image: alpine/git:2.49.1
+      env:
+        - name: HOME
+          value: /root
+      script: |
+        set -euo pipefail
+        cd /workspace/manifest-repo
+        mkdir -p /root/.ssh
+        cp "$(workspaces.ssh.path)/id_rsa" /root/.ssh/id_rsa
+        chmod 600 /root/.ssh/id_rsa
+        ssh-keyscan github.com > /root/.ssh/known_hosts
+        export GIT_SSH_COMMAND='ssh -i /root/.ssh/id_rsa -o UserKnownHostsFile=/root/.ssh/known_hosts'
+        git config user.name "devflow-tekton"
+        git config user.email "devflow-tekton@local"
+        git add "$(params.MANIFEST_FILE)"
+        if git diff --cached --quiet; then
+          PATCHED_COMMIT="$(git rev-parse HEAD)"
+        else
+          git commit -m "chore(manifest): update $(params.APPLICATION_NAME) image metadata"
+          git push origin "HEAD:$(params.MANIFEST_GIT_REVISION)"
+          PATCHED_COMMIT="$(git rev-parse HEAD)"
+        fi
+        printf "%s" "${PATCHED_COMMIT}" > /tekton/results/PATCHED_COMMIT
+        printf "%s" "$(params.MANIFEST_FILE)" > /tekton/results/PATCHED_PATH
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: devflow-notification
+  namespace: tekton-pipelines
+spec:
+  description: Emit final notification after delivery chain completes.
+  params:
+    - name: APPLICATION_NAME
+      type: string
+    - name: IMAGE_ID
+      type: string
+    - name: IMAGE_REF
+      type: string
+    - name: IMAGE_DIGEST
+      type: string
+    - name: PATCHED_COMMIT
+      type: string
+    - name: PATCHED_PATH
+      type: string
+  steps:
+    - name: notify
+      image: alpine:3.22
+      script: |
+        set -euo pipefail
+        echo "=== delivery notification started ==="
+        echo "APPLICATION_NAME=$(params.APPLICATION_NAME)"
+        echo "IMAGE_ID=$(params.IMAGE_ID)"
+        echo "IMAGE_REF=$(params.IMAGE_REF)"
+        echo "IMAGE_DIGEST=$(params.IMAGE_DIGEST)"
+        echo "PATCHED_COMMIT=$(params.PATCHED_COMMIT)"
+        echo "PATCHED_PATH=$(params.PATCHED_PATH)"
+        echo "TODO: replace this placeholder with webhook/slack/lark notification"
+        echo "=== delivery notification finished ==="
