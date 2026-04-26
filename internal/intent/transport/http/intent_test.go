@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	intentdomain "github.com/bsonger/devflow-service/internal/intent/domain"
-	model "github.com/bsonger/devflow-service/internal/release/domain"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
+	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

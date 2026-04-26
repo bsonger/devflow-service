@@ -21,9 +21,9 @@ type ListFilter struct {
 
 type Store interface {
 	Create(ctx context.Context, route *domain.Route) (uuid.UUID, error)
-	Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error)
+	Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error)
 	Update(ctx context.Context, route *domain.Route) error
-	Delete(ctx context.Context, applicationID, id uuid.UUID) error
+	Delete(ctx context.Context, applicationId, id uuid.UUID) error
 	List(ctx context.Context, filter ListFilter) ([]domain.Route, error)
 }
 
@@ -45,12 +45,12 @@ func (s *PostgresStore) Create(ctx context.Context, item *domain.Route) (uuid.UU
 	return item.ID, nil
 }
 
-func (s *PostgresStore) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error) {
+func (s *PostgresStore) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error) {
 	return scanRoute(db.Postgres().QueryRowContext(ctx, `
 		select id, application_id, environment_id, name, host, path, service_name, service_port, created_at, updated_at, deleted_at
 		from routes
 		where application_id = $1 and id = $2 and deleted_at is null
-	`, applicationID, id))
+	`, applicationId, id))
 }
 
 func (s *PostgresStore) Update(ctx context.Context, item *domain.Route) error {
@@ -72,12 +72,12 @@ func (s *PostgresStore) Update(ctx context.Context, item *domain.Route) error {
 	return dbsql.EnsureRowsAffected(result)
 }
 
-func (s *PostgresStore) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
+func (s *PostgresStore) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
 	now := time.Now()
 	result, err := db.Postgres().ExecContext(ctx, `
 		update routes set deleted_at=$3, updated_at=$3
 		where application_id=$1 and id=$2 and deleted_at is null
-	`, applicationID, id, now)
+	`, applicationId, id, now)
 	if err != nil {
 		return err
 	}
@@ -122,21 +122,21 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.R
 func scanRoute(scanner interface{ Scan(dest ...any) error }) (*domain.Route, error) {
 	var (
 		item          domain.Route
-		applicationID sql.NullString
-		environmentID sql.NullString
+		applicationId sql.NullString
+		environmentId sql.NullString
 		deletedAt     sql.NullTime
 	)
-	if err := scanner.Scan(&item.ID, &applicationID, &environmentID, &item.Name, &item.Host, &item.Path, &item.ServiceName, &item.ServicePort, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&item.ID, &applicationId, &environmentId, &item.Name, &item.Host, &item.Path, &item.ServiceName, &item.ServicePort, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
-	applicationUUID, err := dbsql.ParseNullUUID(applicationID)
+	applicationUUID, err := dbsql.ParseNullUUID(applicationId)
 	if err != nil {
 		return nil, err
 	}
 	if applicationUUID != nil {
 		item.ApplicationID = *applicationUUID
 	}
-	item.EnvironmentID = environmentID.String
+	item.EnvironmentID = environmentId.String
 	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	return &item, nil
 }

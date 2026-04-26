@@ -158,4 +158,3 @@ func TestUpdateWorkloadConfig(t *testing.T) {
 		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
-

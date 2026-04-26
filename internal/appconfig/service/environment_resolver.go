@@ -10,7 +10,7 @@ import (
 )
 
 type environmentResolver interface {
-	ResolveName(ctx context.Context, environmentID string) (string, error)
+	ResolveName(ctx context.Context, environmentId string) (string, error)
 }
 
 type httpEnvironmentResolver struct {
@@ -36,8 +36,8 @@ func ResolveEnvironmentResolver(baseURL string) environmentResolver {
 	return newHTTPEnvironmentResolver(baseURL)
 }
 
-func (r *httpEnvironmentResolver) ResolveName(ctx context.Context, environmentID string) (string, error) {
-	trimmedID := strings.TrimSpace(environmentID)
+func (r *httpEnvironmentResolver) ResolveName(ctx context.Context, environmentId string) (string, error) {
+	trimmedID := strings.TrimSpace(environmentId)
 	if trimmedID == "" {
 		return "", sharederrs.Required("environment_id")
 	}

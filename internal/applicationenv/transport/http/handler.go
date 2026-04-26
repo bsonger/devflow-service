@@ -38,7 +38,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 func (h *Handler) Attach(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
@@ -48,7 +48,7 @@ func (h *Handler) Attach(c *gin.Context) {
 		return
 	}
 
-	item, err := h.svc.Attach(c.Request.Context(), applicationID, req)
+	item, err := h.svc.Attach(c.Request.Context(), applicationId, req)
 	if err != nil {
 		writeBindingError(c, err)
 		return
@@ -58,12 +58,12 @@ func (h *Handler) Attach(c *gin.Context) {
 }
 
 func (h *Handler) List(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
 
-	items, err := h.svc.List(c.Request.Context(), applicationID)
+	items, err := h.svc.List(c.Request.Context(), applicationId)
 	if err != nil {
 		writeBindingError(c, err)
 		return
@@ -73,12 +73,12 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Get(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
 
-	item, err := h.svc.GetDetail(c.Request.Context(), applicationID, c.Param("environment_id"))
+	item, err := h.svc.GetDetail(c.Request.Context(), applicationId, c.Param("environment_id"))
 	if err != nil {
 		writeBindingError(c, err)
 		return
@@ -88,12 +88,12 @@ func (h *Handler) Get(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDParam(c, "id")
+	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
 
-	if err := h.svc.Delete(c.Request.Context(), applicationID, c.Param("environment_id")); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), applicationId, c.Param("environment_id")); err != nil {
 		writeBindingError(c, err)
 		return
 	}

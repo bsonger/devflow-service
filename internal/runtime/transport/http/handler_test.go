@@ -53,9 +53,9 @@ func (m *mockRuntimeService) GetRuntimeSpec(ctx context.Context, id uuid.UUID) (
 	return nil, sql.ErrNoRows
 }
 
-func (m *mockRuntimeService) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) error {
+func (m *mockRuntimeService) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) error {
 	if m.deleteRuntimeSpecFunc != nil {
-		return m.deleteRuntimeSpecFunc(ctx, applicationID, environment)
+		return m.deleteRuntimeSpecFunc(ctx, applicationId, environment)
 	}
 	return nil
 }
@@ -135,7 +135,7 @@ func setupRuntimeTestRouter(h *Handler, token string) *gin.Engine {
 }
 
 func TestCreateRuntimeSpec(t *testing.T) {
-	applicationID := uuid.New()
+	applicationId := uuid.New()
 	h := NewHandler(&mockRuntimeService{
 		createRuntimeSpecFunc: func(_ context.Context, in runtimeservice.CreateRuntimeSpecInput) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: in.ApplicationID, Environment: in.Environment}, nil
@@ -143,7 +143,7 @@ func TestCreateRuntimeSpec(t *testing.T) {
 	})
 	r := setupRuntimeTestRouter(h, "secret")
 
-	body, _ := json.Marshal(CreateRuntimeSpecRequest{ApplicationID: applicationID, Environment: "staging"})
+	body, _ := json.Marshal(CreateRuntimeSpecRequest{ApplicationID: applicationId, Environment: "staging"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime-specs", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

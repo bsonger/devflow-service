@@ -157,14 +157,14 @@ func TestListProjectsReturnsEnvelope(t *testing.T) {
 func TestListProjectApplicationsReturnsEnvelope(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	projectID := uuid.New()
-	applicationID := uuid.New()
+	applicationId := uuid.New()
 	handler := NewHandler(stubProjectService{
 		listApplicationsFn: func(_ context.Context, id uuid.UUID) ([]projectdomain.Application, error) {
 			if id != projectID {
 				t.Fatalf("unexpected project id: %s", id)
 			}
 			return []projectdomain.Application{{
-				BaseModel: projectdomain.BaseModel{ID: applicationID},
+				BaseModel: projectdomain.BaseModel{ID: applicationId},
 				ProjectID: projectID,
 				Name:      "pilot-app",
 			}}, nil
@@ -196,7 +196,7 @@ func TestListProjectApplicationsReturnsEnvelope(t *testing.T) {
 	if len(payload.Data) != 1 {
 		t.Fatalf("unexpected payload length: %#v", payload)
 	}
-	if payload.Data[0].GetID() != applicationID || payload.Data[0].ProjectID != projectID || payload.Data[0].Name != "pilot-app" {
+	if payload.Data[0].GetID() != applicationId || payload.Data[0].ProjectID != projectID || payload.Data[0].Name != "pilot-app" {
 		t.Fatalf("unexpected application payload: %#v", payload.Data[0])
 	}
 	if payload.Pagination.Total != 1 {

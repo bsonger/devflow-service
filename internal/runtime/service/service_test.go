@@ -43,16 +43,16 @@ func (s stubStore) GetRuntimeSpec(ctx context.Context, id uuid.UUID) (*runtimedo
 	return nil, sql.ErrNoRows
 }
 
-func (s stubStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+func (s stubStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
 	if s.getRuntimeSpecByApplicationEnvFunc != nil {
-		return s.getRuntimeSpecByApplicationEnvFunc(ctx, applicationID, environment)
+		return s.getRuntimeSpecByApplicationEnvFunc(ctx, applicationId, environment)
 	}
 	return nil, nil
 }
 
-func (s stubStore) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) error {
+func (s stubStore) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) error {
 	if s.deleteRuntimeSpecByApplicationEnvFunc != nil {
-		return s.deleteRuntimeSpecByApplicationEnvFunc(ctx, applicationID, environment)
+		return s.deleteRuntimeSpecByApplicationEnvFunc(ctx, applicationId, environment)
 	}
 	return nil
 }
@@ -135,15 +135,15 @@ func (s stubStore) ListRuntimeOperations(ctx context.Context, runtimeSpecID uuid
 }
 
 func TestCreateRuntimeSpecRejectsDuplicate(t *testing.T) {
-	applicationID := uuid.New()
+	applicationId := uuid.New()
 	svc := New(stubStore{
 		getRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
-			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationID, Environment: "staging"}, nil
+			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationId, Environment: "staging"}, nil
 		},
 	}, nil)
 
 	_, err := svc.CreateRuntimeSpec(context.Background(), CreateRuntimeSpecInput{
-		ApplicationID: applicationID,
+		ApplicationID: applicationId,
 		Environment:   "staging",
 	})
 	if !sharederrs.HasCode(err, sharederrs.CodeConflict) {
@@ -152,14 +152,14 @@ func TestCreateRuntimeSpecRejectsDuplicate(t *testing.T) {
 }
 
 func TestCreateRuntimeSpecRevisionUsesNextRevisionAndUpdatesCurrent(t *testing.T) {
-	applicationID := uuid.New()
+	applicationId := uuid.New()
 	runtimeSpecID := uuid.New()
 	capturedRevision := 0
 	updatedRuntimeSpecID := uuid.Nil
 	updatedRevisionID := uuid.Nil
 	svc := New(stubStore{
 		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
-			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "staging"}, nil
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationId, Environment: "staging"}, nil
 		},
 		nextRevisionNumberFunc: func(context.Context, uuid.UUID) (int, error) {
 			return 3, nil
@@ -194,15 +194,15 @@ func TestCreateRuntimeSpecRevisionUsesNextRevisionAndUpdatesCurrent(t *testing.T
 }
 
 func TestSyncObservedPodRejectsNamespaceMismatch(t *testing.T) {
-	applicationID := uuid.New()
+	applicationId := uuid.New()
 	svc := New(stubStore{
 		getRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
-			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationID, Environment: "staging"}, nil
+			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationId, Environment: "staging"}, nil
 		},
 	}, nil)
 
 	_, err := svc.SyncObservedPod(context.Background(), SyncObservedPodInput{
-		ApplicationID: applicationID,
+		ApplicationID: applicationId,
 		Environment:   "staging",
 		Namespace:     "wrong-namespace",
 		PodName:       "demo-0",

@@ -78,13 +78,13 @@ func SetRuntimeClient(client runtimeclient.Lookup) {
 	runtimeLookupClient = client
 }
 
-func populateReleaseDefaults(release *model.Release, image *imagedomain.Image, environmentID string) {
+func populateReleaseDefaults(release *model.Release, image *imagedomain.Image, environmentId string) {
 	release.ApplicationID = image.ApplicationID
 	if release.Type == "" {
 		release.Type = model.ReleaseUpgrade
 	}
 	if release.EnvironmentID == "" {
-		release.EnvironmentID = environmentID
+		release.EnvironmentID = environmentId
 	}
 	release.Status = model.ReleasePending
 	if len(release.Steps) == 0 {
@@ -109,8 +109,8 @@ func newReleaseConfigReader() releaseConfigReader {
 	return appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
 }
 
-func selectReleaseRoutes(items []appservicedownstream.Route, environmentID string) []appservicedownstream.Route {
-	environmentID = strings.TrimSpace(environmentID)
+func selectReleaseRoutes(items []appservicedownstream.Route, environmentId string) []appservicedownstream.Route {
+	environmentId = strings.TrimSpace(environmentId)
 	out := make([]appservicedownstream.Route, 0, len(items))
 	for _, item := range items {
 		routeEnv := strings.TrimSpace(item.EnvironmentID)
@@ -119,7 +119,7 @@ func selectReleaseRoutes(items []appservicedownstream.Route, environmentID strin
 			out = append(out, item)
 		case routeEnv == "base":
 			out = append(out, item)
-		case environmentID != "" && routeEnv == environmentID:
+		case environmentId != "" && routeEnv == environmentId:
 			out = append(out, item)
 		}
 	}
@@ -231,12 +231,12 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 	if err != nil {
 		return uuid.Nil, err
 	}
-	environmentID, err := s.resolveReleaseEnvironment(ctx, release, image)
+	environmentId, err := s.resolveReleaseEnvironment(ctx, release, image)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	populateReleaseDefaults(release, image, environmentID)
+	populateReleaseDefaults(release, image, environmentId)
 	if err := freezeReleaseLiveInputs(ctx, release); err != nil {
 		return uuid.Nil, err
 	}
@@ -575,7 +575,7 @@ func buildOCIApplicationSource(manifest *manifestdomain.Manifest) *appv1.Applica
 
 func buildRepoPluginApplicationSource(release *model.Release) *appv1.ApplicationSource {
 	manifestRepo := model.GetConfigRepo()
-	applicationID := release.ApplicationID.String()
+	applicationId := release.ApplicationID.String()
 	imageID := release.ImageID.String()
 	releaseID := release.ID.String()
 	return &appv1.ApplicationSource{
@@ -585,7 +585,7 @@ func buildRepoPluginApplicationSource(release *model.Release) *appv1.Application
 			Name: "plugin",
 			Parameters: []appv1.ApplicationSourcePluginParameter{
 				{Name: "env", String_: &release.EnvironmentID},
-				{Name: "application-id", String_: &applicationID},
+				{Name: "application-id", String_: &applicationId},
 				{Name: "image-id", String_: &imageID},
 				{Name: "release-id", String_: &releaseID},
 			},

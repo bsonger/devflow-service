@@ -217,12 +217,12 @@ func validateAppConfig(cfg *domain.AppConfig) error {
 	return nil
 }
 
-func validateAppConfigInput(applicationID uuid.UUID, environmentID string) []string {
+func validateAppConfigInput(applicationId uuid.UUID, environmentId string) []string {
 	var errs []string
-	if applicationID == uuid.Nil {
+	if applicationId == uuid.Nil {
 		errs = append(errs, "application_id is required")
 	}
-	if strings.TrimSpace(environmentID) == "" {
+	if strings.TrimSpace(environmentId) == "" {
 		errs = append(errs, "environment_id is required")
 	}
 	return errs
@@ -247,15 +247,15 @@ func normalizeAppConfigMountPath(value string) string {
 func scanAppConfig(scanner interface{ Scan(dest ...any) error }) (*domain.AppConfig, error) {
 	var (
 		cfg              domain.AppConfig
-		applicationID    sql.NullString
+		applicationId    sql.NullString
 		labelsJSON       []byte
 		latestRevisionID sql.NullString
 		deletedAt        sql.NullTime
 	)
-	if err := scanner.Scan(&cfg.ID, &applicationID, &cfg.Name, &cfg.EnvironmentID, &cfg.Description, &cfg.Format, &cfg.Data, &cfg.MountPath, &labelsJSON, &cfg.SourcePath, &cfg.LatestRevisionNo, &latestRevisionID, &cfg.CreatedAt, &cfg.UpdatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&cfg.ID, &applicationId, &cfg.Name, &cfg.EnvironmentID, &cfg.Description, &cfg.Format, &cfg.Data, &cfg.MountPath, &labelsJSON, &cfg.SourcePath, &cfg.LatestRevisionNo, &latestRevisionID, &cfg.CreatedAt, &cfg.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
-	applicationUUID, err := dbsql.ParseNullUUID(applicationID)
+	applicationUUID, err := dbsql.ParseNullUUID(applicationId)
 	if err != nil {
 		return nil, err
 	}

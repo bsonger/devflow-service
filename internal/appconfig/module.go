@@ -1,8 +1,8 @@
 package appconfig
 
 import (
-	appconfighttp "github.com/bsonger/devflow-service/internal/appconfig/transport/http"
 	appconfig "github.com/bsonger/devflow-service/internal/appconfig/service"
+	appconfighttp "github.com/bsonger/devflow-service/internal/appconfig/transport/http"
 	platformconfigrepo "github.com/bsonger/devflow-service/internal/platform/configrepo"
 	"github.com/gin-gonic/gin"
 )

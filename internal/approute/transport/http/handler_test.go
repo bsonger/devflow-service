@@ -17,9 +17,9 @@ import (
 
 type mockRouteService struct {
 	createFunc   func(ctx context.Context, route *domain.Route) (uuid.UUID, error)
-	getFunc      func(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error)
+	getFunc      func(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error)
 	updateFunc   func(ctx context.Context, route *domain.Route) error
-	deleteFunc   func(ctx context.Context, applicationID, id uuid.UUID) error
+	deleteFunc   func(ctx context.Context, applicationId, id uuid.UUID) error
 	listFunc     func(ctx context.Context, filter RouteListFilter) ([]domain.Route, error)
 	validateFunc func(ctx context.Context, route *domain.Route) []string
 }
@@ -31,9 +31,9 @@ func (m *mockRouteService) Create(ctx context.Context, route *domain.Route) (uui
 	return uuid.New(), nil
 }
 
-func (m *mockRouteService) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error) {
+func (m *mockRouteService) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error) {
 	if m.getFunc != nil {
-		return m.getFunc(ctx, applicationID, id)
+		return m.getFunc(ctx, applicationId, id)
 	}
 	return nil, sql.ErrNoRows
 }
@@ -45,9 +45,9 @@ func (m *mockRouteService) Update(ctx context.Context, route *domain.Route) erro
 	return nil
 }
 
-func (m *mockRouteService) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
+func (m *mockRouteService) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
 	if m.deleteFunc != nil {
-		return m.deleteFunc(ctx, applicationID, id)
+		return m.deleteFunc(ctx, applicationId, id)
 	}
 	return nil
 }
@@ -179,7 +179,7 @@ func TestDeleteRouteNotFound(t *testing.T) {
 	appID := uuid.New()
 	routeID := uuid.New()
 	routeSvc := &mockRouteService{
-		deleteFunc: func(ctx context.Context, applicationID, id uuid.UUID) error {
+		deleteFunc: func(ctx context.Context, applicationId, id uuid.UUID) error {
 			return sql.ErrNoRows
 		},
 	}

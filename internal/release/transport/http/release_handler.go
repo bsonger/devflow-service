@@ -143,12 +143,12 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 // @Router /api/v1/releases [get]
 func (h *ReleaseHandler) List(c *gin.Context) {
 	filter := service.ReleaseListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
-	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
 	if !ok {
 		return
 	}
-	if applicationID != nil {
-		filter.ApplicationID = applicationID
+	if applicationId != nil {
+		filter.ApplicationID = applicationId
 	}
 	manifestID, ok := httpx.ParseUUIDQuery(c, "manifest_id")
 	if !ok {

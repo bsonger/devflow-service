@@ -1,8 +1,8 @@
 package image
 
 import (
-	imagehttp "github.com/bsonger/devflow-service/internal/image/transport/http"
 	imageservice "github.com/bsonger/devflow-service/internal/image/service"
+	imagehttp "github.com/bsonger/devflow-service/internal/image/transport/http"
 	"github.com/gin-gonic/gin"
 )
 

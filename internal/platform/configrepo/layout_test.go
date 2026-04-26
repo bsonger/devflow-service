@@ -57,9 +57,9 @@ func TestResolveLayoutIncludesAllRuntimeFilesAndEnvDirectoryOverlays(t *testing.
 		t.Fatal(err)
 	}
 	for name, content := range map[string]string{
-		"config.yaml":                                 "server:\n  port: 8080\n",
-		"logging.yaml":                                "log:\n  level: info\n",
-		filepath.Join("environments", "staging", "config.yaml"): "server:\n  port: 8081\n",
+		"config.yaml":  "server:\n  port: 8080\n",
+		"logging.yaml": "log:\n  level: info\n",
+		filepath.Join("environments", "staging", "config.yaml"):  "server:\n  port: 8081\n",
 		filepath.Join("environments", "staging", "feature.yaml"): "feature:\n  enabled: true\n",
 	} {
 		path := filepath.Join(sourceDir, filepath.FromSlash(name))

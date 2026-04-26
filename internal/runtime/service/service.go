@@ -183,20 +183,20 @@ func (s *runtimeService) GetRuntimeSpec(ctx context.Context, id uuid.UUID) (*dom
 	return s.repoStore().GetRuntimeSpec(ctx, id)
 }
 
-func (s *runtimeService) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) error {
+func (s *runtimeService) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) error {
 	environment = strings.TrimSpace(environment)
-	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
+	if err := validateRuntimeSpecInput(applicationId, environment); err != nil {
 		return err
 	}
 
-	existing, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	existing, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
 	if err != nil {
 		return err
 	}
 	if existing == nil {
 		return ErrRuntimeSpecNotFound
 	}
-	if err := s.repoStore().DeleteRuntimeSpecByApplicationEnv(ctx, applicationID, environment); err != nil {
+	if err := s.repoStore().DeleteRuntimeSpecByApplicationEnv(ctx, applicationId, environment); err != nil {
 		if err == sql.ErrNoRows {
 			return ErrRuntimeSpecNotFound
 		}
@@ -441,9 +441,9 @@ func (s *runtimeService) recordOperation(ctx context.Context, runtimeSpecID uuid
 	return nil
 }
 
-func validateRuntimeSpecInput(applicationID uuid.UUID, environment string) error {
+func validateRuntimeSpecInput(applicationId uuid.UUID, environment string) error {
 	messages := make([]string, 0, 2)
-	if applicationID == uuid.Nil {
+	if applicationId == uuid.Nil {
 		messages = append(messages, "application_id is required")
 	}
 	if environment == "" {
@@ -452,9 +452,9 @@ func validateRuntimeSpecInput(applicationID uuid.UUID, environment string) error
 	return sharederrs.JoinInvalid(messages)
 }
 
-func validateObservedPodInput(applicationID uuid.UUID, environment, podName, phase string) error {
+func validateObservedPodInput(applicationId uuid.UUID, environment, podName, phase string) error {
 	messages := make([]string, 0, 4)
-	if applicationID == uuid.Nil {
+	if applicationId == uuid.Nil {
 		messages = append(messages, "application_id is required")
 	}
 	if environment == "" {
@@ -469,9 +469,9 @@ func validateObservedPodInput(applicationID uuid.UUID, environment, podName, pha
 	return sharederrs.JoinInvalid(messages)
 }
 
-func validateObservedPodDeleteInput(applicationID uuid.UUID, environment, podName string) error {
+func validateObservedPodDeleteInput(applicationId uuid.UUID, environment, podName string) error {
 	messages := make([]string, 0, 3)
-	if applicationID == uuid.Nil {
+	if applicationId == uuid.Nil {
 		messages = append(messages, "application_id is required")
 	}
 	if environment == "" {
@@ -512,8 +512,8 @@ func copyLabels(in map[string]string) map[string]string {
 	return out
 }
 
-func deriveRuntimeNamespace(applicationID uuid.UUID, environment string) string {
-	base := applicationID.String()
+func deriveRuntimeNamespace(applicationId uuid.UUID, environment string) string {
+	base := applicationId.String()
 	environment = strings.ToLower(strings.TrimSpace(environment))
 	if environment == "" || environment == "production" {
 		return base

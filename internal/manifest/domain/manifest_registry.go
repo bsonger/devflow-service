@@ -30,7 +30,7 @@ func (c ManifestRegistryConfig) RepositoryPrefix() string {
 	return registry + "/" + repository
 }
 
-func (c ManifestRegistryConfig) RepositoryFor(applicationName, environmentID string) string {
+func (c ManifestRegistryConfig) RepositoryFor(applicationName, environmentId string) string {
 	prefix := c.RepositoryPrefix()
 	application := normalizeImageSegment(applicationName)
 	if application == "" {

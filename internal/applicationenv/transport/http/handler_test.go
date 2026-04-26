@@ -26,27 +26,27 @@ type stubBindingService struct {
 	getDetailFn func(context.Context, uuid.UUID, string) (*applicationenvservice.BindingDetail, error)
 }
 
-func (s stubBindingService) Attach(ctx context.Context, applicationID uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
-	return s.attachFn(ctx, applicationID, input)
+func (s stubBindingService) Attach(ctx context.Context, applicationId uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
+	return s.attachFn(ctx, applicationId, input)
 }
-func (s stubBindingService) Get(ctx context.Context, applicationID uuid.UUID, environmentID string) (*domain.Binding, error) {
-	return s.getFn(ctx, applicationID, environmentID)
+func (s stubBindingService) Get(ctx context.Context, applicationId uuid.UUID, environmentId string) (*domain.Binding, error) {
+	return s.getFn(ctx, applicationId, environmentId)
 }
-func (s stubBindingService) List(ctx context.Context, applicationID uuid.UUID) ([]applicationenvservice.BindingView, error) {
-	return s.listFn(ctx, applicationID)
+func (s stubBindingService) List(ctx context.Context, applicationId uuid.UUID) ([]applicationenvservice.BindingView, error) {
+	return s.listFn(ctx, applicationId)
 }
-func (s stubBindingService) Delete(ctx context.Context, applicationID uuid.UUID, environmentID string) error {
-	return s.deleteFn(ctx, applicationID, environmentID)
+func (s stubBindingService) Delete(ctx context.Context, applicationId uuid.UUID, environmentId string) error {
+	return s.deleteFn(ctx, applicationId, environmentId)
 }
-func (s stubBindingService) GetDetail(ctx context.Context, applicationID uuid.UUID, environmentID string) (*applicationenvservice.BindingDetail, error) {
-	return s.getDetailFn(ctx, applicationID, environmentID)
+func (s stubBindingService) GetDetail(ctx context.Context, applicationId uuid.UUID, environmentId string) (*applicationenvservice.BindingDetail, error) {
+	return s.getDetailFn(ctx, applicationId, environmentId)
 }
 
 func TestAttachReturnsEnvelope(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := NewHandler(stubBindingService{
-		attachFn: func(_ context.Context, applicationID uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
-			item := &domain.Binding{ApplicationID: applicationID, EnvironmentID: input.EnvironmentID}
+		attachFn: func(_ context.Context, applicationId uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
+			item := &domain.Binding{ApplicationID: applicationId, EnvironmentID: input.EnvironmentID}
 			item.WithCreateDefault()
 			return item, nil
 		},
@@ -106,8 +106,8 @@ func TestListReturnsEnvelope(t *testing.T) {
 func TestGetReturnsDetailEnvelope(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := NewHandler(stubBindingService{
-		getDetailFn: func(_ context.Context, applicationID uuid.UUID, environmentID string) (*applicationenvservice.BindingDetail, error) {
-			item := domain.Binding{ApplicationID: applicationID, EnvironmentID: environmentID}
+		getDetailFn: func(_ context.Context, applicationId uuid.UUID, environmentId string) (*applicationenvservice.BindingDetail, error) {
+			item := domain.Binding{ApplicationID: applicationId, EnvironmentID: environmentId}
 			item.WithCreateDefault()
 			return &applicationenvservice.BindingDetail{
 				BindingView: applicationenvservice.BindingView{

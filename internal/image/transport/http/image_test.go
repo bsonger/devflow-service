@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
-	model "github.com/bsonger/devflow-service/internal/release/domain"
 	imageservice "github.com/bsonger/devflow-service/internal/image/service"
+	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

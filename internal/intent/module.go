@@ -1,8 +1,8 @@
 package intent
 
 import (
-	intenthttp "github.com/bsonger/devflow-service/internal/intent/transport/http"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
+	intenthttp "github.com/bsonger/devflow-service/internal/intent/transport/http"
 	"github.com/gin-gonic/gin"
 )
 

@@ -1,8 +1,8 @@
 package manifest
 
 import (
-	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
+	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	"github.com/gin-gonic/gin"
 )
 

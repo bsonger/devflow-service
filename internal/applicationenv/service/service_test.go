@@ -25,14 +25,14 @@ type stubStore struct {
 func (s stubStore) Create(ctx context.Context, binding *domain.Binding) (uuid.UUID, error) {
 	return s.createFn(ctx, binding)
 }
-func (s stubStore) Get(ctx context.Context, applicationID uuid.UUID, environmentID string) (*domain.Binding, error) {
-	return s.getFn(ctx, applicationID, environmentID)
+func (s stubStore) Get(ctx context.Context, applicationId uuid.UUID, environmentId string) (*domain.Binding, error) {
+	return s.getFn(ctx, applicationId, environmentId)
 }
-func (s stubStore) ListByApplication(ctx context.Context, applicationID uuid.UUID) ([]domain.Binding, error) {
-	return s.listByApplicationFn(ctx, applicationID)
+func (s stubStore) ListByApplication(ctx context.Context, applicationId uuid.UUID) ([]domain.Binding, error) {
+	return s.listByApplicationFn(ctx, applicationId)
 }
-func (s stubStore) Delete(ctx context.Context, applicationID uuid.UUID, environmentID string) error {
-	return s.deleteFn(ctx, applicationID, environmentID)
+func (s stubStore) Delete(ctx context.Context, applicationId uuid.UUID, environmentId string) error {
+	return s.deleteFn(ctx, applicationId, environmentId)
 }
 
 type stubApplicationReader struct {
@@ -68,8 +68,8 @@ func (s stubWorkloadConfigReader) List(ctx context.Context, filter workloadconfi
 }
 
 func TestAttachValidatesReferences(t *testing.T) {
-	applicationID := uuid.New()
-	environmentID := uuid.NewString()
+	applicationId := uuid.New()
+	environmentId := uuid.NewString()
 
 	svc := NewService(
 		stubStore{
@@ -78,13 +78,13 @@ func TestAttachValidatesReferences(t *testing.T) {
 			},
 		},
 		stubApplicationReader{getFn: func(_ context.Context, id uuid.UUID) (*appdomain.Application, error) {
-			if id != applicationID {
+			if id != applicationId {
 				t.Fatalf("unexpected application id %s", id)
 			}
 			return &appdomain.Application{}, nil
 		}},
 		stubEnvironmentReader{getFn: func(_ context.Context, id uuid.UUID) (*envdomain.Environment, error) {
-			if id.String() != environmentID {
+			if id.String() != environmentId {
 				t.Fatalf("unexpected environment id %s", id)
 			}
 			return &envdomain.Environment{}, nil
@@ -93,18 +93,18 @@ func TestAttachValidatesReferences(t *testing.T) {
 		nil,
 	)
 
-	item, err := svc.Attach(context.Background(), applicationID, domain.BindingInput{EnvironmentID: environmentID})
+	item, err := svc.Attach(context.Background(), applicationId, domain.BindingInput{EnvironmentID: environmentId})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item.ApplicationID != applicationID || item.EnvironmentID != environmentID {
+	if item.ApplicationID != applicationId || item.EnvironmentID != environmentId {
 		t.Fatalf("unexpected binding %+v", item)
 	}
 }
 
 func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
-	applicationID := uuid.New()
-	environmentID := uuid.NewString()
+	applicationId := uuid.New()
+	environmentId := uuid.NewString()
 
 	svc := NewService(
 		stubStore{
@@ -119,7 +119,7 @@ func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
 			return &envdomain.Environment{Name: "staging"}, nil
 		}},
 		stubAppConfigReader{listFn: func(_ context.Context, filter appconfigservice.AppConfigListFilter) ([]appconfigdomain.AppConfig, error) {
-			if filter.EnvironmentID == environmentID {
+			if filter.EnvironmentID == environmentId {
 				return nil, nil
 			}
 			if filter.EnvironmentID == BaseEnvironmentID {
@@ -128,14 +128,14 @@ func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
 			return nil, nil
 		}},
 		stubWorkloadConfigReader{listFn: func(_ context.Context, filter workloadconfigservice.WorkloadConfigListFilter) ([]workloadconfigdomain.WorkloadConfig, error) {
-			if filter.ApplicationID != nil && *filter.ApplicationID == applicationID {
+			if filter.ApplicationID != nil && *filter.ApplicationID == applicationId {
 				return []workloadconfigdomain.WorkloadConfig{{Name: "base-workload"}}, nil
 			}
 			return nil, nil
 		}},
 	)
 
-	item, err := svc.GetDetail(context.Background(), applicationID, environmentID)
+	item, err := svc.GetDetail(context.Background(), applicationId, environmentId)
 	if err != nil {
 		t.Fatal(err)
 	}

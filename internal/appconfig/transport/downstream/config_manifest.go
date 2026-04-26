@@ -52,8 +52,8 @@ func New(baseURL string) *Client {
 	return &Client{Client: downstreamhttp.New(baseURL)}
 }
 
-func (c *Client) FindAppConfig(ctx context.Context, applicationID, environmentID string) (*AppConfig, error) {
-	item, err := c.findAppConfigMetadata(ctx, applicationID, environmentID)
+func (c *Client) FindAppConfig(ctx context.Context, applicationId, environmentId string) (*AppConfig, error) {
+	item, err := c.findAppConfigMetadata(ctx, applicationId, environmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -91,8 +91,8 @@ func (c *Client) GetAppConfig(ctx context.Context, id string) (*AppConfig, error
 	}, nil
 }
 
-func (c *Client) FindWorkloadConfig(ctx context.Context, applicationID string) (*WorkloadConfig, error) {
-	item, err := c.findWorkloadConfigMetadata(ctx, applicationID)
+func (c *Client) FindWorkloadConfig(ctx context.Context, applicationId string) (*WorkloadConfig, error) {
+	item, err := c.findWorkloadConfigMetadata(ctx, applicationId)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +102,8 @@ func (c *Client) FindWorkloadConfig(ctx context.Context, applicationID string) (
 	return c.GetWorkloadConfig(ctx, item.ID)
 }
 
-func (c *Client) findAppConfigMetadata(ctx context.Context, applicationID, environmentID string) (AppConfig, error) {
-	path := fmt.Sprintf("/api/v1/app-configs?application_id=%s&environment_id=%s", url.QueryEscape(applicationID), url.QueryEscape(environmentID))
+func (c *Client) findAppConfigMetadata(ctx context.Context, applicationId, environmentId string) (AppConfig, error) {
+	path := fmt.Sprintf("/api/v1/app-configs?application_id=%s&environment_id=%s", url.QueryEscape(applicationId), url.QueryEscape(environmentId))
 	var items []AppConfig
 	if err := c.GetEnvelopeData(ctx, path, &items); err != nil {
 		return AppConfig{}, err
@@ -114,7 +114,7 @@ func (c *Client) findAppConfigMetadata(ctx context.Context, applicationID, envir
 			return item, nil
 		}
 	}
-	path = fmt.Sprintf("/api/v1/app-configs?application_id=%s", url.QueryEscape(applicationID))
+	path = fmt.Sprintf("/api/v1/app-configs?application_id=%s", url.QueryEscape(applicationId))
 	var fallback []AppConfig
 	if err := c.GetEnvelopeData(ctx, path, &fallback); err != nil {
 		return AppConfig{}, err
@@ -130,8 +130,8 @@ func (c *Client) GetWorkloadConfig(ctx context.Context, id string) (*WorkloadCon
 	return &item, nil
 }
 
-func (c *Client) findWorkloadConfigMetadata(ctx context.Context, applicationID string) (WorkloadConfig, error) {
-	path := fmt.Sprintf("/api/v1/workload-configs?application_id=%s", url.QueryEscape(applicationID))
+func (c *Client) findWorkloadConfigMetadata(ctx context.Context, applicationId string) (WorkloadConfig, error) {
+	path := fmt.Sprintf("/api/v1/workload-configs?application_id=%s", url.QueryEscape(applicationId))
 	var fallback []WorkloadConfig
 	if err := c.GetEnvelopeData(ctx, path, &fallback); err != nil {
 		return WorkloadConfig{}, err

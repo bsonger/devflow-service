@@ -50,7 +50,7 @@ type DeployTarget struct {
 }
 
 type deployTargetBindingReader interface {
-	GetApplicationEnvironment(ctx context.Context, applicationID, environmentID string) (*downstream.ApplicationEnvironment, error)
+	GetApplicationEnvironment(ctx context.Context, applicationId, environmentId string) (*downstream.ApplicationEnvironment, error)
 }
 
 type deployTargetApplicationReader interface {
@@ -112,43 +112,43 @@ func newDeployTargetResolver(cfg RuntimeConfig) *deployTargetResolver {
 	}
 }
 
-func ResolveDeployTarget(ctx context.Context, applicationID, environmentID string) (*DeployTarget, error) {
+func ResolveDeployTarget(ctx context.Context, applicationId, environmentId string) (*DeployTarget, error) {
 	resolver := newDeployTargetResolver(CurrentRuntimeConfig())
-	return resolver.Resolve(ctx, applicationID, environmentID)
+	return resolver.Resolve(ctx, applicationId, environmentId)
 }
 
-func resolveDeployTarget(ctx context.Context, applicationID, environmentID string) (*DeployTarget, error) {
-	return ResolveDeployTarget(ctx, applicationID, environmentID)
+func resolveDeployTarget(ctx context.Context, applicationId, environmentId string) (*DeployTarget, error) {
+	return ResolveDeployTarget(ctx, applicationId, environmentId)
 }
 
-func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, environmentID string) (*DeployTarget, error) {
-	applicationID = strings.TrimSpace(applicationID)
-	environmentID = strings.TrimSpace(environmentID)
-	if applicationID == "" {
+func (r *deployTargetResolver) Resolve(ctx context.Context, applicationId, environmentId string) (*DeployTarget, error) {
+	applicationId = strings.TrimSpace(applicationId)
+	environmentId = strings.TrimSpace(environmentId)
+	if applicationId == "" {
 		return nil, ErrDeployTargetApplicationIDRequired
 	}
-	if environmentID == "" {
+	if environmentId == "" {
 		return nil, ErrDeployTargetEnvironmentIDRequired
 	}
 
-	binding, err := r.bindingReader.GetApplicationEnvironment(ctx, applicationID, environmentID)
+	binding, err := r.bindingReader.GetApplicationEnvironment(ctx, applicationId, environmentId)
 	if err != nil {
 		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
-			return nil, fmt.Errorf("%w: application_id=%s environment_id=%s", ErrDeployTargetBindingMissing, applicationID, environmentID)
+			return nil, fmt.Errorf("%w: application_id=%s environment_id=%s", ErrDeployTargetBindingMissing, applicationId, environmentId)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetBindingLookupFailed, err)
 	}
 	if binding == nil || strings.TrimSpace(binding.ID) == "" || strings.TrimSpace(binding.ApplicationID) == "" {
 		return nil, fmt.Errorf("%w: missing id or application_id", ErrDeployTargetBindingMalformed)
 	}
-	if strings.TrimSpace(binding.ApplicationID) != applicationID {
-		return nil, fmt.Errorf("%w: binding application_id=%s expected=%s", ErrDeployTargetBindingMalformed, binding.ApplicationID, applicationID)
+	if strings.TrimSpace(binding.ApplicationID) != applicationId {
+		return nil, fmt.Errorf("%w: binding application_id=%s expected=%s", ErrDeployTargetBindingMalformed, binding.ApplicationID, applicationId)
 	}
 
-	application, err := r.ownerReader.GetApplication(ctx, applicationID)
+	application, err := r.ownerReader.GetApplication(ctx, applicationId)
 	if err != nil {
 		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
-			return nil, fmt.Errorf("%w: application_id=%s", ErrDeployTargetApplicationMetadataMissing, applicationID)
+			return nil, fmt.Errorf("%w: application_id=%s", ErrDeployTargetApplicationMetadataMissing, applicationId)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetApplicationLookupFailed, err)
 	}
@@ -167,10 +167,10 @@ func (r *deployTargetResolver) Resolve(ctx context.Context, applicationID, envir
 		return nil, fmt.Errorf("%w: missing id or name", ErrDeployTargetProjectMetadataMalformed)
 	}
 
-	environment, err := r.ownerReader.GetEnvironment(ctx, environmentID)
+	environment, err := r.ownerReader.GetEnvironment(ctx, environmentId)
 	if err != nil {
 		if downstreamhttp.IsStatus(err, http.StatusNotFound) {
-			return nil, fmt.Errorf("%w: environment_id=%s", ErrDeployTargetEnvironmentMetadataMissing, environmentID)
+			return nil, fmt.Errorf("%w: environment_id=%s", ErrDeployTargetEnvironmentMetadataMissing, environmentId)
 		}
 		return nil, fmt.Errorf("%w: %v", ErrDeployTargetEnvironmentLookupFailed, err)
 	}

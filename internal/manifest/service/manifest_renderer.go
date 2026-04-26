@@ -36,14 +36,14 @@ func joinRenderedYAML(objects []manifestdomain.ManifestRenderedObject) string {
 	return strings.Join(parts, "\n---\n")
 }
 
-func renderManifestObjects(namespace, applicationName, applicationID string, workload manifestdomain.ManifestWorkloadConfig, services []manifestdomain.ManifestService, imageRef string, annotations map[string]string) ([]manifestdomain.ManifestRenderedObject, error) {
+func renderManifestObjects(namespace, applicationName, applicationId string, workload manifestdomain.ManifestWorkloadConfig, services []manifestdomain.ManifestService, imageRef string, annotations map[string]string) ([]manifestdomain.ManifestRenderedObject, error) {
 	objects := make([]manifestdomain.ManifestRenderedObject, 0, len(services)+1)
 	selectorLabels := map[string]string{
 		"app.kubernetes.io/name": applicationName,
 	}
 	workloadLabels := map[string]string{
 		"app.kubernetes.io/name": applicationName,
-		"devflow.application/id": applicationID,
+		"devflow.application/id": applicationId,
 	}
 
 	for _, service := range services {

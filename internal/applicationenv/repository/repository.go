@@ -46,21 +46,21 @@ func (s *postgresStore) Create(ctx context.Context, binding *domain.Binding) (uu
 	return binding.ID, nil
 }
 
-func (s *postgresStore) Get(ctx context.Context, applicationID uuid.UUID, environmentID string) (*domain.Binding, error) {
+func (s *postgresStore) Get(ctx context.Context, applicationId uuid.UUID, environmentId string) (*domain.Binding, error) {
 	return scanBinding(platformdb.Postgres().QueryRowContext(ctx, `
 		select binding_id, application_id, environment_id, created_at, updated_at, deleted_at
 		from application_environment_bindings
 		where application_id = $1 and environment_id = $2 and deleted_at is null
-	`, applicationID, strings.TrimSpace(environmentID)))
+	`, applicationId, strings.TrimSpace(environmentId)))
 }
 
-func (s *postgresStore) ListByApplication(ctx context.Context, applicationID uuid.UUID) ([]domain.Binding, error) {
+func (s *postgresStore) ListByApplication(ctx context.Context, applicationId uuid.UUID) ([]domain.Binding, error) {
 	rows, err := platformdb.Postgres().QueryContext(ctx, `
 		select binding_id, application_id, environment_id, created_at, updated_at, deleted_at
 		from application_environment_bindings
 		where application_id = $1 and deleted_at is null
 		order by created_at desc
-	`, applicationID)
+	`, applicationId)
 	if err != nil {
 		return nil, err
 	}
@@ -78,12 +78,12 @@ func (s *postgresStore) ListByApplication(ctx context.Context, applicationID uui
 	return items, rows.Err()
 }
 
-func (s *postgresStore) Delete(ctx context.Context, applicationID uuid.UUID, environmentID string) error {
+func (s *postgresStore) Delete(ctx context.Context, applicationId uuid.UUID, environmentId string) error {
 	result, err := platformdb.Postgres().ExecContext(ctx, `
 		update application_environment_bindings
 		set deleted_at = now(), updated_at = now()
 		where application_id = $1 and environment_id = $2 and deleted_at is null
-	`, applicationID, strings.TrimSpace(environmentID))
+	`, applicationId, strings.TrimSpace(environmentId))
 	if err != nil {
 		return err
 	}

@@ -95,18 +95,18 @@ func NewService(
 	}
 }
 
-func (s *bindingService) Attach(ctx context.Context, applicationID uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
-	environmentID := strings.TrimSpace(input.EnvironmentID)
-	if environmentID == "" {
+func (s *bindingService) Attach(ctx context.Context, applicationId uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
+	environmentId := strings.TrimSpace(input.EnvironmentID)
+	if environmentId == "" {
 		return nil, ErrEnvironmentIDRequired
 	}
-	if err := s.validateReferences(ctx, applicationID, environmentID); err != nil {
+	if err := s.validateReferences(ctx, applicationId, environmentId); err != nil {
 		return nil, err
 	}
 
 	item := &domain.Binding{
-		ApplicationID: applicationID,
-		EnvironmentID: environmentID,
+		ApplicationID: applicationId,
+		EnvironmentID: environmentId,
 	}
 	item.WithCreateDefault()
 	_, err := s.store.Create(ctx, item)
@@ -116,12 +116,12 @@ func (s *bindingService) Attach(ctx context.Context, applicationID uuid.UUID, in
 	return item, nil
 }
 
-func (s *bindingService) Get(ctx context.Context, applicationID uuid.UUID, environmentID string) (*domain.Binding, error) {
-	return s.store.Get(ctx, applicationID, strings.TrimSpace(environmentID))
+func (s *bindingService) Get(ctx context.Context, applicationId uuid.UUID, environmentId string) (*domain.Binding, error) {
+	return s.store.Get(ctx, applicationId, strings.TrimSpace(environmentId))
 }
 
-func (s *bindingService) List(ctx context.Context, applicationID uuid.UUID) ([]BindingView, error) {
-	items, err := s.store.ListByApplication(ctx, applicationID)
+func (s *bindingService) List(ctx context.Context, applicationId uuid.UUID) ([]BindingView, error) {
+	items, err := s.store.ListByApplication(ctx, applicationId)
 	if err != nil {
 		return nil, err
 	}
@@ -138,12 +138,12 @@ func (s *bindingService) List(ctx context.Context, applicationID uuid.UUID) ([]B
 	return out, nil
 }
 
-func (s *bindingService) Delete(ctx context.Context, applicationID uuid.UUID, environmentID string) error {
-	return s.store.Delete(ctx, applicationID, strings.TrimSpace(environmentID))
+func (s *bindingService) Delete(ctx context.Context, applicationId uuid.UUID, environmentId string) error {
+	return s.store.Delete(ctx, applicationId, strings.TrimSpace(environmentId))
 }
 
-func (s *bindingService) GetDetail(ctx context.Context, applicationID uuid.UUID, environmentID string) (*BindingDetail, error) {
-	item, err := s.Get(ctx, applicationID, environmentID)
+func (s *bindingService) GetDetail(ctx context.Context, applicationId uuid.UUID, environmentId string) (*BindingDetail, error) {
+	item, err := s.Get(ctx, applicationId, environmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -155,11 +155,11 @@ func (s *bindingService) GetDetail(ctx context.Context, applicationID uuid.UUID,
 		return nil, err
 	}
 
-	appConfigs, err := s.resolveAppConfigs(ctx, applicationID, item.EnvironmentID)
+	appConfigs, err := s.resolveAppConfigs(ctx, applicationId, item.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
-	workloadConfigs, err := s.resolveWorkloadConfigs(ctx, applicationID, item.EnvironmentID)
+	workloadConfigs, err := s.resolveWorkloadConfigs(ctx, applicationId, item.EnvironmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,12 +171,12 @@ func (s *bindingService) GetDetail(ctx context.Context, applicationID uuid.UUID,
 	}, nil
 }
 
-func (s *bindingService) validateReferences(ctx context.Context, applicationID uuid.UUID, environmentID string) error {
-	if applicationID == uuid.Nil {
+func (s *bindingService) validateReferences(ctx context.Context, applicationId uuid.UUID, environmentId string) error {
+	if applicationId == uuid.Nil {
 		return sharederrs.Required("application_id")
 	}
 	if s.applications != nil {
-		if _, err := s.applications.Get(ctx, applicationID); err != nil {
+		if _, err := s.applications.Get(ctx, applicationId); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrApplicationReferenceNotFound
 			}
@@ -184,15 +184,15 @@ func (s *bindingService) validateReferences(ctx context.Context, applicationID u
 		}
 	}
 
-	if _, err := s.lookupEnvironment(ctx, environmentID); err != nil {
+	if _, err := s.lookupEnvironment(ctx, environmentId); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *bindingService) lookupEnvironment(ctx context.Context, environmentID string) (*envdomain.Environment, error) {
-	trimmed := strings.TrimSpace(environmentID)
+func (s *bindingService) lookupEnvironment(ctx context.Context, environmentId string) (*envdomain.Environment, error) {
+	trimmed := strings.TrimSpace(environmentId)
 	if trimmed == "" {
 		return nil, ErrEnvironmentIDRequired
 	}
@@ -215,14 +215,14 @@ func (s *bindingService) lookupEnvironment(ctx context.Context, environmentID st
 	return item, nil
 }
 
-func (s *bindingService) resolveAppConfigs(ctx context.Context, applicationID uuid.UUID, environmentID string) ([]appconfigdomain.AppConfig, error) {
+func (s *bindingService) resolveAppConfigs(ctx context.Context, applicationId uuid.UUID, environmentId string) ([]appconfigdomain.AppConfig, error) {
 	if s.appConfigs == nil {
 		return nil, nil
 	}
 
 	exact, err := s.appConfigs.List(ctx, appconfigservice.AppConfigListFilter{
-		ApplicationID: &applicationID,
-		EnvironmentID: environmentID,
+		ApplicationID: &applicationId,
+		EnvironmentID: environmentId,
 	})
 	if err != nil {
 		return nil, err
@@ -232,17 +232,17 @@ func (s *bindingService) resolveAppConfigs(ctx context.Context, applicationID uu
 	}
 
 	return s.appConfigs.List(ctx, appconfigservice.AppConfigListFilter{
-		ApplicationID: &applicationID,
+		ApplicationID: &applicationId,
 		EnvironmentID: BaseEnvironmentID,
 	})
 }
 
-func (s *bindingService) resolveWorkloadConfigs(ctx context.Context, applicationID uuid.UUID, _ string) ([]workloadconfigdomain.WorkloadConfig, error) {
+func (s *bindingService) resolveWorkloadConfigs(ctx context.Context, applicationId uuid.UUID, _ string) ([]workloadconfigdomain.WorkloadConfig, error) {
 	if s.workloadConfigs == nil {
 		return nil, nil
 	}
 
 	return s.workloadConfigs.List(ctx, workloadconfigservice.WorkloadConfigListFilter{
-		ApplicationID: &applicationID,
+		ApplicationID: &applicationId,
 	})
 }

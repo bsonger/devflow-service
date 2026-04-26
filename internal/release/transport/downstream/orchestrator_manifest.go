@@ -24,9 +24,9 @@ func NewOrchestratorManifestClient(baseURL string) *OrchestratorManifestClient {
 	return &OrchestratorManifestClient{Client: downstreamhttp.New(baseURL)}
 }
 
-func (c *OrchestratorManifestClient) GetApplicationEnvironment(ctx context.Context, applicationID, environmentID string) (*ApplicationEnvironment, error) {
+func (c *OrchestratorManifestClient) GetApplicationEnvironment(ctx context.Context, applicationId, environmentId string) (*ApplicationEnvironment, error) {
 	var out ApplicationEnvironment
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/applications/%s/environments/%s", applicationID, environmentID), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/applications/%s/environments/%s", applicationId, environmentId), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

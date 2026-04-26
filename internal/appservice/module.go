@@ -1,8 +1,8 @@
 package appservice
 
 import (
-	appservicehttp "github.com/bsonger/devflow-service/internal/appservice/transport/http"
 	appservice "github.com/bsonger/devflow-service/internal/appservice/service"
+	appservicehttp "github.com/bsonger/devflow-service/internal/appservice/transport/http"
 	"github.com/gin-gonic/gin"
 )
 

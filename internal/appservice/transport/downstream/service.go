@@ -36,17 +36,17 @@ func New(baseURL string) *Client {
 	return &Client{Client: downstreamhttp.New(baseURL)}
 }
 
-func (c *Client) ListServices(ctx context.Context, applicationID string) ([]Service, error) {
+func (c *Client) ListServices(ctx context.Context, applicationId string) ([]Service, error) {
 	var out []Service
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/services?application_id=%s", applicationID), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/services?application_id=%s", applicationId), &out); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *Client) ListRoutes(ctx context.Context, applicationID string) ([]Route, error) {
+func (c *Client) ListRoutes(ctx context.Context, applicationId string) ([]Route, error) {
 	var out []Route
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/routes?application_id=%s", applicationID), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/routes?application_id=%s", applicationId), &out); err != nil {
 		return nil, err
 	}
 	return out, nil

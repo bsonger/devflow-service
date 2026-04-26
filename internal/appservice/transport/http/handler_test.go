@@ -16,9 +16,9 @@ import (
 
 type mockServiceService struct {
 	createFunc func(ctx context.Context, service *domain.Service) (uuid.UUID, error)
-	getFunc    func(ctx context.Context, applicationID, id uuid.UUID) (*domain.Service, error)
+	getFunc    func(ctx context.Context, applicationId, id uuid.UUID) (*domain.Service, error)
 	updateFunc func(ctx context.Context, service *domain.Service) error
-	deleteFunc func(ctx context.Context, applicationID, id uuid.UUID) error
+	deleteFunc func(ctx context.Context, applicationId, id uuid.UUID) error
 	listFunc   func(ctx context.Context, filter ServiceListFilter) ([]domain.Service, error)
 }
 
@@ -29,9 +29,9 @@ func (m *mockServiceService) Create(ctx context.Context, service *domain.Service
 	return uuid.New(), nil
 }
 
-func (m *mockServiceService) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Service, error) {
+func (m *mockServiceService) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Service, error) {
 	if m.getFunc != nil {
-		return m.getFunc(ctx, applicationID, id)
+		return m.getFunc(ctx, applicationId, id)
 	}
 	return nil, sql.ErrNoRows
 }
@@ -43,9 +43,9 @@ func (m *mockServiceService) Update(ctx context.Context, service *domain.Service
 	return nil
 }
 
-func (m *mockServiceService) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
+func (m *mockServiceService) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
 	if m.deleteFunc != nil {
-		return m.deleteFunc(ctx, applicationID, id)
+		return m.deleteFunc(ctx, applicationId, id)
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ func TestDeleteService(t *testing.T) {
 	appID := uuid.New()
 	svcID := uuid.New()
 	svc := &mockServiceService{
-		deleteFunc: func(ctx context.Context, applicationID, id uuid.UUID) error {
+		deleteFunc: func(ctx context.Context, applicationId, id uuid.UUID) error {
 			return nil
 		},
 	}

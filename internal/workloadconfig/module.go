@@ -1,8 +1,8 @@
 package workloadconfig
 
 import (
-	workloadconfighttp "github.com/bsonger/devflow-service/internal/workloadconfig/transport/http"
 	workloadconfig "github.com/bsonger/devflow-service/internal/workloadconfig/service"
+	workloadconfighttp "github.com/bsonger/devflow-service/internal/workloadconfig/transport/http"
 	"github.com/gin-gonic/gin"
 )
 

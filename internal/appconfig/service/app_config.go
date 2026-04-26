@@ -240,12 +240,12 @@ func validateAppConfig(cfg *domain.AppConfig) error {
 	return nil
 }
 
-func validateAppConfigInput(applicationID uuid.UUID, environmentID string) []string {
+func validateAppConfigInput(applicationId uuid.UUID, environmentId string) []string {
 	var errs []string
-	if applicationID == uuid.Nil {
+	if applicationId == uuid.Nil {
 		errs = append(errs, "application_id is required")
 	}
-	if strings.TrimSpace(environmentID) == "" {
+	if strings.TrimSpace(environmentId) == "" {
 		errs = append(errs, "environment_id is required")
 	}
 	return errs

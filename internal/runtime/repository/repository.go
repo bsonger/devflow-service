@@ -55,23 +55,23 @@ func (s *postgresStore) GetRuntimeSpec(ctx context.Context, id uuid.UUID) (*runt
 	`, id))
 }
 
-func (s *postgresStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+func (s *postgresStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
 	spec, err := scanRuntimeSpec(platformdb.Postgres().QueryRowContext(ctx, `
 		select id, application_id, environment, current_revision_id, created_at, updated_at
 		from application_runtime_specs
 		where application_id = $1 and environment = $2
-	`, applicationID, environment))
+	`, applicationId, environment))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return spec, err
 }
 
-func (s *postgresStore) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) error {
+func (s *postgresStore) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) error {
 	result, err := platformdb.Postgres().ExecContext(ctx, `
 		delete from application_runtime_specs
 		where application_id = $1 and environment = $2
-	`, applicationID, environment)
+	`, applicationId, environment)
 	if err != nil {
 		return err
 	}

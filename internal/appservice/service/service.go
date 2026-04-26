@@ -12,9 +12,9 @@ import (
 
 type ServiceService interface {
 	Create(ctx context.Context, service *domain.Service) (uuid.UUID, error)
-	Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Service, error)
+	Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Service, error)
 	Update(ctx context.Context, service *domain.Service) error
-	Delete(ctx context.Context, applicationID, id uuid.UUID) error
+	Delete(ctx context.Context, applicationId, id uuid.UUID) error
 	List(ctx context.Context, filter ServiceListFilter) ([]domain.Service, error)
 }
 
@@ -46,8 +46,8 @@ func (s *serviceService) Create(ctx context.Context, item *domain.Service) (uuid
 	})
 }
 
-func (s *serviceService) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Service, error) {
-	item, err := s.networks.Get(ctx, applicationID, id)
+func (s *serviceService) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Service, error) {
+	item, err := s.networks.Get(ctx, applicationId, id)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +66,8 @@ func (s *serviceService) Update(ctx context.Context, item *domain.Service) error
 	})
 }
 
-func (s *serviceService) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
-	return s.networks.Delete(ctx, applicationID, id)
+func (s *serviceService) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
+	return s.networks.Delete(ctx, applicationId, id)
 }
 
 func (s *serviceService) List(ctx context.Context, filter ServiceListFilter) ([]domain.Service, error) {

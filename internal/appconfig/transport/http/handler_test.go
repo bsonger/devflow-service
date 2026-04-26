@@ -183,4 +183,3 @@ func TestSyncAppConfigUnavailable(t *testing.T) {
 		t.Fatalf("expected 424, got %d", rec.Code)
 	}
 }
-

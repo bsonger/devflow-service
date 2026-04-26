@@ -156,12 +156,12 @@ func (h *Handler) GetRuntimeSpec(c *gin.Context) {
 }
 
 func (h *Handler) DeleteRuntimeSpec(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDString(c, c.Query("application_id"), "application_id")
+	applicationId, ok := httpx.ParseUUIDString(c, c.Query("application_id"), "application_id")
 	if !ok {
 		return
 	}
 	environment := strings.TrimSpace(c.Query("environment"))
-	if err := h.runtime.DeleteRuntimeSpecByApplicationEnv(c.Request.Context(), applicationID, environment); err != nil {
+	if err := h.runtime.DeleteRuntimeSpecByApplicationEnv(c.Request.Context(), applicationId, environment); err != nil {
 		writeRuntimeError(c, err)
 		return
 	}

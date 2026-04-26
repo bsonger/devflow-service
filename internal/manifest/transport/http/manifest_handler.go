@@ -90,12 +90,12 @@ func (h *ManifestHandler) Create(c *gin.Context) {
 // @Router /api/v1/manifests [get]
 func (h *ManifestHandler) List(c *gin.Context) {
 	filter := manifestdomain.ManifestListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
-	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
 	if !ok {
 		return
 	}
-	if applicationID != nil {
-		filter.ApplicationID = applicationID
+	if applicationId != nil {
+		filter.ApplicationID = applicationId
 	}
 	imageID, ok := httpx.ParseUUIDQuery(c, "image_id")
 	if !ok {

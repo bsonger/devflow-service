@@ -13,9 +13,9 @@ import (
 
 type RouteService interface {
 	Create(ctx context.Context, route *domain.Route) (uuid.UUID, error)
-	Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error)
+	Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error)
 	Update(ctx context.Context, route *domain.Route) error
-	Delete(ctx context.Context, applicationID, id uuid.UUID) error
+	Delete(ctx context.Context, applicationId, id uuid.UUID) error
 	List(ctx context.Context, filter RouteListFilter) ([]domain.Route, error)
 	Validate(ctx context.Context, route *domain.Route) []string
 }
@@ -45,8 +45,8 @@ func (s *routeService) Create(ctx context.Context, item *domain.Route) (uuid.UUI
 	return s.store.Create(ctx, item)
 }
 
-func (s *routeService) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error) {
-	return s.store.Get(ctx, applicationID, id)
+func (s *routeService) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error) {
+	return s.store.Get(ctx, applicationId, id)
 }
 
 func (s *routeService) Update(ctx context.Context, item *domain.Route) error {
@@ -56,8 +56,8 @@ func (s *routeService) Update(ctx context.Context, item *domain.Route) error {
 	return s.store.Update(ctx, item)
 }
 
-func (s *routeService) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
-	return s.store.Delete(ctx, applicationID, id)
+func (s *routeService) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
+	return s.store.Delete(ctx, applicationId, id)
 }
 
 func (s *routeService) List(ctx context.Context, filter RouteListFilter) ([]domain.Route, error) {

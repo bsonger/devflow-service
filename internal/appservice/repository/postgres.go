@@ -16,9 +16,9 @@ import (
 
 type Store interface {
 	Create(ctx context.Context, network *domain.Network) (uuid.UUID, error)
-	Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Network, error)
+	Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Network, error)
 	Update(ctx context.Context, network *domain.Network) error
-	Delete(ctx context.Context, applicationID, id uuid.UUID) error
+	Delete(ctx context.Context, applicationId, id uuid.UUID) error
 	List(ctx context.Context, filter NetworkListFilter) ([]domain.Network, error)
 }
 
@@ -57,12 +57,12 @@ func (s *postgresStore) Create(ctx context.Context, network *domain.Network) (uu
 	return network.ID, nil
 }
 
-func (s *postgresStore) Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Network, error) {
+func (s *postgresStore) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Network, error) {
 	return scanNetwork(db.Postgres().QueryRowContext(ctx, `
 		select id, application_id, name, ports, hosts, paths, gateway_refs, visibility, created_at, updated_at, deleted_at
 		from networks
 		where application_id = $1 and id = $2 and deleted_at is null
-	`, applicationID, id))
+	`, applicationId, id))
 }
 
 func (s *postgresStore) Update(ctx context.Context, network *domain.Network) error {
@@ -94,12 +94,12 @@ func (s *postgresStore) Update(ctx context.Context, network *domain.Network) err
 	return dbsql.EnsureRowsAffected(result)
 }
 
-func (s *postgresStore) Delete(ctx context.Context, applicationID, id uuid.UUID) error {
+func (s *postgresStore) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
 	now := time.Now()
 	result, err := db.Postgres().ExecContext(ctx, `
 		update networks set deleted_at=$3, updated_at=$3
 		where application_id=$1 and id=$2 and deleted_at is null
-	`, applicationID, id, now)
+	`, applicationId, id, now)
 	if err != nil {
 		return err
 	}
@@ -155,17 +155,17 @@ func validateNetwork(network *domain.Network) error {
 func scanNetwork(scanner interface{ Scan(dest ...any) error }) (*domain.Network, error) {
 	var (
 		item          domain.Network
-		applicationID sql.NullString
+		applicationId sql.NullString
 		portsJSON     []byte
 		hostsJSON     []byte
 		pathsJSON     []byte
 		gatewaysJSON  []byte
 		deletedAt     sql.NullTime
 	)
-	if err := scanner.Scan(&item.ID, &applicationID, &item.Name, &portsJSON, &hostsJSON, &pathsJSON, &gatewaysJSON, &item.Visibility, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&item.ID, &applicationId, &item.Name, &portsJSON, &hostsJSON, &pathsJSON, &gatewaysJSON, &item.Visibility, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
-	applicationUUID, err := dbsql.ParseNullUUID(applicationID)
+	applicationUUID, err := dbsql.ParseNullUUID(applicationId)
 	if err != nil {
 		return nil, err
 	}

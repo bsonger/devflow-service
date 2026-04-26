@@ -1,8 +1,8 @@
 package approute
 
 import (
-	approutehttp "github.com/bsonger/devflow-service/internal/approute/transport/http"
 	approute "github.com/bsonger/devflow-service/internal/approute/service"
+	approutehttp "github.com/bsonger/devflow-service/internal/approute/transport/http"
 	"github.com/gin-gonic/gin"
 )
 

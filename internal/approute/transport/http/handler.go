@@ -15,9 +15,9 @@ import (
 
 type routeService interface {
 	Create(ctx context.Context, route *domain.Route) (uuid.UUID, error)
-	Get(ctx context.Context, applicationID, id uuid.UUID) (*domain.Route, error)
+	Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error)
 	Update(ctx context.Context, route *domain.Route) error
-	Delete(ctx context.Context, applicationID, id uuid.UUID) error
+	Delete(ctx context.Context, applicationId, id uuid.UUID) error
 	List(ctx context.Context, filter RouteListFilter) ([]domain.Route, error)
 	Validate(ctx context.Context, route *domain.Route) []string
 }
@@ -87,7 +87,7 @@ func (h *Handler) CreateRoute(c *gin.Context) {
 // @Success 200 {object} httpx.ListResponse[domain.Route]
 // @Router /api/v1/routes [get]
 func (h *Handler) ListRoutes(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
 	if !ok {
 		return
 	}
@@ -96,8 +96,8 @@ func (h *Handler) ListRoutes(c *gin.Context) {
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
 	}
-	if applicationID != nil {
-		filter.ApplicationID = *applicationID
+	if applicationId != nil {
+		filter.ApplicationID = *applicationId
 	}
 	items, err := h.routes.List(c.Request.Context(), filter)
 	if err != nil {
@@ -154,8 +154,8 @@ func (h *Handler) UpdateRoute(c *gin.Context) {
 // @Param application_id query string true "Application ID"
 // @Router /api/v1/routes/{route_id} [delete]
 func (h *Handler) DeleteRoute(c *gin.Context) {
-	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
-	if !ok || applicationID == nil {
+	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok || applicationId == nil {
 		if ok {
 			httpx.WriteInvalidArgument(c, "invalid application_id")
 		}
@@ -165,7 +165,7 @@ func (h *Handler) DeleteRoute(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.routes.Delete(c.Request.Context(), *applicationID, id); err != nil {
+	if err := h.routes.Delete(c.Request.Context(), *applicationId, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteNotFound(c, "not found")
 			return
