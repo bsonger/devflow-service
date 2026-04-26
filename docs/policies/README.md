@@ -8,6 +8,7 @@ Current policy docs:
 - `go-monorepo-layout.md` — detailed Go monorepo structure and naming rules for this repo
 - `docker-baseline.md` — Docker and image-build rules
 - `verification.md` — canonical verification stack
+- `doc-synchronization.md` — code-and-doc synchronization rules; every code change must be reviewed for doc drift
 - `observability-logging.md` — structured logging, metrics-label, and trace-correlation rules
 - `error-handling.md` — HTTP error envelope, code vocabulary, and handler mapping rules
 - `http-handler.md` — Gin handler responsibilities, shared response helpers, and pagination rules

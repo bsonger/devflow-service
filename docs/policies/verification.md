@@ -60,6 +60,7 @@ The matching CI workflow is:
 - alias-only forwarding files such as `support_alias.go` must not be reintroduced; packages should import the owning implementation package directly once the transition layer is no longer needed
 - `internal/shared` must not grow catch-all directories such as `common`, `util`, `utils`, `base`, or `model`
 - `internal/platform` and `internal/shared` must not import business-domain packages directly; domain-facing translation belongs outside the platform layer
+- code changes that affect the public API, domain models, or service behavior must include matching doc updates; follow `docs/policies/doc-synchronization.md`
 
 ## Verification ownership
 
