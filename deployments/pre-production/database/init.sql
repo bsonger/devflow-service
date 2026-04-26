@@ -522,7 +522,7 @@ CREATE TABLE public.workload_configs (
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
     description text DEFAULT ''::text NOT NULL,
-    exposed boolean DEFAULT false NOT NULL,
+    service_account_name text DEFAULT ''::text NOT NULL,
     labels jsonb DEFAULT '[]'::jsonb NOT NULL
 );
 

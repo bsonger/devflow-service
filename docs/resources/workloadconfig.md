@@ -31,6 +31,7 @@ It captures replicas, resource and probe settings, environment variables, worklo
 | `name` | `string` | required | user | 配置名 |
 | `description` | `string` | optional | user | 配置描述 |
 | `replicas` | `int` | required | user | 副本数 |
+| `service_account_name` | `string` | optional | user | 使用的 ServiceAccount 名称 |
 | `resources` | `map[string]any` | optional | user | 资源约束 |
 | `probes` | `map[string]any` | optional | user | 探针配置 |
 | `env` | `[]EnvVar` | optional | user | 环境变量 |
@@ -60,7 +61,7 @@ It captures replicas, resource and probe settings, environment variables, worklo
 
 ### Update
 - mutable fields:
-  - `application_id`, `environment_id`, `name`, `description`, `replicas`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
+  - `application_id`, `environment_id`, `name`, `description`, `replicas`, `service_account_name`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
 - immutable/system-managed fields:
   - `id`, `created_at`, `deleted_at`
 

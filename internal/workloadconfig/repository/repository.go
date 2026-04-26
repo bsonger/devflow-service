@@ -37,9 +37,9 @@ func NewPostgresStore() Store {
 func (s *PostgresStore) Create(ctx context.Context, item *domain.WorkloadConfig) (uuid.UUID, error) {
 	_, err := db.Postgres().ExecContext(ctx, `
 		insert into workload_configs (
-			id, application_id, environment_id, name, description, replicas, exposed, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
+			id, application_id, environment_id, name, description, replicas, service_account_name, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-	`, item.ID, item.ApplicationID, dbsql.EmptyToNull(item.EnvironmentID), item.Name, item.Description, item.Replicas, item.Exposed, dbsql.MustMarshalJSON(item.Resources, "[]"), dbsql.MustMarshalJSON(item.Probes, "[]"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "[]"), item.WorkloadType, item.Strategy, item.CreatedAt, item.UpdatedAt, item.DeletedAt)
+	`, item.ID, item.ApplicationID, dbsql.EmptyToNull(item.EnvironmentID), item.Name, item.Description, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "[]"), dbsql.MustMarshalJSON(item.Probes, "[]"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "[]"), item.WorkloadType, item.Strategy, item.CreatedAt, item.UpdatedAt, item.DeletedAt)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -48,7 +48,7 @@ func (s *PostgresStore) Create(ctx context.Context, item *domain.WorkloadConfig)
 
 func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*domain.WorkloadConfig, error) {
 	return scanWorkloadConfig(db.Postgres().QueryRowContext(ctx, `
-		select id, application_id, environment_id, name, description, replicas, exposed, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
+		select id, application_id, environment_id, name, description, replicas, service_account_name, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
 		from workload_configs where id=$1 and deleted_at is null
 	`, id))
 }
@@ -56,9 +56,9 @@ func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*domain.Workload
 func (s *PostgresStore) Update(ctx context.Context, item *domain.WorkloadConfig) error {
 	result, err := db.Postgres().ExecContext(ctx, `
 		update workload_configs
-		set application_id=$2, environment_id=$3, name=$4, description=$5, replicas=$6, exposed=$7, resources=$8, probes=$9, env=$10, labels=$11, workload_type=$12, strategy=$13, updated_at=$14
+		set application_id=$2, environment_id=$3, name=$4, description=$5, replicas=$6, service_account_name=$7, resources=$8, probes=$9, env=$10, labels=$11, workload_type=$12, strategy=$13, updated_at=$14
 		where id=$1 and deleted_at is null
-	`, item.ID, item.ApplicationID, dbsql.EmptyToNull(item.EnvironmentID), item.Name, item.Description, item.Replicas, item.Exposed, dbsql.MustMarshalJSON(item.Resources, "[]"), dbsql.MustMarshalJSON(item.Probes, "[]"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "[]"), item.WorkloadType, item.Strategy, item.UpdatedAt)
+	`, item.ID, item.ApplicationID, dbsql.EmptyToNull(item.EnvironmentID), item.Name, item.Description, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "[]"), dbsql.MustMarshalJSON(item.Probes, "[]"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "[]"), item.WorkloadType, item.Strategy, item.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.WorkloadConfig, error) {
 	query := `
-		select id, application_id, environment_id, name, description, replicas, exposed, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
+		select id, application_id, environment_id, name, description, replicas, service_account_name, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
 		from workload_configs
 	`
 	clauses := make([]string, 0, 4)
@@ -121,19 +121,23 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.W
 
 func scanWorkloadConfig(scanner interface{ Scan(dest ...any) error }) (*domain.WorkloadConfig, error) {
 	var (
-		item          domain.WorkloadConfig
-		environmentID sql.NullString
-		resourcesJSON []byte
-		probesJSON    []byte
-		envJSON       []byte
-		labelsJSON    []byte
-		deletedAt     sql.NullTime
+		item               domain.WorkloadConfig
+		environmentID      sql.NullString
+		serviceAccountName sql.NullString
+		resourcesJSON      []byte
+		probesJSON         []byte
+		envJSON            []byte
+		labelsJSON         []byte
+		deletedAt          sql.NullTime
 	)
-	if err := scanner.Scan(&item.ID, &item.ApplicationID, &environmentID, &item.Name, &item.Description, &item.Replicas, &item.Exposed, &resourcesJSON, &probesJSON, &envJSON, &labelsJSON, &item.WorkloadType, &item.Strategy, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&item.ID, &item.ApplicationID, &environmentID, &item.Name, &item.Description, &item.Replicas, &serviceAccountName, &resourcesJSON, &probesJSON, &envJSON, &labelsJSON, &item.WorkloadType, &item.Strategy, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
 	if environmentID.Valid {
 		item.EnvironmentID = environmentID.String
+	}
+	if serviceAccountName.Valid {
+		item.ServiceAccountName = serviceAccountName.String
 	}
 	if len(resourcesJSON) > 0 {
 		_ = json.Unmarshal(resourcesJSON, &item.Resources)
