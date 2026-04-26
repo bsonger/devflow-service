@@ -17,6 +17,7 @@ type Store interface {
 	Insert(ctx context.Context, manifest *manifestdomain.Manifest) error
 	List(ctx context.Context, filter manifestdomain.ManifestListFilter) ([]manifestdomain.Manifest, error)
 	Get(ctx context.Context, id uuid.UUID) (*manifestdomain.Manifest, error)
+	UpdateArtifact(ctx context.Context, manifest *manifestdomain.Manifest) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -103,6 +104,24 @@ func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*manifestdomain.
 		from manifests
 		where id = $1 and deleted_at is null
 	`, id))
+}
+
+func (s *PostgresStore) UpdateArtifact(ctx context.Context, m *manifestdomain.Manifest) error {
+	result, err := db.DB().ExecContext(ctx, `
+		update manifests
+		set artifact_repository = $2,
+		    artifact_tag = $3,
+		    artifact_ref = $4,
+		    artifact_digest = $5,
+		    artifact_media_type = $6,
+		    artifact_pushed_at = $7,
+		    updated_at = $8
+		where id = $1 and deleted_at is null
+	`, m.ID, m.ArtifactRepository, m.ArtifactTag, m.ArtifactRef, m.ArtifactDigest, m.ArtifactMediaType, dbsql.NullableTimePtr(m.ArtifactPushedAt), time.Now())
+	if err != nil {
+		return err
+	}
+	return dbsql.EnsureRowsAffected(result)
 }
 
 func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {

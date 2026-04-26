@@ -456,6 +456,10 @@ func (s *releaseService) syncArgo(ctx context.Context, release *model.Release) e
 	if err != nil {
 		return err
 	}
+	if err := manifestservice.ManifestService.EnsureArtifact(ctx, manifest, app.Name); err != nil {
+		log.Error("publish manifest artifact failed", zap.String("result", "error"), zap.Error(err))
+		return err
+	}
 	target, err := releasesupport.ResolveDeployTarget(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
 	if err != nil {
 		return err

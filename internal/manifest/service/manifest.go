@@ -77,7 +77,6 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	runtimeCfg := releasesupport.CurrentRuntimeConfig()
 	networks := appservicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
 	configs := appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
-	artifacts := newManifestArtifactPublishing(runtimeCfg.ManifestRegistry, runtimeCfg.ManifestRegistryEnabled)
 
 	var (
 		image *imagedomain.Image
@@ -125,10 +124,6 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 		return nil, err
 	}
 	manifest.WithCreateDefault()
-	if err := publishManifestArtifact(ctx, manifest, application.Name, runtimeCfg.ManifestRegistry, artifacts); err != nil {
-		log.Error("publish manifest artifact failed", zap.String("result", "error"), zap.Error(err))
-		return nil, err
-	}
 	if err := s.repoStore().Insert(ctx, manifest); err != nil {
 		log.Error("persist manifest failed", zap.String("result", "error"), zap.Error(err))
 		return nil, err
@@ -140,6 +135,24 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 		zap.String("artifact_digest", manifest.ArtifactDigest),
 	)
 	return manifest, nil
+}
+
+func (s *manifestService) EnsureArtifact(ctx context.Context, manifest *manifestdomain.Manifest, applicationName string) error {
+	if manifest == nil {
+		return nil
+	}
+	if strings.TrimSpace(manifest.ArtifactRepository) != "" && (strings.TrimSpace(manifest.ArtifactDigest) != "" || strings.TrimSpace(manifest.ArtifactTag) != "") {
+		return nil
+	}
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	publisher := newManifestArtifactPublishing(runtimeCfg.ManifestRegistry, runtimeCfg.ManifestRegistryEnabled)
+	if err := publishManifestArtifact(ctx, manifest, applicationName, runtimeCfg.ManifestRegistry, publisher); err != nil {
+		return err
+	}
+	if strings.TrimSpace(manifest.ArtifactRepository) == "" {
+		return nil
+	}
+	return s.repoStore().UpdateArtifact(ctx, manifest)
 }
 
 func resolveManifestImageRepository(image *imagedomain.Image, cfg imagedomain.ImageRegistryConfig) (string, error) {

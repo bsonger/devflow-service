@@ -51,7 +51,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
 				now := mustTime("2026-04-12T11:30:00Z")
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: "", ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactRepository: "repo/manifests/demo", ArtifactTag: "manifest-tag", ArtifactRef: "repo/manifests/demo:manifest-tag", ArtifactDigest: "sha256:def", ArtifactMediaType: "application/vnd.oci.image.manifest.v1+json", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: "", ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -72,8 +72,11 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ImageRef == "" || payload.Data.RenderedYAML == "" || payload.Data.ArtifactRef == "" || payload.Data.ArtifactDigest == "" {
+	if payload.Data.ImageRef == "" || payload.Data.RenderedYAML == "" {
 		t.Fatalf("unexpected payload %+v", payload.Data)
+	}
+	if payload.Data.ArtifactRef != "" || payload.Data.ArtifactDigest != "" || payload.Data.ArtifactRepository != "" {
+		t.Fatalf("manifest create should not publish OCI artifact: %+v", payload.Data)
 	}
 }
 
@@ -85,18 +88,13 @@ func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T
 
 				now := mustTime("2026-04-13T15:00:00Z")
 				item := &manifestdomain.Manifest{
-					ApplicationID:      req.ApplicationID,
-					EnvironmentID:      "",
-					ImageID:            req.ImageID,
-					ImageRef:           "repo/demo@sha256:abc",
-					ArtifactRepository: "repo/manifests/demo",
-					ArtifactTag:        "demo-20260413-150000",
-					ArtifactRef:        "repo/manifests/demo:demo-20260413-150000",
-					ArtifactDigest:     "sha256:def",
-					ArtifactMediaType:  "application/vnd.oci.image.manifest.v1+json",
-					ArtifactPushedAt:   &now,
-					RenderedYAML:       "apiVersion: v1",
-					Status:             model.ManifestReady,
+					ApplicationID:    req.ApplicationID,
+					EnvironmentID:    "",
+					ImageID:          req.ImageID,
+					ImageRef:         "repo/demo@sha256:abc",
+					ArtifactPushedAt: &now,
+					RenderedYAML:     "apiVersion: v1",
+					Status:           model.ManifestReady,
 				}
 				item.WithCreateDefault()
 				return item, nil
@@ -118,8 +116,8 @@ func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ArtifactRepository != "repo/manifests/demo" {
-		t.Fatalf("ArtifactRepository = %q, want repo/manifests/demo", payload.Data.ArtifactRepository)
+	if payload.Data.ArtifactRepository != "" {
+		t.Fatalf("ArtifactRepository = %q, want empty during manifest build", payload.Data.ArtifactRepository)
 	}
 }
 
