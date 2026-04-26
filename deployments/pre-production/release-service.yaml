@@ -47,6 +47,15 @@ data:
     pyroscope: ""
 ---
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: release-service
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: release-service
+    app.kubernetes.io/part-of: devflow
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: release-service
@@ -89,6 +98,7 @@ spec:
         app.kubernetes.io/name: release-service
         app.kubernetes.io/part-of: devflow
     spec:
+      serviceAccountName: release-service
       containers:
         - name: release-service
           image: registry.cn-hangzhou.aliyuncs.com/devflow/release-service:preproduction

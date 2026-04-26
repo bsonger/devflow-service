@@ -11,8 +11,8 @@ import (
 	"time"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
-	model "github.com/bsonger/devflow-service/internal/release/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
+	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -120,6 +120,34 @@ func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T
 	}
 	if payload.Data.ArtifactRepository != "repo/manifests/demo" {
 		t.Fatalf("ArtifactRepository = %q, want repo/manifests/demo", payload.Data.ArtifactRepository)
+	}
+}
+
+func TestCreateManifestAcceptsBranchWithoutImageID(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	handler := &ManifestHandler{
+		svc: stubManifestService{
+			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
+				if req.ImageID != uuid.Nil {
+					t.Fatalf("ImageID = %s, want nil uuid", req.ImageID)
+				}
+				if req.Branch != "main" {
+					t.Fatalf("Branch = %q, want main", req.Branch)
+				}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, ImageRef: "repo/demo:tag", RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
+				item.WithCreateDefault()
+				return item, nil
+			},
+		},
+	}
+	r := gin.New()
+	r.POST("/api/v1/manifests", handler.Create)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","branch":"main"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 }
 

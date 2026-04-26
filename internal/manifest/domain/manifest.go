@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
 )
@@ -28,8 +29,20 @@ type Manifest struct {
 }
 
 type CreateManifestRequest struct {
-	ApplicationID uuid.UUID `json:"application_id"`
-	ImageID       uuid.UUID `json:"image_id"`
+	ApplicationID           uuid.UUID  `json:"application_id"`
+	ImageID                 uuid.UUID  `json:"image_id,omitempty"`
+	Branch                  string     `json:"branch,omitempty"`
+	ConfigurationRevisionID *uuid.UUID `json:"configuration_revision_id,omitempty"`
+	RuntimeSpecRevisionID   *uuid.UUID `json:"runtime_spec_revision_id,omitempty"`
+}
+
+func (r *CreateManifestRequest) ToCreateImageRequest() imagedomain.CreateImageRequest {
+	return imagedomain.CreateImageRequest{
+		ApplicationID:           r.ApplicationID,
+		ConfigurationRevisionID: r.ConfigurationRevisionID,
+		RuntimeSpecRevisionID:   r.RuntimeSpecRevisionID,
+		Branch:                  r.Branch,
+	}
 }
 
 type ManifestListFilter struct {

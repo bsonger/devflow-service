@@ -30,6 +30,7 @@ var ManifestService = NewManifestService()
 
 type manifestImageReader interface {
 	Get(context.Context, uuid.UUID) (*imagedomain.Image, error)
+	CreateImage(context.Context, *imagedomain.Image) (uuid.UUID, error)
 }
 
 type manifestNetworkReader interface {
@@ -70,6 +71,7 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 		zap.String("result", "started"),
 		zap.String("application_id", req.ApplicationID.String()),
 		zap.String("image_id", req.ImageID.String()),
+		zap.String("branch", req.Branch),
 	)
 
 	runtimeCfg := releasesupport.CurrentRuntimeConfig()
@@ -77,12 +79,30 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	configs := appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
 	artifacts := newManifestArtifactPublishing(runtimeCfg.ManifestRegistry, runtimeCfg.ManifestRegistryEnabled)
 
-	image, err := s.images.Get(ctx, req.ImageID)
-	if err != nil {
-		return nil, err
-	}
-	if image.ApplicationID != req.ApplicationID {
-		return nil, ErrManifestImageApplicationMismatch
+	var (
+		image *imagedomain.Image
+		err   error
+	)
+	if req.ImageID != uuid.Nil {
+		image, err = s.images.Get(ctx, req.ImageID)
+		if err != nil {
+			return nil, err
+		}
+		if image.ApplicationID != req.ApplicationID {
+			return nil, ErrManifestImageApplicationMismatch
+		}
+	} else {
+		createReq := req.ToCreateImageRequest()
+		image = &imagedomain.Image{
+			ApplicationID:           createReq.ApplicationID,
+			ConfigurationRevisionID: createReq.ConfigurationRevisionID,
+			RuntimeSpecRevisionID:   createReq.RuntimeSpecRevisionID,
+			Branch:                  createReq.Branch,
+		}
+		if _, err := s.images.CreateImage(ctx, image); err != nil {
+			return nil, err
+		}
+		req.ImageID = image.ID
 	}
 	workloadConfig, err := configs.FindWorkloadConfig(ctx, req.ApplicationID.String())
 	if err != nil {

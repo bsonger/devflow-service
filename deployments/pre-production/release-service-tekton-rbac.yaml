@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devflow-release-service-tekton-submit
+  labels:
+    app.kubernetes.io/name: release-service
+    app.kubernetes.io/part-of: devflow
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelines"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devflow-release-service-tekton-submit
+  labels:
+    app.kubernetes.io/name: release-service
+    app.kubernetes.io/part-of: devflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devflow-release-service-tekton-submit
+subjects:
+  - kind: ServiceAccount
+    name: release-service
+    namespace: devflow-pre-production

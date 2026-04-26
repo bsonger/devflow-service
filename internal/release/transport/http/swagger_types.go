@@ -190,6 +190,9 @@ type ReleaseStepRequest struct {
 }
 
 type CreateManifestRequestDoc struct {
-	ApplicationID string `json:"application_id"`
-	ImageID       string `json:"image_id"`
+	ApplicationID           string `json:"application_id"`
+	ImageID                 string `json:"image_id,omitempty"`
+	Branch                  string `json:"branch,omitempty"`
+	ConfigurationRevisionID string `json:"configuration_revision_id,omitempty"`
+	RuntimeSpecRevisionID   string `json:"runtime_spec_revision_id,omitempty"`
 }

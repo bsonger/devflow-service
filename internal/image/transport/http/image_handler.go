@@ -31,7 +31,6 @@ func NewImageHandler(svc imageService) *ImageHandler {
 func (h *ImageHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	images := rg.Group("/images")
 	images.GET("", h.List)
-	images.POST("", h.Create)
 	images.GET("/:id", h.Get)
 	images.PATCH("/:id", h.Patch)
 }
