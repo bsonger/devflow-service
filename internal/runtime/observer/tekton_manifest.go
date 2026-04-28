@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
@@ -39,6 +41,8 @@ type TektonManifestObserver struct {
 	tekton      *tektonclient.Clientset
 	httpClient  *http.Client
 	releaseBase string
+	mu          sync.Mutex
+	processed   map[string]string
 }
 
 func StartTektonManifestObserver(ctx context.Context, restCfg *rest.Config, cfg TektonManifestObserverConfig) error {
@@ -66,6 +70,7 @@ func StartTektonManifestObserver(ctx context.Context, restCfg *rest.Config, cfg 
 		tekton:      clientset,
 		httpClient:  &http.Client{Timeout: cfg.HTTPTimeout},
 		releaseBase: cfg.ReleaseServiceBaseURL,
+		processed:   map[string]string{},
 	}
 	go observer.run(ctx)
 	return nil
@@ -117,6 +122,11 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	if manifestID == "" {
 		return nil
 	}
+	terminal := isTerminalManifestStatus(mapPipelineRunStatus(pr))
+	stateKey := pipelineRunStateKey(pr)
+	if terminal && o.isProcessed(pr.Name, stateKey) {
+		return nil
+	}
 	taskRuns, err := o.tekton.TektonV1().TaskRuns(pr.Namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "tekton.dev/pipelineRun=" + pr.Name,
 	})
@@ -126,6 +136,9 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 
 	for i := range taskRuns.Items {
 		if err := o.syncTaskRun(ctx, manifestID, pr.Name, &taskRuns.Items[i]); err != nil {
+			if terminal && isNotFoundWriteback(err) {
+				o.markProcessed(pr.Name, stateKey)
+			}
 			return err
 		}
 	}
@@ -137,13 +150,22 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 		"message":     pipelineMessage(pr),
 	}
 	if err := o.postJSON(ctx, "/api/v1/manifests/tekton/status", statusPayload); err != nil {
+		if terminal && isNotFoundWriteback(err) {
+			o.markProcessed(pr.Name, stateKey)
+		}
 		return err
 	}
 
 	if result := buildResultPayload(manifestID, pr.Name, taskRuns.Items); result != nil {
 		if err := o.postJSON(ctx, "/api/v1/manifests/tekton/result", result); err != nil {
+			if terminal && isNotFoundWriteback(err) {
+				o.markProcessed(pr.Name, stateKey)
+			}
 			return err
 		}
+	}
+	if terminal {
+		o.markProcessed(pr.Name, stateKey)
 	}
 	return nil
 }
@@ -187,7 +209,7 @@ func (o *TektonManifestObserver) postJSON(ctx context.Context, path string, payl
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	return fmt.Errorf("writeback %s returned %d", path, resp.StatusCode)
+	return &writebackError{path: path, statusCode: resp.StatusCode}
 }
 
 func mapPipelineRunStatus(pr *tknv1.PipelineRun) model.ManifestStatus {
@@ -373,4 +395,55 @@ func taskRunSucceededCondition(tr *tknv1.TaskRun) *apisConditionView {
 type apisConditionView struct {
 	Status  string
 	Message string
+}
+
+type writebackError struct {
+	path       string
+	statusCode int
+}
+
+func (e *writebackError) Error() string {
+	return fmt.Sprintf("writeback %s returned %d", e.path, e.statusCode)
+}
+
+func isNotFoundWriteback(err error) bool {
+	var target *writebackError
+	return err != nil && errors.As(err, &target) && target.statusCode == http.StatusNotFound
+}
+
+func isTerminalManifestStatus(status model.ManifestStatus) bool {
+	switch status {
+	case model.ManifestReady, model.ManifestSucceeded, model.ManifestFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+func pipelineRunStateKey(pr *tknv1.PipelineRun) string {
+	if pr == nil {
+		return ""
+	}
+	if ts := pr.Status.CompletionTime; ts != nil {
+		return pr.Name + "|" + ts.UTC().Format(time.RFC3339Nano)
+	}
+	if rv := strings.TrimSpace(pr.ResourceVersion); rv != "" {
+		return pr.Name + "|" + rv
+	}
+	return pr.Name
+}
+
+func (o *TektonManifestObserver) isProcessed(pipelineID, stateKey string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.processed[pipelineID] == stateKey && stateKey != ""
+}
+
+func (o *TektonManifestObserver) markProcessed(pipelineID, stateKey string) {
+	if strings.TrimSpace(pipelineID) == "" || strings.TrimSpace(stateKey) == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.processed[pipelineID] = stateKey
 }
