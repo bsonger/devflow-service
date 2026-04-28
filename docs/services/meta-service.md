@@ -39,6 +39,8 @@
 
 ## Entrypoint
 
+Primary runnable entrypoint: `cmd/meta-service/main.go`.
+
 ```text
 cmd/meta-service/main.go
 ```
@@ -72,6 +74,7 @@ Legacy alias still routed in pre-production:
 ## Diagnostics
 
 - `AGENTS.md`
+- `internal/platform/...`
 - `docs/system/recovery.md`
 - `docs/system/architecture.md`
 - `docs/policies/verification.md`

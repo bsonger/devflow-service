@@ -97,6 +97,16 @@ Examples:
 
 - on success: `200 OK` with `WriteList`
 
+## Method-specific input location rules
+
+Handlers should keep selector location consistent across the repo:
+
+- `GET`: query parameters for list and lookup filters
+- `POST`: JSON body for business selectors and command inputs
+- `DELETE`: JSON body for business selectors when the path id alone is not enough
+
+Do not read business selectors such as `application_id` or `environment_id` from query strings inside `POST` or `DELETE` handlers.
+
 ## Path and query parsing rules
 
 ### UUID path parameters

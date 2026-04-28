@@ -28,6 +28,10 @@ type Handler struct {
 	routes routeService
 }
 
+type DeleteRouteRequest struct {
+	ApplicationID uuid.UUID `json:"application_id"`
+}
+
 func NewHandler(routes routeService) *Handler {
 	return &Handler{routes: routes}
 }
@@ -157,22 +161,19 @@ func (h *Handler) UpdateRoute(c *gin.Context) {
 // @Summary Delete application route
 // @Tags Route
 // @Param route_id path string true "Route ID"
+// @Param data body DeleteRouteRequest true "Delete request"
 // @Success 204
-// @Param application_id query string true "Application ID"
 // @Router /api/v1/routes/{route_id} [delete]
 func (h *Handler) DeleteRoute(c *gin.Context) {
-	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
-	if !ok || applicationId == nil {
-		if ok {
-			httpx.WriteInvalidArgument(c, "invalid application_id")
-		}
+	var req DeleteRouteRequest
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 	id, ok := httpx.ParseUUIDParam(c, "route_id")
 	if !ok {
 		return
 	}
-	if err := h.routes.Delete(c.Request.Context(), *applicationId, id); err != nil {
+	if err := h.routes.Delete(c.Request.Context(), req.ApplicationID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteNotFound(c, "not found")
 			return

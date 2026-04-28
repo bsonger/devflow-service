@@ -31,6 +31,7 @@ It complements:
 4. Public resource docs must describe current behavior, not aspirational future behavior.
 5. Resource docs, handlers, and validation behavior must change together.
 6. Public API field names, request-body keys, and query parameters must use `snake_case`.
+7. `GET` endpoints may use query filters; `POST` and `DELETE` endpoints must carry business selectors in the JSON body instead of query strings.
 
 ## Resource endpoint shape
 
@@ -61,6 +62,38 @@ Preferred API naming examples:
 - `repo_address`
 - `page_size`
 - `include_deleted`
+
+
+## Selector location rules
+
+Use query parameters for read filters on `GET` only.
+
+Preferred pattern:
+
+- `GET /api/v1/<resources>?application_id=...&environment_id=...` for reads and list filters
+- `POST /api/v1/<resources>` with `application_id`, `environment_id`, and similar business selectors in the JSON body
+- `DELETE /api/v1/<resources>/{id}` with any required business selector fields in the JSON body
+
+Do not put business selectors such as these on `POST` or `DELETE` query strings:
+
+- `application_id`
+- `environment_id`
+- `project_id`
+- `cluster_id`
+- `manifest_id`
+- `release_id`
+
+Reason:
+
+- read filtering and write targeting stay visually distinct
+- handler behavior stays more predictable across the repo
+- write-side contracts remain explicit in resource docs and OpenAPI surfaces
+
+Current repo-level convention:
+
+- `GET` uses query filters
+- `POST` uses request body
+- `DELETE` uses request body when additional business selectors are required beyond the path id
 
 ## List endpoint rules
 

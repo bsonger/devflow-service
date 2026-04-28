@@ -41,6 +41,11 @@ type CreateRuntimeSpecRequest struct {
 	Environment   string    `json:"environment"`
 }
 
+type DeleteRuntimeSpecRequest struct {
+	ApplicationID uuid.UUID `json:"application_id"`
+	Environment   string    `json:"environment"`
+}
+
 type CreateRuntimeSpecRevisionRequest struct {
 	Replicas         int    `json:"replicas"`
 	HealthThresholds string `json:"health_thresholds"`
@@ -156,12 +161,11 @@ func (h *Handler) GetRuntimeSpec(c *gin.Context) {
 }
 
 func (h *Handler) DeleteRuntimeSpec(c *gin.Context) {
-	applicationId, ok := httpx.ParseUUIDString(c, c.Query("application_id"), "application_id")
-	if !ok {
+	var req DeleteRuntimeSpecRequest
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	environment := strings.TrimSpace(c.Query("environment"))
-	if err := h.runtime.DeleteRuntimeSpecByApplicationEnv(c.Request.Context(), applicationId, environment); err != nil {
+	if err := h.runtime.DeleteRuntimeSpecByApplicationEnv(c.Request.Context(), req.ApplicationID, req.Environment); err != nil {
 		writeRuntimeError(c, err)
 		return
 	}

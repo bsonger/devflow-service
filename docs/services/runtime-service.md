@@ -44,6 +44,8 @@
 
 ## Entrypoint
 
+Primary runnable entrypoint: `cmd/runtime-service/main.go`.
+
 ```text
 cmd/runtime-service/main.go
 ```

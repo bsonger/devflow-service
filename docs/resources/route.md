@@ -41,7 +41,7 @@ Service-internal route surface:
 - `POST /api/v1/routes`
 - `GET /api/v1/routes?application_id=...&environment_id=...`
 - `PATCH /api/v1/routes/{route_id}`
-- `DELETE /api/v1/routes/{route_id}?application_id=...`
+- `DELETE /api/v1/routes/{route_id}`
 - `POST /api/v1/routes:validate`
 
 Pre-production shared ingress external surface:
@@ -49,7 +49,7 @@ Pre-production shared ingress external surface:
 - `POST /api/v1/network/routes`
 - `GET /api/v1/network/routes?application_id=...&environment_id=...`
 - `PATCH /api/v1/network/routes/{route_id}`
-- `DELETE /api/v1/network/routes/{route_id}?application_id=...`
+- `DELETE /api/v1/network/routes/{route_id}`
 - `POST /api/v1/network/routes:validate`
 
 ## Create / update rules
@@ -76,6 +76,7 @@ Pre-production shared ingress external surface:
 
 ### Delete
 - supported as soft delete through the handler surface
+- current delete request body must include `application_id`
 
 ## Validation notes
 

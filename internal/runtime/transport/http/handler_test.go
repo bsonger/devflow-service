@@ -189,6 +189,32 @@ func TestGetRuntimeSpec(t *testing.T) {
 	}
 }
 
+func TestDeleteRuntimeSpec(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		deleteRuntimeSpecFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			if environment != "staging" {
+				t.Fatalf("environment = %s, want staging", environment)
+			}
+			return nil
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(DeleteRuntimeSpecRequest{ApplicationID: applicationID, Environment: "staging"})
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/runtime-specs", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCreateRuntimeSpecRevision(t *testing.T) {
 	runtimeSpecID := uuid.New()
 	h := NewHandler(&mockRuntimeService{

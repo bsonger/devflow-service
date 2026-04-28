@@ -43,6 +43,8 @@
 
 ## Entrypoint
 
+Primary runnable entrypoint: `cmd/release-service/main.go`.
+
 ```text
 cmd/release-service/main.go
 ```
@@ -76,6 +78,7 @@ Operational callback contract:
 - `internal/manifest/transport/http`
 - `internal/intent/transport/http`
 - `internal/release/service`
+- `internal/release/support`
 - `docs/policies/worker-runtime.md`
 
 Runtime endpoints:

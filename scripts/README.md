@@ -27,6 +27,7 @@ The verifier should fail fast and prove:
 - active code and docs do not retain Mongo-era dependency or naming remnants after the PostgreSQL migration
 - API error envelopes and handler mappings stay aligned with the error-handling policy
 - HTTP handlers stay aligned with the shared handler policy for response helpers, pagination, and HTTP-edge parsing
+- write-side selector location stays aligned with the resource API policy: `GET` may use query filters, while `POST` and `DELETE` selectors must use JSON body fields
 - HTTP handlers reuse shared UUID parsing helpers from `internal/platform/httpx` instead of repeating local `uuid.Parse(...)` error handling
 - HTTP handlers reuse shared `BindJSON`, shared pagination helpers, and stable `internal error` response helpers from `internal/platform/httpx`
 - HTTP handlers prefer specialized `httpx` helpers such as `WriteInvalidArgument`, `WriteFailedPrecondition`, and `WriteUnauthorized` instead of repeating equivalent `WriteError(...)` envelopes

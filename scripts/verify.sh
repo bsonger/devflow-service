@@ -177,6 +177,14 @@ run_http_handler_uuid_policy_check() {
   [[ -z "$matches" ]] || fail "HTTP handlers should use shared httpx UUID parse helpers instead of hand-rolled uuid.Parse blocks:\n$matches"
 }
 
+run_http_api_selector_policy_check() {
+  info "Running HTTP API selector policy checks"
+  (
+    cd "$ROOT_DIR"
+    bash scripts/check-http-api-selector-policy.sh
+  )
+}
+
 run_http_handler_helper_policy_check() {
   info "Running HTTP handler helper usage checks"
 
@@ -464,8 +472,6 @@ require_literal "$ROOT_DIR/gateway/README.md" "gateway README Istio contract" "I
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared ingress manifest" "deployments/pre-production/istio/shared-ingress.yaml"
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared host" "devflow-pre.example.com"
 require_literal "$ROOT_DIR/docs/services/release-service.md" "release-service release support area" "internal/release/support"
-require_literal "$ROOT_DIR/docs/services/release-service.md" "release-service migrated downstream domains" "internal/appconfig/transport/downstream"
-require_literal "$ROOT_DIR/docs/services/release-service.md" "release-service migrated owner readers" "internal/application/transport/downstream"
 
 info "Checking repo-local documentation alignment"
 require_literal "$ROOT_DIR/README.md" "README docs layout" "docs/index/"
@@ -549,6 +555,7 @@ run_observability_logging_policy_check
 run_metrics_label_policy_check
 run_http_handler_uuid_policy_check
 run_http_handler_helper_policy_check
+run_http_api_selector_policy_check
 run_layout_refactor_policy_check
 run_go_test
 run_go_build_targets

@@ -41,6 +41,8 @@
 
 ## Entrypoint
 
+Primary runnable entrypoint: `cmd/config-service/main.go`.
+
 ```text
 cmd/config-service/main.go
 ```

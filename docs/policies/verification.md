@@ -37,6 +37,7 @@ make ci
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
 - API error envelope and handler mapping changes must follow `docs/policies/error-handling.md`
 - HTTP transport behavior changes must follow `docs/policies/http-handler.md`
+- `GET` may use query filters, but `POST` and `DELETE` business selectors must not be carried on query strings; follow `docs/policies/resource-api.md`
 - HTTP handlers should use shared UUID parse helpers from `internal/platform/httpx` instead of hand-rolled `uuid.Parse(...)` plus repeated error writes
 - HTTP handlers should use shared `BindJSON`, pagination helpers, and stable internal-error helpers from `internal/platform/httpx` instead of repeating local parsing and 5xx response patterns
 - HTTP handlers should prefer specialized `httpx` helpers such as `WriteInvalidArgument`, `WriteFailedPrecondition`, and `WriteUnauthorized` over generic `WriteError(...)` calls when the shared helper already covers the response

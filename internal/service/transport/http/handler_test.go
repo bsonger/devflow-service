@@ -149,7 +149,9 @@ func TestDeleteService(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/services/"+svcID.String()+"?application_id="+appID.String(), nil)
+	body, _ := json.Marshal(DeleteServiceRequest{ApplicationID: appID})
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/services/"+svcID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 

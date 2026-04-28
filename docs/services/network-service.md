@@ -40,6 +40,8 @@
 
 ## Entrypoint
 
+Primary runnable entrypoint: `cmd/network-service/main.go`.
+
 ```text
 cmd/network-service/main.go
 ```
