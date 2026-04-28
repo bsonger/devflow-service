@@ -50,6 +50,7 @@ type DownstreamConfig struct {
 type ConfigRepoConfig struct {
 	RootDir    string `mapstructure:"root_dir" json:"root_dir" yaml:"root_dir"`
 	DefaultRef string `mapstructure:"default_ref" json:"default_ref" yaml:"default_ref"`
+	SSHKeyPath string `mapstructure:"ssh_key_path" json:"ssh_key_path" yaml:"ssh_key_path"`
 }
 
 type ObserverConfig struct {
@@ -181,6 +182,7 @@ func initConfigRepo(config *Config) {
 	platformconfigrepo.DefaultRepository = platformconfigrepo.NewRepository(platformconfigrepo.Options{
 		RootDir:    rootDir,
 		DefaultRef: defaultRef,
+		SSHKeyPath: stringValue(config.ConfigRepo, func(v *ConfigRepoConfig) string { return v.SSHKeyPath }),
 	})
 }
 
