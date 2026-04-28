@@ -206,58 +206,18 @@ func TestCreateReleaseClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
 	}
 }
 
-func TestListReleasesAllowsApplicationOnlyFilter(t *testing.T) {
+func TestListReleasesRequiresEnvironmentID(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
-	appID := uuid.New()
-	handler := &ReleaseHandler{
-		svc: stubReleaseService{
-			listFn: func(_ context.Context, filter service.ReleaseListFilter) ([]*model.Release, error) {
-				if filter.ApplicationID == nil || *filter.ApplicationID != appID {
-					t.Fatalf("ApplicationID = %+v want %s", filter.ApplicationID, appID)
-				}
-				if filter.EnvironmentID != "" {
-					t.Fatalf("EnvironmentID = %q want empty", filter.EnvironmentID)
-				}
-				return []*model.Release{}, nil
-			},
-		},
-	}
+	handler := &ReleaseHandler{svc: stubReleaseService{}}
 	r := gin.New()
 	r.GET("/api/v1/releases", handler.List)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases?application_id="+appID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases?application_id="+uuid.NewString(), nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusOK)
-	}
-}
-
-func TestListReleasesAllowsEnvironmentOnlyFilter(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	handler := &ReleaseHandler{
-		svc: stubReleaseService{
-			listFn: func(_ context.Context, filter service.ReleaseListFilter) ([]*model.Release, error) {
-				if filter.ApplicationID != nil {
-					t.Fatalf("ApplicationID = %+v want nil", filter.ApplicationID)
-				}
-				if filter.EnvironmentID != "prod" {
-					t.Fatalf("EnvironmentID = %q want prod", filter.EnvironmentID)
-				}
-				return []*model.Release{}, nil
-			},
-		},
-	}
-	r := gin.New()
-	r.GET("/api/v1/releases", handler.List)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases?environment_id=prod", nil)
-	rec := httptest.NewRecorder()
-	r.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusOK)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusBadRequest)
 	}
 }
 

@@ -168,8 +168,8 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 // List
 // @Summary 获取Release列表
 // @Tags Release
-// @Param application_id query string false "Application ID"
-// @Param environment_id query string false "Environment ID"
+// @Param application_id query string true "Application ID"
+// @Param environment_id query string true "Environment ID"
 // @Param manifest_id query string false "Manifest ID"
 // @Param status query string false "Status"
 // @Param type query string false "Type"
@@ -179,13 +179,19 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 func (h *ReleaseHandler) List(c *gin.Context) {
 	filter := service.ReleaseListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
 	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
-	if !ok {
+	if !ok || applicationId == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "application_id is required")
+		}
+		return
+	}
+	environmentID := c.Query("environment_id")
+	if environmentID == "" {
+		httpx.WriteInvalidArgument(c, "environment_id is required")
 		return
 	}
 	filter.ApplicationID = applicationId
-	if environmentID := c.Query("environment_id"); environmentID != "" {
-		filter.EnvironmentID = environmentID
-	}
+	filter.EnvironmentID = environmentID
 	manifestID, ok := httpx.ParseUUIDQuery(c, "manifest_id")
 	if !ok {
 		return
