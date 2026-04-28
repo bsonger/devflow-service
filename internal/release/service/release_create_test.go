@@ -89,6 +89,18 @@ func TestCreateReleaseRejectsManifestThatIsNotReady(t *testing.T) {
 	}
 }
 
+func TestIsReleaseDeployableManifestStatus(t *testing.T) {
+	if !isReleaseDeployableManifestStatus(model.ManifestReady) {
+		t.Fatal("ManifestReady should be deployable")
+	}
+	if !isReleaseDeployableManifestStatus(model.ManifestSucceeded) {
+		t.Fatal("ManifestSucceeded should be deployable")
+	}
+	if isReleaseDeployableManifestStatus(model.ManifestRunning) {
+		t.Fatal("ManifestRunning should not be deployable")
+	}
+}
+
 func TestReleaseTargetEnvironmentUsesReleaseEnvironmentOnly(t *testing.T) {
 	release := &model.Release{EnvironmentID: "  staging "}
 

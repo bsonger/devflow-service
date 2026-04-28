@@ -186,7 +186,7 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if manifest.Status != model.ManifestReady {
+	if !isReleaseDeployableManifestStatus(manifest.Status) {
 		return uuid.Nil, ErrReleaseManifestNotReady
 	}
 	release.ApplicationID = manifest.ApplicationID
@@ -226,6 +226,15 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 		return release.ID, err
 	}
 	return release.ID, nil
+}
+
+func isReleaseDeployableManifestStatus(status model.ManifestStatus) bool {
+	switch status {
+	case model.ManifestReady, model.ManifestSucceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 func markReleaseStepCompleted(release *model.Release, stepCode, message string) {
