@@ -33,6 +33,45 @@ data:
     pyroscope: ""
 ---
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runtime-service
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: runtime-service
+    app.kubernetes.io/part-of: devflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: runtime-service-tekton-observer
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/name: runtime-service
+    app.kubernetes.io/part-of: devflow
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "taskruns"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: runtime-service-tekton-observer
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/name: runtime-service
+    app.kubernetes.io/part-of: devflow
+subjects:
+  - kind: ServiceAccount
+    name: runtime-service
+    namespace: devflow-pre-production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: runtime-service-tekton-observer
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: runtime-service
@@ -75,6 +114,7 @@ spec:
         app.kubernetes.io/name: runtime-service
         app.kubernetes.io/part-of: devflow
     spec:
+      serviceAccountName: runtime-service
       containers:
         - name: runtime-service
           image: registry.cn-hangzhou.aliyuncs.com/devflow/runtime-service:preproduction
