@@ -16,7 +16,8 @@
 
 - 选择一个 `manifest`
 - 选择一个目标 `environment`
-- 冻结本次发布真正使用的 `app_route` / `app_config`
+- 冻结本次发布真正使用的 `app_config`
+- 在当前主流程中，`Route` 相关输入不是前端必选项；如果后续重新纳入，应作为可选的 deferred deployment input
 - 选择发布策略
 - 根据 manifest + environment inputs 渲染 Kubernetes YAML
 - 将渲染结果上传到 OCI
@@ -38,8 +39,8 @@
 ### Release 负责
 
 - environment-specific deployment
-- `app_route_snapshot`
 - `app_config_snapshot`
+- optional/deferred route inputs when the route flow is re-enabled
 - strategy selection
 - Kubernetes YAML rendering
 - OCI packaging for deployment bundle
@@ -59,7 +60,7 @@ Current target create request:
 ```json
 {
   "manifest_id": "11111111-1111-1111-1111-111111111111",
-  "environment_id": "production",
+  "environment_id": "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
   "strategy": "blueGreen",
   "type": "Upgrade"
 }
@@ -125,8 +126,8 @@ They are not duplicates because they point to different things:
 | `execution_intent_id` | `*uuid.UUID` | system-managed | no | 关联执行意图 |
 | `application_id` | `uuid.UUID` | system-managed | no | 关联应用 ID |
 | `manifest_id` | `uuid.UUID` | required | user | 关联 manifest |
-| `environment_id` | `string` | required | user | 目标环境标识 |
-| `routes_snapshot` | `[]ReleaseRoute` | system-managed | no | release 创建时冻结的 route 快照 |
+| `environment_id` | `string` | required | user | 目标环境标识；当前实现要求传入有效环境 UUID 字符串 |
+| `routes_snapshot` | `[]ReleaseRoute` | system-managed | no | deferred/optional route snapshot；仅在 route 流程重新纳入主交付链路时使用 |
 | `app_config_snapshot` | `ReleaseAppConfig` | system-managed | no | release 创建时冻结的 app config 快照 |
 | `strategy` | `string` | required | user | 本次发布选择的 rollout 策略 |
 | `steps` | `[]ReleaseStep` | system-managed | no | 发布步骤，使用稳定 `code` 标识每个步骤 |
@@ -281,8 +282,8 @@ Recommended stable read fields:
 - `strategy`
 - `type`
 - `status`
-- `routes_snapshot`
 - `app_config_snapshot`
+- optional/deferred `routes_snapshot` when route flow is enabled
 - `steps`
 - `artifact_repository`
 - `artifact_tag`
@@ -304,6 +305,7 @@ Recommended list filters:
 Validation note:
 
 - `GET /api/v1/releases` requires both `application_id` and `environment_id`
+- `environment_id` is documented as a string because it is an identifier field, but the current implementation requires a valid environment UUID string
 
 ## Execution model
 
@@ -345,7 +347,7 @@ Recommended request shape:
 ```json
 {
   "manifest_id": "11111111-1111-1111-1111-111111111111",
-  "environment_id": "production",
+  "environment_id": "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
   "strategy": "blueGreen",
   "type": "Upgrade"
 }
@@ -378,7 +380,7 @@ It also reads from manifest:
 - `services_snapshot`
 - `workload_config_snapshot`
 
-Together these form the immutable deployment input set for the release.
+Together these form the immutable deployment input set for the release. In the current mainline flow, `AppConfig` is active input; `Route` inputs remain deferred unless that workflow is explicitly re-enabled.
 
 ## 3.5 Service creates release record and execution intent
 
@@ -405,7 +407,7 @@ An asynchronous executor should render environment-specific Kubernetes resources
 
 - `environment_id`
 - `app_config_snapshot`
-- `routes_snapshot`
+- optional/deferred `routes_snapshot`
 - `strategy`
 
 ### Typical outputs
@@ -413,9 +415,7 @@ An asynchronous executor should render environment-specific Kubernetes resources
 - `ConfigMap`
 - `Service`
 - `Deployment` or `Rollout`
-- `VirtualService`
-- `DestinationRule`
-- strategy-specific routing / traffic resources
+- optional route/traffic resources when route flow is enabled
 
 The output of this phase is a deployment bundle, not a manifest resource record.
 
@@ -501,8 +501,8 @@ Even after transient runtime objects change or are garbage-collected, the releas
 - `id`
 - `application_id`
 - `execution_intent_id`
-- `routes_snapshot`
 - `app_config_snapshot`
+- optional/deferred `routes_snapshot`
 - `steps`
 - `status`
 - `external_ref`
@@ -516,8 +516,8 @@ Even after transient runtime objects change or are garbage-collected, the releas
 - `artifact_tag`
 - `artifact_digest`
 - `artifact_ref`
-- `routes_snapshot`
 - `app_config_snapshot`
+- optional/deferred `routes_snapshot`
 - `steps`
 - `status`
 - `external_ref`
@@ -541,7 +541,8 @@ It should not be interpreted as:
 - invalid UUID path or query parameters return `invalid_argument`
 - missing records return `not_found`
 - create-time environment readiness or deploy-target readiness problems return `failed_precondition`
-- release 创建时应冻结当前 `app_config` / `app_route`
+- release 创建时应冻结当前 `app_config`
+- route inputs are currently deferred in the mainline release workflow; if re-enabled later, freeze them as optional release-owned deployment inputs
 - release 渲染 deployment bundle 时应使用 manifest 中已经冻结好的 workload/service/image 信息
 - release 的 environment 语义应该由 `release.environment_id` 明确表达，而不是由 build-time image metadata 反推
 - ArgoCD source 应该消费 release 产出的 OCI deployment bundle
@@ -554,7 +555,7 @@ It should not be interpreted as:
 - validate request
 - resolve manifest/environment binding
 - freeze `app_config_snapshot`
-- freeze `routes_snapshot`
+- freeze optional/deferred `routes_snapshot` only when route flow is enabled
 - persist release
 - initialize steps and status
 - create execution intent
@@ -579,7 +580,7 @@ Current implementation direction:
   - `manifest.workload_config_snapshot`
   - `manifest.image_ref`
   - `release.app_config_snapshot`
-  - `release.routes_snapshot`
+  - optional/deferred `release.routes_snapshot`
 - publish phase now flows through a bundle publisher abstraction
 - current default publisher records artifact metadata from rendered bundle content and digest
 - publisher modes:

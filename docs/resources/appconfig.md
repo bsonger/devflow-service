@@ -29,7 +29,7 @@ The resource tracks the mount directory plus the latest synced revision, synced 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
 | `application_id` | `uuid.UUID` | required | user | 关联应用 ID |
-| `environment_id` | `string` | required | user | 环境标识 |
+| `environment_id` | `string` | required | user | 环境标识；当前实现要求传入有效环境 UUID 字符串 |
 | `mount_path` | `string` | optional | user | 配置挂载目录，默认 `/etc/config` |
 | `latest_revision_no` | `int` | system-managed | no | 最新修订号 |
 | `latest_revision_id` | `*uuid.UUID` | system-managed | no | 最新修订记录 ID |
@@ -117,6 +117,7 @@ Pre-production shared ingress external surface:
 
 - invalid UUID path or query parameters return `invalid_argument`
 - `GET /api/v1/app-configs` requires both `application_id` and `environment_id`
+- `environment_id` is documented as a string because it is an identifier field, but the current implementation requires a valid environment UUID string
 - `POST /api/v1/config/app-configs` on the shared ingress creates one record per unique `application_id + environment_id`; duplicate active pairs return `invalid_argument` from the current handler mapping
 - `application_id + environment_id` must be unique among non-deleted records
 - `mount_path` defaults to `/etc/config` when omitted

@@ -99,3 +99,5 @@ Legacy external alias still routed in pre-production:
 For the application-environment binding sub-resource, see:
 
 - `docs/resources/application-environment.md`
+
+This file lists the binding endpoints because they hang off the `Application` route tree, but binding semantics, validation, and storage rules are owned by `application-environment.md`.

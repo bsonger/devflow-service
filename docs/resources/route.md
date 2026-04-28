@@ -27,7 +27,7 @@ It stores host/path matching plus the target service name and port, and it expos
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
 | `application_id` | `uuid.UUID` | required | user | 所属应用 ID |
-| `environment_id` | `string` | required | user | 环境标识 |
+| `environment_id` | `string` | required | user | 环境标识；当前实现要求传入有效环境 UUID 字符串 |
 | `name` | `string` | required | user | 路由名 |
 | `host` | `string` | required | user | 主机名匹配 |
 | `path` | `string` | required | user | 路径匹配 |
@@ -81,6 +81,7 @@ Pre-production shared ingress external surface:
 
 - invalid `application_id` query/body values or `route_id` path values return `invalid_argument`
 - `GET /api/v1/routes` requires both `application_id` and `environment_id`
+- `environment_id` is documented as a string because it is an identifier field, but the current implementation requires a valid environment UUID string
 - missing records return `not_found`
 - list endpoints support `name` filtering and `include_deleted`
 - `POST /routes:validate` returns `valid` plus validation errors without persisting the route
