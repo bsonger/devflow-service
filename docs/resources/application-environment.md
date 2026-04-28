@@ -2,31 +2,36 @@
 
 ## Ownership
 
-- active service: `meta-service`
+- active service boundary: `meta-service`
+- runnable host process: `meta-service`
 - domain package: `internal/applicationenv/domain`
 - handler package: `internal/applicationenv/transport/http`
 - service package: `internal/applicationenv/service`
 
 ## Purpose
 
-`Application Environment Binding` is the only database-backed application-environment relation migrated into `meta-service` from the old orchestrator flow.
+`Application Environment Binding` is the database-backed relation between one `Application` and one `Environment`.
+It is the only migrated binding resource in the current `meta-service` contract.
+It does **not** replace `AppConfig` or `WorkloadConfig` storage:
 
-It binds one `Application` to one `Environment`.
-It does **not** create separate binding tables for `AppConfig` or `WorkloadConfig`.
-Those two resources continue to use their own tables.
-`AppConfig` is resolved by exact `application_id + environment_id`.
-`WorkloadConfig` remains application-scoped.
+- `AppConfig` resolves by exact `application_id + environment_id`
+- `WorkloadConfig` remains application-scoped
+
+## Common base fields
+
+| Field | Type | Required | Writable | Description |
+|---|---|---|---|---|
+| `id` | `uuid.UUID` | server-generated | no | 绑定记录 ID，对应数据库列 `binding_id` |
+| `created_at` | `time.Time` | server-generated | no | 创建时间 |
+| `updated_at` | `time.Time` | server-generated | no | 更新时间 |
+| `deleted_at` | `*time.Time` | optional | system-managed | 软删除时间 |
 
 ## Field table
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
-| `id` | `uuid.UUID` | server-generated | no | 绑定记录 ID，对应数据库列 `binding_id` |
 | `application_id` | `uuid.UUID` | required | path/system | 关联应用 ID |
-| `environment_id` | `string` | required | user | 环境标识，当前实现要求传入有效环境 UUID |
-| `created_at` | `time.Time` | server-generated | no | 创建时间 |
-| `updated_at` | `time.Time` | server-generated | no | 更新时间 |
-| `deleted_at` | `*time.Time` | optional | system-managed | 软删除时间 |
+| `environment_id` | `string` | required | user | 环境标识；当前实现要求传入有效环境 UUID |
 
 ## API surface
 
@@ -44,9 +49,9 @@ Pre-production shared ingress external surface:
 - `GET /api/v1/meta/applications/{id}/environments/{environment_id}`
 - `DELETE /api/v1/meta/applications/{id}/environments/{environment_id}`
 
-## Behavior
+## Create / update rules
 
-### Attach
+### Create / attach
 
 - validates `Application` exists
 - validates `Environment` exists
@@ -61,35 +66,25 @@ Request body:
 }
 ```
 
-### List
+### Read
 
-- returns all non-deleted bindings for one application
-- enriches each item with the resolved `Environment`
-
-### Detail
-
-- returns the binding itself
-- returns the resolved `Environment`
-- returns `app_configs`
-- returns `workload_configs`
-
-Config resolution order:
-
-1. `AppConfig`: exact match on `application_id + environment_id`
-2. `WorkloadConfig`: application-scoped list by `application_id`
+- list returns all non-deleted bindings for one application and enriches each item with resolved `Environment`
+- detail returns the binding, resolved `Environment`, `app_configs`, and `workload_configs`
+- config resolution order on detail:
+  1. `AppConfig`: exact `application_id + environment_id`
+  2. `WorkloadConfig`: list by `application_id`
 
 ### Delete
 
 - soft-deletes the binding row
 - does not delete `AppConfig` or `WorkloadConfig`
 
-## Storage expectation
+## Validation notes
 
-Current code expects a table named:
-
-```sql
-application_environment_bindings
-```
+- invalid application or environment UUIDs return `invalid_argument`
+- missing application, environment, or binding records return `not_found`
+- current storage expects a unique active pair on `application_id + environment_id`
+- current backing table is `application_environment_bindings`
 
 Minimal expected shape:
 
@@ -105,7 +100,7 @@ create table if not exists application_environment_bindings (
 );
 ```
 
-Recommended index for list queries:
+Recommended list index:
 
 ```sql
 create index if not exists idx_application_environment_bindings_application_id

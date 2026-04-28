@@ -3,6 +3,7 @@
 ## Ownership
 
 - active service boundary: `release-service`
+- runnable host process: `release-service`
 - domain package: `internal/release/domain`
 - handler package: `internal/release/transport/http`
 - service package: `internal/release/service`
@@ -483,7 +484,7 @@ Even after transient runtime objects change or are garbage-collected, the releas
 - which YAML bundle was used
 - what status/progress the deployment reached
 
-## Create rules
+## Create / update rules
 
 ### Required request fields
 

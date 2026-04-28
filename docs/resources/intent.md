@@ -3,6 +3,7 @@
 ## Ownership
 
 - active service boundary: `release-service`
+- runnable host process: `release-service`
 - domain package: `internal/intent/domain`
 - handler package: `internal/intent/transport/http`
 - service package: `internal/intent/service`
@@ -61,10 +62,20 @@ Pre-production shared ingress external surface:
 - `GET /api/v1/release/intents`
 - `GET /api/v1/release/intents/{id}`
 
-## Read rules
+## Create / update rules
 
-- intents are currently query and inspection resources only on the public HTTP surface
-- write-side claiming and status changes happen through internal execution flows, not these handlers
+### Create
+
+- public HTTP clients do not create `Intent` directly
+- intents are created by internal build/release execution flows
+
+### Update
+
+- claiming, lease refresh, retries, status changes, and error updates are internal-only write paths
+- public HTTP surface is inspection-only
+
+### Delete
+
 - delete is not exposed on the current public HTTP surface
 - `include_deleted` is not currently supported on the list endpoint
 

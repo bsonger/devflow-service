@@ -2,7 +2,8 @@
 
 ## Ownership
 
-- active service: `meta-service`
+- active service boundary: `meta-service`
+- runnable host process: `meta-service`
 - domain package: `internal/project/domain`
 - handler package: `internal/project/transport/http`
 - service package: `internal/project/service`

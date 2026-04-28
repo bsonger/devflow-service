@@ -12,41 +12,10 @@
 
 `RuntimeSpec` is the runtime desired-state record for one `application + environment` target.
 `RuntimeSpecRevision` is the immutable runtime snapshot stored under a `RuntimeSpec`.
-`RuntimeObservedPod` is the live observed runtime pod snapshot keyed back to the owning spec.
+`RuntimeObservedPod` is the live observed pod snapshot keyed back to the owning spec.
+`RuntimeOperation` records direct runtime actions such as pod deletion and deployment restart.
 
-This extracted runtime-service surface now covers both release-time runtime lookup and observer-fed live runtime visibility.
-
-## Current API surface
-
-Service-internal route surface:
-
-- `POST /api/v1/runtime-specs`
-- `GET /api/v1/runtime-specs`
-- `GET /api/v1/runtime-specs/{id}`
-- `DELETE /api/v1/runtime-specs?application_id=...&environment=...`
-- `POST /api/v1/runtime-specs/{id}/revisions`
-- `GET /api/v1/runtime-specs/{id}/revisions`
-- `GET /api/v1/runtime-spec-revisions/{id}`
-- `GET /api/v1/runtime-specs/{id}/pods`
-- `POST /api/v1/runtime-specs/{id}/pods/{pod_name}/delete`
-- `POST /api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart`
-- `GET /api/v1/runtime-specs/{id}/operations`
-- `POST /api/v1/internal/runtime-spec-pods/sync`
-- `POST /api/v1/internal/runtime-spec-pods/delete`
-
-Pre-production shared ingress external surface:
-
-- `POST /api/v1/runtime/runtime-specs`
-- `GET /api/v1/runtime/runtime-specs`
-- `GET /api/v1/runtime/runtime-specs/{id}`
-- `DELETE /api/v1/runtime/runtime-specs?application_id=...&environment=...`
-- `POST /api/v1/runtime/runtime-specs/{id}/revisions`
-- `GET /api/v1/runtime/runtime-specs/{id}/revisions`
-- `GET /api/v1/runtime/runtime-spec-revisions/{id}`
-- `GET /api/v1/runtime/runtime-specs/{id}/pods`
-- `POST /api/v1/runtime/runtime-specs/{id}/pods/{pod_name}/delete`
-- `POST /api/v1/runtime/runtime-specs/{id}/deployments/{deployment_name}/restart`
-- `GET /api/v1/runtime/runtime-specs/{id}/operations`
+This extracted runtime-service surface covers both release-time runtime lookup and observer-fed live runtime visibility.
 
 ## Field table
 
@@ -111,21 +80,75 @@ Pre-production shared ingress external surface:
 | `operator` | `string` | 操作人 |
 | `created_at` | `time.Time` | 操作时间 |
 
+## API surface
+
+Service-internal route surface:
+
+- `POST /api/v1/runtime-specs`
+- `GET /api/v1/runtime-specs`
+- `GET /api/v1/runtime-specs/{id}`
+- `DELETE /api/v1/runtime-specs?application_id=...&environment=...`
+- `POST /api/v1/runtime-specs/{id}/revisions`
+- `GET /api/v1/runtime-specs/{id}/revisions`
+- `GET /api/v1/runtime-spec-revisions/{id}`
+- `GET /api/v1/runtime-specs/{id}/pods`
+- `POST /api/v1/runtime-specs/{id}/pods/{pod_name}/delete`
+- `POST /api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart`
+- `GET /api/v1/runtime-specs/{id}/operations`
+- `POST /api/v1/internal/runtime-spec-pods/sync`
+- `POST /api/v1/internal/runtime-spec-pods/delete`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/runtime/runtime-specs`
+- `GET /api/v1/runtime/runtime-specs`
+- `GET /api/v1/runtime/runtime-specs/{id}`
+- `DELETE /api/v1/runtime/runtime-specs?application_id=...&environment=...`
+- `POST /api/v1/runtime/runtime-specs/{id}/revisions`
+- `GET /api/v1/runtime/runtime-specs/{id}/revisions`
+- `GET /api/v1/runtime/runtime-spec-revisions/{id}`
+- `GET /api/v1/runtime/runtime-specs/{id}/pods`
+- `POST /api/v1/runtime/runtime-specs/{id}/pods/{pod_name}/delete`
+- `POST /api/v1/runtime/runtime-specs/{id}/deployments/{deployment_name}/restart`
+- `GET /api/v1/runtime/runtime-specs/{id}/operations`
+
+Internal observer-only endpoints are not exposed through the shared ingress:
+
+- `POST /api/v1/internal/runtime-spec-pods/sync`
+- `POST /api/v1/internal/runtime-spec-pods/delete`
+
+## Create / update rules
+
+### Create
+
+- one runtime spec is created for one `application_id + environment`
+- duplicate active pairs return `conflict`
+- revisions are added through `POST /runtime-specs/{id}/revisions`
+
+### Update
+
+- there is no general-purpose top-level `PUT /runtime-specs/{id}` surface today
+- desired-state mutation happens by creating a new revision
+- observed pod state is written by internal observer sync/delete flows
+
+### Delete
+
+- delete is keyed by `application_id + environment`
+- pod delete and deployment restart are explicit runtime actions and also create `RuntimeOperation` records
+
 ## Validation notes
 
 - invalid UUID path parameters return `invalid_argument`
 - missing records return `not_found`
-- duplicate runtime spec creation returns `conflict`
 - internal observed-pod sync/delete endpoints require `X-Devflow-Observer-Token` or `X-Devflow-Verify-Token` when a shared token is configured
 - observer payload namespace must match the runtime-service derived namespace for the target `application + environment`
 - `containers[].image_id` is the container runtime reported image ID / digest, not the removed manifest/release `image_id` field
-- release-time callers use the runtime lookup endpoints to inspect live runtime state after manifest/release creation
-- `POST /api/v1/runtime-specs/{id}/pods/{pod_name}/delete` directly deletes the K8s Pod and records the operation
-- `POST /api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart` patches the Deployment with `kubectl.kubernetes.io/restartedAt` to trigger a rolling restart and records the operation
-- K8s operations require the runtime-service pod to have in-cluster K8s client access; `not_found` / `failed_precondition` are returned for K8s-level errors
+- release-time callers use runtime lookup endpoints to inspect live state after manifest/release creation
+- Kubernetes operations require the runtime-service pod to have in-cluster client access; K8s-level failures map to `not_found` or `failed_precondition`
 
 ## Source pointers
 
+- module: `internal/runtime/module.go`
 - domain: `internal/runtime/domain/runtime_spec.go`
 - repository: `internal/runtime/repository/repository.go`
 - service: `internal/runtime/service/service.go`

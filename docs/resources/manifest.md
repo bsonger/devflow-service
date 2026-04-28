@@ -3,6 +3,7 @@
 ## Ownership
 
 - active service boundary: `release-service`
+- runnable host process: `release-service`
 - domain package: `internal/manifest/domain`
 - handler package: `internal/manifest/transport/http`
 - service package: `internal/manifest/service`

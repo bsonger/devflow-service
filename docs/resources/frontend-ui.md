@@ -1,16 +1,33 @@
 # Frontend UI Contract
 
+## Ownership
+
+- scope: UI-facing companion contract for `docs/resources/*`
+- primary consumers: frontend application and product/design reviews
+- source-of-truth inputs: backend resource contracts under `docs/resources/`
+
 ## Purpose
 
 This document defines the current frontend information architecture for the active resource model.
-It is the UI-facing companion to the individual resource docs under `docs/resources/`.
-
-Use this doc when:
+Use it when:
 
 - planning frontend pages
 - deciding which fields to show
 - deciding which create/edit forms should exist
 - removing legacy UI concepts that no longer match the backend contract
+
+## API surface
+
+This document does not define its own backend resource.
+It summarizes how the frontend should call the resource APIs owned by the five active services:
+
+- meta-owned resources: `/api/v1/meta/...`
+- config-owned resources: `/api/v1/config/...`
+- network-owned resources: `/api/v1/network/...`
+- release-owned resources: `/api/v1/release/...`
+- runtime-owned resources: `/api/v1/runtime/...`
+
+Service-internal examples shown below still use `/api/v1/...`.
 
 ## Core principles
 
@@ -113,14 +130,6 @@ The selected environment drives:
 - appconfig reads
 - release list reads
 - release creation defaults
-
-Current pre-production shared ingress note:
-
-- meta-owned resources use `/api/v1/meta/...`
-- config-owned resources use `/api/v1/config/...`
-- network-owned resources use `/api/v1/network/...`
-- release-owned resources use `/api/v1/release/...`
-- runtime-owned resources use `/api/v1/runtime/...`
 
 ## Tabs
 
@@ -524,7 +533,7 @@ Remove these concepts from the frontend:
   - `environment_id`
   - `strategy`
 
-## Source docs
+## Source pointers
 
 - `docs/resources/application.md`
 - `docs/resources/application-environment.md`

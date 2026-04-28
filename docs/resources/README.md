@@ -1,26 +1,51 @@
 # Resources
 
-This directory contains current resource-contract docs for `devflow-service`.
+This directory contains the current resource-contract docs for `devflow-service`.
 
-Use:
-- `application.md` for the `Application` resource contract
-- `application-environment.md` for the application-to-environment binding contract
-- `frontend-ui.md` for the frontend information architecture and page-level field contract
-- `project.md` for the `Project` resource contract
-- `cluster.md` for the `Cluster` resource contract
-- `environment.md` for the `Environment` resource contract
-- `appconfig.md` for the `AppConfig` resource contract
-- `workloadconfig.md` for the `WorkloadConfig` resource contract
-- `service.md` for the application-owned `Service` resource contract
-- `route.md` for the application-owned `Route` resource contract
-- `runtime-spec.md` for the `RuntimeSpec` and lookup-side runtime revision contract
-- `manifest.md` for the `Manifest` resource contract
-- `intent.md` for the `Intent` resource contract
-- `release.md` for the `Release` resource contract
+## Standard resource doc format
 
-These docs should describe current resource behavior, request and response shape, validation, and source pointers in this repo.
-Unless a document says otherwise, treat `/api/v1/...` examples in this directory as service-internal routes.
-For pre-production external access, use the service-prefixed shared ingress paths documented in each resource file:
+Unless a resource is intentionally read-only or derived-only, each file in this directory should follow this shape:
+
+1. `# <Resource>`
+2. `## Ownership`
+3. `## Purpose`
+4. `## Common base fields` when the resource persists the shared CRUD columns
+5. `## Field table`
+6. `## API surface`
+7. `## Create / update rules`
+8. `## Validation notes`
+9. `## Source pointers`
+
+Some resources add extra sections such as nested types, lifecycle, sync behavior, or UI guidance, but the core headings above should stay stable.
+
+## Resource ownership map
+
+- `meta-service`
+  - `project.md`
+  - `application.md`
+  - `application-environment.md`
+  - `cluster.md`
+  - `environment.md`
+- `config-service`
+  - `appconfig.md`
+  - `workloadconfig.md`
+- `network-service`
+  - `service.md`
+  - `route.md`
+- `release-service`
+  - `manifest.md`
+  - `release.md`
+  - `intent.md`
+  - `image.md`
+- `runtime-service`
+  - `runtime-spec.md`
+
+`frontend-ui.md` is the UI-facing companion doc for these resource contracts.
+
+## External API path reminder
+
+Unless a document says otherwise, `/api/v1/...` examples in this directory are service-internal routes.
+For pre-production shared ingress, use the service-prefixed external paths documented in each resource file:
 
 - meta-owned resources: `/api/v1/meta/...`
 - config-owned resources: `/api/v1/config/...`
@@ -28,5 +53,23 @@ For pre-production external access, use the service-prefixed shared ingress path
 - release-owned resources: `/api/v1/release/...`
 - runtime-owned resources: `/api/v1/runtime/...`
 
-For shared resource CRUD, pagination, filter, and soft-delete rules, start with `docs/policies/resource-api.md`.
+## Index
+
+- `application.md`: `Application`
+- `application-environment.md`: `ApplicationEnvironmentBinding`
+- `frontend-ui.md`: frontend information architecture and field-level UI contract
+- `project.md`: `Project`
+- `cluster.md`: `Cluster`
+- `environment.md`: `Environment`
+- `appconfig.md`: `AppConfig`
+- `workloadconfig.md`: `WorkloadConfig`
+- `service.md`: application-owned network `Service`
+- `route.md`: application-owned `Route`
+- `runtime-spec.md`: `RuntimeSpec`, `RuntimeSpecRevision`, `RuntimeObservedPod`, `RuntimeOperation`
+- `manifest.md`: `Manifest`
+- `intent.md`: `Intent`
+- `release.md`: `Release`
+- `image.md`: derived image-output contract owned by the release boundary
+
+For shared CRUD, pagination, filtering, and soft-delete rules, start with `docs/policies/resource-api.md`.
 Keep service-boundary and merge-status docs under `docs/services/`.
