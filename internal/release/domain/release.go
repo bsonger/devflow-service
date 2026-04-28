@@ -5,17 +5,22 @@ import "github.com/google/uuid"
 type Release struct {
 	BaseModel
 
-	ExecutionIntentID *uuid.UUID       `json:"execution_intent_id,omitempty" db:"execution_intent_id"`
-	ApplicationID     uuid.UUID        `json:"application_id" db:"application_id"`
-	ManifestID        uuid.UUID        `json:"manifest_id" db:"manifest_id"`
-	ImageID           uuid.UUID        `json:"image_id" db:"image_id"`
-	EnvironmentID     string           `json:"environment_id" db:"env"`
-	RoutesSnapshot    []ReleaseRoute   `json:"routes_snapshot,omitempty" db:"routes_snapshot"`
-	AppConfigSnapshot ReleaseAppConfig `json:"app_config_snapshot" db:"app_config_snapshot"`
-	Type              string           `json:"type" db:"type"`
-	Steps             []ReleaseStep    `json:"steps,omitempty" db:"steps"`
-	Status            ReleaseStatus    `json:"status" db:"status"`
-	ExternalRef       string           `json:"external_ref,omitempty" db:"external_ref"`
+	ExecutionIntentID     *uuid.UUID       `json:"execution_intent_id,omitempty" db:"execution_intent_id"`
+	ApplicationID         uuid.UUID        `json:"application_id" db:"application_id"`
+	ManifestID            uuid.UUID        `json:"manifest_id" db:"manifest_id"`
+	EnvironmentID         string           `json:"environment_id" db:"env"`
+	Strategy              string           `json:"strategy" db:"strategy"`
+	RoutesSnapshot        []ReleaseRoute   `json:"routes_snapshot,omitempty" db:"routes_snapshot"`
+	AppConfigSnapshot     ReleaseAppConfig `json:"app_config_snapshot" db:"app_config_snapshot"`
+	ArtifactRepository    string           `json:"artifact_repository,omitempty" db:"artifact_repository"`
+	ArtifactTag           string           `json:"artifact_tag,omitempty" db:"artifact_tag"`
+	ArtifactDigest        string           `json:"artifact_digest,omitempty" db:"artifact_digest"`
+	ArtifactRef           string           `json:"artifact_ref,omitempty" db:"artifact_ref"`
+	Type                  string           `json:"type" db:"type"`
+	Steps                 []ReleaseStep    `json:"steps,omitempty" db:"steps"`
+	Status                ReleaseStatus    `json:"status" db:"status"`
+	ArgoCDApplicationName string           `json:"argocd_application_name,omitempty" db:"argocd_application_name"`
+	ExternalRef           string           `json:"external_ref,omitempty" db:"external_ref"`
 }
 
 type ReleaseRoute struct {
@@ -95,46 +100,76 @@ func DeriveReleaseStatusFromSteps(releaseAction string, currentStatus ReleaseSta
 	return currentStatus
 }
 
-func DefaultReleaseSteps(strategy ReleaseType, releaseAction string) []ReleaseStep {
-	applyStepName := "apply manifests"
-	switch releaseAction {
-	case ReleaseRollback:
-		applyStepName = "apply rollback manifests"
-	case ReleaseInstall:
-		applyStepName = "apply install manifests"
+func NormalizeReleaseStrategy(value string) string {
+	switch value {
+	case "blue-green":
+		return string(ReleaseStrategyBlueGreen)
+	case string(ReleaseStrategyBlueGreen), string(ReleaseStrategyCanary):
+		return value
+	case "", string(ReleaseStrategyRolling):
+		return string(ReleaseStrategyRolling)
+	default:
+		return value
 	}
+}
 
-	stepNames := []string{
-		"ensure namespace",
-		"ensure pull secret",
-		"ensure appproject destination",
-		applyStepName,
+func ReleaseStrategyToType(value string) ReleaseType {
+	switch NormalizeReleaseStrategy(value) {
+	case string(ReleaseStrategyCanary):
+		return Canary
+	case string(ReleaseStrategyBlueGreen):
+		return BlueGreen
+	default:
+		return Normal
 	}
+}
+
+func DefaultReleaseSteps(strategy ReleaseType, releaseAction string) []ReleaseStep {
 	switch strategy {
 	case Canary:
-		stepNames = append(stepNames,
-			"canary 10% traffic",
-			"canary 30% traffic",
-			"canary 60% traffic",
-			"canary 100% traffic",
-		)
+		return []ReleaseStep{
+			newReleaseStep("freeze_inputs", "Freeze release inputs"),
+			newReleaseStep("render_deployment_bundle", "Render deployment bundle"),
+			newReleaseStep("publish_bundle", "Publish bundle to OCI"),
+			newReleaseStep("create_argocd_application", "Create ArgoCD application"),
+			newReleaseStep("deploy_canary", "Deploy canary"),
+			newReleaseStep("canary_10", "Canary 10% traffic"),
+			newReleaseStep("canary_30", "Canary 30% traffic"),
+			newReleaseStep("canary_60", "Canary 60% traffic"),
+			newReleaseStep("canary_100", "Canary 100% traffic"),
+			newReleaseStep("finalize_release", "Finalize release"),
+		}
 	case BlueGreen:
-		stepNames = append(stepNames,
-			"green ready",
-			"switch traffic",
-		)
+		return []ReleaseStep{
+			newReleaseStep("freeze_inputs", "Freeze release inputs"),
+			newReleaseStep("render_deployment_bundle", "Render deployment bundle"),
+			newReleaseStep("publish_bundle", "Publish bundle to OCI"),
+			newReleaseStep("create_argocd_application", "Create ArgoCD application"),
+			newReleaseStep("deploy_preview", "Deploy preview"),
+			newReleaseStep("observe_preview", "Observe preview"),
+			newReleaseStep("switch_traffic", "Switch traffic"),
+			newReleaseStep("verify_active", "Verify active"),
+			newReleaseStep("finalize_release", "Finalize release"),
+		}
 	default:
-		stepNames = append(stepNames, "deploy ready")
+		_ = releaseAction
+		return []ReleaseStep{
+			newReleaseStep("freeze_inputs", "Freeze release inputs"),
+			newReleaseStep("render_deployment_bundle", "Render deployment bundle"),
+			newReleaseStep("publish_bundle", "Publish bundle to OCI"),
+			newReleaseStep("create_argocd_application", "Create ArgoCD application"),
+			newReleaseStep("start_deployment", "Start deployment"),
+			newReleaseStep("observe_rollout", "Observe rollout"),
+			newReleaseStep("finalize_release", "Finalize release"),
+		}
 	}
+}
 
-	steps := make([]ReleaseStep, 0, len(stepNames))
-	for _, name := range stepNames {
-		steps = append(steps, ReleaseStep{
-			Name:     name,
-			Progress: 0,
-			Status:   StepPending,
-		})
+func newReleaseStep(code, name string) ReleaseStep {
+	return ReleaseStep{
+		Code:     code,
+		Name:     name,
+		Progress: 0,
+		Status:   StepPending,
 	}
-
-	return steps
 }

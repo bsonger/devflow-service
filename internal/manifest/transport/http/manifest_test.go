@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
@@ -50,8 +49,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				now := mustTime("2026-04-12T11:30:00Z")
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, EnvironmentID: "", ImageID: req.ImageID, ImageRef: "repo/demo@sha256:abc", ArtifactPushedAt: &now, RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: "main", RepoAddress: "git@github.com:example/demo.git", CommitHash: "abcdef123456", ImageRef: "repo/demo@sha256:abc", ImageDigest: "sha256:abc", PipelineID: "pipe-1", TraceID: "trace-1", SpanID: "span-1", Status: model.ManifestReady}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -59,7 +57,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	}
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -72,29 +70,20 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ImageRef == "" || payload.Data.RenderedYAML == "" {
+	if payload.Data.ImageRef == "" || payload.Data.CommitHash == "" || payload.Data.PipelineID == "" || payload.Data.GitRevision != "main" {
 		t.Fatalf("unexpected payload %+v", payload.Data)
 	}
-	if payload.Data.ArtifactRef != "" || payload.Data.ArtifactDigest != "" || payload.Data.ArtifactRepository != "" {
-		t.Fatalf("manifest create should not publish OCI artifact: %+v", payload.Data)
-	}
 }
 
-func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T) {
+func TestCreateManifestReturnsEnvironmentAgnosticImageRef(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-
-				now := mustTime("2026-04-13T15:00:00Z")
 				item := &manifestdomain.Manifest{
-					ApplicationID:    req.ApplicationID,
-					EnvironmentID:    "",
-					ImageID:          req.ImageID,
-					ImageRef:         "repo/demo@sha256:abc",
-					ArtifactPushedAt: &now,
-					RenderedYAML:     "apiVersion: v1",
-					Status:           model.ManifestReady,
+					ApplicationID: req.ApplicationID,
+					ImageRef:      "repo/demo@sha256:abc",
+					Status:        model.ManifestReady,
 				}
 				item.WithCreateDefault()
 				return item, nil
@@ -103,7 +92,7 @@ func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T
 	}
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -116,23 +105,20 @@ func TestCreateManifestReturnsEnvironmentAgnosticArtifactRepository(t *testing.T
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ArtifactRepository != "" {
-		t.Fatalf("ArtifactRepository = %q, want empty during manifest build", payload.Data.ArtifactRepository)
+	if payload.Data.ImageRef == "" {
+		t.Fatalf("ImageRef = %q, want populated", payload.Data.ImageRef)
 	}
 }
 
-func TestCreateManifestAcceptsBranchWithoutImageID(t *testing.T) {
+func TestCreateManifestAcceptsGitRevision(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				if req.ImageID != uuid.Nil {
-					t.Fatalf("ImageID = %s, want nil uuid", req.ImageID)
+				if req.GitRevision != "main" {
+					t.Fatalf("GitRevision = %q, want main", req.GitRevision)
 				}
-				if req.Branch != "main" {
-					t.Fatalf("Branch = %q, want main", req.Branch)
-				}
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, ImageRef: "repo/demo:tag", RenderedYAML: "apiVersion: v1", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: req.GitRevision, ImageRef: "repo/demo:tag", Status: model.ManifestReady}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -140,21 +126,47 @@ func TestCreateManifestAcceptsBranchWithoutImageID(t *testing.T) {
 	}
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","branch":"main"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","git_revision":"main"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
+	var payload struct {
+		Data manifestdomain.Manifest `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if payload.Data.GitRevision != "main" {
+		t.Fatalf("GitRevision = %q want main", payload.Data.GitRevision)
+	}
 }
 
-func mustTime(value string) time.Time {
-	got, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		panic(err)
+func TestCreateManifestOmitsGitRevisionWhenNotProvided(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	handler := &ManifestHandler{
+		svc: stubManifestService{
+			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
+				if req.GitRevision != "" {
+					t.Fatalf("GitRevision = %q, want empty before service defaulting", req.GitRevision)
+				}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, Status: model.ManifestReady}
+				item.WithCreateDefault()
+				return item, nil
+			},
+		},
 	}
-	return got
+	r := gin.New()
+	r.POST("/api/v1/manifests", handler.Create)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
 }
 
 func TestGetManifestNotFound(t *testing.T) {
@@ -251,7 +263,7 @@ func TestCreateManifestMissingWorkloadReturns409(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/manifests", handler.Create)
 
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
+	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -259,42 +271,6 @@ func TestCreateManifestMissingWorkloadReturns409(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("got %d want %d for workload missing", rec.Code, http.StatusConflict)
-	}
-	var resp struct {
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshal body: %v", err)
-	}
-	if resp.Error.Code != "failed_precondition" {
-		t.Fatalf("error code = %q, want failed_precondition", resp.Error.Code)
-	}
-}
-
-func TestCreateManifestImageRepositoryMissingReturns409(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	handler := &ManifestHandler{
-		svc: stubManifestService{
-			createFn: func(_ context.Context, _ *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				return nil, manifestservice.ErrManifestImageRepositoryMissing
-			},
-		},
-	}
-
-	r := gin.New()
-	r.POST("/api/v1/manifests", handler.Create)
-
-	body := bytes.NewBufferString(`{"application_id":"11111111-1111-1111-1111-111111111111","image_id":"33333333-3333-3333-3333-333333333333"}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("got %d want %d for image repository missing", rec.Code, http.StatusConflict)
 	}
 	var resp struct {
 		Error struct {

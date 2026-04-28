@@ -79,7 +79,7 @@ Background execution should assume retries will happen.
 Prefer:
 
 - idempotent lookups before mutating downstream systems
-- resource-oriented reconciliation using stable identifiers such as `intent_id`, `image_id`, `manifest_id`, or `release_id`
+- resource-oriented reconciliation using stable identifiers such as `intent_id`, `manifest_id`, or `release_id`
 - explicit retry ownership and backoff policy in the caller or worker loop
 
 Avoid:

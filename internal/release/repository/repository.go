@@ -17,7 +17,6 @@ type ListFilter struct {
 	IncludeDeleted bool
 	ApplicationID  *uuid.UUID
 	ManifestID     *uuid.UUID
-	ImageID        *uuid.UUID
 	Status         string
 	Type           string
 }
@@ -52,15 +51,15 @@ func (s *PostgresStore) Insert(ctx context.Context, release *model.Release) erro
 	}
 	_, err = db.DB().ExecContext(ctx, `
 		insert into releases (
-			id, execution_intent_id, application_id, manifest_id, image_id, env, routes_snapshot, app_config_snapshot, type, steps, status, external_ref, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.ImageID, release.EnvironmentID, routesJSON, appConfigJSON, release.Type, stepsJSON, release.Status, release.ExternalRef, release.CreatedAt, release.UpdatedAt, release.DeletedAt)
+			id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, type, steps, status, argocd_application_name, external_ref, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.EnvironmentID, release.Strategy, routesJSON, appConfigJSON, release.ArtifactRepository, release.ArtifactTag, release.ArtifactDigest, release.ArtifactRef, release.Type, stepsJSON, release.Status, release.ArgoCDApplicationName, release.ExternalRef, release.CreatedAt, release.UpdatedAt, release.DeletedAt)
 	return err
 }
 
 func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*model.Release, error) {
 	return scanRelease(db.DB().QueryRowContext(ctx, `
-		select id, execution_intent_id, application_id, manifest_id, image_id, env, routes_snapshot, app_config_snapshot, type, steps, status, external_ref, created_at, updated_at, deleted_at
+		select id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, type, steps, status, argocd_application_name, external_ref, created_at, updated_at, deleted_at
 		from releases
 		where id = $1 and deleted_at is null
 	`, id))
@@ -80,7 +79,7 @@ func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]*model.Release, error) {
 	query := `
-		select id, execution_intent_id, application_id, manifest_id, image_id, env, routes_snapshot, app_config_snapshot, type, steps, status, external_ref, created_at, updated_at, deleted_at
+		select id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, type, steps, status, argocd_application_name, external_ref, created_at, updated_at, deleted_at
 		from releases
 	`
 	clauses := make([]string, 0, 5)
@@ -95,10 +94,6 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]*model.R
 	if filter.ManifestID != nil {
 		args = append(args, *filter.ManifestID)
 		clauses = append(clauses, dbsql.PlaceholderClause("manifest_id", len(args)))
-	}
-	if filter.ImageID != nil {
-		args = append(args, *filter.ImageID)
-		clauses = append(clauses, dbsql.PlaceholderClause("image_id", len(args)))
 	}
 	if filter.Status != "" {
 		args = append(args, filter.Status)
@@ -147,9 +142,9 @@ func (s *PostgresStore) UpdateRow(ctx context.Context, release *model.Release) e
 	}
 	result, err := db.DB().ExecContext(ctx, `
 		update releases
-		set execution_intent_id=$2, application_id=$3, manifest_id=$4, image_id=$5, env=$6, routes_snapshot=$7, app_config_snapshot=$8, type=$9, steps=$10, status=$11, external_ref=$12, updated_at=$13, deleted_at=$14
+		set execution_intent_id=$2, application_id=$3, manifest_id=$4, env=$5, strategy=$6, routes_snapshot=$7, app_config_snapshot=$8, artifact_repository=$9, artifact_tag=$10, artifact_digest=$11, artifact_ref=$12, type=$13, steps=$14, status=$15, argocd_application_name=$16, external_ref=$17, updated_at=$18, deleted_at=$19
 		where id = $1
-	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.ImageID, release.EnvironmentID, routesJSON, appConfigJSON, release.Type, stepsJSON, release.Status, release.ExternalRef, release.UpdatedAt, release.DeletedAt)
+	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.EnvironmentID, release.Strategy, routesJSON, appConfigJSON, release.ArtifactRepository, release.ArtifactTag, release.ArtifactDigest, release.ArtifactRef, release.Type, stepsJSON, release.Status, release.ArgoCDApplicationName, release.ExternalRef, release.UpdatedAt, release.DeletedAt)
 	if err != nil {
 		return err
 	}
@@ -187,13 +182,18 @@ func scanRelease(scanner interface{ Scan(dest ...any) error }) (*model.Release, 
 		&executionIntent,
 		&item.ApplicationID,
 		&item.ManifestID,
-		&item.ImageID,
 		&item.EnvironmentID,
+		&item.Strategy,
 		&routesBytes,
 		&appConfigBytes,
+		&item.ArtifactRepository,
+		&item.ArtifactTag,
+		&item.ArtifactDigest,
+		&item.ArtifactRef,
 		&item.Type,
 		&stepsBytes,
 		&item.Status,
+		&item.ArgoCDApplicationName,
 		&item.ExternalRef,
 		&item.CreatedAt,
 		&item.UpdatedAt,

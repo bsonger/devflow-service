@@ -76,12 +76,11 @@ func toProjectApplications(applications []appdomain.Application) []projectdomain
 				UpdatedAt: application.UpdatedAt,
 				DeletedAt: application.DeletedAt,
 			},
-			ProjectID:     application.ProjectID,
-			Name:          application.Name,
-			RepoAddress:   application.RepoAddress,
-			Description:   application.Description,
-			ActiveImageID: application.ActiveImageID,
-			Labels:        toProjectLabels(application.Labels),
+			ProjectID:   application.ProjectID,
+			Name:        application.Name,
+			RepoAddress: application.RepoAddress,
+			Description: application.Description,
+			Labels:      toProjectLabels(application.Labels),
 		})
 	}
 	return out

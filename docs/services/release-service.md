@@ -6,7 +6,6 @@ Use this file as the repo-local summary for where release-owned behavior now liv
 ## Owns
 
 - `Manifest`
-- `Image`
 - `Release`
 - `Intent`
 - build and release lifecycle records around manifest OCI deployment artifacts plus release-owned rollout snapshots
@@ -52,7 +51,6 @@ cmd/release-service/main.go
 The migrated implementation is split across release-owned top-level domains plus release-specific assembly:
 
 ```text
-internal/image/
 internal/manifest/
 internal/intent/
 internal/release/
@@ -61,9 +59,6 @@ internal/release/
 The current repo-local layout follows the monorepo policy:
 
 ```text
-internal/image/service
-internal/image/transport/http
-internal/image/module.go
 internal/manifest/service
 internal/manifest/transport/http
 internal/manifest/module.go
@@ -83,11 +78,10 @@ internal/release/module.go
 ```
 
 This means `release-service` is no longer modeled as one large `internal/release/service` implementation area.
-It now follows the same top-level domain split style already used elsewhere in this repository: resource-specific business code lives in `internal/image`, `internal/manifest`, and `internal/intent`, while `internal/release` keeps release-specific orchestration, persistence, runtime adapters, HTTP assembly, and cross-domain support helpers.
+It now follows the same top-level domain split style already used elsewhere in this repository: resource-specific business code lives in `internal/manifest` and `internal/intent`, while `internal/release` keeps release-specific orchestration, persistence, runtime adapters, HTTP assembly, and cross-domain support helpers.
 
 The resource contracts owned by this boundary are documented at:
 
-- `docs/resources/image.md`
 - `docs/resources/manifest.md`
 - `docs/resources/intent.md`
 - `docs/resources/release.md`

@@ -19,7 +19,6 @@ type Store interface {
 	Get(context.Context, uuid.UUID) (*appdomain.Application, error)
 	Update(context.Context, *appdomain.Application) error
 	Delete(context.Context, uuid.UUID) error
-	UpdateActiveImage(context.Context, uuid.UUID, uuid.UUID) error
 	List(context.Context, bool, string, *uuid.UUID, string) ([]appdomain.Application, error)
 }
 
@@ -45,9 +44,9 @@ func (s *postgresStore) Create(ctx context.Context, app *appdomain.Application) 
 
 	_, err = platformdb.Postgres().ExecContext(ctx, `
 		insert into applications (
-			id, project_id, name, repo_address, description, active_image_id, labels, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, app.ID, dbsql.NullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, dbsql.NullableUUIDPtr(app.ActiveImageID), labels, app.CreatedAt, app.UpdatedAt, app.DeletedAt)
+			id, project_id, name, repo_address, description, labels, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+	`, app.ID, dbsql.NullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, labels, app.CreatedAt, app.UpdatedAt, app.DeletedAt)
 	if err != nil {
 		log.Error("create application failed", zap.String("result", "error"), zap.Error(err))
 		return uuid.Nil, err
@@ -70,7 +69,7 @@ func (s *postgresStore) Get(ctx context.Context, id uuid.UUID) (*appdomain.Appli
 	)
 
 	app, err := scanApplication(platformdb.Postgres().QueryRowContext(ctx, `
-		select id, project_id, name, repo_address, description, active_image_id, labels, created_at, updated_at, deleted_at
+		select id, project_id, name, repo_address, description, labels, created_at, updated_at, deleted_at
 		from applications
 		where id = $1 and deleted_at is null
 	`, id))
@@ -111,9 +110,9 @@ func (s *postgresStore) Update(ctx context.Context, app *appdomain.Application) 
 
 	result, err := platformdb.Postgres().ExecContext(ctx, `
 		update applications
-		set project_id=$2, name=$3, repo_address=$4, description=$5, active_image_id=$6, labels=$7, updated_at=$8, deleted_at=$9
+		set project_id=$2, name=$3, repo_address=$4, description=$5, labels=$6, updated_at=$7, deleted_at=$8
 		where id = $1 and deleted_at is null
-	`, app.ID, dbsql.NullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, dbsql.NullableUUIDPtr(app.ActiveImageID), labels, app.UpdatedAt, app.DeletedAt)
+	`, app.ID, dbsql.NullableUUID(app.ProjectID), app.Name, app.RepoAddress, app.Description, labels, app.UpdatedAt, app.DeletedAt)
 	if err != nil {
 		log.Error("update application failed", zap.String("result", "error"), zap.Error(err))
 		return err
@@ -169,42 +168,6 @@ func (s *postgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (s *postgresStore) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUID) error {
-	log := logger.LoggerWithContext(ctx).With(
-		zap.String("operation", "update_application_active_image"),
-		zap.String("resource", "application"),
-		zap.String("resource_id", appID.String()),
-		zap.String("application_id", appID.String()),
-		zap.String("image_id", imageID.String()),
-	)
-
-	result, err := platformdb.Postgres().ExecContext(ctx, `
-		update applications
-		set active_image_id=$2, updated_at=$3
-		where id = $1 and deleted_at is null
-	`, appID, imageID, time.Now())
-	if err != nil {
-		log.Error("update active image failed", zap.String("result", "error"), zap.Error(err))
-		return err
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
-
-	log.Info("application active image updated",
-		zap.String("result", "success"),
-		zap.String("resource", "application"),
-		zap.String("resource_id", appID.String()),
-		zap.String("image_id", imageID.String()),
-	)
-	return nil
-}
-
 func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name string, projectID *uuid.UUID, repoAddress string) ([]appdomain.Application, error) {
 	log := logger.LoggerWithContext(ctx).With(
 		zap.String("operation", "list_applications"),
@@ -218,7 +181,7 @@ func (s *postgresStore) List(ctx context.Context, includeDeleted bool, name stri
 	}
 
 	query := `
-		select id, project_id, name, repo_address, description, active_image_id, labels, created_at, updated_at, deleted_at
+		select id, project_id, name, repo_address, description, labels, created_at, updated_at, deleted_at
 		from applications
 	`
 	clauses := make([]string, 0, 4)
@@ -276,11 +239,10 @@ func scanApplication(scanner interface {
 	Scan(dest ...any) error
 }) (*appdomain.Application, error) {
 	var (
-		app           appdomain.Application
-		projectID     sql.NullString
-		activeImageID sql.NullString
-		labelsBytes   []byte
-		deletedAt     sql.NullTime
+		app         appdomain.Application
+		projectID   sql.NullString
+		labelsBytes []byte
+		deletedAt   sql.NullTime
 	)
 
 	if err := scanner.Scan(
@@ -289,7 +251,6 @@ func scanApplication(scanner interface {
 		&app.Name,
 		&app.RepoAddress,
 		&app.Description,
-		&activeImageID,
 		&labelsBytes,
 		&app.CreatedAt,
 		&app.UpdatedAt,
@@ -304,10 +265,6 @@ func scanApplication(scanner interface {
 	}
 	if projectUUID != nil {
 		app.ProjectID = *projectUUID
-	}
-	app.ActiveImageID, err = dbsql.ParseNullUUID(activeImageID)
-	if err != nil {
-		return nil, err
 	}
 	app.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	if len(labelsBytes) > 0 {

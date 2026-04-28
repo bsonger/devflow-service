@@ -18,4 +18,5 @@ func NewModule() Module {
 
 func (m Module) RegisterRoutes(rg *gin.RouterGroup) {
 	m.handler.RegisterRoutes(rg)
+	manifesthttp.RegisterManifestWritebackRoutes(rg)
 }

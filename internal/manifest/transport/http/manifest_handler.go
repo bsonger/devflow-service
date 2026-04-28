@@ -81,7 +81,6 @@ func (h *ManifestHandler) Create(c *gin.Context) {
 // @Tags Manifest
 // @Produce json
 // @Param application_id query string false "Application ID"
-// @Param image_id query string false "Image ID"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
 // @Success 200 {object} ManifestListResponse
@@ -96,13 +95,6 @@ func (h *ManifestHandler) List(c *gin.Context) {
 	}
 	if applicationId != nil {
 		filter.ApplicationID = applicationId
-	}
-	imageID, ok := httpx.ParseUUIDQuery(c, "image_id")
-	if !ok {
-		return
-	}
-	if imageID != nil {
-		filter.ImageID = imageID
 	}
 	items, err := h.svc.List(c.Request.Context(), filter)
 	if err != nil {
@@ -195,9 +187,7 @@ func writeManifestError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		httpx.WriteNotFound(c, "not found")
-	case errors.Is(err, manifestservice.ErrManifestImageApplicationMismatch),
-		errors.Is(err, manifestservice.ErrManifestWorkloadConfigMissing),
-		errors.Is(err, manifestservice.ErrManifestImageRepositoryMissing),
+	case errors.Is(err, manifestservice.ErrManifestWorkloadConfigMissing),
 		errors.Is(err, manifestservice.ErrManifestImageNotDeployable):
 		httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 	default:

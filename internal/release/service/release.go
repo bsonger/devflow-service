@@ -10,18 +10,16 @@ import (
 	argoutil "github.com/argoproj/argo-cd/v3/util/argo"
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
 	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
-	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
-	imageservice "github.com/bsonger/devflow-service/internal/image/service"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
 	"github.com/bsonger/devflow-service/internal/release/runtime"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/bsonger/devflow-service/internal/release/transport/argo"
-	runtimeclient "github.com/bsonger/devflow-service/internal/release/transport/runtime"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,7 +32,6 @@ type ReleaseListFilter struct {
 	IncludeDeleted bool
 	ApplicationID  *uuid.UUID
 	ManifestID     *uuid.UUID
-	ImageID        *uuid.UUID
 	Status         string
 	Type           string
 }
@@ -42,11 +39,8 @@ type ReleaseListFilter struct {
 var ReleaseService = &releaseService{store: repository.NewPostgresStore()}
 
 var (
-	ErrImageMissingRuntimeSpecRevision                      = sharederrs.FailedPrecondition("image runtime_spec_revision_id is required")
-	ErrRuntimeSpecBindingMismatch                           = sharederrs.FailedPrecondition("image runtime_spec_revision_id does not match release application and env")
-	ErrReleaseManifestNotReady                              = sharederrs.FailedPrecondition("manifest is not ready")
-	ErrReleaseAppConfigMissing                              = sharederrs.FailedPrecondition("effective app config is missing")
-	runtimeLookupClient                runtimeclient.Lookup = runtimeclient.New("")
+	ErrReleaseManifestNotReady = sharederrs.FailedPrecondition("manifest is not ready")
+	ErrReleaseAppConfigMissing = sharederrs.FailedPrecondition("effective app config is missing")
 )
 
 type releaseManifestReader interface {
@@ -74,21 +68,21 @@ func (s *releaseService) repoStore() repository.Store {
 	return s.store
 }
 
-func SetRuntimeClient(client runtimeclient.Lookup) {
-	runtimeLookupClient = client
-}
-
-func populateReleaseDefaults(release *model.Release, image *imagedomain.Image, environmentId string) {
-	release.ApplicationID = image.ApplicationID
+func populateReleaseDefaults(release *model.Release, applicationId uuid.UUID, environmentId string) {
+	release.ApplicationID = applicationId
+	release.Strategy = model.NormalizeReleaseStrategy(release.Strategy)
 	if release.Type == "" {
 		release.Type = model.ReleaseUpgrade
+	}
+	if release.Strategy == "" {
+		release.Strategy = string(model.ReleaseStrategyRolling)
 	}
 	if release.EnvironmentID == "" {
 		release.EnvironmentID = environmentId
 	}
 	release.Status = model.ReleasePending
 	if len(release.Steps) == 0 {
-		release.Steps = model.DefaultReleaseSteps(model.Normal, release.Type)
+		release.Steps = model.DefaultReleaseSteps(model.ReleaseStrategyToType(release.Strategy), release.Type)
 	}
 }
 
@@ -181,30 +175,6 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	return nil
 }
 
-func (s *releaseService) resolveReleaseEnvironment(ctx context.Context, release *model.Release, image *imagedomain.Image) (string, error) {
-	if image.RuntimeSpecRevisionID == nil || *image.RuntimeSpecRevisionID == uuid.Nil {
-		if strings.TrimSpace(release.EnvironmentID) != "" {
-			return strings.TrimSpace(release.EnvironmentID), nil
-		}
-		return "", ErrImageMissingRuntimeSpecRevision
-	}
-	revision, err := runtimeLookupClient.GetRuntimeSpecRevision(ctx, *image.RuntimeSpecRevisionID)
-	if err != nil {
-		return "", err
-	}
-	spec, err := runtimeLookupClient.GetRuntimeSpec(ctx, revision.RuntimeSpecID)
-	if err != nil {
-		return "", err
-	}
-	if spec.ApplicationID != image.ApplicationID {
-		return "", fmt.Errorf("%w: spec application=%s image application=%s", ErrRuntimeSpecBindingMismatch, spec.ApplicationID, image.ApplicationID)
-	}
-	if release.EnvironmentID != "" && release.EnvironmentID != spec.Environment {
-		return "", fmt.Errorf("%w: spec env=%s release env=%s", ErrRuntimeSpecBindingMismatch, spec.Environment, release.EnvironmentID)
-	}
-	return spec.Environment, nil
-}
-
 func (s *releaseService) Create(ctx context.Context, release *model.Release) (uuid.UUID, error) {
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
@@ -226,20 +196,11 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 		return uuid.Nil, ErrReleaseManifestNotReady
 	}
 	release.ApplicationID = manifest.ApplicationID
-	release.ImageID = manifest.ImageID
-	image, err := imageservice.ImageService.Get(ctx, release.ImageID)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	environmentId, err := s.resolveReleaseEnvironment(ctx, release, image)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	populateReleaseDefaults(release, image, environmentId)
+	populateReleaseDefaults(release, manifest.ApplicationID, strings.TrimSpace(release.EnvironmentID))
 	if err := freezeReleaseLiveInputs(ctx, release); err != nil {
 		return uuid.Nil, err
 	}
+	markReleaseStepCompleted(release, "freeze_inputs", "release inputs frozen successfully")
 	release.WithCreateDefault()
 	annotateReleaseSpan(ctx, release)
 	if err := s.repoStore().Insert(ctx, release); err != nil {
@@ -273,6 +234,33 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 	return release.ID, nil
 }
 
+func markReleaseStepCompleted(release *model.Release, stepCode, message string) {
+	if release == nil {
+		return
+	}
+	now := time.Now()
+	for i := range release.Steps {
+		if release.Steps[i].Code != stepCode && release.Steps[i].Name != stepCode {
+			continue
+		}
+		release.Steps[i].Status = model.StepSucceeded
+		release.Steps[i].Progress = 100
+		release.Steps[i].Message = message
+		release.Steps[i].StartTime = &now
+		release.Steps[i].EndTime = &now
+		return
+	}
+	release.Steps = append(release.Steps, model.ReleaseStep{
+		Code:      stepCode,
+		Name:      stepCode,
+		Status:    model.StepSucceeded,
+		Progress:  100,
+		Message:   message,
+		StartTime: &now,
+		EndTime:   &now,
+	})
+}
+
 func (s *releaseService) DispatchRelease(ctx context.Context, releaseID uuid.UUID) error {
 	release, err := s.Get(ctx, releaseID)
 	if err != nil {
@@ -282,7 +270,7 @@ func (s *releaseService) DispatchRelease(ctx context.Context, releaseID uuid.UUI
 		return err
 	}
 	release.Status = model.ReleaseSyncing
-	return s.syncArgo(ctx, release)
+	return s.executeReleasePhases(ctx, release)
 }
 
 func (s *releaseService) handleSyncArgoError(ctx context.Context, release *model.Release, err error) {
@@ -300,6 +288,30 @@ func (s *releaseService) Get(ctx context.Context, id uuid.UUID) (*model.Release,
 	return s.repoStore().Get(ctx, id)
 }
 
+func (s *releaseService) GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundle, error) {
+	release, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	app, err := releasesupport.ApplicationService.Get(ctx, release.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := releaseManifestSource.Get(ctx, release.ManifestID)
+	if err != nil {
+		return nil, err
+	}
+	target, err := releasesupport.ResolveDeployTarget(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
+	if err != nil {
+		return nil, err
+	}
+	applicationName := ""
+	if app != nil {
+		applicationName = app.Name
+	}
+	return buildReleaseBundle(target.Namespace, applicationName, manifest, release)
+}
+
 func (s *releaseService) Update(ctx context.Context, release *model.Release) error {
 	current, err := s.Get(ctx, release.ID)
 	if err != nil {
@@ -309,6 +321,43 @@ func (s *releaseService) Update(ctx context.Context, release *model.Release) err
 	release.DeletedAt = current.DeletedAt
 	release.WithUpdateDefault()
 	return s.repoStore().UpdateRow(ctx, release)
+}
+
+func (s *releaseService) UpdateArtifact(ctx context.Context, releaseID uuid.UUID, repository, tag, digest, ref, message string, status model.StepStatus, progress int32) error {
+	release, err := s.Get(ctx, releaseID)
+	if err != nil {
+		return err
+	}
+	repository = strings.TrimSpace(repository)
+	tag = strings.TrimSpace(tag)
+	digest = strings.TrimSpace(digest)
+	ref = strings.TrimSpace(ref)
+	if repository != "" {
+		release.ArtifactRepository = repository
+	}
+	if tag != "" {
+		release.ArtifactTag = tag
+	}
+	if digest != "" {
+		release.ArtifactDigest = digest
+	}
+	if ref != "" {
+		release.ArtifactRef = ref
+	}
+	release.UpdatedAt = time.Now()
+	if err := s.repoStore().UpdateRow(ctx, release); err != nil {
+		return err
+	}
+	if status != "" {
+		if progress < 0 {
+			progress = 0
+		}
+		if progress > 100 {
+			progress = 100
+		}
+		return s.UpdateStep(ctx, releaseID, "publish_bundle", status, progress, message, nil, nil)
+	}
+	return nil
 }
 
 func (s *releaseService) Delete(ctx context.Context, id uuid.UUID) error {
@@ -374,7 +423,7 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 	nextSteps := cloneReleaseSteps(release.Steps)
 	currentStep := findReleaseStep(release.Steps, stepName)
 	if currentStep == nil {
-		nextSteps = append(nextSteps, model.ReleaseStep{Name: stepName, Progress: progress, Status: status, Message: message, StartTime: start, EndTime: end})
+		nextSteps = append(nextSteps, model.ReleaseStep{Code: stepName, Name: stepName, Progress: progress, Status: status, Message: message, StartTime: start, EndTime: end})
 		release.Steps = nextSteps
 		release.UpdatedAt = time.Now()
 		if err := s.repoStore().UpdateSteps(ctx, release); err != nil {
@@ -396,7 +445,7 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 
 func findReleaseStep(steps []model.ReleaseStep, stepName string) *model.ReleaseStep {
 	for _, step := range steps {
-		if step.Name == stepName {
+		if step.Code == stepName || step.Name == stepName {
 			current := step
 			return &current
 		}
@@ -415,7 +464,7 @@ func cloneReleaseSteps(steps []model.ReleaseStep) []model.ReleaseStep {
 
 func applyReleaseStepUpdate(steps []model.ReleaseStep, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) {
 	for i := range steps {
-		if steps[i].Name != stepName {
+		if steps[i].Code != stepName && steps[i].Name != stepName {
 			continue
 		}
 		steps[i].Status = status
@@ -439,7 +488,7 @@ func (s *releaseService) updateStatusFromSteps(ctx context.Context, releaseID uu
 	return s.updateStatus(ctx, releaseID, nextStatus)
 }
 
-func (s *releaseService) syncArgo(ctx context.Context, release *model.Release) error {
+func (s *releaseService) executeReleasePhases(ctx context.Context, release *model.Release) error {
 	log := logger.LoggerWithContext(ctx)
 	annotateReleaseSpan(ctx, release)
 	log = log.With(
@@ -454,10 +503,6 @@ func (s *releaseService) syncArgo(ctx context.Context, release *model.Release) e
 	}
 	manifest, err := releaseManifestSource.Get(ctx, release.ManifestID)
 	if err != nil {
-		return err
-	}
-	if err := manifestservice.ManifestService.EnsureArtifact(ctx, manifest, app.Name); err != nil {
-		log.Error("publish manifest artifact failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
 	target, err := releasesupport.ResolveDeployTarget(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
@@ -481,21 +526,240 @@ func (s *releaseService) syncArgo(ctx context.Context, release *model.Release) e
 		return err
 	}
 
-	application := buildArgoApplication(release, manifest, app, *target)
+	if err := s.renderDeploymentBundle(ctx, release, manifest, app, *target); err != nil {
+		return err
+	}
+	if err := s.publishDeploymentBundle(ctx, release, manifest, app, *target); err != nil {
+		return err
+	}
+	if err := s.createArgoApplication(ctx, release, manifest, app, *target); err != nil {
+		return err
+	}
+	log.Info("release phases completed", zap.String("result", "success"))
+	return nil
+}
+
+func (s *releaseService) renderDeploymentBundle(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
+	if err := s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepRunning, 25, "rendering deployment bundle", nil, nil); err != nil {
+		return err
+	}
+	applicationName := ""
+	if app != nil {
+		applicationName = app.Name
+	}
+	bundle, err := buildReleaseBundle(target.Namespace, applicationName, manifest, release)
+	if err != nil {
+		_ = s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepFailed, 100, err.Error(), nil, nil)
+		return err
+	}
+	message := fmt.Sprintf("deployment bundle rendered (%d resources, %d files)", len(bundle.RenderedObjects), len(bundle.Files))
+	return s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepSucceeded, 100, message, nil, nil)
+}
+
+func (s *releaseService) publishDeploymentBundle(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	if err := s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepRunning, 25, publishBundleStartMessage(runtimeCfg), nil, nil); err != nil {
+		return err
+	}
+	if !runtimeCfg.ManifestRegistryEnabled {
+		return s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepSucceeded, 100, "bundle publication skipped; manifest registry disabled", nil, nil)
+	}
+	applicationName := ""
+	if app != nil {
+		applicationName = app.Name
+	}
+	bundle, err := buildReleaseBundle(target.Namespace, applicationName, manifest, release)
+	if err != nil {
+		_ = s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepFailed, 100, err.Error(), nil, nil)
+		return err
+	}
+	publisher := resolveReleaseBundlePublisher(runtimeCfg)
+	result, err := publisher.PublishBundle(ctx, ReleaseBundlePublishRequest{
+		Release:        release,
+		Application:    app,
+		Bundle:         bundle,
+		RegistryConfig: runtimeCfg.ManifestRegistry,
+	})
+	if err != nil {
+		_ = s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepFailed, 100, err.Error(), nil, nil)
+		return err
+	}
+	return s.UpdateArtifact(ctx, release.ID, result.Repository, result.Tag, result.Digest, result.Ref, publishBundleResultMessage(runtimeCfg, result), model.StepSucceeded, 100)
+}
+
+func (s *releaseService) createArgoApplication(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
+	log := logger.LoggerWithContext(ctx)
+	if log == nil {
+		log = zap.NewNop()
+	}
+	application := buildArgoApplication(release, manifest, app, target)
+	if err := s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepRunning, 25, createArgoApplicationStartMessage(release, application.Name, target), nil, nil); err != nil {
+		return err
+	}
+	if err := s.persistArgoApplicationMetadata(ctx, release, application.Name); err != nil {
+		return err
+	}
 	sc := trace.SpanContextFromContext(ctx)
 	application.Annotations = map[string]string{
-		imagedomain.TraceIDAnnotation: sc.TraceID().String(),
-		imagedomain.SpanAnnotation:    sc.SpanID().String(),
+		oci.TraceIDAnnotation: sc.TraceID().String(),
+		oci.SpanAnnotation:    sc.SpanID().String(),
 	}
 	application.Labels = map[string]string{"status": string(model.ReleaseRunning), model.ReleaseIDLabel: release.ID.String()}
 
-	err = applyReleaseApplication(ctx, release.Type, application, argoclient.CreateApplication, argoclient.UpdateApplication, s.syncArgoApplication)
+	err := applyReleaseApplication(ctx, release.Type, application, argoclient.CreateApplication, argoclient.UpdateApplication, s.syncArgoApplication)
 	if err != nil {
+		_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepFailed, 100, createArgoApplicationFailureMessage(application.Name, err), nil, nil)
 		log.Error("argo sync failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
-	log.Info("argo sync completed", zap.String("result", "success"))
+	_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepSucceeded, 100, createArgoApplicationSuccessMessage(release, application.Name), nil, nil)
+	if code, message := releaseDeploymentStartStep(release); code != "" {
+		_ = s.UpdateStep(ctx, release.ID, code, model.StepRunning, 10, message, nil, nil)
+	}
 	return nil
+}
+
+func deriveReleaseArtifactMetadata(release *model.Release, app *releasesupport.ApplicationProjection, cfg manifestdomain.ManifestRegistryConfig) (repository, tag, ref string) {
+	applicationName := ""
+	if app != nil {
+		applicationName = app.Name
+	}
+	repository = cfg.RepositoryFor(applicationName, releaseTargetEnvironment(release))
+	tag = release.ID.String()
+	if release != nil && release.ID == uuid.Nil {
+		tag = "latest"
+	}
+	if repository == "" {
+		return "", tag, ""
+	}
+	return repository, tag, "oci://" + repository + ":" + tag
+}
+
+func deriveReleaseArtifactMetadataFromBundle(release *model.Release, app *releasesupport.ApplicationProjection, cfg manifestdomain.ManifestRegistryConfig, bundle *model.ReleaseBundle) (repository, tag, digest, ref string) {
+	applicationName := ""
+	if app != nil {
+		applicationName = app.Name
+	}
+	repository = cfg.RepositoryFor(applicationName, releaseTargetEnvironment(release))
+	tag = release.ID.String()
+	if release != nil && release.ID == uuid.Nil {
+		tag = "latest"
+	}
+	digest = releaseBundleDigest(bundle)
+	if repository == "" {
+		return "", tag, digest, ""
+	}
+	if digest != "" {
+		return repository, tag, digest, "oci://" + repository + "@" + digest
+	}
+	return repository, tag, "", "oci://" + repository + ":" + tag
+}
+
+func publishBundleStartMessage(runtimeCfg releasesupport.RuntimeConfig) string {
+	mode := strings.TrimSpace(runtimeCfg.ManifestPublisherMode)
+	if mode == "" {
+		mode = "metadata"
+	}
+	return fmt.Sprintf("publishing deployment bundle via %s publisher", mode)
+}
+
+func publishBundleResultMessage(runtimeCfg releasesupport.RuntimeConfig, result *ReleaseBundlePublishResult) string {
+	mode := strings.TrimSpace(runtimeCfg.ManifestPublisherMode)
+	if mode == "" {
+		mode = "metadata"
+	}
+	if result == nil {
+		return fmt.Sprintf("deployment bundle published via %s publisher", mode)
+	}
+	switch {
+	case strings.TrimSpace(result.Ref) != "":
+		return fmt.Sprintf("deployment bundle published via %s publisher: %s", mode, strings.TrimSpace(result.Ref))
+	case strings.TrimSpace(result.Repository) != "" && strings.TrimSpace(result.Tag) != "":
+		return fmt.Sprintf("deployment bundle published via %s publisher: oci://%s:%s", mode, strings.TrimSpace(result.Repository), strings.TrimSpace(result.Tag))
+	case strings.TrimSpace(result.Message) != "":
+		return strings.TrimSpace(result.Message)
+	default:
+		return fmt.Sprintf("deployment bundle published via %s publisher", mode)
+	}
+}
+
+func createArgoApplicationStartMessage(release *model.Release, appName string, target releasesupport.DeployTarget) string {
+	appName = strings.TrimSpace(appName)
+	environmentId := releaseTargetEnvironment(release)
+	namespace := strings.TrimSpace(target.Namespace)
+	switch {
+	case appName != "" && environmentId != "" && namespace != "":
+		return fmt.Sprintf("creating argocd application %s for environment %s in namespace %s", appName, environmentId, namespace)
+	case appName != "" && environmentId != "":
+		return fmt.Sprintf("creating argocd application %s for environment %s", appName, environmentId)
+	case appName != "":
+		return fmt.Sprintf("creating argocd application %s", appName)
+	default:
+		return "creating argocd application"
+	}
+}
+
+func createArgoApplicationSuccessMessage(release *model.Release, appName string) string {
+	appName = strings.TrimSpace(appName)
+	environmentId := releaseTargetEnvironment(release)
+	artifactRef := ""
+	if release != nil {
+		artifactRef = strings.TrimSpace(release.ArtifactRef)
+	}
+	switch {
+	case appName != "" && environmentId != "" && artifactRef != "":
+		return fmt.Sprintf("argocd application %s created for environment %s and sync requested from %s", appName, environmentId, artifactRef)
+	case appName != "" && artifactRef != "":
+		return fmt.Sprintf("argocd application %s created and sync requested from %s", appName, artifactRef)
+	case appName != "" && environmentId != "":
+		return fmt.Sprintf("argocd application %s created for environment %s and sync requested", appName, environmentId)
+	case appName != "":
+		return fmt.Sprintf("argocd application %s created and sync requested", appName)
+	default:
+		return "argocd application created and sync requested"
+	}
+}
+
+func createArgoApplicationFailureMessage(appName string, err error) string {
+	appName = strings.TrimSpace(appName)
+	if err == nil {
+		if appName != "" {
+			return fmt.Sprintf("argocd application %s failed", appName)
+		}
+		return "argocd application failed"
+	}
+	if appName != "" {
+		return fmt.Sprintf("argocd application %s failed: %s", appName, err.Error())
+	}
+	return err.Error()
+}
+
+func (s *releaseService) persistArgoApplicationMetadata(ctx context.Context, release *model.Release, appName string) error {
+	appName = strings.TrimSpace(appName)
+	if release == nil || appName == "" {
+		return nil
+	}
+	if release.ArgoCDApplicationName == appName && release.ExternalRef == appName {
+		return nil
+	}
+	release.ArgoCDApplicationName = appName
+	release.ExternalRef = appName
+	release.UpdatedAt = time.Now()
+	return s.repoStore().UpdateRow(ctx, release)
+}
+
+func releaseDeploymentStartStep(release *model.Release) (string, string) {
+	if release == nil {
+		return "", ""
+	}
+	switch model.ReleaseStrategyToType(release.Strategy) {
+	case model.BlueGreen:
+		return "deploy_preview", "preview deployment started"
+	case model.Canary:
+		return "deploy_canary", "canary deployment started"
+	default:
+		return "start_deployment", "deployment sync started"
+	}
 }
 
 func annotateReleaseSpan(ctx context.Context, release *model.Release) {
@@ -512,9 +776,6 @@ func annotateReleaseSpan(ctx context.Context, release *model.Release) {
 		attribute.String("application.id", release.ApplicationID.String()),
 		attribute.String("manifest.id", release.ManifestID.String()),
 		attribute.String("deployment.environment", strings.TrimSpace(release.EnvironmentID)),
-	}
-	if release.ImageID != uuid.Nil {
-		attrs = append(attrs, attribute.String("image.id", release.ImageID.String()))
 	}
 	span.SetAttributes(attrs...)
 }
@@ -540,55 +801,35 @@ func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manif
 	if name == "" {
 		name = release.ApplicationID.String()
 	}
-	source := buildOCIApplicationSource(manifest)
-	if source == nil {
-		source = buildRepoPluginApplicationSource(release)
-	}
 	return &appv1.Application{
 		TypeMeta:   metav1.TypeMeta{Kind: "Application", APIVersion: "argoproj.io/v1alpha1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: appv1.ApplicationSpec{
 			Project:     "app",
-			Source:      source,
+			Source:      buildRepoPluginApplicationSource(release),
 			Destination: appv1.ApplicationDestination{Server: target.DestinationServer, Namespace: target.Namespace},
 		},
-	}
-}
-
-func buildOCIApplicationSource(manifest *manifestdomain.Manifest) *appv1.ApplicationSource {
-	if manifest == nil || strings.TrimSpace(manifest.ArtifactRepository) == "" {
-		return nil
-	}
-	revision := strings.TrimSpace(manifest.ArtifactDigest)
-	if revision == "" {
-		revision = strings.TrimSpace(manifest.ArtifactTag)
-	}
-	if revision == "" {
-		return nil
-	}
-	return &appv1.ApplicationSource{
-		RepoURL:        "oci://" + strings.TrimSpace(manifest.ArtifactRepository),
-		TargetRevision: revision,
-		Path:           ".",
 	}
 }
 
 func buildRepoPluginApplicationSource(release *model.Release) *appv1.ApplicationSource {
 	manifestRepo := model.GetConfigRepo()
 	applicationId := release.ApplicationID.String()
-	imageID := release.ImageID.String()
 	releaseID := release.ID.String()
+	parameters := []appv1.ApplicationSourcePluginParameter{
+		{Name: "env", String_: &release.EnvironmentID},
+		{Name: "application-id", String_: &applicationId},
+		{Name: "release-id", String_: &releaseID},
+	}
+	if artifactRef := strings.TrimSpace(release.ArtifactRef); artifactRef != "" {
+		parameters = append(parameters, appv1.ApplicationSourcePluginParameter{Name: "artifact-ref", String_: &artifactRef})
+	}
 	return &appv1.ApplicationSource{
 		RepoURL: manifestRepo.Address,
 		Path:    "./",
 		Plugin: &appv1.ApplicationSourcePlugin{
-			Name: "plugin",
-			Parameters: []appv1.ApplicationSourcePluginParameter{
-				{Name: "env", String_: &release.EnvironmentID},
-				{Name: "application-id", String_: &applicationId},
-				{Name: "image-id", String_: &imageID},
-				{Name: "release-id", String_: &releaseID},
-			},
+			Name:       "plugin",
+			Parameters: parameters,
 		},
 	}
 }

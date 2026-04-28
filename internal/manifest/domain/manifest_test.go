@@ -9,19 +9,18 @@ func TestManifestContract(t *testing.T) {
 	typ := reflect.TypeOf(Manifest{})
 	for _, field := range []string{
 		"ApplicationID",
-		"EnvironmentID",
-		"ImageID",
+		"GitRevision",
+		"RepoAddress",
+		"CommitHash",
+		"ImageTag",
+		"ImageDigest",
+		"PipelineID",
+		"TraceID",
+		"SpanID",
+		"Steps",
 		"ImageRef",
-		"ArtifactRepository",
-		"ArtifactTag",
-		"ArtifactRef",
-		"ArtifactDigest",
-		"ArtifactMediaType",
-		"ArtifactPushedAt",
 		"ServicesSnapshot",
 		"WorkloadConfigSnapshot",
-		"RenderedObjects",
-		"RenderedYAML",
 		"Status",
 	} {
 		if _, ok := typ.FieldByName(field); !ok {

@@ -4,67 +4,73 @@ import "testing"
 
 func TestDefaultReleaseStepsNormal(t *testing.T) {
 	steps := DefaultReleaseSteps(Normal, ReleaseUpgrade)
-	if len(steps) != 5 {
-		t.Fatalf("unexpected step count: got %d want 5", len(steps))
+	if len(steps) != 7 {
+		t.Fatalf("unexpected step count: got %d want 7", len(steps))
 	}
-	if steps[0].Name != "ensure namespace" {
-		t.Fatalf("unexpected first step: got %q want %q", steps[0].Name, "ensure namespace")
+	if steps[0].Code != "freeze_inputs" {
+		t.Fatalf("unexpected first step code: got %q want %q", steps[0].Code, "freeze_inputs")
 	}
-	if steps[1].Name != "ensure pull secret" {
-		t.Fatalf("unexpected second step: got %q want %q", steps[1].Name, "ensure pull secret")
+	if steps[1].Code != "render_deployment_bundle" {
+		t.Fatalf("unexpected second step code: got %q want %q", steps[1].Code, "render_deployment_bundle")
 	}
-	if steps[2].Name != "ensure appproject destination" {
-		t.Fatalf("unexpected third step: got %q want %q", steps[2].Name, "ensure appproject destination")
+	if steps[2].Code != "publish_bundle" {
+		t.Fatalf("unexpected third step code: got %q want %q", steps[2].Code, "publish_bundle")
 	}
-	if steps[3].Name != "apply manifests" {
-		t.Fatalf("unexpected fourth step: got %q want %q", steps[3].Name, "apply manifests")
+	if steps[3].Code != "create_argocd_application" {
+		t.Fatalf("unexpected fourth step code: got %q want %q", steps[3].Code, "create_argocd_application")
 	}
-	if steps[4].Name != "deploy ready" {
-		t.Fatalf("unexpected fifth step: got %q want %q", steps[4].Name, "deploy ready")
+	if steps[6].Code != "finalize_release" {
+		t.Fatalf("unexpected final step code: got %q want %q", steps[6].Code, "finalize_release")
 	}
 }
 
 func TestDefaultReleaseStepsCanary(t *testing.T) {
 	steps := DefaultReleaseSteps(Canary, ReleaseUpgrade)
-	if len(steps) != 8 {
-		t.Fatalf("unexpected step count: got %d want 8", len(steps))
+	if len(steps) != 10 {
+		t.Fatalf("unexpected step count: got %d want 10", len(steps))
 	}
-	if steps[0].Name != "ensure namespace" {
-		t.Fatalf("unexpected first step: got %q want %q", steps[0].Name, "ensure namespace")
+	if steps[0].Code != "freeze_inputs" {
+		t.Fatalf("unexpected first step code: got %q want %q", steps[0].Code, "freeze_inputs")
 	}
-	if steps[3].Name != "apply manifests" {
-		t.Fatalf("unexpected apply step: got %q want %q", steps[3].Name, "apply manifests")
+	if steps[4].Code != "deploy_canary" {
+		t.Fatalf("unexpected deploy canary code: got %q want %q", steps[4].Code, "deploy_canary")
 	}
-	if steps[4].Name != "canary 10% traffic" {
-		t.Fatalf("unexpected canary step: got %q want %q", steps[4].Name, "canary 10% traffic")
+	if steps[5].Code != "canary_10" {
+		t.Fatalf("unexpected canary step code: got %q want %q", steps[5].Code, "canary_10")
 	}
-	if steps[7].Name != "canary 100% traffic" {
-		t.Fatalf("unexpected last canary step: got %q want %q", steps[7].Name, "canary 100% traffic")
+	if steps[9].Code != "finalize_release" {
+		t.Fatalf("unexpected last step code: got %q want %q", steps[9].Code, "finalize_release")
+	}
+}
+
+func TestNormalizeReleaseStrategy(t *testing.T) {
+	if got := NormalizeReleaseStrategy(""); got != string(ReleaseStrategyRolling) {
+		t.Fatalf("NormalizeReleaseStrategy(\"\") = %q", got)
+	}
+	if got := NormalizeReleaseStrategy("blue-green"); got != string(ReleaseStrategyBlueGreen) {
+		t.Fatalf("NormalizeReleaseStrategy(blue-green) = %q", got)
+	}
+	if got := NormalizeReleaseStrategy("canary"); got != string(ReleaseStrategyCanary) {
+		t.Fatalf("NormalizeReleaseStrategy(canary) = %q", got)
 	}
 }
 
 func TestDefaultReleaseStepsBlueGreenRollback(t *testing.T) {
 	steps := DefaultReleaseSteps(BlueGreen, ReleaseRollback)
-	if len(steps) != 6 {
-		t.Fatalf("unexpected step count: got %d want 6", len(steps))
+	if len(steps) != 9 {
+		t.Fatalf("unexpected step count: got %d want 9", len(steps))
 	}
-	if steps[0].Name != "ensure namespace" {
-		t.Fatalf("unexpected first step: got %q want %q", steps[0].Name, "ensure namespace")
+	if steps[0].Code != "freeze_inputs" {
+		t.Fatalf("unexpected first step code: got %q want %q", steps[0].Code, "freeze_inputs")
 	}
-	if steps[1].Name != "ensure pull secret" {
-		t.Fatalf("unexpected second step: got %q want %q", steps[1].Name, "ensure pull secret")
+	if steps[4].Code != "deploy_preview" {
+		t.Fatalf("unexpected preview step code: got %q want %q", steps[4].Code, "deploy_preview")
 	}
-	if steps[2].Name != "ensure appproject destination" {
-		t.Fatalf("unexpected third step: got %q want %q", steps[2].Name, "ensure appproject destination")
+	if steps[6].Code != "switch_traffic" {
+		t.Fatalf("unexpected switch traffic code: got %q want %q", steps[6].Code, "switch_traffic")
 	}
-	if steps[3].Name != "apply rollback manifests" {
-		t.Fatalf("unexpected fourth step: got %q want %q", steps[3].Name, "apply rollback manifests")
-	}
-	if steps[4].Name != "green ready" {
-		t.Fatalf("unexpected green step: got %q want %q", steps[4].Name, "green ready")
-	}
-	if steps[5].Name != "switch traffic" {
-		t.Fatalf("unexpected traffic step: got %q want %q", steps[5].Name, "switch traffic")
+	if steps[8].Code != "finalize_release" {
+		t.Fatalf("unexpected final step code: got %q want %q", steps[8].Code, "finalize_release")
 	}
 }
 
@@ -80,8 +86,8 @@ func TestDeriveReleaseStatusFromSteps(t *testing.T) {
 			name:          "pending when all pending",
 			releaseAction: ReleaseUpgrade,
 			steps: []ReleaseStep{
-				{Name: "apply", Status: StepPending},
-				{Name: "deploy", Status: StepPending},
+				{Code: "apply", Name: "apply", Status: StepPending},
+				{Code: "deploy", Name: "deploy", Status: StepPending},
 			},
 			want: ReleasePending,
 		},
@@ -89,8 +95,8 @@ func TestDeriveReleaseStatusFromSteps(t *testing.T) {
 			name:          "running when some started",
 			releaseAction: ReleaseUpgrade,
 			steps: []ReleaseStep{
-				{Name: "apply", Status: StepSucceeded},
-				{Name: "deploy", Status: StepRunning},
+				{Code: "apply", Name: "apply", Status: StepSucceeded},
+				{Code: "deploy", Name: "deploy", Status: StepRunning},
 			},
 			want: ReleaseRunning,
 		},
@@ -98,8 +104,8 @@ func TestDeriveReleaseStatusFromSteps(t *testing.T) {
 			name:          "succeeded when all succeeded",
 			releaseAction: ReleaseUpgrade,
 			steps: []ReleaseStep{
-				{Name: "apply", Status: StepSucceeded},
-				{Name: "deploy", Status: StepSucceeded},
+				{Code: "apply", Name: "apply", Status: StepSucceeded},
+				{Code: "deploy", Name: "deploy", Status: StepSucceeded},
 			},
 			want: ReleaseSucceeded,
 		},

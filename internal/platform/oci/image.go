@@ -1,4 +1,4 @@
-package domain
+package oci
 
 import (
 	"fmt"
@@ -7,8 +7,14 @@ import (
 	"time"
 )
 
+const (
+	TraceIDAnnotation = "otel.devflow.io/trace-id"
+	SpanAnnotation    = "otel.devflow.io/parent-span-id"
+)
+
 var imageSegmentSanitizer = regexp.MustCompile(`[^a-z0-9-]+`)
 var imageDashCollapser = regexp.MustCompile(`-+`)
+var imageTagSanitizer = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
 
 type ImageRegistryConfig struct {
 	Registry  string
@@ -23,8 +29,6 @@ type ImageTarget struct {
 	Ref  string
 }
 
-var imageTagSanitizer = regexp.MustCompile(`[^A-Za-z0-9_.-]+`)
-
 func (c ImageRegistryConfig) Repository() string {
 	registry := strings.TrimSuffix(strings.TrimSpace(c.Registry), "/")
 	namespace := strings.Trim(strings.TrimSpace(c.Namespace), "/")
@@ -35,12 +39,12 @@ func (c ImageRegistryConfig) Repository() string {
 }
 
 func BuildImageTarget(cfg ImageRegistryConfig, applicationName, branch, tag string, now time.Time) (ImageTarget, error) {
-	baseName := normalizeImageSegment(applicationName)
+	baseName := NormalizeImageSegment(applicationName)
 	if baseName == "" {
 		return ImageTarget{}, fmt.Errorf("application name produced empty image name")
 	}
 
-	normalizedBranch := normalizeImageSegment(branch)
+	normalizedBranch := NormalizeImageSegment(branch)
 	if normalizedBranch == "" {
 		normalizedBranch = "main"
 	}
@@ -66,7 +70,7 @@ func BuildImageTarget(cfg ImageRegistryConfig, applicationName, branch, tag stri
 	}, nil
 }
 
-func normalizeImageSegment(value string) string {
+func NormalizeImageSegment(value string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
 	trimmed = strings.ReplaceAll(trimmed, "/", "-")
 	trimmed = strings.ReplaceAll(trimmed, "_", "-")

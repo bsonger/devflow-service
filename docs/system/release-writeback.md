@@ -18,6 +18,7 @@ The current writeback routes live under the `release-service` API surface:
 ```text
 POST /api/v1/verify/argo/events
 POST /api/v1/verify/release/steps
+POST /api/v1/verify/release/artifact
 ```
 
 These routes are registered by:
@@ -78,6 +79,9 @@ Current status mapping:
 - `failed` -> `Failed`
 - `error` -> `SyncFailed`
 - `running` -> `Running`
+- these callbacks should also advance `observe_rollout` step state with normalized messages such as:
+  - `rollout is running in argocd`
+  - `rollout observed as succeeded by argocd`
 
 ### `POST /api/v1/verify/release/steps`
 
@@ -86,10 +90,52 @@ Purpose:
 
 Expected behavior:
 - request body must include a valid `release_id`
+- request body should include `step_code`
+- `step_name` may be accepted as legacy compatibility input during migration
 - invalid payload or malformed `release_id` returns `400 invalid_argument`
 - unknown release returns `404 not_found`
 - step status strings are normalized case-insensitively to the repo-local step enum
 - successful processing returns `204 no content`
+
+Preferred step targeting rule:
+
+- update release steps by stable `step_code`
+- do not rely on human-facing display names as the long-term writeback key
+- if callback payload omits `message`, release-service should synthesize a default operator-facing message from `step_code`, `status`, and `progress`
+
+### `POST /api/v1/verify/release/artifact`
+
+Purpose:
+
+- allow async executor or callback workers to write back release-owned deployment bundle metadata
+- update:
+  - `artifact_repository`
+  - `artifact_tag`
+  - `artifact_digest`
+  - `artifact_ref`
+- optionally advance `publish_bundle` step state in the same request
+
+Recommended payload shape:
+
+```json
+{
+  "release_id": "11111111-1111-1111-1111-111111111111",
+  "artifact_repository": "registry.example.com/devflow/releases/demo-api",
+  "artifact_tag": "release-20260428",
+  "artifact_digest": "sha256:abc",
+  "artifact_ref": "oci://registry.example.com/devflow/releases/demo-api:release-20260428",
+  "status": "Succeeded",
+  "progress": 100,
+  "message": "bundle published"
+}
+```
+
+Notes:
+
+- this is release-owned artifact writeback, not manifest artifact writeback
+- `status` is interpreted as the state of the `publish_bundle` step
+- artifact fields may be written before Argo application creation begins
+- if callback payload omits `message`, release-service should synthesize a default artifact writeback message and prefer including `artifact_ref` when present
 
 Normalized step statuses:
 - `pending` -> `Pending`
@@ -111,4 +157,3 @@ Normalized step statuses:
 - handlers: `internal/release/transport/http/release_writeback.go`
 - tests: `internal/release/transport/http/release_writeback_test.go`
 - config wiring: `internal/release/config/config.go`
-

@@ -27,11 +27,11 @@ type Store interface {
 	List(ctx context.Context, filter ListFilter) ([]*intentdomain.Intent, error)
 	ListPending(ctx context.Context, limit int) ([]intentdomain.Intent, error)
 	ClaimNextPending(ctx context.Context, workerID string, leaseDuration time.Duration) (*intentdomain.Intent, error)
+	ClaimNextPendingByKind(ctx context.Context, kind model.IntentKind, workerID string, leaseDuration time.Duration) (*intentdomain.Intent, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status model.IntentStatus, message string) error
 	MarkSubmitted(ctx context.Context, id uuid.UUID, message string) error
 	MarkFailed(ctx context.Context, id uuid.UUID, message string) error
 	UpdateStatusByResource(ctx context.Context, kind model.IntentKind, resourceID uuid.UUID, status model.IntentStatus, message string) error
-	BindIntentToImage(ctx context.Context, imageID, intentID uuid.UUID) error
 	BindIntentToRelease(ctx context.Context, releaseID, intentID uuid.UUID) error
 }
 
@@ -158,6 +158,27 @@ func (s *PostgresStore) ClaimNextPending(ctx context.Context, workerID string, l
 	`, workerID, now, leaseExpiresAt, model.IntentPending))
 }
 
+func (s *PostgresStore) ClaimNextPendingByKind(ctx context.Context, kind model.IntentKind, workerID string, leaseDuration time.Duration) (*intentdomain.Intent, error) {
+	now := time.Now()
+	leaseExpiresAt := now.Add(leaseDuration)
+	return scanIntent(db.DB().QueryRowContext(ctx, `
+		update execution_intents
+		set claimed_by = $1, claimed_at = $2, lease_expires_at = $3, updated_at = $2, message = 'claimed by worker', attempt_count = attempt_count + 1
+		where id = (
+			select id
+			from execution_intents
+			where status = $4
+			  and kind = $5
+			  and deleted_at is null
+			  and (claimed_by = '' or lease_expires_at is null or lease_expires_at < $2)
+			order by created_at asc
+			limit 1
+			for update skip locked
+		)
+		returning id, kind, status, resource_type, resource_id, trace_id, message, last_error, claimed_by, claimed_at, lease_expires_at, attempt_count, created_at, updated_at, deleted_at
+	`, workerID, now, leaseExpiresAt, model.IntentPending, kind))
+}
+
 func (s *PostgresStore) UpdateStatus(ctx context.Context, id uuid.UUID, status model.IntentStatus, message string) error {
 	result, err := db.DB().ExecContext(ctx, `
 		update execution_intents
@@ -200,18 +221,6 @@ func (s *PostgresStore) UpdateStatusByResource(ctx context.Context, kind model.I
 		set status=$3, message=$4, updated_at=$5
 		where kind = $1 and resource_id = $2 and deleted_at is null
 	`, kind, resourceID, status, message, time.Now())
-	if err != nil {
-		return err
-	}
-	return dbsql.EnsureRowsAffected(result)
-}
-
-func (s *PostgresStore) BindIntentToImage(ctx context.Context, imageID, intentID uuid.UUID) error {
-	result, err := db.DB().ExecContext(ctx, `
-		update images
-		set execution_intent_id = $2, updated_at = $3
-		where id = $1 and deleted_at is null
-	`, imageID, intentID, time.Now())
 	if err != nil {
 		return err
 	}

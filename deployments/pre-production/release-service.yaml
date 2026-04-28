@@ -44,6 +44,7 @@ data:
     manifest_registry:
       repository: "manifests"
       plain_http: false
+      mode: "metadata"
     pyroscope: ""
 ---
 apiVersion: v1

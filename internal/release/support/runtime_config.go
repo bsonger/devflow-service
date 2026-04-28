@@ -3,15 +3,16 @@ package support
 import (
 	"sync"
 
-	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 )
 
 type RuntimeConfig struct {
-	ImageRegistry           imagedomain.ImageRegistryConfig
+	ImageRegistry           oci.ImageRegistryConfig
 	ManifestRegistry        manifestdomain.ManifestRegistryConfig
 	ManifestRegistryEnabled bool
+	ManifestPublisherMode   string
 	Downstream              model.DownstreamConfig
 }
 

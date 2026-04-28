@@ -17,10 +17,11 @@ import (
 )
 
 type stubReleaseService struct {
-	createFn func(context.Context, *model.Release) (uuid.UUID, error)
-	getFn    func(context.Context, uuid.UUID) (*model.Release, error)
-	listFn   func(context.Context, service.ReleaseListFilter) ([]*model.Release, error)
-	deleteFn func(context.Context, uuid.UUID) error
+	createFn    func(context.Context, *model.Release) (uuid.UUID, error)
+	getFn       func(context.Context, uuid.UUID) (*model.Release, error)
+	getBundleFn func(context.Context, uuid.UUID) (*model.ReleaseBundle, error)
+	listFn      func(context.Context, service.ReleaseListFilter) ([]*model.Release, error)
+	deleteFn    func(context.Context, uuid.UUID) error
 }
 
 func (s stubReleaseService) Create(ctx context.Context, release *model.Release) (uuid.UUID, error) {
@@ -29,6 +30,10 @@ func (s stubReleaseService) Create(ctx context.Context, release *model.Release) 
 
 func (s stubReleaseService) Get(ctx context.Context, id uuid.UUID) (*model.Release, error) {
 	return s.getFn(ctx, id)
+}
+
+func (s stubReleaseService) GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundle, error) {
+	return s.getBundleFn(ctx, id)
 }
 
 func (s stubReleaseService) List(ctx context.Context, filter service.ReleaseListFilter) ([]*model.Release, error) {
@@ -47,6 +52,7 @@ func TestCreateReleaseReturnsEnvelope(t *testing.T) {
 				release.WithCreateDefault()
 				release.ManifestID = uuid.MustParse("33333333-3333-3333-3333-333333333333")
 				release.ApplicationID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+				release.Strategy = "blueGreen"
 				release.Status = model.ReleasePending
 				return release.GetID(), nil
 			},
@@ -56,7 +62,7 @@ func TestCreateReleaseReturnsEnvelope(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/releases", handler.Create)
 
-	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","type":"upgrade"}`)
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","strategy":"blueGreen","type":"upgrade"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -72,7 +78,7 @@ func TestCreateReleaseReturnsEnvelope(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ManifestID == uuid.Nil || payload.Data.EnvironmentID != "prod" {
+	if payload.Data.ManifestID == uuid.Nil || payload.Data.EnvironmentID != "prod" || payload.Data.Strategy != "blueGreen" {
 		t.Fatalf("unexpected payload: %#v", payload.Data)
 	}
 }
@@ -82,7 +88,7 @@ func TestCreateReleaseFailedPreconditionReturnsErrorEnvelope(t *testing.T) {
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
 			createFn: func(_ context.Context, _ *model.Release) (uuid.UUID, error) {
-				return uuid.Nil, service.ErrImageMissingRuntimeSpecRevision
+				return uuid.Nil, service.ErrReleaseManifestNotReady
 			},
 		},
 	}
@@ -90,7 +96,7 @@ func TestCreateReleaseFailedPreconditionReturnsErrorEnvelope(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/releases", handler.Create)
 
-	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222"}`)
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","strategy":"rolling"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -114,7 +120,7 @@ func TestCreateReleaseClusterNotReadyReturns409(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/releases", handler.Create)
 
-	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222"}`)
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","strategy":"rolling"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -150,7 +156,7 @@ func TestCreateReleaseClusterReadinessMalformedReturns409(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/releases", handler.Create)
 
-	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222"}`)
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","strategy":"rolling"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -189,7 +195,7 @@ func TestCreateReleaseClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
 	r := gin.New()
 	r.POST("/api/v1/releases", handler.Create)
 
-	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222"}`)
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","strategy":"rolling"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -197,6 +203,70 @@ func TestCreateReleaseClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code == http.StatusInternalServerError {
 		t.Fatalf("readiness blocker must not surface as 500 internal, got %d", rec.Code)
+	}
+}
+
+func TestGetReleaseBundlePreviewReturnsEnvelope(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	handler := &ReleaseHandler{
+		svc: stubReleaseService{
+			getBundleFn: func(_ context.Context, id uuid.UUID) (*model.ReleaseBundle, error) {
+				if id != releaseID {
+					t.Fatalf("id = %s want %s", id, releaseID)
+				}
+				return &model.ReleaseBundle{
+					ReleaseID:     releaseID,
+					ApplicationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					EnvironmentID: "production",
+					Namespace:     "checkout",
+					Resources:     model.ReleaseBundleResources{},
+					Files: []model.ReleaseBundleFile{
+						{Path: "bundle.yaml", Content: "kind: Deployment\n"},
+					},
+				}, nil
+			},
+		},
+	}
+
+	r := gin.New()
+	r.GET("/api/v1/releases/:id/bundle-preview", handler.GetBundlePreview)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases/"+releaseID.String()+"/bundle-preview", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload struct {
+		Data model.ReleaseBundle `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if payload.Data.ReleaseID != releaseID || payload.Data.Namespace != "checkout" || len(payload.Data.Files) != 1 {
+		t.Fatalf("unexpected payload: %#v", payload.Data)
+	}
+}
+
+func TestGetReleaseBundlePreviewReturns404(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	handler := &ReleaseHandler{
+		svc: stubReleaseService{
+			getBundleFn: func(_ context.Context, _ uuid.UUID) (*model.ReleaseBundle, error) {
+				return nil, sql.ErrNoRows
+			},
+		},
+	}
+
+	r := gin.New()
+	r.GET("/api/v1/releases/:id/bundle-preview", handler.GetBundlePreview)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases/"+uuid.New().String()+"/bundle-preview", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
 	}
 }
 

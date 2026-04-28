@@ -17,7 +17,6 @@ type applicationService interface {
 	Get(context.Context, uuid.UUID) (*domain.Application, error)
 	Update(context.Context, *domain.Application) error
 	Delete(context.Context, uuid.UUID) error
-	UpdateActiveImage(context.Context, uuid.UUID, uuid.UUID) error
 	List(context.Context, domain.ListFilter) ([]domain.Application, error)
 }
 
@@ -38,16 +37,11 @@ type CreateApplicationRequest struct {
 }
 
 type UpdateApplicationRequest struct {
-	ProjectID     uuid.UUID          `json:"project_id"`
-	Name          string             `json:"name"`
-	RepoAddress   string             `json:"repo_address"`
-	Description   string             `json:"description,omitempty"`
-	ActiveImageID *uuid.UUID         `json:"active_image_id,omitempty"`
-	Labels        []domain.LabelItem `json:"labels,omitempty"`
-}
-
-type UpdateActiveImageRequest struct {
-	ImageID string `json:"image_id" binding:"required"`
+	ProjectID   uuid.UUID          `json:"project_id"`
+	Name        string             `json:"name"`
+	RepoAddress string             `json:"repo_address"`
+	Description string             `json:"description,omitempty"`
+	Labels      []domain.LabelItem `json:"labels,omitempty"`
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
@@ -57,7 +51,6 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	app.POST("", h.Create)
 	app.PUT("/:id", h.Update)
 	app.DELETE("/:id", h.Delete)
-	app.PATCH("/:id/active_image", h.UpdateActiveImage)
 }
 
 // Create godoc
@@ -138,12 +131,11 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	appRecord := domain.Application{
-		ProjectID:     req.ProjectID,
-		Name:          req.Name,
-		RepoAddress:   req.RepoAddress,
-		Description:   req.Description,
-		ActiveImageID: req.ActiveImageID,
-		Labels:        req.Labels,
+		ProjectID:   req.ProjectID,
+		Name:        req.Name,
+		RepoAddress: req.RepoAddress,
+		Description: req.Description,
+		Labels:      req.Labels,
 	}
 	appRecord.SetID(id)
 
@@ -176,41 +168,6 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteNotFound(c, "not found")
-			return
-		}
-		httpx.WriteInternalError(c, err)
-		return
-	}
-
-	httpx.WriteNoContent(c)
-}
-
-// UpdateActiveImage godoc
-// @Summary 更新应用的 Active Image
-// @Tags Application
-// @Param id path string true "Application ID"
-// @Param data body UpdateActiveImageRequest true "Active Image Data"
-// @Success 204
-// @Router /api/v1/applications/{id}/active_image [patch]
-func (h *Handler) UpdateActiveImage(c *gin.Context) {
-	appID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-
-	var req UpdateActiveImageRequest
-	if !httpx.BindJSON(c, &req) {
-		return
-	}
-
-	imageID, ok := httpx.ParseUUIDString(c, req.ImageID, "image_id")
-	if !ok {
-		return
-	}
-
-	if err := h.svc.UpdateActiveImage(c.Request.Context(), appID, imageID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteNotFound(c, "not found")
 			return

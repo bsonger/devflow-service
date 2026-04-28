@@ -13,7 +13,6 @@ Use:
 - `service.md` for the application-owned `Service` resource contract
 - `route.md` for the application-owned `Route` resource contract
 - `runtime-spec.md` for the `RuntimeSpec` and lookup-side runtime revision contract
-- `image.md` for the `Image` resource contract
 - `manifest.md` for the `Manifest` resource contract
 - `intent.md` for the `Intent` resource contract
 - `release.md` for the `Release` resource contract

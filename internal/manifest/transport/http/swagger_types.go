@@ -2,6 +2,15 @@ package http
 
 import "github.com/google/uuid"
 
+type ManifestStepDoc struct {
+	TaskName  string `json:"task_name"`
+	TaskRun   string `json:"task_run,omitempty"`
+	Status    string `json:"status"`
+	StartTime string `json:"start_time,omitempty"`
+	EndTime   string `json:"end_time,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
 type ManifestServicePortDoc struct {
 	Name        string `json:"name,omitempty"`
 	ServicePort int    `json:"service_port"`
@@ -79,28 +88,32 @@ type ManifestGroupedResourcesDoc struct {
 }
 
 type ManifestResourcesViewDoc struct {
-	ManifestID      uuid.UUID                     `json:"manifest_id"`
-	ApplicationID   uuid.UUID                     `json:"application_id"`
-	Resources       ManifestGroupedResourcesDoc   `json:"resources"`
-	RenderedObjects []ManifestRenderedResourceDoc `json:"rendered_objects,omitempty"`
+	ManifestID    uuid.UUID                   `json:"manifest_id"`
+	ApplicationID uuid.UUID                   `json:"application_id"`
+	Resources     ManifestGroupedResourcesDoc `json:"resources"`
 }
 
 type ManifestDoc struct {
-	ID                     uuid.UUID                   `json:"id"`
-	ApplicationID          uuid.UUID                   `json:"application_id"`
-	ImageID                uuid.UUID                   `json:"image_id"`
-	ImageRef               string                      `json:"image_ref"`
-	ArtifactRepository     string                      `json:"artifact_repository,omitempty"`
-	ArtifactTag            string                      `json:"artifact_tag,omitempty"`
-	ArtifactRef            string                      `json:"artifact_ref,omitempty"`
-	ArtifactDigest         string                      `json:"artifact_digest,omitempty"`
-	ArtifactMediaType      string                      `json:"artifact_media_type,omitempty"`
-	ArtifactPushedAt       string                      `json:"artifact_pushed_at,omitempty"`
-	ServicesSnapshot       []ManifestServiceDoc        `json:"services_snapshot"`
-	WorkloadConfigSnapshot ManifestWorkloadConfigDoc   `json:"workload_config_snapshot"`
-	RenderedObjects        []ManifestRenderedObjectDoc `json:"rendered_objects"`
-	RenderedYAML           string                      `json:"rendered_yaml"`
-	Status                 string                      `json:"status"`
-	CreatedAt              string                      `json:"created_at,omitempty"`
-	UpdatedAt              string                      `json:"updated_at,omitempty"`
+	ID                     uuid.UUID                 `json:"id"`
+	ApplicationID          uuid.UUID                 `json:"application_id"`
+	GitRevision            string                    `json:"git_revision,omitempty"`
+	RepoAddress            string                    `json:"repo_address,omitempty"`
+	CommitHash             string                    `json:"commit_hash,omitempty"`
+	ImageRef               string                    `json:"image_ref,omitempty"`
+	ImageTag               string                    `json:"image_tag,omitempty"`
+	ImageDigest            string                    `json:"image_digest,omitempty"`
+	PipelineID             string                    `json:"pipeline_id,omitempty"`
+	TraceID                string                    `json:"trace_id,omitempty"`
+	SpanID                 string                    `json:"span_id,omitempty"`
+	Steps                  []ManifestStepDoc         `json:"steps,omitempty"`
+	ServicesSnapshot       []ManifestServiceDoc      `json:"services_snapshot"`
+	WorkloadConfigSnapshot ManifestWorkloadConfigDoc `json:"workload_config_snapshot"`
+	Status                 string                    `json:"status"`
+	CreatedAt              string                    `json:"created_at,omitempty"`
+	UpdatedAt              string                    `json:"updated_at,omitempty"`
+}
+
+type CreateManifestRequestDoc struct {
+	ApplicationID string `json:"application_id"`
+	GitRevision   string `json:"git_revision,omitempty"`
 }

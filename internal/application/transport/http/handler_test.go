@@ -15,12 +15,11 @@ import (
 )
 
 type stubApplicationService struct {
-	createFn            func(context.Context, *appdomain.Application) (uuid.UUID, error)
-	getFn               func(context.Context, uuid.UUID) (*appdomain.Application, error)
-	updateFn            func(context.Context, *appdomain.Application) error
-	deleteFn            func(context.Context, uuid.UUID) error
-	updateActiveImageFn func(context.Context, uuid.UUID, uuid.UUID) error
-	listFn              func(context.Context, appdomain.ListFilter) ([]appdomain.Application, error)
+	createFn func(context.Context, *appdomain.Application) (uuid.UUID, error)
+	getFn    func(context.Context, uuid.UUID) (*appdomain.Application, error)
+	updateFn func(context.Context, *appdomain.Application) error
+	deleteFn func(context.Context, uuid.UUID) error
+	listFn   func(context.Context, appdomain.ListFilter) ([]appdomain.Application, error)
 }
 
 func (s stubApplicationService) Create(ctx context.Context, app *appdomain.Application) (uuid.UUID, error) {
@@ -34,9 +33,6 @@ func (s stubApplicationService) Update(ctx context.Context, app *appdomain.Appli
 }
 func (s stubApplicationService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.deleteFn(ctx, id)
-}
-func (s stubApplicationService) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUID) error {
-	return s.updateActiveImageFn(ctx, appID, imageID)
 }
 func (s stubApplicationService) List(ctx context.Context, filter appdomain.ListFilter) ([]appdomain.Application, error) {
 	return s.listFn(ctx, filter)
@@ -103,24 +99,6 @@ func TestListApplicationsReturnsEnvelope(t *testing.T) {
 	}
 	if len(payload.Data) != 1 || payload.Pagination.Total != 1 {
 		t.Fatalf("unexpected payload: %#v", payload)
-	}
-}
-
-func TestUpdateActiveImageReturnsNoContent(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-	handler := NewHandler(stubApplicationService{updateActiveImageFn: func(_ context.Context, _, _ uuid.UUID) error { return nil }})
-
-	r := gin.New()
-	r.PATCH("/api/v1/applications/:id/active_image", handler.UpdateActiveImage)
-
-	body := bytes.NewBufferString(`{"image_id":"22222222-2222-2222-2222-222222222222"}`)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/applications/"+uuid.New().String()+"/active_image", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusNoContent)
 	}
 }
 

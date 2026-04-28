@@ -192,7 +192,7 @@ Error messages returned to API clients should be:
 Allowed:
 - `invalid id`
 - `not found`
-- `image runtime_spec_revision_id is required`
+- `manifest is not ready`
 - `invalid request body`
 - `internal error`
 

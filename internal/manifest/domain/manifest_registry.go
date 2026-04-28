@@ -1,10 +1,6 @@
 package domain
 
-import (
-	"strings"
-
-	"github.com/bsonger/devflow-service/internal/image/domain"
-)
+import "github.com/bsonger/devflow-service/internal/platform/oci"
 
 type ManifestRegistryConfig struct {
 	Registry   string
@@ -16,11 +12,11 @@ type ManifestRegistryConfig struct {
 }
 
 func (c ManifestRegistryConfig) RepositoryPrefix() string {
-	registry := domain.ImageRegistryConfig{
+	registry := oci.ImageRegistryConfig{
 		Registry:  c.Registry,
 		Namespace: c.Namespace,
 	}.Repository()
-	repository := normalizeImageSegment(c.Repository)
+	repository := oci.NormalizeImageSegment(c.Repository)
 	if repository == "" {
 		repository = "manifests"
 	}
@@ -32,17 +28,9 @@ func (c ManifestRegistryConfig) RepositoryPrefix() string {
 
 func (c ManifestRegistryConfig) RepositoryFor(applicationName, environmentId string) string {
 	prefix := c.RepositoryPrefix()
-	application := normalizeImageSegment(applicationName)
+	application := oci.NormalizeImageSegment(applicationName)
 	if application == "" {
 		application = "application"
 	}
 	return prefix + "/" + application
-}
-
-func normalizeImageSegment(value string) string {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
-	trimmed = strings.ReplaceAll(trimmed, "/", "-")
-	trimmed = strings.ReplaceAll(trimmed, "_", "-")
-	trimmed = strings.ReplaceAll(trimmed, " ", "-")
-	return strings.Trim(trimmed, "-")
 }

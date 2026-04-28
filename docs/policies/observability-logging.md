@@ -62,7 +62,6 @@ After the baseline fields, add domain-specific stable identifiers such as:
 - `project_id`
 - `environment_id`
 - `cluster_id`
-- `image_id`
 - `manifest_id`
 - `release_id`
 - `intent_id`
@@ -374,7 +373,7 @@ Recommended fields:
 - `resource`
 - `resource_id`
 - `result`
-- workflow identifiers such as `release_id`, `manifest_id`, `image_id`, `intent_id`
+- workflow identifiers such as `release_id`, `manifest_id`, `intent_id`
 - stable status or step fields such as `status`, `previous_status`, `step_name`, `step_message`
 
 Example:

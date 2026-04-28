@@ -10,6 +10,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	"github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
+	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
 )
 
@@ -17,7 +18,11 @@ type Store interface {
 	Insert(ctx context.Context, manifest *manifestdomain.Manifest) error
 	List(ctx context.Context, filter manifestdomain.ManifestListFilter) ([]manifestdomain.Manifest, error)
 	Get(ctx context.Context, id uuid.UUID) (*manifestdomain.Manifest, error)
-	UpdateArtifact(ctx context.Context, manifest *manifestdomain.Manifest) error
+	GetByPipelineID(ctx context.Context, pipelineID string) (*manifestdomain.Manifest, error)
+	AssignPipelineID(ctx context.Context, manifestID uuid.UUID, pipelineID string) error
+	UpdateStatusAndSteps(ctx context.Context, id uuid.UUID, status model.ManifestStatus, steps []model.ImageTask, pipelineID string) error
+	UpdatePipelineAndSteps(ctx context.Context, id uuid.UUID, pipelineID string, steps []model.ImageTask) error
+	UpdateBuildResult(ctx context.Context, id uuid.UUID, commitHash, imageRef, imageTag, imageDigest string, status model.ManifestStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -36,30 +41,27 @@ func (s *PostgresStore) Insert(ctx context.Context, m *manifestdomain.Manifest) 
 	if err != nil {
 		return err
 	}
-	renderedJSON, err := dbsql.MarshalJSON(m.RenderedObjects, "[]")
+	stepsJSON, err := dbsql.MarshalJSON(m.Steps, "[]")
 	if err != nil {
 		return err
 	}
 	_, err = db.DB().ExecContext(ctx, `
 		insert into manifests (
-			id, application_id, environment_id, image_id, image_ref,
-			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
+			id, application_id, git_revision, repo_address, commit_hash, image_ref, image_tag, image_digest, pipeline_id, trace_id, span_id, steps,
 			services_snapshot, workload_config_snapshot,
-			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-	`, m.ID, m.ApplicationID, m.EnvironmentID, m.ImageID, m.ImageRef,
-		m.ArtifactRepository, m.ArtifactTag, m.ArtifactRef, m.ArtifactDigest, m.ArtifactMediaType, dbsql.NullableTimePtr(m.ArtifactPushedAt),
-		servicesJSON, workloadJSON, renderedJSON, m.RenderedYAML,
+			status, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+	`, m.ID, m.ApplicationID, m.GitRevision, m.RepoAddress, m.CommitHash, m.ImageRef, m.ImageTag, m.ImageDigest, m.PipelineID, m.TraceID, m.SpanID, stepsJSON,
+		servicesJSON, workloadJSON,
 		m.Status, m.CreatedAt, m.UpdatedAt, m.DeletedAt)
 	return err
 }
 
 func (s *PostgresStore) List(ctx context.Context, filter manifestdomain.ManifestListFilter) ([]manifestdomain.Manifest, error) {
 	query := `
-		select id, application_id, environment_id, image_id, image_ref,
-			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
+		select id, application_id, git_revision, repo_address, commit_hash, image_ref, image_tag, image_digest, pipeline_id, trace_id, span_id, steps,
 			services_snapshot, workload_config_snapshot,
-			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
+			status, created_at, updated_at, deleted_at
 		from manifests
 	`
 	clauses := make([]string, 0, 4)
@@ -70,10 +72,6 @@ func (s *PostgresStore) List(ctx context.Context, filter manifestdomain.Manifest
 	if filter.ApplicationID != nil {
 		args = append(args, *filter.ApplicationID)
 		clauses = append(clauses, dbsql.PlaceholderClause("application_id", len(args)))
-	}
-	if filter.ImageID != nil {
-		args = append(args, *filter.ImageID)
-		clauses = append(clauses, dbsql.PlaceholderClause("image_id", len(args)))
 	}
 	if len(clauses) > 0 {
 		query += " where " + strings.Join(clauses, " and ")
@@ -97,27 +95,79 @@ func (s *PostgresStore) List(ctx context.Context, filter manifestdomain.Manifest
 
 func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
 	return scanManifest(db.DB().QueryRowContext(ctx, `
-		select id, application_id, environment_id, image_id, image_ref,
-			artifact_repository, artifact_tag, artifact_ref, artifact_digest, artifact_media_type, artifact_pushed_at,
+		select id, application_id, git_revision, repo_address, commit_hash, image_ref, image_tag, image_digest, pipeline_id, trace_id, span_id, steps,
 			services_snapshot, workload_config_snapshot,
-			rendered_objects, rendered_yaml, status, created_at, updated_at, deleted_at
+			status, created_at, updated_at, deleted_at
 		from manifests
 		where id = $1 and deleted_at is null
 	`, id))
 }
 
-func (s *PostgresStore) UpdateArtifact(ctx context.Context, m *manifestdomain.Manifest) error {
+func (s *PostgresStore) GetByPipelineID(ctx context.Context, pipelineID string) (*manifestdomain.Manifest, error) {
+	return scanManifest(db.DB().QueryRowContext(ctx, `
+		select id, application_id, git_revision, repo_address, commit_hash, image_ref, image_tag, image_digest, pipeline_id, trace_id, span_id, steps,
+			services_snapshot, workload_config_snapshot,
+			status, created_at, updated_at, deleted_at
+		from manifests
+		where pipeline_id = $1 and deleted_at is null
+	`, pipelineID))
+}
+
+func (s *PostgresStore) AssignPipelineID(ctx context.Context, manifestID uuid.UUID, pipelineID string) error {
 	result, err := db.DB().ExecContext(ctx, `
 		update manifests
-		set artifact_repository = $2,
-		    artifact_tag = $3,
-		    artifact_ref = $4,
-		    artifact_digest = $5,
-		    artifact_media_type = $6,
-		    artifact_pushed_at = $7,
-		    updated_at = $8
+		set pipeline_id = $2, updated_at = $3
 		where id = $1 and deleted_at is null
-	`, m.ID, m.ArtifactRepository, m.ArtifactTag, m.ArtifactRef, m.ArtifactDigest, m.ArtifactMediaType, dbsql.NullableTimePtr(m.ArtifactPushedAt), time.Now())
+	`, manifestID, pipelineID, time.Now())
+	if err != nil {
+		return err
+	}
+	return dbsql.EnsureRowsAffected(result)
+}
+
+func (s *PostgresStore) UpdateStatusAndSteps(ctx context.Context, id uuid.UUID, status model.ManifestStatus, steps []model.ImageTask, pipelineID string) error {
+	stepsJSON, err := dbsql.MarshalJSON(steps, "[]")
+	if err != nil {
+		return err
+	}
+	result, err := db.DB().ExecContext(ctx, `
+		update manifests
+		set status = $2, steps = $3, pipeline_id = $4, updated_at = $5
+		where id = $1 and deleted_at is null
+	`, id, status, stepsJSON, pipelineID, time.Now())
+	if err != nil {
+		return err
+	}
+	return dbsql.EnsureRowsAffected(result)
+}
+
+func (s *PostgresStore) UpdatePipelineAndSteps(ctx context.Context, id uuid.UUID, pipelineID string, steps []model.ImageTask) error {
+	stepsJSON, err := dbsql.MarshalJSON(steps, "[]")
+	if err != nil {
+		return err
+	}
+	result, err := db.DB().ExecContext(ctx, `
+		update manifests
+		set pipeline_id = $2, steps = $3, updated_at = $4
+		where id = $1 and deleted_at is null
+	`, id, pipelineID, stepsJSON, time.Now())
+	if err != nil {
+		return err
+	}
+	return dbsql.EnsureRowsAffected(result)
+}
+
+func (s *PostgresStore) UpdateBuildResult(ctx context.Context, id uuid.UUID, commitHash, imageRef, imageTag, imageDigest string, status model.ManifestStatus) error {
+	result, err := db.DB().ExecContext(ctx, `
+		update manifests
+		set commit_hash = $2,
+		    image_ref = $3,
+		    image_tag = $4,
+		    image_digest = $5,
+		    status = $6,
+		    updated_at = $7
+		where id = $1 and deleted_at is null
+	`, id, commitHash, imageRef, imageTag, imageDigest, status, time.Now())
 	if err != nil {
 		return err
 	}
@@ -138,29 +188,27 @@ func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func scanManifest(scanner interface{ Scan(dest ...any) error }) (*manifestdomain.Manifest, error) {
 	var (
-		item                manifestdomain.Manifest
-		artifactPushedAt    sql.NullTime
-		servicesJSON        []byte
-		workloadConfigJSON  []byte
-		renderedObjectsJSON []byte
-		deletedAt           sql.NullTime
+		item               manifestdomain.Manifest
+		stepsJSON          []byte
+		servicesJSON       []byte
+		workloadConfigJSON []byte
+		deletedAt          sql.NullTime
 	)
 	if err := scanner.Scan(
 		&item.ID,
 		&item.ApplicationID,
-		&item.EnvironmentID,
-		&item.ImageID,
+		&item.GitRevision,
+		&item.RepoAddress,
+		&item.CommitHash,
 		&item.ImageRef,
-		&item.ArtifactRepository,
-		&item.ArtifactTag,
-		&item.ArtifactRef,
-		&item.ArtifactDigest,
-		&item.ArtifactMediaType,
-		&artifactPushedAt,
+		&item.ImageTag,
+		&item.ImageDigest,
+		&item.PipelineID,
+		&item.TraceID,
+		&item.SpanID,
+		&stepsJSON,
 		&servicesJSON,
 		&workloadConfigJSON,
-		&renderedObjectsJSON,
-		&item.RenderedYAML,
 		&item.Status,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -173,17 +221,16 @@ func scanManifest(scanner interface{ Scan(dest ...any) error }) (*manifestdomain
 			return nil, err
 		}
 	}
+	if len(stepsJSON) > 0 {
+		if err := json.Unmarshal(stepsJSON, &item.Steps); err != nil {
+			return nil, err
+		}
+	}
 	if len(workloadConfigJSON) > 0 {
 		if err := json.Unmarshal(workloadConfigJSON, &item.WorkloadConfigSnapshot); err != nil {
 			return nil, err
 		}
 	}
-	if len(renderedObjectsJSON) > 0 {
-		if err := json.Unmarshal(renderedObjectsJSON, &item.RenderedObjects); err != nil {
-			return nil, err
-		}
-	}
-	item.ArtifactPushedAt = dbsql.TimePtrFromNull(artifactPushedAt)
 	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	return &item, nil
 }

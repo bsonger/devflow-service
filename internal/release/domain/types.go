@@ -3,6 +3,7 @@ package domain
 import "time"
 
 type ReleaseType string
+type ReleaseStrategy string
 type Internet string
 type StepStatus string
 type ImageStatus string
@@ -15,6 +16,12 @@ const (
 	Normal    ReleaseType = "normal"
 	Canary    ReleaseType = "canary"
 	BlueGreen ReleaseType = "blue-green"
+)
+
+const (
+	ReleaseStrategyRolling   ReleaseStrategy = "rolling"
+	ReleaseStrategyBlueGreen ReleaseStrategy = "blueGreen"
+	ReleaseStrategyCanary    ReleaseStrategy = "canary"
 )
 
 const (
@@ -37,9 +44,11 @@ const (
 )
 
 const (
-	ManifestPending ManifestStatus = "Pending"
-	ManifestReady   ManifestStatus = "Ready"
-	ManifestFailed  ManifestStatus = "Failed"
+	ManifestPending   ManifestStatus = "Pending"
+	ManifestRunning   ManifestStatus = "Running"
+	ManifestReady     ManifestStatus = "Ready"
+	ManifestSucceeded ManifestStatus = "Succeeded"
+	ManifestFailed    ManifestStatus = "Failed"
 )
 
 const (
@@ -94,6 +103,7 @@ type ImageTask struct {
 }
 
 type ReleaseStep struct {
+	Code      string     `json:"code"`
 	Name      string     `json:"name"`
 	Progress  int32      `json:"progress"`
 	Status    StepStatus `json:"status"`

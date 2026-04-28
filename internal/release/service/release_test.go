@@ -29,13 +29,18 @@ CREATE TABLE releases (
   execution_intent_id TEXT NULL,
   application_id TEXT NOT NULL,
   manifest_id TEXT NOT NULL,
-  image_id TEXT NOT NULL,
   env TEXT NOT NULL,
+  strategy TEXT NOT NULL DEFAULT 'rolling',
   routes_snapshot TEXT NOT NULL DEFAULT '[]',
   app_config_snapshot TEXT NOT NULL DEFAULT '{}',
+  artifact_repository TEXT NOT NULL DEFAULT '',
+  artifact_tag TEXT NOT NULL DEFAULT '',
+  artifact_digest TEXT NOT NULL DEFAULT '',
+  artifact_ref TEXT NOT NULL DEFAULT '',
   type TEXT NOT NULL,
   steps TEXT NOT NULL DEFAULT '[]',
   status TEXT NOT NULL,
+  argocd_application_name TEXT NOT NULL DEFAULT '',
   external_ref TEXT NOT NULL DEFAULT '',
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
@@ -57,13 +62,12 @@ func TestUpdateStatusRespectsTerminalGuard(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	stepsJSON, _ := marshalJSON(model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade), "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Succeeded',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Succeeded',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -83,18 +87,97 @@ func TestUpdateStatusRespectsTerminalGuard(t *testing.T) {
 	}
 }
 
+func TestReleaseRepositoryPersistsArtifactFields(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	stepsJSON, _ := marshalJSON(model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade), "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (
+			id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot,
+			artifact_repository, artifact_tag, artifact_digest, artifact_ref,
+			type, steps, status, created_at, updated_at, deleted_at
+		)
+		values ($1,$2,$3,'staging','rolling','[]','{}',$4,$5,$6,$7,'Upgrade',$8,'Pending',$9,$10,null)
+	`, releaseID.String(), appID.String(), manifestID.String(),
+		"registry.example.com/devflow/releases/demo-api",
+		"release-20260428",
+		"sha256:abc",
+		"registry.example.com/devflow/releases/demo-api@sha256:abc",
+		stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.ArtifactRepository != "registry.example.com/devflow/releases/demo-api" {
+		t.Fatalf("artifact_repository = %q", release.ArtifactRepository)
+	}
+	if release.ArtifactTag != "release-20260428" {
+		t.Fatalf("artifact_tag = %q", release.ArtifactTag)
+	}
+	if release.ArtifactDigest != "sha256:abc" {
+		t.Fatalf("artifact_digest = %q", release.ArtifactDigest)
+	}
+	if release.ArtifactRef != "registry.example.com/devflow/releases/demo-api@sha256:abc" {
+		t.Fatalf("artifact_ref = %q", release.ArtifactRef)
+	}
+}
+
+func TestReleaseRepositoryPersistsArgoCDApplicationName(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	stepsJSON, _ := marshalJSON(model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade), "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (
+			id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot,
+			artifact_repository, artifact_tag, artifact_digest, artifact_ref,
+			type, steps, status, argocd_application_name, external_ref, created_at, updated_at, deleted_at
+		)
+		values ($1,$2,$3,'staging','rolling','[]','{}','','','','','Upgrade',$4,'Pending',$5,$6,$7,$8,null)
+	`, releaseID.String(), appID.String(), manifestID.String(),
+		stepsJSON,
+		"demo-api",
+		"demo-api",
+		time.Now(),
+		time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.ArgoCDApplicationName != "demo-api" {
+		t.Fatalf("argocd_application_name = %q", release.ArgoCDApplicationName)
+	}
+	if release.ExternalRef != "demo-api" {
+		t.Fatalf("external_ref = %q", release.ExternalRef)
+	}
+}
+
 func TestUpdateStatusAllowsNonTerminalTransition(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	stepsJSON, _ := marshalJSON(model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade), "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -114,19 +197,78 @@ func TestUpdateStatusAllowsNonTerminalTransition(t *testing.T) {
 	}
 }
 
+func TestUpdateArtifactPersistsFieldsAndMarksPublishBundle(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, strategy, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','rolling','Upgrade',$4,'Running',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	err = svc.UpdateArtifact(context.Background(), releaseID,
+		"registry.example.com/devflow/releases/demo-api",
+		"release-20260428",
+		"sha256:abc",
+		"oci://registry.example.com/devflow/releases/demo-api:release-20260428",
+		"deployment bundle published via oras publisher: oci://registry.example.com/devflow/releases/demo-api:release-20260428",
+		model.StepSucceeded,
+		100,
+	)
+	if err != nil {
+		t.Fatalf("UpdateArtifact failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.ArtifactRepository != "registry.example.com/devflow/releases/demo-api" {
+		t.Fatalf("artifact_repository = %q", release.ArtifactRepository)
+	}
+	if release.ArtifactTag != "release-20260428" {
+		t.Fatalf("artifact_tag = %q", release.ArtifactTag)
+	}
+	if release.ArtifactDigest != "sha256:abc" {
+		t.Fatalf("artifact_digest = %q", release.ArtifactDigest)
+	}
+	if release.ArtifactRef != "oci://registry.example.com/devflow/releases/demo-api:release-20260428" {
+		t.Fatalf("artifact_ref = %q", release.ArtifactRef)
+	}
+	found := false
+	for _, step := range release.Steps {
+		if step.Code == "publish_bundle" {
+			found = true
+			if step.Status != model.StepSucceeded || step.Progress != 100 || step.Message != "deployment bundle published via oras publisher: oci://registry.example.com/devflow/releases/demo-api:release-20260428" {
+				t.Fatalf("unexpected publish_bundle step: %+v", step)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("publish_bundle step not found")
+	}
+}
+
 func TestUpdateStepAppendsOrphanStep(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -163,20 +305,19 @@ func TestUpdateStepUpdatesExistingStep(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
 
 	svc := &releaseService{}
-	err = svc.UpdateStep(context.Background(), releaseID, "apply manifests", model.StepSucceeded, 100, "done", nil, nil)
+	err = svc.UpdateStep(context.Background(), releaseID, "render_deployment_bundle", model.StepSucceeded, 100, "done", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -187,7 +328,7 @@ func TestUpdateStepUpdatesExistingStep(t *testing.T) {
 	}
 	found := false
 	for _, s := range release.Steps {
-		if s.Name == "apply manifests" {
+		if s.Code == "render_deployment_bundle" {
 			found = true
 			if s.Status != model.StepSucceeded || s.Progress != 100 {
 				t.Fatalf("unexpected step state: %+v", s)
@@ -228,14 +369,13 @@ func TestReleaseStatusConvergenceFromSyncingToRunning(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -260,14 +400,13 @@ func TestReleaseStatusConvergenceToSucceeded(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -294,14 +433,13 @@ func TestReleaseStatusConvergenceToFailed(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -330,14 +468,13 @@ func TestReleaseStatusConvergenceTerminalProtectionAfterArgoFailed(t *testing.T)
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Failed',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Failed',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -362,27 +499,25 @@ func TestReleaseStatusConvergenceBootstrapApplyRolloutSuccess(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
 
 	svc := &releaseService{}
-	// Bootstrap steps succeed
-	_ = svc.UpdateStep(context.Background(), releaseID, "ensure namespace", model.StepSucceeded, 100, "namespace ready", nil, nil)
-	_ = svc.UpdateStep(context.Background(), releaseID, "ensure pull secret", model.StepSucceeded, 100, "secret ready", nil, nil)
-	_ = svc.UpdateStep(context.Background(), releaseID, "ensure appproject destination", model.StepSucceeded, 100, "project ready", nil, nil)
-	// Apply succeeds
-	_ = svc.UpdateStep(context.Background(), releaseID, "apply manifests", model.StepSucceeded, 100, "manifests applied", nil, nil)
-	// Rollout step succeeds
-	_ = svc.UpdateStep(context.Background(), releaseID, "deploy ready", model.StepSucceeded, 100, "deployment healthy", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "freeze_inputs", model.StepSucceeded, 100, "inputs frozen", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "render_deployment_bundle", model.StepSucceeded, 100, "bundle rendered", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "publish_bundle", model.StepSucceeded, 100, "bundle published", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "create_argocd_application", model.StepSucceeded, 100, "application created", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "start_deployment", model.StepSucceeded, 100, "deployment started", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepSucceeded, 100, "deployment healthy", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "finalize_release", model.StepSucceeded, 100, "release finalized", nil, nil)
 
 	release, err := svc.Get(context.Background(), releaseID)
 	if err != nil {
@@ -394,7 +529,7 @@ func TestReleaseStatusConvergenceBootstrapApplyRolloutSuccess(t *testing.T) {
 	// Verify step messages are preserved
 	foundDeploy := false
 	for _, s := range release.Steps {
-		if s.Name == "deploy ready" {
+		if s.Code == "observe_rollout" {
 			foundDeploy = true
 			if s.Message != "deployment healthy" {
 				t.Fatalf("expected step message 'deployment healthy', got %q", s.Message)
@@ -402,7 +537,7 @@ func TestReleaseStatusConvergenceBootstrapApplyRolloutSuccess(t *testing.T) {
 		}
 	}
 	if !foundDeploy {
-		t.Fatal("deploy ready step not found")
+		t.Fatal("observe_rollout step not found")
 	}
 }
 
@@ -411,14 +546,13 @@ func TestReleaseStatusConvergenceSyncFailure(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Syncing',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -455,14 +589,13 @@ func TestReleaseStatusConvergenceRolloutFailure(t *testing.T) {
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Running',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Running',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -502,14 +635,13 @@ func TestReleaseStatusConvergenceDuplicateLateEventsAfterTerminal(t *testing.T) 
 	releaseID := uuid.New()
 	appID := uuid.New()
 	manifestID := uuid.New()
-	imageID := uuid.New()
 
 	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
 	stepsJSON, _ := marshalJSON(steps, "[]")
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into releases (id, application_id, manifest_id, image_id, env, type, steps, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,$4,'staging','Upgrade',$5,'Succeeded',$6,$7,null)
-	`, releaseID.String(), appID.String(), manifestID.String(), imageID.String(), stepsJSON, time.Now(), time.Now())
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Succeeded',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}

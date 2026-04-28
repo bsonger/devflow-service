@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
@@ -18,7 +19,6 @@ import (
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/bsonger/devflow-service/internal/release/transport/argo"
 	releasehttp "github.com/bsonger/devflow-service/internal/release/transport/http"
-	"github.com/bsonger/devflow-service/internal/release/transport/runtime"
 	localtekton "github.com/bsonger/devflow-service/internal/release/transport/tekton"
 
 	"github.com/spf13/viper"
@@ -38,6 +38,7 @@ type Config struct {
 	Repo             *model.Repo                          `mapstructure:"repo" json:"repo" yaml:"repo"`
 	Runtime          *model.RuntimeServiceConfig          `mapstructure:"runtime" json:"runtime" yaml:"runtime"`
 	Observer         *model.ObserverConfig                `mapstructure:"observer" json:"observer" yaml:"observer"`
+	Worker           *model.WorkerConfig                  `mapstructure:"worker" json:"worker" yaml:"worker"`
 	Downstream       *model.DownstreamConfig              `mapstructure:"downstream" json:"downstream" yaml:"downstream"`
 	ImageRegistry    *model.ImageRegistryRuntimeConfig    `mapstructure:"image_registry" json:"image_registry" yaml:"image_registry"`
 	ManifestRegistry *model.ManifestRegistryRuntimeConfig `mapstructure:"manifest_registry" json:"manifest_registry" yaml:"manifest_registry"`
@@ -84,9 +85,11 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	if err != nil {
 		return nil, err
 	}
+	runtimeCtx, runtimeCancel := context.WithCancel(ctx)
 
 	db, err := sql.Open("pgx", stringValue(config.Postgres, func(v *model.PostgresConfig) string { return v.DSN }))
 	if err != nil {
+		runtimeCancel()
 		return shutdown, err
 	}
 	store.ApplyPool(db,
@@ -95,36 +98,44 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		intValue(config.Postgres, func(v *model.PostgresConfig) int { return v.ConnMaxLifetimeMinutes }),
 	)
 	if err := db.PingContext(ctx); err != nil {
+		runtimeCancel()
 		_ = db.Close()
 		return shutdown, err
 	}
 	store.InitPostgres(db)
 	kubeconfig, err := LoadKubeConfig()
 	if err != nil {
+		runtimeCancel()
 		return shutdown, err
 	}
 	err = localtekton.InitClient(ctx, kubeconfig, logger.Logger)
 	if err != nil {
+		runtimeCancel()
 		return shutdown, err
 	}
 	err = argoclient.Init(kubeconfig)
 	if err != nil {
+		runtimeCancel()
 		return shutdown, err
 	}
 	imageRegistryCfg, err := runtime.ImageRegistryConfigFromConfig(config.ImageRegistry)
 	if err != nil {
+		runtimeCancel()
 		return shutdown, err
 	}
 	manifestRegistryCfg, manifestRegistryEnabled, err := runtime.ManifestRegistryConfigFromConfig(config.ManifestRegistry, config.ImageRegistry)
 	if err != nil {
+		runtimeCancel()
 		return shutdown, err
 	}
-	releasehttp.ObserverSharedToken = stringValue(config.Observer, func(v *model.ObserverConfig) string { return v.SharedToken })
-	service.SetRuntimeClient(runtimeclient.New(stringValue(config.Runtime, func(v *model.RuntimeServiceConfig) string { return v.BaseURL })))
+	observerToken := stringValue(config.Observer, func(v *model.ObserverConfig) string { return v.SharedToken })
+	releasehttp.ObserverSharedToken = observerToken
+	manifesthttp.ManifestObserverSharedToken = observerToken
 	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{
 		ImageRegistry:           imageRegistryCfg,
 		ManifestRegistry:        manifestRegistryCfg,
 		ManifestRegistryEnabled: manifestRegistryEnabled,
+		ManifestPublisherMode:   stringValue(config.ManifestRegistry, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Mode }),
 		Downstream: model.DownstreamConfig{
 			PlatformOrchestratorBaseURL: stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.PlatformOrchestratorBaseURL }),
 			AppServiceBaseURL:           stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.AppServiceBaseURL }),
@@ -133,7 +144,12 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		},
 	})
 	model.InitConfigRepo(config.Repo)
+	if runtime.IsIntentMode() {
+		workerCfg := runtime.ReleaseIntentWorkerConfigFromModel(config.Worker)
+		runtime.StartReleaseIntentWorker(runtimeCtx, workerCfg, service.ReleaseService)
+	}
 	return func(shutdownCtx context.Context) error {
+		runtimeCancel()
 		closeErr := db.Close()
 		shutdownErr := shutdown(shutdownCtx)
 		if shutdownErr != nil {

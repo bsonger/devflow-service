@@ -102,7 +102,8 @@ This extracted runtime-service surface now covers both release-time runtime look
 - duplicate runtime spec creation returns `conflict`
 - internal observed-pod sync/delete endpoints require `X-Devflow-Observer-Token` or `X-Devflow-Verify-Token` when a shared token is configured
 - observer payload namespace must match the runtime-service derived namespace for the target `application + environment`
-- release-time callers use the runtime lookup endpoints to validate `Image.runtime_spec_revision_id`
+- `containers[].image_id` is the container runtime reported image ID / digest, not the removed manifest/release `image_id` field
+- release-time callers use the runtime lookup endpoints to inspect live runtime state after manifest/release creation
 - `POST /api/v1/runtime-specs/{id}/pods/{pod_name}/delete` directly deletes the K8s Pod and records the operation
 - `POST /api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart` patches the Deployment with `kubectl.kubernetes.io/restartedAt` to trigger a rolling restart and records the operation
 - K8s operations require the runtime-service pod to have in-cluster K8s client access; `not_found` / `failed_precondition` are returned for K8s-level errors

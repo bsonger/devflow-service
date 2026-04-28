@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
-	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
@@ -20,27 +19,26 @@ func (s stubReleaseManifestReader) Get(ctx context.Context, id uuid.UUID) (*mani
 }
 
 func TestPopulateReleaseDefaultsPreservesProvidedEnv(t *testing.T) {
-	imageID := uuid.New()
 	manifestID := uuid.New()
 	appID := uuid.New()
-	release := &model.Release{ManifestID: manifestID, ImageID: imageID, EnvironmentID: "staging"}
-	image := &imagedomain.Image{BaseModel: model.BaseModel{ID: imageID}, Name: "demo-main", ApplicationID: appID}
+	release := &model.Release{ManifestID: manifestID, EnvironmentID: "staging"}
 
-	populateReleaseDefaults(release, image, "prod")
+	populateReleaseDefaults(release, appID, "prod")
 
 	if release.EnvironmentID != "staging" {
 		t.Fatalf("got env %s want staging", release.EnvironmentID)
 	}
+	if release.Strategy != string(model.ReleaseStrategyRolling) {
+		t.Fatalf("got strategy %s want %s", release.Strategy, model.ReleaseStrategyRolling)
+	}
 }
 
 func TestPopulateReleaseDefaultsFallsBackToProd(t *testing.T) {
-	imageID := uuid.New()
 	manifestID := uuid.New()
 	appID := uuid.New()
-	release := &model.Release{ManifestID: manifestID, ImageID: imageID}
-	image := &imagedomain.Image{BaseModel: model.BaseModel{ID: imageID}, Name: "demo-main", ApplicationID: appID}
+	release := &model.Release{ManifestID: manifestID}
 
-	populateReleaseDefaults(release, image, "prod")
+	populateReleaseDefaults(release, appID, "prod")
 
 	if release.EnvironmentID != "prod" {
 		t.Fatalf("got env %s want prod", release.EnvironmentID)
@@ -48,51 +46,20 @@ func TestPopulateReleaseDefaultsFallsBackToProd(t *testing.T) {
 	if release.Type != model.ReleaseUpgrade {
 		t.Fatalf("got type %s want %s", release.Type, model.ReleaseUpgrade)
 	}
+	if release.Strategy != string(model.ReleaseStrategyRolling) {
+		t.Fatalf("got strategy %s want %s", release.Strategy, model.ReleaseStrategyRolling)
+	}
 }
 
 func TestPopulateReleaseDefaultsPreservesManifestID(t *testing.T) {
-	imageID := uuid.New()
 	manifestID := uuid.New()
 	appID := uuid.New()
-	release := &model.Release{ManifestID: manifestID, ImageID: imageID}
-	image := &imagedomain.Image{BaseModel: model.BaseModel{ID: imageID}, Name: "demo-main", ApplicationID: appID}
+	release := &model.Release{ManifestID: manifestID}
 
-	populateReleaseDefaults(release, image, "prod")
+	populateReleaseDefaults(release, appID, "prod")
 
 	if release.ManifestID != manifestID {
 		t.Fatalf("got manifest id %s want %s", release.ManifestID, manifestID)
-	}
-}
-
-func TestResolveReleaseEnvironmentRequiresImageRuntimeSpecRevisionID(t *testing.T) {
-	svc := &releaseService{}
-	image := &imagedomain.Image{ApplicationID: uuid.New()}
-	release := &model.Release{
-		ManifestID: uuid.New(),
-		ImageID:    uuid.New(),
-	}
-
-	_, err := svc.resolveReleaseEnvironment(context.Background(), release, image)
-	if err == nil {
-		t.Fatalf("expected error when image runtime_spec_revision_id is missing")
-	}
-}
-
-func TestResolveReleaseEnvironmentFallsBackToReleaseEnvWhenRuntimeSpecRevisionIDMissing(t *testing.T) {
-	svc := &releaseService{}
-	image := &imagedomain.Image{ApplicationID: uuid.New()}
-	release := &model.Release{
-		ManifestID:    uuid.New(),
-		ImageID:       uuid.New(),
-		EnvironmentID: "staging",
-	}
-
-	env, err := svc.resolveReleaseEnvironment(context.Background(), release, image)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if env != "staging" {
-		t.Fatalf("env = %q, want staging", env)
 	}
 }
 
@@ -103,8 +70,6 @@ func TestCreateReleaseRejectsManifestThatIsNotReady(t *testing.T) {
 			return &manifestdomain.Manifest{
 				BaseModel:     model.BaseModel{ID: id},
 				ApplicationID: uuid.New(),
-				EnvironmentID: "staging",
-				ImageID:       uuid.New(),
 				Status:        model.ManifestPending,
 			}, nil
 		},

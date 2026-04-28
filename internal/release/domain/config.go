@@ -46,6 +46,13 @@ type ObserverConfig struct {
 	SharedToken string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
 }
 
+type WorkerConfig struct {
+	Enabled              bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	WorkerID             string `mapstructure:"worker_id" json:"worker_id" yaml:"worker_id"`
+	LeaseDurationSeconds int    `mapstructure:"lease_duration_seconds" json:"lease_duration_seconds" yaml:"lease_duration_seconds"`
+	PollIntervalSeconds  int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+}
+
 type DownstreamConfig struct {
 	PlatformOrchestratorBaseURL string `mapstructure:"platform_orchestrator_base_url" json:"platform_orchestrator_base_url" yaml:"platform_orchestrator_base_url"`
 	AppServiceBaseURL           string `mapstructure:"app_service_base_url" json:"app_service_base_url" yaml:"app_service_base_url"`
@@ -67,4 +74,5 @@ type ManifestRegistryRuntimeConfig struct {
 	Username   string `mapstructure:"username" json:"username" yaml:"username"`
 	Password   string `mapstructure:"password" json:"password" yaml:"password"`
 	PlainHTTP  bool   `mapstructure:"plain_http" json:"plain_http" yaml:"plain_http"`
+	Mode       string `mapstructure:"mode" json:"mode" yaml:"mode"`
 }

@@ -26,18 +26,8 @@ func resolveWorkloadImageRef(repository, tag, digest string) (string, map[string
 	return "", nil, ErrManifestImageNotDeployable
 }
 
-func joinRenderedYAML(objects []manifestdomain.ManifestRenderedObject) string {
-	parts := make([]string, 0, len(objects))
-	for _, item := range objects {
-		if trimmed := strings.TrimSpace(item.YAML); trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	return strings.Join(parts, "\n---\n")
-}
-
-func renderManifestObjects(namespace, applicationName, applicationId string, workload manifestdomain.ManifestWorkloadConfig, services []manifestdomain.ManifestService, imageRef string, annotations map[string]string) ([]manifestdomain.ManifestRenderedObject, error) {
-	objects := make([]manifestdomain.ManifestRenderedObject, 0, len(services)+1)
+func renderManifestResources(namespace, applicationName, applicationId string, workload manifestdomain.ManifestWorkloadConfig, services []manifestdomain.ManifestService, imageRef string, annotations map[string]string) ([]manifestdomain.ManifestRenderedResource, error) {
+	objects := make([]manifestdomain.ManifestRenderedResource, 0, len(services)+1)
 	selectorLabels := map[string]string{
 		"app.kubernetes.io/name": applicationName,
 	}
@@ -133,16 +123,17 @@ func renderManifestObjects(namespace, applicationName, applicationId string, wor
 	return objects, nil
 }
 
-func marshalRenderedObject(kind, name, namespace string, object any) (manifestdomain.ManifestRenderedObject, error) {
+func marshalRenderedObject(kind, name, namespace string, object any) (manifestdomain.ManifestRenderedResource, error) {
 	body, err := yaml.Marshal(object)
 	if err != nil {
-		return manifestdomain.ManifestRenderedObject{}, fmt.Errorf("marshal %s %s: %w", kind, name, err)
+		return manifestdomain.ManifestRenderedResource{}, fmt.Errorf("marshal %s %s: %w", kind, name, err)
 	}
-	return manifestdomain.ManifestRenderedObject{
+	return manifestdomain.ManifestRenderedResource{
 		Kind:      kind,
 		Name:      name,
 		Namespace: namespace,
 		YAML:      string(body),
+		Object:    object.(map[string]any),
 	}, nil
 }
 

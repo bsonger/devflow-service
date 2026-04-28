@@ -3,17 +3,17 @@ package service
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"testing"
 	"time"
 
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
 	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
-	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
+	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	_ "modernc.org/sqlite"
 )
 
@@ -27,19 +27,18 @@ func setupManifestTestDB(t *testing.T) {
 CREATE TABLE manifests (
   id TEXT PRIMARY KEY,
   application_id TEXT NOT NULL,
-  environment_id TEXT NOT NULL,
-  image_id TEXT NOT NULL,
+  git_revision TEXT NOT NULL DEFAULT '',
+  repo_address TEXT NOT NULL DEFAULT '',
+  commit_hash TEXT NOT NULL DEFAULT '',
+  image_tag TEXT NOT NULL DEFAULT '',
+  image_digest TEXT NOT NULL DEFAULT '',
+  pipeline_id TEXT NOT NULL DEFAULT '',
+  trace_id TEXT NOT NULL DEFAULT '',
+  span_id TEXT NOT NULL DEFAULT '',
+  steps TEXT NOT NULL DEFAULT '[]',
   image_ref TEXT NOT NULL,
-  artifact_repository TEXT NOT NULL DEFAULT '',
-  artifact_tag TEXT NOT NULL DEFAULT '',
-  artifact_ref TEXT NOT NULL DEFAULT '',
-  artifact_digest TEXT NOT NULL DEFAULT '',
-  artifact_media_type TEXT NOT NULL DEFAULT '',
-  artifact_pushed_at DATETIME NULL,
   services_snapshot TEXT NOT NULL DEFAULT '[]',
   workload_config_snapshot TEXT NOT NULL DEFAULT '{}',
-  rendered_objects TEXT NOT NULL DEFAULT '[]',
-  rendered_yaml TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
@@ -59,14 +58,6 @@ CREATE TABLE manifests (
 func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 	req := &manifestdomain.CreateManifestRequest{
 		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
-		ImageID:       mustUUID("33333333-3333-3333-3333-333333333333"),
-	}
-	image := &imagedomain.Image{
-		ApplicationID: req.ApplicationID,
-		Name:          "demo-api",
-		RepoAddress:   "registry.cn-hangzhou.aliyuncs.com/devflow",
-		Tag:           "20260411-120000",
-		Digest:        "sha256:abc",
 	}
 	workload := &appconfigdownstream.WorkloadConfig{
 		ID:           "wc-1",
@@ -85,74 +76,110 @@ func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 			Protocol:    "TCP",
 		}},
 	}}
+	target := oci.ImageTarget{
+		Name: "demo-api",
+		Tag:  "20260411-120000",
+		Ref:  "registry.cn-hangzhou.aliyuncs.com/devflow/demo-api:20260411-120000",
+	}
 
-	got, err := buildManifest(req, image, "demo-api", workload, services, imagedomain.ImageRegistryConfig{})
+	got, err := buildManifest(req, "demo-api", "registry.cn-hangzhou.aliyuncs.com/devflow", target, "sha256:abc", workload, services)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.ImageRef != "registry.cn-hangzhou.aliyuncs.com/devflow/demo-api@sha256:abc" {
 		t.Fatalf("unexpected image ref %q", got.ImageRef)
 	}
-	if got.EnvironmentID != "" {
-		t.Fatalf("EnvironmentID = %q, want empty", got.EnvironmentID)
-	}
-	if len(got.RenderedObjects) != 2 {
-		t.Fatalf("unexpected rendered object count %d", len(got.RenderedObjects))
-	}
-	if got.RenderedYAML == "" {
-		t.Fatal("expected rendered yaml")
-	}
 }
 
 func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.T) {
 	req := &manifestdomain.CreateManifestRequest{
 		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
-		ImageID:       mustUUID("33333333-3333-3333-3333-333333333333"),
-	}
-	image := &imagedomain.Image{
-		ApplicationID: req.ApplicationID,
-		Name:          "devflow-runtime-service",
-		RepoAddress:   "git@github.com:bsonger/devflow-runtime-service.git",
-		Tag:           "20260411-120000",
-		Digest:        "sha256:abc",
 	}
 	workload := &appconfigdownstream.WorkloadConfig{Replicas: 1, WorkloadType: "deployment"}
-	got, err := buildManifest(req, image, "devflow-runtime-service", workload, nil, imagedomain.ImageRegistryConfig{
-		Registry:  "registry.cn-hangzhou.aliyuncs.com",
-		Namespace: "devflow",
-	})
+	target := oci.ImageTarget{
+		Name: "devflow-runtime-service",
+		Tag:  "20260411-120000",
+		Ref:  "registry.cn-hangzhou.aliyuncs.com/devflow/devflow-runtime-service:20260411-120000",
+	}
+	got, err := buildManifest(req, "devflow-runtime-service", "git@github.com:bsonger/devflow-runtime-service.git", target, "sha256:abc", workload, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.ImageRef != "registry.cn-hangzhou.aliyuncs.com/devflow/devflow-runtime-service@sha256:abc" {
 		t.Fatalf("unexpected image ref %q", got.ImageRef)
 	}
-	hasPullSecret := false
-	for _, item := range got.RenderedObjects {
-		if item.Kind == "ConfigMap" || item.Kind == "VirtualService" {
-			t.Fatalf("unexpected rendered object kind %s", item.Kind)
-		}
-		if item.Kind == "Deployment" {
-			if strings.Contains(item.YAML, "imagePullSecrets:") && strings.Contains(item.YAML, "aliyun-docker-config") {
-				hasPullSecret = true
-			}
-			if strings.Contains(item.YAML, "devflow.environment/id:") {
-				t.Fatalf("did not expect environment label in manifest deployment, got:\n%s", item.YAML)
-			}
-		}
+}
+
+func TestNormalizeGitRevisionDefaultsToMain(t *testing.T) {
+	if got := normalizeGitRevision(""); got != "main" {
+		t.Fatalf("normalizeGitRevision(\"\") = %q, want main", got)
 	}
-	if !hasPullSecret {
-		t.Fatal("expected deployment to include aliyun-docker-config imagePullSecrets")
+	if got := normalizeGitRevision("  feature/demo "); got != "feature/demo" {
+		t.Fatalf("normalizeGitRevision(trim) = %q, want feature/demo", got)
 	}
 }
 
-func TestResolveManifestImageRepositoryRejectsUndeployableRepository(t *testing.T) {
-	_, err := resolveManifestImageRepository(&imagedomain.Image{
-		Name:        "demo-api",
-		RepoAddress: "git@github.com:bsonger/devflow-runtime-service.git",
-	}, imagedomain.ImageRegistryConfig{})
-	if err != ErrManifestImageRepositoryMissing {
-		t.Fatalf("err = %v, want %v", err, ErrManifestImageRepositoryMissing)
+func TestBuildManifestPipelineRunUsesGitRevisionAndAnnotations(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111")},
+		ApplicationID: uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+		GitRevision:   "feature/demo",
+		RepoAddress:   "git@github.com:example/demo.git",
+	}
+	target := oci.ImageTarget{
+		Name: "demo-api",
+		Tag:  "20260427-120000",
+		Ref:  "registry.example.com/devflow/demo-api:20260427-120000",
+	}
+
+	run := buildManifestPipelineRun(manifest, "pvc-1", "registry.example.com/devflow", target)
+
+	if run.Spec.PipelineRef == nil || run.Spec.PipelineRef.Name != manifestTektonBuildPipeline {
+		t.Fatalf("pipeline ref = %+v", run.Spec.PipelineRef)
+	}
+	params := map[string]string{}
+	for _, item := range run.Spec.Params {
+		params[item.Name] = item.Value.StringVal
+	}
+	if params["git-url"] != manifest.RepoAddress {
+		t.Fatalf("git-url = %q", params["git-url"])
+	}
+	if params["git-revision"] != manifest.GitRevision {
+		t.Fatalf("git-revision = %q", params["git-revision"])
+	}
+	if params["image-registry"] != "registry.example.com/devflow" {
+		t.Fatalf("image-registry = %q", params["image-registry"])
+	}
+	if run.Annotations["devflow.manifest/id"] != manifest.ID.String() {
+		t.Fatalf("annotation manifest id = %q", run.Annotations["devflow.manifest/id"])
+	}
+}
+
+func TestBuildManifestStepsFromPipelineIncludesTasksAndFinally(t *testing.T) {
+	pipeline := &tknv1.Pipeline{
+		Spec: tknv1.PipelineSpec{
+			Tasks: []tknv1.PipelineTask{
+				{Name: "git-clone"},
+				{Name: "image-build-and-push"},
+			},
+			Finally: []tknv1.PipelineTask{
+				{Name: "notify"},
+			},
+		},
+	}
+
+	steps := buildManifestStepsFromPipeline(pipeline)
+
+	if len(steps) != 3 {
+		t.Fatalf("len(steps) = %d, want 3", len(steps))
+	}
+	if steps[0].TaskName != "git-clone" || steps[1].TaskName != "image-build-and-push" || steps[2].TaskName != "notify" {
+		t.Fatalf("unexpected steps: %+v", steps)
+	}
+	for _, step := range steps {
+		if step.Status != model.StepPending {
+			t.Fatalf("step status = %q, want %q", step.Status, model.StepPending)
+		}
 	}
 }
 
@@ -168,13 +195,12 @@ func TestManifestDeleteSoftDeletesByID(t *testing.T) {
 	setupManifestTestDB(t)
 	manifestID := uuid.New()
 	appID := uuid.New()
-	imageID := uuid.New()
 	now := time.Now()
 
 	_, err := store.DB().ExecContext(context.Background(), `
-		insert into manifests (id, application_id, environment_id, image_id, image_ref, status, created_at, updated_at, deleted_at)
-		values ($1,$2,'',$3,'repo/demo@sha256:abc','Ready',$4,$5,null)
-	`, manifestID.String(), appID.String(), imageID.String(), now, now)
+		insert into manifests (id, application_id, image_ref, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'Ready',$4,$5,null)
+	`, manifestID.String(), appID.String(), "repo/demo@sha256:abc", now, now)
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
 	}
@@ -206,19 +232,24 @@ func TestManifestDeleteReturnsNotFoundForMissingID(t *testing.T) {
 	}
 }
 
-func TestManifestResourcesViewStillGroupsLegacyKinds(t *testing.T) {
+func TestManifestResourcesViewStillBuildsLegacyResourcesEndpoint(t *testing.T) {
 	manifest := &manifestdomain.Manifest{
-		BaseModel: model.BaseModel{ID: uuid.New()},
-		RenderedObjects: []manifestdomain.ManifestRenderedObject{
-			{Kind: "ConfigMap", Name: "cfg", YAML: "kind: ConfigMap\nmetadata:\n  name: cfg\n"},
-			{Kind: "VirtualService", Name: "vs", YAML: "kind: VirtualService\nmetadata:\n  name: vs\n"},
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{
+			{Name: "cfg", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
+		},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Name:     "cfg",
+			Replicas: 1,
 		},
 	}
 	view, err := buildManifestResourcesView(manifest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Resources.ConfigMap == nil || view.Resources.VirtualService == nil {
-		t.Fatalf("expected legacy kinds to still decode, got %+v", view.Resources)
+	if view.Resources.Deployment == nil || len(view.Resources.Services) != 1 {
+		t.Fatalf("expected derived resources, got %+v", view.Resources)
 	}
 }

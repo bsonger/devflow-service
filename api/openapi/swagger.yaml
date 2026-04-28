@@ -1,32 +1,5 @@
 basePath: /
 definitions:
-  domain.CreateImageRequest:
-    properties:
-      application_id:
-        type: string
-      branch:
-        type: string
-      configuration_revision_id:
-        type: string
-      runtime_spec_revision_id:
-        type: string
-    type: object
-  domain.EnvVar:
-    properties:
-      name:
-        type: string
-      value:
-        type: string
-    type: object
-  domain.PatchImageRequest:
-    properties:
-      commit_hash:
-        type: string
-      digest:
-        type: string
-      tag:
-        type: string
-    type: object
   github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig:
     properties:
       application_id:
@@ -139,8 +112,6 @@ definitions:
     type: object
   github_com_bsonger_devflow-service_internal_application_domain.Application:
     properties:
-      active_image_id:
-        type: string
       created_at:
         type: string
       deleted_at:
@@ -490,8 +461,6 @@ definitions:
     type: object
   github_com_bsonger_devflow-service_internal_project_domain.Application:
     properties:
-      active_image_id:
-        type: string
       created_at:
         type: string
       deleted_at:
@@ -539,6 +508,13 @@ definitions:
       updated_at:
         type: string
     type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
   github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem:
     properties:
       key:
@@ -558,7 +534,7 @@ definitions:
         type: string
       env:
         items:
-          $ref: '#/definitions/domain.EnvVar'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar'
         type: array
       id:
         type: string
@@ -593,7 +569,7 @@ definitions:
         type: string
       env:
         items:
-          $ref: '#/definitions/domain.EnvVar'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar'
         type: array
       labels:
         items:
@@ -632,124 +608,20 @@ definitions:
     - release_id
     - status
     type: object
-  http.CreateManifestRequestDoc:
-    properties:
-      application_id:
-        type: string
-      image_id:
-        type: string
-    type: object
   http.CreateReleaseRequest:
     properties:
       environment_id:
         type: string
       manifest_id:
         type: string
+      strategy:
+        type: string
       type:
         type: string
-    type: object
-  http.ImageDoc:
-    properties:
-      application_id:
-        type: string
-      branch:
-        type: string
-      commit_hash:
-        type: string
-      configuration_revision_id:
-        type: string
-      created_at:
-        type: string
-      digest:
-        type: string
-      execution_intent_id:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      pipeline_id:
-        type: string
-      repo_address:
-        type: string
-      runtime_spec_revision_id:
-        type: string
-      status:
-        type: string
-      steps:
-        items:
-          $ref: '#/definitions/http.ImageTaskDoc'
-        type: array
-      tag:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  http.ImageListResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/http.ImageDoc'
-        type: array
-      pagination:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
-    type: object
-  http.ImageResponse:
-    properties:
-      data:
-        $ref: '#/definitions/http.ImageDoc'
-    type: object
-  http.ImageTaskDoc:
-    properties:
-      end_time:
-        type: string
-      message:
-        type: string
-      start_time:
-        type: string
-      status:
-        type: string
-      task_name:
-        type: string
-      task_run:
-        type: string
-    type: object
-  http.ImageTektonStatusRequest:
-    properties:
-      image_id:
-        type: string
-      message:
-        type: string
-      pipeline_id:
-        type: string
-      status:
-        type: string
     required:
-    - image_id
-    - status
-    type: object
-  http.ImageTektonTaskRequest:
-    properties:
-      end_time:
-        type: string
-      image_id:
-        type: string
-      message:
-        type: string
-      pipeline_id:
-        type: string
-      start_time:
-        type: string
-      status:
-        type: string
-      task_name:
-        type: string
-      task_run:
-        type: string
-    required:
-    - image_id
-    - status
-    - task_name
+    - environment_id
+    - manifest_id
+    - strategy
     type: object
   http.IntentListResponse:
     properties:
@@ -807,11 +679,87 @@ definitions:
       source_path:
         type: string
     type: object
+  http.ReleaseArtifactRequest:
+    properties:
+      artifact_digest:
+        type: string
+      artifact_ref:
+        type: string
+      artifact_repository:
+        type: string
+      artifact_tag:
+        type: string
+      message:
+        type: string
+      progress:
+        type: integer
+      release_id:
+        type: string
+      status:
+        type: string
+    required:
+    - release_id
+    type: object
+  http.ReleaseBundleDoc:
+    properties:
+      application_id:
+        type: string
+      artifact_name:
+        type: string
+      environment_id:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/http.ReleaseBundleFileDoc'
+        type: array
+      namespace:
+        type: string
+      release_id:
+        type: string
+      rendered_objects:
+        items:
+          $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+        type: array
+      resources:
+        $ref: '#/definitions/http.ReleaseBundleResourcesDoc'
+    type: object
+  http.ReleaseBundleFileDoc:
+    properties:
+      content:
+        type: string
+      path:
+        type: string
+    type: object
+  http.ReleaseBundleResourcesDoc:
+    properties:
+      configmap:
+        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+      deployment:
+        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+      rollout:
+        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+      services:
+        items:
+          $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+        type: array
+      virtualservice:
+        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+    type: object
   http.ReleaseDoc:
     properties:
       app_config_snapshot:
         $ref: '#/definitions/http.ReleaseAppConfigDoc'
       application_id:
+        type: string
+      argocd_application_name:
+        type: string
+      artifact_digest:
+        type: string
+      artifact_ref:
+        type: string
+      artifact_repository:
+        type: string
+      artifact_tag:
         type: string
       created_at:
         type: string
@@ -822,8 +770,6 @@ definitions:
       external_ref:
         type: string
       id:
-        type: string
-      image_id:
         type: string
       manifest_id:
         type: string
@@ -837,6 +783,8 @@ definitions:
         items:
           $ref: '#/definitions/http.ReleaseStepDoc'
         type: array
+      strategy:
+        type: string
       type:
         type: string
       updated_at:
@@ -857,6 +805,20 @@ definitions:
         type: array
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
+    type: object
+  http.ReleaseRenderedResourceDoc:
+    properties:
+      kind:
+        type: string
+      name:
+        type: string
+      namespace:
+        type: string
+      object:
+        additionalProperties: {}
+        type: object
+      yaml:
+        type: string
     type: object
   http.ReleaseResponse:
     properties:
@@ -880,6 +842,8 @@ definitions:
     type: object
   http.ReleaseStepDoc:
     properties:
+      code:
+        type: string
       end_time:
         type: string
       message:
@@ -903,12 +867,13 @@ definitions:
         type: string
       status:
         type: string
+      step_code:
+        type: string
       step_name:
         type: string
     required:
     - release_id
     - status
-    - step_name
     type: object
   internal_application_transport_http.CreateApplicationRequest:
     properties:
@@ -925,17 +890,8 @@ definitions:
       repo_address:
         type: string
     type: object
-  internal_application_transport_http.UpdateActiveImageRequest:
-    properties:
-      image_id:
-        type: string
-    required:
-    - image_id
-    type: object
   internal_application_transport_http.UpdateApplicationRequest:
     properties:
-      active_image_id:
-        type: string
       description:
         type: string
       labels:
@@ -1054,41 +1010,48 @@ definitions:
       updated_at:
         type: string
     type: object
+  internal_manifest_transport_http.CreateManifestRequestDoc:
+    properties:
+      application_id:
+        type: string
+      git_revision:
+        type: string
+    type: object
   internal_manifest_transport_http.ManifestDoc:
     properties:
       application_id:
         type: string
-      artifact_digest:
-        type: string
-      artifact_media_type:
-        type: string
-      artifact_pushed_at:
-        type: string
-      artifact_ref:
-        type: string
-      artifact_repository:
-        type: string
-      artifact_tag:
+      commit_hash:
         type: string
       created_at:
         type: string
+      git_revision:
+        type: string
       id:
         type: string
-      image_id:
+      image_digest:
         type: string
       image_ref:
         type: string
-      rendered_objects:
-        items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedObjectDoc'
-        type: array
-      rendered_yaml:
+      image_tag:
+        type: string
+      pipeline_id:
+        type: string
+      repo_address:
         type: string
       services_snapshot:
         items:
           $ref: '#/definitions/internal_manifest_transport_http.ManifestServiceDoc'
         type: array
+      span_id:
+        type: string
       status:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/internal_manifest_transport_http.ManifestStepDoc'
+        type: array
+      trace_id:
         type: string
       updated_at:
         type: string
@@ -1117,17 +1080,6 @@ definitions:
       virtualservice:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
     type: object
-  internal_manifest_transport_http.ManifestRenderedObjectDoc:
-    properties:
-      kind:
-        type: string
-      name:
-        type: string
-      namespace:
-        type: string
-      yaml:
-        type: string
-    type: object
   internal_manifest_transport_http.ManifestRenderedResourceDoc:
     properties:
       kind:
@@ -1148,10 +1100,6 @@ definitions:
         type: string
       manifest_id:
         type: string
-      rendered_objects:
-        items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
-        type: array
       resources:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc'
     type: object
@@ -1176,6 +1124,21 @@ definitions:
         type: integer
       target_port:
         type: integer
+    type: object
+  internal_manifest_transport_http.ManifestStepDoc:
+    properties:
+      end_time:
+        type: string
+      message:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      task_name:
+        type: string
+      task_run:
+        type: string
     type: object
   internal_manifest_transport_http.ManifestWorkloadConfigDoc:
     properties:
@@ -1430,26 +1393,6 @@ paths:
       summary: 更新应用
       tags:
       - Application
-  /api/v1/applications/{id}/active_image:
-    patch:
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Active Image Data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/internal_application_transport_http.UpdateActiveImageRequest'
-      responses:
-        "204":
-          description: No Content
-      summary: 更新应用的 Active Image
-      tags:
-      - Application
   /api/v1/clusters:
     get:
       responses:
@@ -1607,204 +1550,6 @@ paths:
       summary: 更新环境
       tags:
       - Environment
-  /api/v1/images:
-    get:
-      parameters:
-      - description: Application ID
-        in: query
-        name: application_id
-        type: string
-      - description: Pipeline ID
-        in: query
-        name: pipeline_id
-        type: string
-      - description: Status
-        in: query
-        name: status
-        type: string
-      - description: Branch
-        in: query
-        name: branch
-        type: string
-      - description: Name
-        in: query
-        name: name
-        type: string
-      - description: Page
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: page_size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/http.ImageListResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-      summary: List images
-      tags:
-      - Image
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Image create request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/domain.CreateImageRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/http.ImageResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-      summary: Create image
-      tags:
-      - Image
-  /api/v1/images/{id}:
-    get:
-      parameters:
-      - description: Image ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/http.ImageResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-      summary: Get image
-      tags:
-      - Image
-    patch:
-      consumes:
-      - application/json
-      parameters:
-      - description: Image ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Image patch request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/domain.PatchImageRequest'
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-      summary: Patch image
-      tags:
-      - Image
-  /api/v1/images/tekton/status:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Tekton status payload
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/http.ImageTektonStatusRequest'
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-      summary: Handle Tekton pipeline status callback
-      tags:
-      - Image
-  /api/v1/images/tekton/tasks:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Tekton task payload
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/http.ImageTektonTaskRequest'
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
-      summary: Handle Tekton task callback
-      tags:
-      - Image
   /api/v1/intents:
     get:
       description: 按 kind、status、resource 等维度查询 execution intents
@@ -1838,10 +1583,6 @@ paths:
       - description: Application ID
         in: query
         name: application_id
-        type: string
-      - description: Image ID
-        in: query
-        name: image_id
         type: string
       - description: Page
         in: query
@@ -1878,7 +1619,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/http.CreateManifestRequestDoc'
+          $ref: '#/definitions/internal_manifest_transport_http.CreateManifestRequestDoc'
       produces:
       - application/json
       responses:
@@ -2157,6 +1898,22 @@ paths:
       summary: 获取Release
       tags:
       - Release
+  /api/v1/releases/{id}/bundle-preview:
+    get:
+      parameters:
+      - description: Release ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.ReleaseBundleDoc'
+      summary: 获取Release bundle preview
+      tags:
+      - Release
   /api/v1/routes:
     get:
       parameters:
@@ -2401,6 +2158,35 @@ paths:
           schema:
             $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
       summary: Handle Argo CD event callback
+      tags:
+      - Release
+  /api/v1/verify/release/artifact:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Release artifact payload
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/http.ReleaseArtifactRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+      summary: Handle release artifact callback
       tags:
       - Release
   /api/v1/verify/release/steps:

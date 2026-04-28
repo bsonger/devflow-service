@@ -16,7 +16,6 @@ type Service interface {
 	Get(context.Context, uuid.UUID) (*appdomain.Application, error)
 	Update(context.Context, *appdomain.Application) error
 	Delete(context.Context, uuid.UUID) error
-	UpdateActiveImage(context.Context, uuid.UUID, uuid.UUID) error
 	List(context.Context, appdomain.ListFilter) ([]appdomain.Application, error)
 }
 
@@ -54,10 +53,6 @@ func (s *service) Update(ctx context.Context, application *appdomain.Application
 
 func (s *service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.applications.Delete(ctx, id)
-}
-
-func (s *service) UpdateActiveImage(ctx context.Context, appID, imageID uuid.UUID) error {
-	return s.applications.UpdateActiveImage(ctx, appID, imageID)
 }
 
 func (s *service) List(ctx context.Context, filter appdomain.ListFilter) ([]appdomain.Application, error) {

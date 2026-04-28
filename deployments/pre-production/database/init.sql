@@ -98,7 +98,6 @@ CREATE TABLE public.applications (
     project_id uuid NOT NULL,
     name text NOT NULL,
     repo_address text NOT NULL,
-    active_image_id uuid,
     labels jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -268,32 +267,6 @@ CREATE TABLE public.execution_intents (
 
 ALTER TABLE public.execution_intents OWNER TO app;
 
---
--- Name: images; Type: TABLE; Schema: public; Owner: app
---
-
-CREATE TABLE public.images (
-    id uuid CONSTRAINT manifests_id_not_null NOT NULL,
-    execution_intent_id uuid,
-    application_id uuid CONSTRAINT manifests_application_id_not_null NOT NULL,
-    configuration_revision_id uuid,
-    runtime_spec_revision_id uuid,
-    name text CONSTRAINT manifests_name_not_null NOT NULL,
-    branch text CONSTRAINT manifests_branch_not_null NOT NULL,
-    repo_address text CONSTRAINT manifests_repo_address_not_null NOT NULL,
-    commit_hash text DEFAULT ''::text CONSTRAINT manifests_commit_hash_not_null NOT NULL,
-    digest text DEFAULT ''::text CONSTRAINT manifests_digest_not_null NOT NULL,
-    pipeline_id text DEFAULT ''::text CONSTRAINT manifests_pipeline_id_not_null NOT NULL,
-    steps jsonb DEFAULT '[]'::jsonb CONSTRAINT manifests_steps_not_null NOT NULL,
-    status text CONSTRAINT manifests_status_not_null NOT NULL,
-    created_at timestamp with time zone CONSTRAINT manifests_created_at_not_null NOT NULL,
-    updated_at timestamp with time zone CONSTRAINT manifests_updated_at_not_null NOT NULL,
-    deleted_at timestamp with time zone,
-    tag text DEFAULT ''::text CONSTRAINT manifests_tag_not_null NOT NULL
-);
-
-
-ALTER TABLE public.images OWNER TO app;
 
 --
 -- Name: manifest_verifications; Type: TABLE; Schema: public; Owner: app
@@ -325,23 +298,22 @@ ALTER TABLE public.manifest_verifications OWNER TO app;
 CREATE TABLE public.manifests (
     id uuid CONSTRAINT manifests_id_not_null1 NOT NULL,
     application_id uuid CONSTRAINT manifests_application_id_not_null1 NOT NULL,
-    environment_id text NOT NULL,
-    image_id uuid NOT NULL,
+    git_revision text DEFAULT ''::text NOT NULL,
+    repo_address text DEFAULT ''::text NOT NULL,
+    commit_hash text DEFAULT ''::text NOT NULL,
+    image_tag text DEFAULT ''::text NOT NULL,
+    image_digest text DEFAULT ''::text NOT NULL,
+    pipeline_id text DEFAULT ''::text NOT NULL,
+    trace_id text DEFAULT ''::text NOT NULL,
+    span_id text DEFAULT ''::text NOT NULL,
+    steps jsonb DEFAULT '[]'::jsonb NOT NULL,
     image_ref text NOT NULL,
     services_snapshot jsonb DEFAULT '[]'::jsonb NOT NULL,
     workload_config_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
-    rendered_objects jsonb DEFAULT '[]'::jsonb NOT NULL,
-    rendered_yaml text DEFAULT ''::text NOT NULL,
     status text CONSTRAINT manifests_status_not_null1 NOT NULL,
     created_at timestamp with time zone CONSTRAINT manifests_created_at_not_null1 NOT NULL,
     updated_at timestamp with time zone CONSTRAINT manifests_updated_at_not_null1 NOT NULL,
     deleted_at timestamp with time zone,
-    artifact_repository text DEFAULT ''::text NOT NULL,
-    artifact_tag text DEFAULT ''::text NOT NULL,
-    artifact_ref text DEFAULT ''::text NOT NULL,
-    artifact_digest text DEFAULT ''::text NOT NULL,
-    artifact_media_type text DEFAULT ''::text NOT NULL,
-    artifact_pushed_at timestamp with time zone,
     tag text DEFAULT ''::text CONSTRAINT manifests_tag_not_null1 NOT NULL
 );
 
@@ -417,13 +389,18 @@ CREATE TABLE public.releases (
     id uuid NOT NULL,
     execution_intent_id uuid,
     application_id uuid NOT NULL,
-    image_id uuid CONSTRAINT releases_manifest_id_not_null NOT NULL,
     env text NOT NULL,
+    strategy text DEFAULT 'rolling'::text NOT NULL,
     routes_snapshot jsonb DEFAULT '[]'::jsonb NOT NULL,
     app_config_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    artifact_repository text DEFAULT ''::text NOT NULL,
+    artifact_tag text DEFAULT ''::text NOT NULL,
+    artifact_digest text DEFAULT ''::text NOT NULL,
+    artifact_ref text DEFAULT ''::text NOT NULL,
     type text NOT NULL,
     steps jsonb DEFAULT '[]'::jsonb NOT NULL,
     status text NOT NULL,
+    argocd_application_name text DEFAULT ''::text NOT NULL,
     external_ref text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -635,12 +612,6 @@ ALTER TABLE ONLY public.execution_intents
 
 
 --
--- Name: images images_pkey; Type: CONSTRAINT; Schema: public; Owner: app
---
-
-ALTER TABLE ONLY public.images
-    ADD CONSTRAINT images_pkey PRIMARY KEY (id);
-
 
 --
 -- Name: manifest_verifications manifest_verifications_pkey; Type: CONSTRAINT; Schema: public; Owner: app
@@ -731,13 +702,6 @@ ALTER TABLE ONLY public.workload_configs
 
 
 --
--- Name: idx_applications_active_image_id; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_applications_active_image_id ON public.applications USING btree (active_image_id);
-
-
---
 -- Name: idx_applications_project_id; Type: INDEX; Schema: public; Owner: app
 --
 
@@ -787,18 +751,8 @@ CREATE INDEX idx_execution_intents_status_kind ON public.execution_intents USING
 
 
 --
--- Name: idx_images_application_id; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_images_application_id ON public.images USING btree (application_id);
-
 
 --
--- Name: idx_images_execution_intent_id; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_images_execution_intent_id ON public.images USING btree (execution_intent_id);
-
 
 --
 -- Name: idx_manifest_verifications_intent_id; Type: INDEX; Schema: public; Owner: app
@@ -815,31 +769,10 @@ CREATE INDEX idx_manifest_verifications_pipeline_id ON public.manifest_verificat
 
 
 --
--- Name: idx_manifests_application_environment; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_manifests_application_environment ON public.manifests USING btree (application_id, environment_id);
-
-
---
 -- Name: idx_manifests_application_id; Type: INDEX; Schema: public; Owner: app
 --
 
 CREATE INDEX idx_manifests_application_id ON public.manifests USING btree (application_id);
-
-
---
--- Name: idx_manifests_environment_id; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_manifests_environment_id ON public.manifests USING btree (environment_id);
-
-
---
--- Name: idx_manifests_image_id; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_manifests_image_id ON public.manifests USING btree (image_id);
 
 
 --
@@ -875,13 +808,6 @@ CREATE INDEX idx_releases_application_id ON public.releases USING btree (applica
 --
 
 CREATE INDEX idx_releases_execution_intent_id ON public.releases USING btree (execution_intent_id);
-
-
---
--- Name: idx_releases_image_id; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE INDEX idx_releases_image_id ON public.releases USING btree (image_id);
 
 
 --
@@ -948,11 +874,6 @@ CREATE UNIQUE INDEX uq_environments_name_active ON public.environments USING btr
 
 
 --
--- Name: uq_images_pipeline_id_active; Type: INDEX; Schema: public; Owner: app
---
-
-CREATE UNIQUE INDEX uq_images_pipeline_id_active ON public.images USING btree (pipeline_id) WHERE ((pipeline_id <> ''::text) AND (deleted_at IS NULL));
-
 
 --
 -- Name: uq_manifest_verifications_manifest_id; Type: INDEX; Schema: public; Owner: app

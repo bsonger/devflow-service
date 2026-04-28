@@ -39,6 +39,10 @@ func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 		return err
 	}
 
+	if opts.SetExecutionMode != nil && opts.ExecutionMode != "" {
+		opts.SetExecutionMode(opts.ExecutionMode)
+	}
+
 	shutdown, err := opts.InitRuntime(context.Background(), cfg, opts.Name)
 	if err != nil {
 		return err
@@ -46,10 +50,6 @@ func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 	defer func() {
 		_ = shutdown(context.Background())
 	}()
-
-	if opts.SetExecutionMode != nil && opts.ExecutionMode != "" {
-		opts.SetExecutionMode(opts.ExecutionMode)
-	}
 
 	metricsPort := resolvePort(opts.DefaultMetrics, opts.MetricsPortEnv)
 	if metricsPort > 0 && opts.StartMetricsServer != nil {

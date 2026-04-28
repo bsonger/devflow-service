@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	intentdomain "github.com/bsonger/devflow-service/internal/intent/domain"
 	"github.com/bsonger/devflow-service/internal/intent/repository"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
@@ -38,33 +37,6 @@ func (s *intentService) repoStore() repository.Store {
 }
 
 var ErrIntentNotFound = sharederrs.NotFound("intent not found")
-
-func (s *intentService) CreateBuildIntent(ctx context.Context, image *imagedomain.Image) (uuid.UUID, error) {
-	intent := &intentdomain.Intent{
-		Kind:         model.IntentKindBuild,
-		Status:       model.IntentPending,
-		ResourceType: "image",
-		ResourceID:   image.ID,
-	}
-	intent.WithCreateDefault()
-	if err := s.repoStore().Insert(ctx, intent); err != nil {
-		return uuid.Nil, err
-	}
-	if err := s.repoStore().BindIntentToImage(ctx, image.ID, intent.ID); err != nil {
-		return intent.ID, err
-	}
-	image.ExecutionIntentID = uuidPtr(intent.ID)
-	logger.LoggerWithContext(ctx).Info("build intent created",
-		zap.String("result", "success"),
-		zap.String("resource", "intent"),
-		zap.String("intent_id", intent.ID.String()),
-		zap.String("intent_kind", string(intent.Kind)),
-		zap.String("resource_type", intent.ResourceType),
-		zap.String("resource_id", intent.ResourceID.String()),
-		zap.String("image_id", image.ID.String()),
-	)
-	return intent.ID, nil
-}
 
 func (s *intentService) CreateReleaseIntent(ctx context.Context, release *model.Release) (uuid.UUID, error) {
 	intent := &intentdomain.Intent{
@@ -111,6 +83,17 @@ func (s *intentService) ListPending(ctx context.Context, limit int) ([]intentdom
 
 func (s *intentService) ClaimNextPending(ctx context.Context, workerID string, leaseDuration time.Duration) (*intentdomain.Intent, error) {
 	intent, err := s.repoStore().ClaimNextPending(ctx, workerID, leaseDuration)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrIntentNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return intent, nil
+}
+
+func (s *intentService) ClaimNextPendingByKind(ctx context.Context, kind model.IntentKind, workerID string, leaseDuration time.Duration) (*intentdomain.Intent, error) {
+	intent, err := s.repoStore().ClaimNextPendingByKind(ctx, kind, workerID, leaseDuration)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrIntentNotFound
 	}

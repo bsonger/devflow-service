@@ -10,7 +10,7 @@
 ## Purpose
 
 `Application` is the app metadata resource in `meta-service`.
-It stores the project reference, repository address, descriptive fields, labels, and the current `active_image` binding.
+It stores the project reference, repository address, descriptive fields, and labels.
 
 ## Common base fields
 
@@ -29,7 +29,6 @@ It stores the project reference, repository address, descriptive fields, labels,
 | `name` | `string` | required | user | 应用名 |
 | `repo_address` | `string` | required | user | 代码仓库地址 |
 | `description` | `string` | optional | user | 应用描述 |
-| `active_image_id` | `*uuid.UUID` | optional | user/system | 当前绑定 image |
 | `labels` | `[]LabelItem` | optional | user | 扩展标签 |
 
 ## API surface
@@ -39,7 +38,6 @@ It stores the project reference, repository address, descriptive fields, labels,
 - `GET /api/v1/applications/{id}`
 - `PUT /api/v1/applications/{id}`
 - `DELETE /api/v1/applications/{id}`
-- `PATCH /api/v1/applications/{id}/active_image`
 - `GET /api/v1/applications/{id}/environments`
 - `POST /api/v1/applications/{id}/environments`
 - `GET /api/v1/applications/{id}/environments/{environment_id}`
@@ -59,7 +57,7 @@ It stores the project reference, repository address, descriptive fields, labels,
 
 ### Update
 - mutable fields:
-  - `project_id`, `name`, `repo_address`, `description`, `active_image_id`, `labels`
+  - `project_id`, `name`, `repo_address`, `description`, `labels`
 - immutable/system-managed fields:
   - `id`, `created_at`, `deleted_at`
 
@@ -69,7 +67,6 @@ It stores the project reference, repository address, descriptive fields, labels,
 ## Validation notes
 
 - `project_id` must reference an existing `Project`
-- `image_id` in the patch request must be a valid UUID
 - missing or invalid UUID path parameters return `invalid_argument`
 - list endpoints support `project_id`, `name`, `repo_address`, and `include_deleted`
 

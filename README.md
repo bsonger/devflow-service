@@ -20,7 +20,7 @@ Today this repo is in a transition state:
 - `network-service` now also boots from the root layout at `cmd/network-service` and owns the extracted network API surface for `Service` and `Route`
 - `release-service` now also boots from the root layout at `cmd/release-service` with verify ingress folded into its release-owned HTTP surface
 - `runtime-service` now also boots from the root layout at `cmd/runtime-service` and now owns extracted runtime spec, runtime revision, and runtime observed-pod APIs
-- release-owned resource domains are split into `internal/image`, `internal/manifest`, `internal/intent`, with release-specific orchestration remaining in `internal/release`
+- release-owned resource domains are split into `internal/manifest` and `internal/intent`, with release-specific orchestration remaining in `internal/release`
 - the target code layout is root `cmd/` plus root `internal/`
 - business code follows `internal/<domain>/{service,domain,repository,transport}`
 - the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`

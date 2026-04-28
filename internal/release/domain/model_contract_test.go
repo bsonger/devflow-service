@@ -9,12 +9,12 @@ import (
 
 func TestReleaseContract(t *testing.T) {
 	typ := reflect.TypeOf(Release{})
-	for _, field := range []string{"ExecutionIntentID", "ApplicationID", "ManifestID", "ImageID", "EnvironmentID", "RoutesSnapshot", "AppConfigSnapshot", "Type", "Status"} {
+	for _, field := range []string{"ExecutionIntentID", "ApplicationID", "ManifestID", "EnvironmentID", "RoutesSnapshot", "AppConfigSnapshot", "Type", "Status"} {
 		f, ok := typ.FieldByName(field)
 		if !ok {
 			t.Fatalf("Release missing field %s", field)
 		}
-		if (field == "ImageID" || field == "ManifestID") && f.Type != reflect.TypeOf(uuid.UUID{}) {
+		if field == "ManifestID" && f.Type != reflect.TypeOf(uuid.UUID{}) {
 			t.Fatalf("Release.%s type = %v, want uuid.UUID", field, f.Type)
 		}
 	}

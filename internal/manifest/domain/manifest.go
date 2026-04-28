@@ -1,9 +1,6 @@
 package domain
 
 import (
-	"time"
-
-	imagedomain "github.com/bsonger/devflow-service/internal/image/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
 )
@@ -11,43 +8,29 @@ import (
 type Manifest struct {
 	model.BaseModel
 
-	ApplicationID          uuid.UUID                `json:"application_id" db:"application_id"`
-	EnvironmentID          string                   `json:"-" db:"environment_id"`
-	ImageID                uuid.UUID                `json:"image_id" db:"image_id"`
-	ImageRef               string                   `json:"image_ref" db:"image_ref"`
-	ArtifactRepository     string                   `json:"artifact_repository" db:"artifact_repository"`
-	ArtifactTag            string                   `json:"artifact_tag" db:"artifact_tag"`
-	ArtifactRef            string                   `json:"artifact_ref" db:"artifact_ref"`
-	ArtifactDigest         string                   `json:"artifact_digest" db:"artifact_digest"`
-	ArtifactMediaType      string                   `json:"artifact_media_type" db:"artifact_media_type"`
-	ArtifactPushedAt       *time.Time               `json:"artifact_pushed_at,omitempty" db:"artifact_pushed_at"`
-	ServicesSnapshot       []ManifestService        `json:"services_snapshot" db:"services_snapshot"`
-	WorkloadConfigSnapshot ManifestWorkloadConfig   `json:"workload_config_snapshot" db:"workload_config_snapshot"`
-	RenderedObjects        []ManifestRenderedObject `json:"rendered_objects" db:"rendered_objects"`
-	RenderedYAML           string                   `json:"rendered_yaml" db:"rendered_yaml"`
-	Status                 model.ManifestStatus     `json:"status" db:"status"`
+	ApplicationID          uuid.UUID              `json:"application_id" db:"application_id"`
+	GitRevision            string                 `json:"git_revision,omitempty" db:"git_revision"`
+	RepoAddress            string                 `json:"repo_address" db:"repo_address"`
+	CommitHash             string                 `json:"commit_hash" db:"commit_hash"`
+	ImageRef               string                 `json:"image_ref" db:"image_ref"`
+	ImageTag               string                 `json:"image_tag,omitempty" db:"image_tag"`
+	ImageDigest            string                 `json:"image_digest,omitempty" db:"image_digest"`
+	PipelineID             string                 `json:"pipeline_id,omitempty" db:"pipeline_id"`
+	TraceID                string                 `json:"trace_id,omitempty" db:"trace_id"`
+	SpanID                 string                 `json:"span_id,omitempty" db:"span_id"`
+	Steps                  []model.ImageTask      `json:"steps,omitempty" db:"steps"`
+	ServicesSnapshot       []ManifestService      `json:"services_snapshot" db:"services_snapshot"`
+	WorkloadConfigSnapshot ManifestWorkloadConfig `json:"workload_config_snapshot" db:"workload_config_snapshot"`
+	Status                 model.ManifestStatus   `json:"status" db:"status"`
 }
 
 type CreateManifestRequest struct {
-	ApplicationID           uuid.UUID  `json:"application_id"`
-	ImageID                 uuid.UUID  `json:"image_id,omitempty"`
-	Branch                  string     `json:"branch,omitempty"`
-	ConfigurationRevisionID *uuid.UUID `json:"configuration_revision_id,omitempty"`
-	RuntimeSpecRevisionID   *uuid.UUID `json:"runtime_spec_revision_id,omitempty"`
-}
-
-func (r *CreateManifestRequest) ToCreateImageRequest() imagedomain.CreateImageRequest {
-	return imagedomain.CreateImageRequest{
-		ApplicationID:           r.ApplicationID,
-		ConfigurationRevisionID: r.ConfigurationRevisionID,
-		RuntimeSpecRevisionID:   r.RuntimeSpecRevisionID,
-		Branch:                  r.Branch,
-	}
+	ApplicationID uuid.UUID `json:"application_id"`
+	GitRevision   string    `json:"git_revision,omitempty"`
 }
 
 type ManifestListFilter struct {
 	ApplicationID  *uuid.UUID
-	ImageID        *uuid.UUID
 	IncludeDeleted bool
 }
 
@@ -100,13 +83,6 @@ type ManifestWorkloadConfig struct {
 	Strategy     string         `json:"strategy,omitempty"`
 }
 
-type ManifestRenderedObject struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	YAML      string `json:"yaml"`
-}
-
 type ManifestRenderedResource struct {
 	Kind      string         `json:"kind"`
 	Name      string         `json:"name"`
@@ -124,10 +100,9 @@ type ManifestGroupedResources struct {
 }
 
 type ManifestResourcesView struct {
-	ManifestID      uuid.UUID                  `json:"manifest_id"`
-	ApplicationID   uuid.UUID                  `json:"application_id"`
-	Resources       ManifestGroupedResources   `json:"resources"`
-	RenderedObjects []ManifestRenderedResource `json:"rendered_objects,omitempty"`
+	ManifestID    uuid.UUID                `json:"manifest_id"`
+	ApplicationID uuid.UUID                `json:"application_id"`
+	Resources     ManifestGroupedResources `json:"resources"`
 }
 
 func (m *Manifest) CollectionName() string { return "manifests" }

@@ -327,37 +327,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/applications/{id}/active_image": {
-            "patch": {
-                "tags": [
-                    "Application"
-                ],
-                "summary": "更新应用的 Active Image",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Active Image Data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_application_transport_http.UpdateActiveImageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/api/v1/clusters": {
             "get": {
                 "tags": [
@@ -601,310 +570,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/images": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Image"
-                ],
-                "summary": "List images",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Pipeline ID",
-                        "name": "pipeline_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Status",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Branch",
-                        "name": "branch",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/http.ImageListResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Image"
-                ],
-                "summary": "Create image",
-                "parameters": [
-                    {
-                        "description": "Image create request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/domain.CreateImageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/http.ImageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/images/tekton/status": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Image"
-                ],
-                "summary": "Handle Tekton pipeline status callback",
-                "parameters": [
-                    {
-                        "description": "Tekton status payload",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/http.ImageTektonStatusRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/images/tekton/tasks": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Image"
-                ],
-                "summary": "Handle Tekton task callback",
-                "parameters": [
-                    {
-                        "description": "Tekton task payload",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/http.ImageTektonTaskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/images/{id}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Image"
-                ],
-                "summary": "Get image",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Image ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/http.ImageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Image"
-                ],
-                "summary": "Patch image",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Image ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Image patch request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/domain.PatchImageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/intents": {
             "get": {
                 "description": "按 kind、status、resource 等维度查询 execution intents",
@@ -964,12 +629,6 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Image ID",
-                        "name": "image_id",
-                        "in": "query"
-                    },
-                    {
                         "type": "integer",
                         "description": "Page",
                         "name": "page",
@@ -1021,7 +680,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.CreateManifestRequestDoc"
+                            "$ref": "#/definitions/internal_manifest_transport_http.CreateManifestRequestDoc"
                         }
                     }
                 ],
@@ -1447,6 +1106,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/releases/{id}/bundle-preview": {
+            "get": {
+                "tags": [
+                    "Release"
+                ],
+                "summary": "获取Release bundle preview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Release ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.ReleaseBundleDoc"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/routes": {
             "get": {
                 "produces": [
@@ -1826,6 +1510,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/verify/release/artifact": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Release"
+                ],
+                "summary": "Handle release artifact callback",
+                "parameters": [
+                    {
+                        "description": "Release artifact payload",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.ReleaseArtifactRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/verify/release/steps": {
             "post": {
                 "consumes": [
@@ -2029,48 +1758,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "domain.CreateImageRequest": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "branch": {
-                    "type": "string"
-                },
-                "configuration_revision_id": {
-                    "type": "string"
-                },
-                "runtime_spec_revision_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.EnvVar": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.PatchImageRequest": {
-            "type": "object",
-            "properties": {
-                "commit_hash": {
-                    "type": "string"
-                },
-                "digest": {
-                    "type": "string"
-                },
-                "tag": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig": {
             "type": "object",
             "properties": {
@@ -2242,9 +1929,6 @@ const docTemplate = `{
         "github_com_bsonger_devflow-service_internal_application_domain.Application": {
             "type": "object",
             "properties": {
-                "active_image_id": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2785,9 +2469,6 @@ const docTemplate = `{
         "github_com_bsonger_devflow-service_internal_project_domain.Application": {
             "type": "object",
             "properties": {
-                "active_image_id": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2860,6 +2541,17 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem": {
             "type": "object",
             "properties": {
@@ -2889,7 +2581,7 @@ const docTemplate = `{
                 "env": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.EnvVar"
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar"
                     }
                 },
                 "id": {
@@ -2941,7 +2633,7 @@ const docTemplate = `{
                 "env": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.EnvVar"
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar"
                     }
                 },
                 "labels": {
@@ -2999,19 +2691,13 @@ const docTemplate = `{
                 }
             }
         },
-        "http.CreateManifestRequestDoc": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "image_id": {
-                    "type": "string"
-                }
-            }
-        },
         "http.CreateReleaseRequest": {
             "type": "object",
+            "required": [
+                "environment_id",
+                "manifest_id",
+                "strategy"
+            ],
             "properties": {
                 "environment_id": {
                     "type": "string"
@@ -3019,163 +2705,10 @@ const docTemplate = `{
                 "manifest_id": {
                     "type": "string"
                 },
+                "strategy": {
+                    "type": "string"
+                },
                 "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.ImageDoc": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "branch": {
-                    "type": "string"
-                },
-                "commit_hash": {
-                    "type": "string"
-                },
-                "configuration_revision_id": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "digest": {
-                    "type": "string"
-                },
-                "execution_intent_id": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "pipeline_id": {
-                    "type": "string"
-                },
-                "repo_address": {
-                    "type": "string"
-                },
-                "runtime_spec_revision_id": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "steps": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/http.ImageTaskDoc"
-                    }
-                },
-                "tag": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.ImageListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/http.ImageDoc"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
-                }
-            }
-        },
-        "http.ImageResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/http.ImageDoc"
-                }
-            }
-        },
-        "http.ImageTaskDoc": {
-            "type": "object",
-            "properties": {
-                "end_time": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "task_name": {
-                    "type": "string"
-                },
-                "task_run": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.ImageTektonStatusRequest": {
-            "type": "object",
-            "required": [
-                "image_id",
-                "status"
-            ],
-            "properties": {
-                "image_id": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "pipeline_id": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.ImageTektonTaskRequest": {
-            "type": "object",
-            "required": [
-                "image_id",
-                "status",
-                "task_name"
-            ],
-            "properties": {
-                "end_time": {
-                    "type": "string"
-                },
-                "image_id": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "pipeline_id": {
-                    "type": "string"
-                },
-                "start_time": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "task_name": {
-                    "type": "string"
-                },
-                "task_run": {
                     "type": "string"
                 }
             }
@@ -3267,6 +2800,107 @@ const docTemplate = `{
                 }
             }
         },
+        "http.ReleaseArtifactRequest": {
+            "type": "object",
+            "required": [
+                "release_id"
+            ],
+            "properties": {
+                "artifact_digest": {
+                    "type": "string"
+                },
+                "artifact_ref": {
+                    "type": "string"
+                },
+                "artifact_repository": {
+                    "type": "string"
+                },
+                "artifact_tag": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "progress": {
+                    "type": "integer"
+                },
+                "release_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.ReleaseBundleDoc": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "artifact_name": {
+                    "type": "string"
+                },
+                "environment_id": {
+                    "type": "string"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseBundleFileDoc"
+                    }
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "release_id": {
+                    "type": "string"
+                },
+                "rendered_objects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                    }
+                },
+                "resources": {
+                    "$ref": "#/definitions/http.ReleaseBundleResourcesDoc"
+                }
+            }
+        },
+        "http.ReleaseBundleFileDoc": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.ReleaseBundleResourcesDoc": {
+            "type": "object",
+            "properties": {
+                "configmap": {
+                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                },
+                "deployment": {
+                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                },
+                "rollout": {
+                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                },
+                "services": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                    }
+                },
+                "virtualservice": {
+                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                }
+            }
+        },
         "http.ReleaseDoc": {
             "type": "object",
             "properties": {
@@ -3274,6 +2908,21 @@ const docTemplate = `{
                     "$ref": "#/definitions/http.ReleaseAppConfigDoc"
                 },
                 "application_id": {
+                    "type": "string"
+                },
+                "argocd_application_name": {
+                    "type": "string"
+                },
+                "artifact_digest": {
+                    "type": "string"
+                },
+                "artifact_ref": {
+                    "type": "string"
+                },
+                "artifact_repository": {
+                    "type": "string"
+                },
+                "artifact_tag": {
                     "type": "string"
                 },
                 "created_at": {
@@ -3289,9 +2938,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
-                },
-                "image_id": {
                     "type": "string"
                 },
                 "manifest_id": {
@@ -3311,6 +2957,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/http.ReleaseStepDoc"
                     }
+                },
+                "strategy": {
+                    "type": "string"
                 },
                 "type": {
                     "type": "string"
@@ -3342,6 +2991,27 @@ const docTemplate = `{
                 },
                 "pagination": {
                     "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+                }
+            }
+        },
+        "http.ReleaseRenderedResourceDoc": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "object": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "yaml": {
+                    "type": "string"
                 }
             }
         },
@@ -3379,6 +3049,9 @@ const docTemplate = `{
         "http.ReleaseStepDoc": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "string"
+                },
                 "end_time": {
                     "type": "string"
                 },
@@ -3403,8 +3076,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "release_id",
-                "status",
-                "step_name"
+                "status"
             ],
             "properties": {
                 "message": {
@@ -3417,6 +3089,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                },
+                "step_code": {
                     "type": "string"
                 },
                 "step_name": {
@@ -3447,23 +3122,9 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_application_transport_http.UpdateActiveImageRequest": {
-            "type": "object",
-            "required": [
-                "image_id"
-            ],
-            "properties": {
-                "image_id": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_application_transport_http.UpdateApplicationRequest": {
             "type": "object",
             "properties": {
-                "active_image_id": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -3641,49 +3302,48 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_manifest_transport_http.CreateManifestRequestDoc": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "git_revision": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_manifest_transport_http.ManifestDoc": {
             "type": "object",
             "properties": {
                 "application_id": {
                     "type": "string"
                 },
-                "artifact_digest": {
-                    "type": "string"
-                },
-                "artifact_media_type": {
-                    "type": "string"
-                },
-                "artifact_pushed_at": {
-                    "type": "string"
-                },
-                "artifact_ref": {
-                    "type": "string"
-                },
-                "artifact_repository": {
-                    "type": "string"
-                },
-                "artifact_tag": {
+                "commit_hash": {
                     "type": "string"
                 },
                 "created_at": {
                     "type": "string"
                 },
+                "git_revision": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
-                "image_id": {
+                "image_digest": {
                     "type": "string"
                 },
                 "image_ref": {
                     "type": "string"
                 },
-                "rendered_objects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedObjectDoc"
-                    }
+                "image_tag": {
+                    "type": "string"
                 },
-                "rendered_yaml": {
+                "pipeline_id": {
+                    "type": "string"
+                },
+                "repo_address": {
                     "type": "string"
                 },
                 "services_snapshot": {
@@ -3692,7 +3352,19 @@ const docTemplate = `{
                         "$ref": "#/definitions/internal_manifest_transport_http.ManifestServiceDoc"
                     }
                 },
+                "span_id": {
+                    "type": "string"
+                },
                 "status": {
+                    "type": "string"
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestStepDoc"
+                    }
+                },
+                "trace_id": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -3737,23 +3409,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestRenderedObjectDoc": {
-            "type": "object",
-            "properties": {
-                "kind": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "yaml": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_manifest_transport_http.ManifestRenderedResourceDoc": {
             "type": "object",
             "properties": {
@@ -3783,12 +3438,6 @@ const docTemplate = `{
                 },
                 "manifest_id": {
                     "type": "string"
-                },
-                "rendered_objects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
-                    }
                 },
                 "resources": {
                     "$ref": "#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc"
@@ -3826,6 +3475,29 @@ const docTemplate = `{
                 },
                 "target_port": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_manifest_transport_http.ManifestStepDoc": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "task_name": {
+                    "type": "string"
+                },
+                "task_run": {
+                    "type": "string"
                 }
             }
         },

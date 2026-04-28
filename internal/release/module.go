@@ -1,7 +1,6 @@
 package release
 
 import (
-	"github.com/bsonger/devflow-service/internal/image"
 	"github.com/bsonger/devflow-service/internal/intent"
 	"github.com/bsonger/devflow-service/internal/manifest"
 	"github.com/gin-gonic/gin"
@@ -15,6 +14,5 @@ func NewModule() Module {
 
 func (m Module) RegisterRoutes(rg *gin.RouterGroup) {
 	manifest.NewModule().RegisterRoutes(rg)
-	image.NewModule().RegisterRoutes(rg)
 	intent.NewModule().RegisterRoutes(rg)
 }

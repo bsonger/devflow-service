@@ -18,6 +18,7 @@ import (
 type releaseService interface {
 	Create(ctx context.Context, release *model.Release) (uuid.UUID, error)
 	Get(ctx context.Context, id uuid.UUID) (*model.Release, error)
+	GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundle, error)
 	List(ctx context.Context, filter service.ReleaseListFilter) ([]*model.Release, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -43,13 +44,15 @@ func (h *ReleaseHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	release := rg.Group("/releases")
 	release.GET("", h.List)
 	release.GET("/:id", h.Get)
+	release.GET("/:id/bundle-preview", h.GetBundlePreview)
 	release.POST("", h.Create)
 	release.DELETE("/:id", h.Delete)
 }
 
 type CreateReleaseRequest struct {
-	ManifestID    uuid.UUID `json:"manifest_id"`
-	EnvironmentID string    `json:"environment_id"`
+	ManifestID    uuid.UUID `json:"manifest_id" binding:"required"`
+	EnvironmentID string    `json:"environment_id" binding:"required"`
+	Strategy      string    `json:"strategy" binding:"required"`
 	Type          string    `json:"type,omitempty"`
 }
 
@@ -70,12 +73,13 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 	release := &model.Release{
 		ManifestID:    req.ManifestID,
 		EnvironmentID: req.EnvironmentID,
+		Strategy:      req.Strategy,
 		Type:          req.Type,
 	}
 	release.WithCreateDefault()
 	_, err := h.svc.Create(c.Request.Context(), release)
 	if err != nil {
-		if errors.Is(err, service.ErrImageMissingRuntimeSpecRevision) || errors.Is(err, service.ErrRuntimeSpecBindingMismatch) || errors.Is(err, service.ErrReleaseManifestNotReady) || errors.Is(err, service.ErrReleaseAppConfigMissing) || errors.Is(err, runtimeclient.ErrRuntimeServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
+		if errors.Is(err, service.ErrReleaseManifestNotReady) || errors.Is(err, service.ErrReleaseAppConfigMissing) || errors.Is(err, runtimeclient.ErrRuntimeServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
 			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 			return
 		}
@@ -109,6 +113,31 @@ func (h *ReleaseHandler) Get(c *gin.Context) {
 	}
 
 	httpx.WriteData(c, http.StatusOK, release)
+}
+
+// GetBundlePreview
+// @Summary 获取Release bundle preview
+// @Tags Release
+// @Param id path string true "Release ID"
+// @Success 200 {object} ReleaseBundleDoc
+// @Router /api/v1/releases/{id}/bundle-preview [get]
+func (h *ReleaseHandler) GetBundlePreview(c *gin.Context) {
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+
+	bundle, err := h.svc.GetBundlePreview(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpx.WriteNotFound(c, "not found")
+			return
+		}
+		httpx.WriteInternalError(c, err)
+		return
+	}
+
+	httpx.WriteData(c, http.StatusOK, bundle)
 }
 
 // Delete
@@ -156,13 +185,6 @@ func (h *ReleaseHandler) List(c *gin.Context) {
 	}
 	if manifestID != nil {
 		filter.ManifestID = manifestID
-	}
-	imageID, ok := httpx.ParseUUIDQuery(c, "image_id")
-	if !ok {
-		return
-	}
-	if imageID != nil {
-		filter.ImageID = imageID
 	}
 	if status := c.Query("status"); status != "" {
 		filter.Status = status

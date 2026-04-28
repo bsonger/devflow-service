@@ -4,7 +4,7 @@
 
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
 The active local migration focuses on `meta-service`, while `config-service`, `network-service`, `release-service`, and `runtime-service` have also been brought into the same root-level `cmd` and `internal` layout.
-Inside `internal/`, release-owned business resources now follow the same top-level split pattern as the rest of the repo: `internal/image`, `internal/manifest`, `internal/intent`, plus release-specific assembly and adapters in `internal/release`.
+Inside `internal/`, release-owned business resources now follow the same top-level split pattern as the rest of the repo: `internal/manifest`, `internal/intent`, plus release-specific assembly and adapters in `internal/release`.
 
 ## Root structure
 
