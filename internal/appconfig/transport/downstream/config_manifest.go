@@ -19,19 +19,13 @@ type ManifestFile struct {
 }
 
 type AppConfig struct {
-	ID                string            `json:"id"`
-	ApplicationID     string            `json:"application_id"`
-	EnvironmentID     string            `json:"environment_id"`
-	Name              string            `json:"name"`
-	MountPath         string            `json:"mount_path,omitempty"`
-	SourcePath        string            `json:"source_path"`
-	Files             []ManifestFile    `json:"files,omitempty"`
-	RenderedConfigMap map[string]string `json:"rendered_configmap,omitempty"`
-	SourceCommit      string            `json:"source_commit,omitempty"`
-}
-
-type renderedConfigMapEnvelope struct {
-	Data map[string]string `json:"data,omitempty"`
+	ID              string         `json:"id"`
+	ApplicationID   string         `json:"application_id"`
+	EnvironmentID   string         `json:"environment_id"`
+	MountPath       string         `json:"mount_path,omitempty"`
+	SourceDirectory string         `json:"source_directory,omitempty"`
+	Files           []ManifestFile `json:"files,omitempty"`
+	SourceCommit    string         `json:"source_commit,omitempty"`
 }
 
 type WorkloadConfig struct {
@@ -65,29 +59,25 @@ func (c *Client) FindAppConfig(ctx context.Context, applicationId, environmentId
 
 func (c *Client) GetAppConfig(ctx context.Context, id string) (*AppConfig, error) {
 	var item struct {
-		ID                string                    `json:"id"`
-		ApplicationID     string                    `json:"application_id"`
-		EnvironmentID     string                    `json:"environment_id"`
-		Name              string                    `json:"name"`
-		MountPath         string                    `json:"mount_path,omitempty"`
-		SourcePath        string                    `json:"source_path"`
-		Files             []ManifestFile            `json:"files,omitempty"`
-		RenderedConfigMap renderedConfigMapEnvelope `json:"rendered_configmap,omitempty"`
-		SourceCommit      string                    `json:"source_commit,omitempty"`
+		ID              string         `json:"id"`
+		ApplicationID   string         `json:"application_id"`
+		EnvironmentID   string         `json:"environment_id"`
+		MountPath       string         `json:"mount_path,omitempty"`
+		SourceDirectory string         `json:"source_directory,omitempty"`
+		Files           []ManifestFile `json:"files,omitempty"`
+		SourceCommit    string         `json:"source_commit,omitempty"`
 	}
 	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/app-configs/%s", id), &item); err != nil {
 		return nil, err
 	}
 	return &AppConfig{
-		ID:                item.ID,
-		ApplicationID:     item.ApplicationID,
-		EnvironmentID:     item.EnvironmentID,
-		Name:              item.Name,
-		MountPath:         item.MountPath,
-		SourcePath:        item.SourcePath,
-		Files:             item.Files,
-		RenderedConfigMap: item.RenderedConfigMap.Data,
-		SourceCommit:      item.SourceCommit,
+		ID:              item.ID,
+		ApplicationID:   item.ApplicationID,
+		EnvironmentID:   item.EnvironmentID,
+		MountPath:       item.MountPath,
+		SourceDirectory: item.SourceDirectory,
+		Files:           item.Files,
+		SourceCommit:    item.SourceCommit,
 	}, nil
 }
 

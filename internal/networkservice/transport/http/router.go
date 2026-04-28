@@ -3,9 +3,9 @@ package http
 import (
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/approute"
-	"github.com/bsonger/devflow-service/internal/appservice"
 	"github.com/bsonger/devflow-service/internal/platform/routercore"
+	routeapi "github.com/bsonger/devflow-service/internal/route"
+	serviceapi "github.com/bsonger/devflow-service/internal/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -16,8 +16,8 @@ import (
 type Module string
 
 const (
-	ModuleAppService Module = "app-service"
-	ModuleAppRoute   Module = "app-route"
+	ModuleService Module = "service"
+	ModuleRoute   Module = "route"
 )
 
 type Options struct {
@@ -31,8 +31,8 @@ func NewRouter() *gin.Engine {
 		ServiceName:   "network-service",
 		EnableSwagger: true,
 		Modules: []Module{
-			ModuleAppService,
-			ModuleAppRoute,
+			ModuleService,
+			ModuleRoute,
 		},
 	})
 }
@@ -90,10 +90,10 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 		seen[module] = struct{}{}
 
 		switch module {
-		case ModuleAppService:
-			appservice.NewModule().RegisterRoutes(api)
-		case ModuleAppRoute:
-			approute.NewModule().RegisterRoutes(api)
+		case ModuleService:
+			serviceapi.NewModule().RegisterRoutes(api)
+		case ModuleRoute:
+			routeapi.NewModule().RegisterRoutes(api)
 		}
 	}
 }
@@ -101,8 +101,8 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 func toStatusModules(modules []Module) []string {
 	if len(modules) == 0 {
 		modules = []Module{
-			ModuleAppService,
-			ModuleAppRoute,
+			ModuleService,
+			ModuleRoute,
 		}
 	}
 

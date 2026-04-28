@@ -536,7 +536,7 @@ Release-owned migrated freeze work will likely land in:
 
 Downstream readers affected by the boundary split will likely land in:
 - `internal/appconfig/transport/downstream/config_manifest.go`
-- `internal/appservice/transport/downstream/service.go`
+- `internal/service/transport/downstream/service.go`
 - `internal/release/support/deploy_target.go`
 
 Verification and contract sync will likely land in:

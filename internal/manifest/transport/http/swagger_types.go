@@ -39,13 +39,12 @@ type ManifestFileDoc struct {
 }
 
 type ManifestAppConfigDoc struct {
-	ID           string            `json:"id,omitempty"`
-	Name         string            `json:"name,omitempty"`
-	Files        []ManifestFileDoc `json:"files,omitempty"`
-	Data         map[string]string `json:"data,omitempty"`
-	SourcePath   string            `json:"source_path,omitempty"`
-	RevisionID   string            `json:"revision_id,omitempty"`
-	SourceCommit string            `json:"source_commit,omitempty"`
+	ID              string            `json:"id,omitempty"`
+	Files           []ManifestFileDoc `json:"files,omitempty"`
+	Data            map[string]string `json:"data,omitempty"`
+	SourceDirectory string            `json:"source_directory,omitempty"`
+	RevisionID      string            `json:"revision_id,omitempty"`
+	SourceCommit    string            `json:"source_commit,omitempty"`
 }
 
 type ManifestEnvVarDoc struct {

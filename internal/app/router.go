@@ -6,12 +6,12 @@ import (
 	"github.com/bsonger/devflow-service/internal/appconfig"
 	"github.com/bsonger/devflow-service/internal/application"
 	"github.com/bsonger/devflow-service/internal/applicationenv"
-	"github.com/bsonger/devflow-service/internal/approute"
-	"github.com/bsonger/devflow-service/internal/appservice"
 	"github.com/bsonger/devflow-service/internal/cluster"
 	"github.com/bsonger/devflow-service/internal/environment"
 	"github.com/bsonger/devflow-service/internal/platform/routercore"
 	"github.com/bsonger/devflow-service/internal/project"
+	routeapi "github.com/bsonger/devflow-service/internal/route"
+	serviceapi "github.com/bsonger/devflow-service/internal/service"
 	"github.com/bsonger/devflow-service/internal/workloadconfig"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -28,8 +28,8 @@ const (
 	ModuleApplicationEnv Module = "application-environment"
 	ModuleCluster        Module = "cluster"
 	ModuleEnvironment    Module = "environment"
-	ModuleAppService     Module = "app-service"
-	ModuleAppRoute       Module = "app-route"
+	ModuleService        Module = "service"
+	ModuleRoute          Module = "route"
 	ModuleAppConfig      Module = "app-config"
 	ModuleWorkloadConfig Module = "workload-config"
 )
@@ -117,12 +117,12 @@ func RegisterEnvironmentRoutes(rg *gin.RouterGroup) {
 	environment.NewModule().RegisterRoutes(rg)
 }
 
-func RegisterAppServiceRoutes(rg *gin.RouterGroup) {
-	appservice.NewModule().RegisterRoutes(rg)
+func RegisterServiceRoutes(rg *gin.RouterGroup) {
+	serviceapi.NewModule().RegisterRoutes(rg)
 }
 
-func RegisterAppRouteRoutes(rg *gin.RouterGroup) {
-	approute.NewModule().RegisterRoutes(rg)
+func RegisterRouteRoutes(rg *gin.RouterGroup) {
+	routeapi.NewModule().RegisterRoutes(rg)
 }
 
 func RegisterAppConfigRoutes(rg *gin.RouterGroup) {
@@ -159,10 +159,10 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 			RegisterClusterRoutes(api)
 		case ModuleEnvironment:
 			RegisterEnvironmentRoutes(api)
-		case ModuleAppService:
-			RegisterAppServiceRoutes(api)
-		case ModuleAppRoute:
-			RegisterAppRouteRoutes(api)
+		case ModuleService:
+			RegisterServiceRoutes(api)
+		case ModuleRoute:
+			RegisterRouteRoutes(api)
 		case ModuleAppConfig:
 			RegisterAppConfigRoutes(api)
 		case ModuleWorkloadConfig:

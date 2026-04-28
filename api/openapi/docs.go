@@ -40,12 +40,6 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
                         "type": "integer",
                         "description": "Page",
                         "name": "page",
@@ -647,7 +641,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.ManifestListResponse"
+                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestListResponse"
                         }
                     },
                     "400": {
@@ -690,7 +684,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/http.ManifestResponse"
+                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResponse"
                         }
                     },
                     "400": {
@@ -742,7 +736,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.ManifestResponse"
+                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResponse"
                         }
                     },
                     "400": {
@@ -826,7 +820,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.ManifestResourcesResponse"
+                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesResponse"
                         }
                     },
                     "400": {
@@ -1226,7 +1220,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_route_domain_Route"
                         }
                     }
                 }
@@ -1249,7 +1243,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteInput"
                         }
                     }
                 ],
@@ -1257,7 +1251,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_Route"
                         }
                     }
                 }
@@ -1316,7 +1310,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteInput"
                         }
                     }
                 ],
@@ -1346,7 +1340,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteInput"
                         }
                     }
                 ],
@@ -1354,7 +1348,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_RouteValidationResult"
                         }
                     }
                 }
@@ -1405,7 +1399,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_service_domain_Service"
                         }
                     }
                 }
@@ -1428,16 +1422,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
-                        }
-                    },
-                    {
-                        "description": "Service data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServiceInput"
                         }
                     }
                 ],
@@ -1445,7 +1430,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_service_domain_Service"
                         }
                     }
                 }
@@ -1504,7 +1489,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput"
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServiceInput"
                         }
                     }
                 ],
@@ -1667,12 +1652,6 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
                         "type": "integer",
                         "description": "Page",
                         "name": "page",
@@ -1817,13 +1796,7 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
-                "data": {
-                    "type": "string"
-                },
                 "deleted_at": {
-                    "type": "string"
-                },
-                "description": {
                     "type": "string"
                 },
                 "environment_id": {
@@ -1835,17 +1808,8 @@ const docTemplate = `{
                         "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.File"
                     }
                 },
-                "format": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.LabelItem"
-                    }
                 },
                 "latest_revision_id": {
                     "type": "string"
@@ -1856,16 +1820,10 @@ const docTemplate = `{
                 "mount_path": {
                     "type": "string"
                 },
-                "name": {
-                    "type": "string"
-                },
-                "rendered_configmap": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.RenderedConfigMap"
-                },
                 "source_commit": {
                     "type": "string"
                 },
-                "source_path": {
+                "source_directory": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -1879,31 +1837,10 @@ const docTemplate = `{
                 "application_id": {
                     "type": "string"
                 },
-                "data": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
                 "environment_id": {
                     "type": "string"
                 },
-                "format": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.LabelItem"
-                    }
-                },
                 "mount_path": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source_path": {
                     "type": "string"
                 }
             }
@@ -1929,9 +1866,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "rendered_configmap": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.RenderedConfigMap"
-                },
                 "revision_no": {
                     "type": "integer"
                 },
@@ -1951,28 +1885,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_appconfig_domain.LabelItem": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_appconfig_domain.RenderedConfigMap": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
                 }
             }
         },
@@ -2019,147 +1931,6 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_approute_domain.Route": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "environment_id": {
-                    "type": "string"
-                },
-                "host": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "service_name": {
-                    "type": "string"
-                },
-                "service_port": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_approute_domain.RouteInput": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "environment_id": {
-                    "type": "string"
-                },
-                "host": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "service_name": {
-                    "type": "string"
-                },
-                "service_port": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_approute_domain.RouteValidationResult": {
-            "type": "object",
-            "properties": {
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "valid": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_appservice_domain.Service": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ports": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServicePort"
-                    }
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput": {
-            "type": "object",
-            "properties": {
-                "application_id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ports": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServicePort"
-                    }
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_appservice_domain.ServicePort": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "protocol": {
-                    "type": "string"
-                },
-                "service_port": {
-                    "type": "integer"
-                },
-                "target_port": {
-                    "type": "integer"
                 }
             }
         },
@@ -2303,30 +2074,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.Route"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteValidationResult"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.Service"
-                }
-            }
-        },
         "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_cluster_domain_Cluster": {
             "type": "object",
             "properties": {
@@ -2348,6 +2095,30 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Project"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_Route": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.Route"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_RouteValidationResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteValidationResult"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_service_domain_Service": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.Service"
                 }
             }
         },
@@ -2388,34 +2159,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.Route"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.Service"
                     }
                 },
                 "pagination": {
@@ -2472,6 +2215,34 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Project"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_route_domain_Route": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.Route"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_service_domain_Service": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.Service"
                     }
                 },
                 "pagination": {
@@ -2591,29 +2362,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig": {
+        "github_com_bsonger_devflow-service_internal_route_domain.Route": {
             "type": "object",
             "properties": {
                 "application_id": {
@@ -2625,7 +2374,162 @@ const docTemplate = `{
                 "deleted_at": {
                     "type": "string"
                 },
-                "description": {
+                "environment_id": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "service_name": {
+                    "type": "string"
+                },
+                "service_port": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_route_domain.RouteInput": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "environment_id": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "service_name": {
+                    "type": "string"
+                },
+                "service_port": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_route_domain.RouteValidationResult": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_service_domain.Service": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServicePort"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_service_domain.ServiceInput": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServicePort"
+                    }
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_service_domain.ServicePort": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "service_port": {
+                    "type": "integer"
+                },
+                "target_port": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
                     "type": "string"
                 },
                 "env": {
@@ -2638,13 +2542,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem"
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
                     }
-                },
-                "name": {
-                    "type": "string"
                 },
                 "probes": {
                     "type": "object",
@@ -2660,13 +2561,7 @@ const docTemplate = `{
                 "service_account_name": {
                     "type": "string"
                 },
-                "strategy": {
-                    "type": "string"
-                },
                 "updated_at": {
-                    "type": "string"
-                },
-                "workload_type": {
                     "type": "string"
                 }
             }
@@ -2674,10 +2569,13 @@ const docTemplate = `{
         "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfigInput": {
             "type": "object",
             "properties": {
-                "application_id": {
-                    "type": "string"
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
-                "description": {
+                "application_id": {
                     "type": "string"
                 },
                 "env": {
@@ -2687,13 +2585,10 @@ const docTemplate = `{
                     }
                 },
                 "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem"
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
                     }
-                },
-                "name": {
-                    "type": "string"
                 },
                 "probes": {
                     "type": "object",
@@ -2707,12 +2602,6 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "service_account_name": {
-                    "type": "string"
-                },
-                "strategy": {
-                    "type": "string"
-                },
-                "workload_type": {
                     "type": "string"
                 }
             }
@@ -2785,36 +2674,6 @@ const docTemplate = `{
                 }
             }
         },
-        "http.ManifestListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
-                }
-            }
-        },
-        "http.ManifestResourcesResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc"
-                }
-            }
-        },
-        "http.ManifestResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
-                }
-            }
-        },
         "http.ReleaseAppConfigDoc": {
             "type": "object",
             "properties": {
@@ -2845,7 +2704,7 @@ const docTemplate = `{
                 "source_commit": {
                     "type": "string"
                 },
-                "source_path": {
+                "source_directory": {
                     "type": "string"
                 }
             }
@@ -3459,6 +3318,20 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_manifest_transport_http.ManifestListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+                }
+            }
+        },
         "internal_manifest_transport_http.ManifestRenderedResourceDoc": {
             "type": "object",
             "properties": {
@@ -3480,6 +3353,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_manifest_transport_http.ManifestResourcesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc"
+                }
+            }
+        },
         "internal_manifest_transport_http.ManifestResourcesViewDoc": {
             "type": "object",
             "properties": {
@@ -3491,6 +3372,14 @@ const docTemplate = `{
                 },
                 "resources": {
                     "$ref": "#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc"
+                }
+            }
+        },
+        "internal_manifest_transport_http.ManifestResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
                 }
             }
         },
@@ -3554,6 +3443,12 @@ const docTemplate = `{
         "internal_manifest_transport_http.ManifestWorkloadConfigDoc": {
             "type": "object",
             "properties": {
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "env": {
                     "type": "array",
                     "items": {
@@ -3563,8 +3458,11 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "name": {
-                    "type": "string"
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "probes": {
                     "type": "object",
@@ -3577,10 +3475,7 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
-                "strategy": {
-                    "type": "string"
-                },
-                "workload_type": {
+                "service_account_name": {
                     "type": "string"
                 }
             }

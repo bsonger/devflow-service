@@ -120,13 +120,13 @@ func TestGetDetailUsesEnvironmentScopedAppConfigs(t *testing.T) {
 		}},
 		stubAppConfigReader{listFn: func(_ context.Context, filter appconfigservice.AppConfigListFilter) ([]appconfigdomain.AppConfig, error) {
 			if filter.EnvironmentID == environmentId {
-				return []appconfigdomain.AppConfig{{Name: "env-config", EnvironmentID: environmentId}}, nil
+				return []appconfigdomain.AppConfig{{EnvironmentID: environmentId}}, nil
 			}
 			return nil, nil
 		}},
 		stubWorkloadConfigReader{listFn: func(_ context.Context, filter workloadconfigservice.WorkloadConfigListFilter) ([]workloadconfigdomain.WorkloadConfig, error) {
 			if filter.ApplicationID != nil && *filter.ApplicationID == applicationId {
-				return []workloadconfigdomain.WorkloadConfig{{Name: "base-workload"}}, nil
+				return []workloadconfigdomain.WorkloadConfig{{Replicas: 2}}, nil
 			}
 			return nil, nil
 		}},
@@ -139,7 +139,7 @@ func TestGetDetailUsesEnvironmentScopedAppConfigs(t *testing.T) {
 	if len(item.AppConfigs) != 1 || item.AppConfigs[0].EnvironmentID != environmentId {
 		t.Fatalf("unexpected app configs %+v", item.AppConfigs)
 	}
-	if len(item.WorkloadConfigs) != 1 || item.WorkloadConfigs[0].Name != "base-workload" {
+	if len(item.WorkloadConfigs) != 1 || item.WorkloadConfigs[0].Replicas != 2 {
 		t.Fatalf("unexpected workload configs %+v", item.WorkloadConfigs)
 	}
 }

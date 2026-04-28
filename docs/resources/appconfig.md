@@ -10,8 +10,10 @@
 
 ## Purpose
 
-`AppConfig` stores application-scoped configuration material for a specific environment.
-It also tracks repo-backed config sync state, rendered configmap output, and the latest synced revision.
+`AppConfig` stores the environment-scoped configuration snapshot for one application.
+Its configuration source is synchronized from the fixed GitHub config repository.
+The repository location is system-configured, while the effective repository directory is system-derived from project, application, and environment identity.
+The resource tracks the mount directory plus the latest synced revision, synced files, source repository directory, and source commit.
 
 ## Common base fields
 
@@ -28,18 +30,19 @@ It also tracks repo-backed config sync state, rendered configmap output, and the
 |---|---|---|---|---|
 | `application_id` | `uuid.UUID` | required | user | 关联应用 ID |
 | `environment_id` | `string` | required | user | 环境标识 |
-| `name` | `string` | required | user | 配置名 |
-| `description` | `string` | optional | user | 配置描述 |
-| `format` | `string` | optional | user | 配置格式 |
-| `data` | `string` | optional | user | 原始配置内容 |
-| `mount_path` | `string` | optional | user | 挂载路径 |
-| `labels` | `[]LabelItem` | optional | user | 扩展标签 |
-| `source_path` | `string` | optional | user | 配置仓库源路径 |
+| `mount_path` | `string` | optional | user | 配置挂载目录，默认 `/etc/config` |
 | `latest_revision_no` | `int` | system-managed | no | 最新修订号 |
 | `latest_revision_id` | `*uuid.UUID` | system-managed | no | 最新修订记录 ID |
-| `files` | `[]File` | system-managed | no | 渲染文件集合 |
-| `rendered_configmap` | `RenderedConfigMap` | system-managed | no | 渲染后的 configmap 数据 |
+| `files` | `[]File` | system-managed | no | 最近一次同步得到的文件集合 |
+| `source_directory` | `string` | system-managed | no | 最近一次同步对应的 GitHub 配置目录 |
 | `source_commit` | `string` | system-managed | no | 最近一次同步来源 commit |
+
+## File fields
+
+| Field | Type | Required | Writable | Description |
+|---|---|---|---|---|
+| `name` | `string` | system-managed | no | 文件名 |
+| `content` | `string` | system-managed | no | 文件内容 |
 
 ## API surface
 
@@ -56,30 +59,60 @@ It also tracks repo-backed config sync state, rendered configmap output, and the
 - required fields:
   - `application_id`
   - `environment_id`
-  - `name`
+- optional fields:
+  - `mount_path`
 - server-managed fields:
   - `id`
   - `created_at`
   - `updated_at`
-  - revision and rendered output fields
+  - revision and sync output fields
 
 ### Update
 - mutable fields:
-  - `application_id`, `environment_id`, `name`, `description`, `format`, `data`, `mount_path`, `labels`, `source_path`
+  - `mount_path`
+- request-scoped required fields:
+  - `application_id`
+  - `environment_id`
 - immutable/system-managed fields:
-  - `id`, `created_at`, `deleted_at`, revision and rendered output fields
+  - `id`, `created_at`, `deleted_at`, revision and sync output fields
 
 ### Delete
 - supported as soft delete through the handler surface
+
+## Sync behavior
+
+- sync source is the fixed GitHub config repository
+- repository URL is system-configured and is not stored as a user-writable field on `AppConfig`
+- sync path is system-derived from:
+  - `project_name`
+  - `application_name`
+  - `environment_name`
+- the effective source shape is:
+
+```text
+{project_name}/{application_name}/{environment_name}
+```
+
+- all files found under that directory are synchronized into the latest revision
+- sync updates:
+  - `files`
+  - `source_directory`
+  - `source_commit`
+  - `latest_revision_no`
+  - `latest_revision_id`
 
 ## Validation notes
 
 - invalid UUID path or query parameters return `invalid_argument`
 - `GET /api/v1/app-configs` requires both `application_id` and `environment_id`
+- `application_id + environment_id` must be unique among non-deleted records
+- `mount_path` defaults to `/etc/config` when omitted
+- `files`, `source_directory`, and `source_commit` are populated from the latest synced revision
+- `source_directory` records the effective directory inside the GitHub config repository used by the latest sync
+- rendered configmap output is not stored on `AppConfig`; release-time rendering owns that step
+- before the first successful sync, revision and sync output fields may be empty
 - missing records return `not_found`
 - repo sync failures map to `failed_precondition`
-- list endpoints support `application_id`, `environment_id`, `name`, and `include_deleted`
-- sync output returns the created or refreshed `AppConfigRevision`
 
 ## Source pointers
 

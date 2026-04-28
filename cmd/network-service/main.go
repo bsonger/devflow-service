@@ -19,8 +19,8 @@ func main() {
 			ServiceName:   "network-service",
 			EnableSwagger: true,
 			Modules: []networkhttp.Module{
-				networkhttp.ModuleAppService,
-				networkhttp.ModuleAppRoute,
+				networkhttp.ModuleService,
+				networkhttp.ModuleRoute,
 			},
 		},
 		Load:        platformconfig.Load,

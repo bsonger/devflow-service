@@ -44,24 +44,24 @@ cmd/network-service/main.go
 The migrated implementation is split by domain:
 
 ```text
-internal/appservice/
-internal/approute/
+internal/service/
+internal/route/
 ```
 
 The current repo-local layout follows the monorepo policy:
 
 ```text
-internal/appservice/domain
-internal/appservice/service
-internal/appservice/repository
-internal/appservice/transport/http
-internal/appservice/transport/downstream
-internal/appservice/module.go
-internal/approute/domain
-internal/approute/service
-internal/approute/repository
-internal/approute/transport/http
-internal/approute/module.go
+internal/service/domain
+internal/service/service
+internal/service/repository
+internal/service/transport/http
+internal/service/transport/downstream
+internal/service/module.go
+internal/route/domain
+internal/route/service
+internal/route/repository
+internal/route/transport/http
+internal/route/module.go
 ```
 
 Within the running process, these domains are registered through the `network-service` router and startup surfaces:

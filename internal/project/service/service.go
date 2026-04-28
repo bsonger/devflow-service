@@ -4,7 +4,7 @@ import (
 	"context"
 
 	appdomain "github.com/bsonger/devflow-service/internal/application/domain"
-	appservice "github.com/bsonger/devflow-service/internal/application/service"
+	applicationservice "github.com/bsonger/devflow-service/internal/application/service"
 	projectdomain "github.com/bsonger/devflow-service/internal/project/domain"
 	projectrepo "github.com/bsonger/devflow-service/internal/project/repository"
 	"github.com/google/uuid"
@@ -59,7 +59,7 @@ func (s *service) ListApplications(ctx context.Context, projectID uuid.UUID) ([]
 		return nil, err
 	}
 
-	applications, err := appservice.DefaultService.List(ctx, appdomain.ListFilter{ProjectID: &projectID})
+	applications, err := applicationservice.DefaultService.List(ctx, appdomain.ListFilter{ProjectID: &projectID})
 	if err != nil {
 		return nil, err
 	}

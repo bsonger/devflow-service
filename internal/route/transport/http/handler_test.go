@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bsonger/devflow-service/internal/approute/domain"
+	"github.com/bsonger/devflow-service/internal/route/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

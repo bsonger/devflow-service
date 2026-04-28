@@ -60,13 +60,7 @@ func (h *Handler) CreateAppConfig(c *gin.Context) {
 	item := &domain.AppConfig{
 		ApplicationID: req.ApplicationID,
 		EnvironmentID: req.EnvironmentID,
-		Name:          req.Name,
-		Description:   req.Description,
-		Format:        req.Format,
-		Data:          req.Data,
 		MountPath:     req.MountPath,
-		Labels:        req.Labels,
-		SourcePath:    req.SourcePath,
 	}
 	item.WithCreateDefault()
 	if _, err := h.appConfigs.Create(c.Request.Context(), item); err != nil {
@@ -120,13 +114,7 @@ func (h *Handler) UpdateAppConfig(c *gin.Context) {
 	item := &domain.AppConfig{
 		ApplicationID: req.ApplicationID,
 		EnvironmentID: req.EnvironmentID,
-		Name:          req.Name,
-		Description:   req.Description,
-		Format:        req.Format,
-		Data:          req.Data,
 		MountPath:     req.MountPath,
-		Labels:        req.Labels,
-		SourcePath:    req.SourcePath,
 	}
 	item.SetID(id)
 	if err := h.appConfigs.Update(c.Request.Context(), item); err != nil {
@@ -168,7 +156,6 @@ func (h *Handler) DeleteAppConfig(c *gin.Context) {
 // @Produce json
 // @Param application_id query string true "Application ID"
 // @Param environment_id query string true "Environment ID"
-// @Param name query string false "Name"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
 // @Success 200 {object} httpx.ListResponse[domain.AppConfig]
@@ -189,7 +176,6 @@ func (h *Handler) ListAppConfigs(c *gin.Context) {
 	}
 	filter.ApplicationID = appID
 	filter.EnvironmentID = environmentID
-	filter.Name = c.Query("name")
 	filter.IncludeDeleted = httpx.IncludeDeleted(c)
 	items, err := h.appConfigs.List(c.Request.Context(), filter)
 	if err != nil {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	"github.com/google/uuid"
 )
 
@@ -100,7 +100,7 @@ func TestReleaseTargetEnvironmentUsesReleaseEnvironmentOnly(t *testing.T) {
 }
 
 func TestSelectReleaseRoutesIncludesBaseAndTargetEnvironment(t *testing.T) {
-	routes := []appservicedownstream.Route{
+	routes := []servicedownstream.Route{
 		{Name: "base", EnvironmentID: "base"},
 		{Name: "target", EnvironmentID: "staging"},
 		{Name: "other", EnvironmentID: "prod"},

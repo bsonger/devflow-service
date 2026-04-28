@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bsonger/devflow-service/internal/approute/domain"
-	approute "github.com/bsonger/devflow-service/internal/approute/service"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
+	"github.com/bsonger/devflow-service/internal/route/domain"
+	route "github.com/bsonger/devflow-service/internal/route/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -22,7 +22,7 @@ type routeService interface {
 	Validate(ctx context.Context, route *domain.Route) []string
 }
 
-type RouteListFilter = approute.RouteListFilter
+type RouteListFilter = route.RouteListFilter
 
 type Handler struct {
 	routes routeService

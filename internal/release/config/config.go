@@ -138,7 +138,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		ManifestPublisherMode:   stringValue(config.ManifestRegistry, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Mode }),
 		Downstream: model.DownstreamConfig{
 			PlatformOrchestratorBaseURL: stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.PlatformOrchestratorBaseURL }),
-			AppServiceBaseURL:           stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.AppServiceBaseURL }),
+			MetaServiceBaseURL:          stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.MetaServiceBaseURL }),
 			NetworkServiceBaseURL:       stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.NetworkServiceBaseURL }),
 			ConfigServiceBaseURL:        stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.ConfigServiceBaseURL }),
 		},

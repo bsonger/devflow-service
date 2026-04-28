@@ -272,11 +272,11 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 			container[k] = v
 		}
 	}
-	if release.AppConfigSnapshot.Name != "" || len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
+	if len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
 		volumeName := "app-config"
 		container["volumeMounts"] = []map[string]any{{
 			"name":      volumeName,
-			"mountPath": firstNonEmptyString(strings.TrimSpace(release.AppConfigSnapshot.MountPath), "/etc/devflow/config"),
+			"mountPath": firstNonEmptyString(strings.TrimSpace(release.AppConfigSnapshot.MountPath), "/etc/config"),
 			"readOnly":  true,
 		}}
 	}
@@ -287,7 +287,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	if strings.TrimSpace(workload.ServiceAccountName) != "" {
 		podSpec["serviceAccountName"] = workload.ServiceAccountName
 	}
-	if release.AppConfigSnapshot.Name != "" || len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
+	if len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
 		podSpec["volumes"] = []map[string]any{{
 			"name": "app-config",
 			"configMap": map[string]any{

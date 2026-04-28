@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/appservice/domain"
 	"github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
+	"github.com/bsonger/devflow-service/internal/service/domain"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )

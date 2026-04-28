@@ -14,12 +14,12 @@ func TestFindAppConfigUsesEnvironmentScopedEntryOnly(t *testing.T) {
 		case "/api/v1/app-configs":
 			switch r.URL.RawQuery {
 			case "application_id=app-1&environment_id=env-1":
-				_, _ = io.WriteString(w, `{"data":[{"id":"cfg-env-1","application_id":"app-1","environment_id":"env-1","name":"env-1"}]}`)
+				_, _ = io.WriteString(w, `{"data":[{"id":"cfg-env-1","application_id":"app-1","environment_id":"env-1"}]}`)
 			default:
 				t.Fatalf("unexpected query %s", r.URL.RawQuery)
 			}
 		case "/api/v1/app-configs/cfg-env-1":
-			_, _ = io.WriteString(w, `{"data":{"id":"cfg-env-1","application_id":"app-1","environment_id":"env-1","name":"env-1","mount_path":"/etc/devflow/config","files":[{"name":"configuration.yaml","content":"foo: bar"}],"rendered_configmap":{"data":{"configuration.yaml":"foo: bar"}}}}`)
+			_, _ = io.WriteString(w, `{"data":{"id":"cfg-env-1","application_id":"app-1","environment_id":"env-1","mount_path":"/etc/config","source_directory":"checkout/web/staging","files":[{"name":"configuration.yaml","content":"foo: bar"}],"source_commit":"abc123"}}`)
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -34,7 +34,7 @@ func TestFindAppConfigUsesEnvironmentScopedEntryOnly(t *testing.T) {
 	if got == nil || got.ID != "cfg-env-1" || got.EnvironmentID != "env-1" {
 		t.Fatalf("unexpected config %+v", got)
 	}
-	if got.MountPath != "/etc/devflow/config" {
+	if got.MountPath != "/etc/config" {
 		t.Fatalf("expected mount path, got %+v", got)
 	}
 }

@@ -38,14 +38,13 @@ type ReleaseFile struct {
 }
 
 type ReleaseAppConfig struct {
-	ID           string            `json:"id,omitempty"`
-	Name         string            `json:"name,omitempty"`
-	MountPath    string            `json:"mount_path,omitempty"`
-	Files        []ReleaseFile     `json:"files,omitempty"`
-	Data         map[string]string `json:"data,omitempty"`
-	SourcePath   string            `json:"source_path,omitempty"`
-	RevisionID   string            `json:"revision_id,omitempty"`
-	SourceCommit string            `json:"source_commit,omitempty"`
+	ID              string            `json:"id,omitempty"`
+	MountPath       string            `json:"mount_path,omitempty"`
+	Files           []ReleaseFile     `json:"files,omitempty"`
+	Data            map[string]string `json:"data,omitempty"`
+	SourceDirectory string            `json:"source_directory,omitempty"`
+	RevisionID      string            `json:"revision_id,omitempty"`
+	SourceCommit    string            `json:"source_commit,omitempty"`
 }
 
 func (r *Release) CollectionName() string { return "releases" }

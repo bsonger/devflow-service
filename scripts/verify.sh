@@ -244,7 +244,7 @@ run_layout_refactor_policy_check() {
 
   platform_business_imports="$(
     cd "$ROOT_DIR"
-    rg -n 'github.com/bsonger/devflow-service/internal/(application|project|cluster|environment|appconfig|appservice|approute|workloadconfig|image|manifest|intent|release)' internal/platform internal/shared --glob '!**/*_test.go' || true
+    rg -n 'github.com/bsonger/devflow-service/internal/(application|project|cluster|environment|appconfig|service|route|workloadconfig|image|manifest|intent|release)' internal/platform internal/shared --glob '!**/*_test.go' || true
   )"
   [[ -z "$platform_business_imports" ]] || fail "internal/platform and internal/shared must not import business-domain packages directly:\n$platform_business_imports"
 }
@@ -390,7 +390,7 @@ require_file "$ROOT_DIR/internal/manifest/module.go" "manifest module"
 require_dir "$ROOT_DIR/internal/manifest/service" "manifest service directory"
 require_dir "$ROOT_DIR/internal/manifest/transport/http" "manifest http transport directory"
 require_dir "$ROOT_DIR/internal/appconfig/transport/downstream" "appconfig downstream transport directory"
-require_dir "$ROOT_DIR/internal/appservice/transport/downstream" "appservice downstream transport directory"
+require_dir "$ROOT_DIR/internal/service/transport/downstream" "service downstream transport directory"
 require_dir "$ROOT_DIR/internal/intent" "internal intent directory"
 require_file "$ROOT_DIR/internal/intent/module.go" "intent module"
 require_dir "$ROOT_DIR/internal/intent/service" "intent service directory"

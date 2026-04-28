@@ -108,7 +108,7 @@ internal/project/transport/downstream
 internal/environment/transport/downstream
 internal/cluster/transport/downstream
 internal/appconfig/transport/downstream
-internal/appservice/transport/downstream
+internal/service/transport/downstream
 internal/release/transport/runtime
 internal/shared/downstreamhttp
 ```

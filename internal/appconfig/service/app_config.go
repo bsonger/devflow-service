@@ -10,7 +10,9 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/appconfig/domain"
 	appconfigrepo "github.com/bsonger/devflow-service/internal/appconfig/repository"
+	environmentservice "github.com/bsonger/devflow-service/internal/environment/service"
 	"github.com/bsonger/devflow-service/internal/platform/configrepo"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
@@ -23,7 +25,6 @@ type AppConfigListFilter struct {
 	ApplicationID  *uuid.UUID
 	EnvironmentID  string
 	IncludeDeleted bool
-	Name           string
 }
 
 type AppConfigSyncResult struct {
@@ -35,20 +36,48 @@ type appConfigRepository interface {
 	ReadSnapshot(ctx context.Context, sourcePath, env string) (*configrepo.Snapshot, error)
 }
 
+type applicationProjectionReader interface {
+	Get(ctx context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error)
+}
+
+type environmentNameResolver interface {
+	ResolveName(ctx context.Context, environmentId string) (string, error)
+}
+
+type localEnvironmentResolver struct{}
+
+func (localEnvironmentResolver) ResolveName(ctx context.Context, environmentId string) (string, error) {
+	id, err := uuid.Parse(strings.TrimSpace(environmentId))
+	if err != nil {
+		return "", sharederrs.InvalidArgument("environment_id is invalid")
+	}
+	environment, err := environmentservice.DefaultService.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if environment == nil || strings.TrimSpace(environment.Name) == "" {
+		return "", sharederrs.FailedPrecondition("environment name is empty")
+	}
+	return strings.TrimSpace(environment.Name), nil
+}
+
 type AppConfigService struct {
 	repo                appConfigRepository
 	store               appconfigrepo.AppConfigStore
-	environmentResolver environmentResolver
+	applications        applicationProjectionReader
+	environmentResolver environmentNameResolver
 }
 
 func NewAppConfigService(repo appConfigRepository) *AppConfigService {
 	return &AppConfigService{
-		repo:  repo,
-		store: appconfigrepo.NewAppConfigPostgresStore(),
+		repo:                repo,
+		store:               appconfigrepo.NewAppConfigPostgresStore(),
+		applications:        releasesupport.ApplicationService,
+		environmentResolver: localEnvironmentResolver{},
 	}
 }
 
-func (s *AppConfigService) WithEnvironmentResolver(resolver environmentResolver) *AppConfigService {
+func (s *AppConfigService) WithEnvironmentResolver(resolver environmentNameResolver) *AppConfigService {
 	s.environmentResolver = resolver
 	return s
 }
@@ -56,9 +85,6 @@ func (s *AppConfigService) WithEnvironmentResolver(resolver environmentResolver)
 func (s *AppConfigService) Create(ctx context.Context, cfg *domain.AppConfig) (uuid.UUID, error) {
 	if err := validateAppConfig(cfg); err != nil {
 		return uuid.Nil, err
-	}
-	if strings.TrimSpace(cfg.SourcePath) == "" {
-		cfg.SourcePath = deriveAppConfigSourcePath(cfg.Name)
 	}
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
 	return s.store.Create(ctx, cfg)
@@ -80,7 +106,6 @@ func (s *AppConfigService) Get(ctx context.Context, id uuid.UUID) (*domain.AppCo
 		return nil, err
 	}
 	cfg.Files = revision.Files
-	cfg.RenderedConfigMap = revision.RenderedConfigMap
 	cfg.SourceCommit = revision.SourceCommit
 	return cfg, nil
 }
@@ -95,9 +120,7 @@ func (s *AppConfigService) Update(ctx context.Context, cfg *domain.AppConfig) er
 	}
 	cfg.CreatedAt = current.CreatedAt
 	cfg.DeletedAt = current.DeletedAt
-	if strings.TrimSpace(cfg.SourcePath) == "" {
-		cfg.SourcePath = current.SourcePath
-	}
+	cfg.SourceDirectory = current.SourceDirectory
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
 	return s.store.Update(ctx, cfg)
 }
@@ -111,7 +134,6 @@ func (s *AppConfigService) List(ctx context.Context, filter AppConfigListFilter)
 		ApplicationID:  filter.ApplicationID,
 		EnvironmentID:  filter.EnvironmentID,
 		IncludeDeleted: filter.IncludeDeleted,
-		Name:           filter.Name,
 	})
 }
 
@@ -123,49 +145,24 @@ func (s *AppConfigService) Sync(ctx context.Context, id uuid.UUID) (*AppConfigSy
 	if err != nil {
 		return nil, err
 	}
-	if namedSnapshot, resolvedPath, resolvedErr := s.readEnvironmentNamedSnapshot(ctx, cfg); resolvedErr == nil {
-		snapshot := namedSnapshot
-		if resolvedPath != "" && resolvedPath != cfg.SourcePath {
-			cfg.SourcePath = resolvedPath
-			if updateErr := s.updateSourcePath(ctx, cfg.ID, resolvedPath); updateErr != nil {
-				return nil, updateErr
-			}
-		}
-		return s.syncWithSnapshot(ctx, cfg, snapshot)
+	sourceDirectory, err := s.deriveSourceDirectory(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
-	snapshot, err := s.repo.ReadSnapshot(ctx, cfg.SourcePath, cfg.EnvironmentID)
+	snapshot, err := s.repo.ReadSnapshot(ctx, sourceDirectory, "")
 	if err != nil {
 		if errors.Is(err, configrepo.ErrSourcePathNotFound) {
-			if namedSnapshot, resolvedPath, resolvedErr := s.readEnvironmentNamedSnapshot(ctx, cfg); resolvedErr == nil {
-				snapshot = namedSnapshot
-				if resolvedPath != "" && resolvedPath != cfg.SourcePath {
-					cfg.SourcePath = resolvedPath
-					if updateErr := s.updateSourcePath(ctx, cfg.ID, resolvedPath); updateErr != nil {
-						return nil, updateErr
-					}
-				}
-				err = nil
-			} else {
-				fallbackPath := deriveAppConfigSourcePath(cfg.Name)
-				if fallbackPath != "" && fallbackPath != cfg.SourcePath {
-					snapshot, err = s.repo.ReadSnapshot(ctx, fallbackPath, cfg.EnvironmentID)
-					if err == nil {
-						cfg.SourcePath = fallbackPath
-						if updateErr := s.updateSourcePath(ctx, cfg.ID, fallbackPath); updateErr != nil {
-							return nil, updateErr
-						}
-					}
-				}
-			}
+			return nil, ErrConfigSourceNotFound
 		}
-		if err != nil {
-			if errors.Is(err, configrepo.ErrSourcePathNotFound) {
-				return nil, ErrConfigSourceNotFound
-			}
-			if errors.Is(err, configrepo.ErrRepositorySyncFailed) {
-				return nil, fmt.Errorf("%w: %v", ErrConfigRepositorySyncFailed, err)
-			}
-			return nil, err
+		if errors.Is(err, configrepo.ErrRepositorySyncFailed) {
+			return nil, fmt.Errorf("%w: %v", ErrConfigRepositorySyncFailed, err)
+		}
+		return nil, err
+	}
+	if strings.TrimSpace(cfg.SourceDirectory) != strings.TrimSpace(sourceDirectory) {
+		cfg.SourceDirectory = sourceDirectory
+		if updateErr := s.updateSourceDirectory(ctx, cfg.ID, sourceDirectory); updateErr != nil {
+			return nil, updateErr
 		}
 	}
 	return s.syncWithSnapshot(ctx, cfg, snapshot)
@@ -184,15 +181,14 @@ func (s *AppConfigService) syncWithSnapshot(ctx context.Context, cfg *domain.App
 		revisionNo = latest.RevisionNo + 1
 	}
 	revision := &domain.AppConfigRevision{
-		ID:                uuid.New(),
-		AppConfigID:       cfg.ID,
-		RevisionNo:        revisionNo,
-		Files:             snapshotFilesToDomainFiles(snapshot.Files),
-		RenderedConfigMap: renderConfigMap(snapshot.Files),
-		ContentHash:       snapshot.SourceDigest,
-		SourceCommit:      snapshot.SourceCommit,
-		SourceDigest:      snapshot.SourceDigest,
-		CreatedAt:         time.Now().Format(time.RFC3339),
+		ID:           uuid.New(),
+		AppConfigID:  cfg.ID,
+		RevisionNo:   revisionNo,
+		Files:        snapshotFilesToDomainFiles(snapshot.Files),
+		ContentHash:  snapshot.SourceDigest,
+		SourceCommit: snapshot.SourceCommit,
+		SourceDigest: snapshot.SourceDigest,
+		CreatedAt:    time.Now().Format(time.RFC3339),
 	}
 	if err := s.insertRevision(ctx, revision); err != nil {
 		return nil, err
@@ -222,8 +218,8 @@ func (s *AppConfigService) updateLatestRevision(ctx context.Context, cfg *domain
 	return s.store.UpdateLatestRevision(ctx, cfg.ID, cfg.LatestRevisionNo, revision.ID, cfg.UpdatedAt)
 }
 
-func (s *AppConfigService) updateSourcePath(ctx context.Context, id uuid.UUID, sourcePath string) error {
-	return s.store.UpdateSourcePath(ctx, id, sourcePath, time.Now())
+func (s *AppConfigService) updateSourceDirectory(ctx context.Context, id uuid.UUID, sourceDirectory string) error {
+	return s.store.UpdateSourceDirectory(ctx, id, sourceDirectory, time.Now())
 }
 
 func validateAppConfig(cfg *domain.AppConfig) error {
@@ -232,9 +228,6 @@ func validateAppConfig(cfg *domain.AppConfig) error {
 	}
 	if messages := validateAppConfigInput(cfg.ApplicationID, cfg.EnvironmentID); len(messages) > 0 {
 		return sharederrs.JoinInvalid(messages)
-	}
-	if strings.TrimSpace(cfg.Name) == "" {
-		return sharederrs.Required("name")
 	}
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
 	return nil
@@ -251,51 +244,45 @@ func validateAppConfigInput(applicationId uuid.UUID, environmentId string) []str
 	return errs
 }
 
-func deriveAppConfigSourcePath(name string) string {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return ""
-	}
-	return fmt.Sprintf("applications/devflow-platform/services/%s", trimmed)
-}
-
 func normalizeAppConfigMountPath(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return "/etc/devflow/config"
+		return "/etc/config"
 	}
 	return trimmed
 }
 
-func (s *AppConfigService) readEnvironmentNamedSnapshot(ctx context.Context, cfg *domain.AppConfig) (*configrepo.Snapshot, string, error) {
-	if s == nil || s.environmentResolver == nil || cfg == nil {
-		return nil, "", configrepo.ErrSourcePathNotFound
+func (s *AppConfigService) deriveSourceDirectory(ctx context.Context, cfg *domain.AppConfig) (string, error) {
+	if s == nil || cfg == nil {
+		return "", sharederrs.Required("app_config")
 	}
-	trimmedEnvID := strings.TrimSpace(cfg.EnvironmentID)
-	if trimmedEnvID == "" || strings.EqualFold(trimmedEnvID, "base") {
-		return nil, "", configrepo.ErrSourcePathNotFound
+	if s.applications == nil {
+		return "", sharederrs.FailedPrecondition("application metadata reader is not configured")
 	}
-	environmentName, err := s.environmentResolver.ResolveName(ctx, trimmedEnvID)
+	application, err := s.applications.Get(ctx, cfg.ApplicationID)
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
-	resolvedPath := strings.TrimRight(strings.TrimSpace(cfg.SourcePath), "/") + "/" + strings.TrimSpace(environmentName)
-	if strings.TrimSpace(resolvedPath) == "" || resolvedPath == "/" {
-		return nil, "", configrepo.ErrSourcePathNotFound
+	if application == nil {
+		return "", sharederrs.FailedPrecondition("application metadata is missing")
 	}
-	snapshot, err := s.repo.ReadSnapshot(ctx, resolvedPath, environmentName)
-	if err != nil {
-		return nil, "", err
+	projectName := strings.TrimSpace(application.ProjectName)
+	applicationName := strings.TrimSpace(application.Name)
+	if projectName == "" || applicationName == "" {
+		return "", sharederrs.FailedPrecondition("application metadata is incomplete")
 	}
-	return snapshot, resolvedPath, nil
-}
-
-func renderConfigMap(files []configrepo.File) domain.RenderedConfigMap {
-	data := make(map[string]string, len(files))
-	for _, file := range files {
-		data[file.Name] = file.Content
+	environmentName := strings.TrimSpace(cfg.EnvironmentID)
+	if s.environmentResolver != nil {
+		resolvedName, err := s.environmentResolver.ResolveName(ctx, cfg.EnvironmentID)
+		if err != nil {
+			return "", err
+		}
+		environmentName = strings.TrimSpace(resolvedName)
 	}
-	return domain.RenderedConfigMap{Data: data}
+	if environmentName == "" {
+		return "", sharederrs.Required("environment_id")
+	}
+	return fmt.Sprintf("%s/%s/%s", projectName, applicationName, environmentName), nil
 }
 
 func snapshotFilesToDomainFiles(files []configrepo.File) []domain.File {

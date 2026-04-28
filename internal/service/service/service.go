@@ -2,10 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
-	"github.com/bsonger/devflow-service/internal/appservice/domain"
-	"github.com/bsonger/devflow-service/internal/appservice/repository"
+	"github.com/bsonger/devflow-service/internal/service/domain"
+	"github.com/bsonger/devflow-service/internal/service/repository"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
@@ -100,6 +101,42 @@ func validateService(item *domain.Service) error {
 	if len(item.Ports) == 0 {
 		return sharederrs.InvalidArgument("at least one port is required")
 	}
+
+	seenPortNames := make(map[string]struct{}, len(item.Ports))
+	multiPort := len(item.Ports) > 1
+	for i := range item.Ports {
+		port := &item.Ports[i]
+		if port.ServicePort <= 0 {
+			return sharederrs.InvalidArgument(fmt.Sprintf("ports[%d].service_port is required", i))
+		}
+		if port.TargetPort <= 0 {
+			return sharederrs.InvalidArgument(fmt.Sprintf("ports[%d].target_port is required", i))
+		}
+
+		portName := strings.TrimSpace(port.Name)
+		if multiPort && portName == "" {
+			return sharederrs.InvalidArgument(fmt.Sprintf("ports[%d].name is required for multi-port services", i))
+		}
+		if portName != "" {
+			if _, exists := seenPortNames[portName]; exists {
+				return sharederrs.InvalidArgument(fmt.Sprintf("ports[%d].name must be unique", i))
+			}
+			seenPortNames[portName] = struct{}{}
+			port.Name = portName
+		}
+
+		protocol := strings.ToUpper(strings.TrimSpace(port.Protocol))
+		if protocol == "" {
+			protocol = "TCP"
+		}
+		switch protocol {
+		case "TCP", "UDP", "SCTP":
+			port.Protocol = protocol
+		default:
+			return sharederrs.InvalidArgument(fmt.Sprintf("ports[%d].protocol must be one of TCP, UDP, SCTP", i))
+		}
+	}
+
 	return nil
 }
 

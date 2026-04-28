@@ -4,9 +4,9 @@
 
 - active service boundary: `network-service`
 - runnable host process: `network-service`
-- domain package: `internal/approute/domain`
-- handler package: `internal/approute/transport/http`
-- service package: `internal/approute/service`
+- domain package: `internal/route/domain`
+- handler package: `internal/route/transport/http`
+- service package: `internal/route/service`
 
 ## Purpose
 
@@ -77,7 +77,7 @@ It stores host/path matching plus the target service name and port, and it expos
 
 ## Source pointers
 
-- module: `internal/approute/module.go`
-- domain: `internal/approute/domain/route.go`
-- service: `internal/approute/service/route.go`
-- handler: `internal/approute/transport/http/handler.go`
+- module: `internal/route/module.go`
+- domain: `internal/route/domain/route.go`
+- service: `internal/route/service/route.go`
+- handler: `internal/route/transport/http/handler.go`

@@ -79,7 +79,7 @@ func TestCreateAppConfig(t *testing.T) {
 	h := NewHandler(appSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.AppConfigInput{ApplicationID: uuid.New(), EnvironmentID: "staging", Name: "test-config"})
+	reqBody, _ := json.Marshal(domain.AppConfigInput{ApplicationID: uuid.New(), EnvironmentID: "staging"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/app-configs", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -94,7 +94,7 @@ func TestGetAppConfig(t *testing.T) {
 	id := uuid.New()
 	appSvc := &mockAppConfigService{
 		getFunc: func(ctx context.Context, uid uuid.UUID) (*domain.AppConfig, error) {
-			return &domain.AppConfig{BaseModel: domain.BaseModel{ID: uid}, Name: "test"}, nil
+			return &domain.AppConfig{BaseModel: domain.BaseModel{ID: uid}}, nil
 		},
 	}
 	h := NewHandler(appSvc)
@@ -138,7 +138,7 @@ func TestListAppConfigs(t *testing.T) {
 			if filter.EnvironmentID != "staging" {
 				t.Fatalf("EnvironmentID = %q want staging", filter.EnvironmentID)
 			}
-			return []domain.AppConfig{{BaseModel: domain.BaseModel{ID: uuid.New()}, Name: "cfg1"}}, nil
+			return []domain.AppConfig{{BaseModel: domain.BaseModel{ID: uuid.New()}}}, nil
 		},
 	}
 	h := NewHandler(appSvc)

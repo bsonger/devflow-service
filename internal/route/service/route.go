@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/bsonger/devflow-service/internal/approute/domain"
-	"github.com/bsonger/devflow-service/internal/approute/repository"
-	appservice "github.com/bsonger/devflow-service/internal/appservice/service"
+	"github.com/bsonger/devflow-service/internal/route/domain"
+	"github.com/bsonger/devflow-service/internal/route/repository"
+	servicesvc "github.com/bsonger/devflow-service/internal/service/service"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
@@ -28,15 +28,15 @@ type RouteListFilter struct {
 }
 
 type routeService struct {
-	services appservice.ServiceService
+	services servicesvc.ServiceService
 	store    repository.Store
 }
 
-func NewRouteService(services appservice.ServiceService) RouteService {
+func NewRouteService(services servicesvc.ServiceService) RouteService {
 	return &routeService{services: services, store: repository.NewPostgresStore()}
 }
 
-var DefaultRouteService RouteService = NewRouteService(appservice.DefaultServiceService)
+var DefaultRouteService RouteService = NewRouteService(servicesvc.DefaultServiceService)
 
 func (s *routeService) Create(ctx context.Context, item *domain.Route) (uuid.UUID, error) {
 	if err := s.validate(ctx, item); err != nil {
@@ -98,7 +98,7 @@ func (s *routeService) Validate(ctx context.Context, item *domain.Route) []strin
 	if len(errs) > 0 {
 		return errs
 	}
-	services, err := s.services.List(ctx, appservice.ServiceListFilter{
+	services, err := s.services.List(ctx, servicesvc.ServiceListFilter{
 		ApplicationID: item.ApplicationID,
 		Name:          item.ServiceName,
 	})

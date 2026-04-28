@@ -7,11 +7,11 @@ import (
 	"time"
 
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
-	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	"github.com/google/uuid"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	_ "modernc.org/sqlite"
@@ -66,10 +66,10 @@ func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 		Labels:             map[string]string{"team": "platform"},
 		Annotations:        map[string]string{"sidecar.istio.io/inject": "true"},
 	}
-	services := []appservicedownstream.Service{{
+	services := []servicedownstream.Service{{
 		ID:   "svc-1",
 		Name: "demo-api",
-		Ports: []appservicedownstream.ServicePort{{
+		Ports: []servicedownstream.ServicePort{{
 			Name:        "http",
 			ServicePort: 80,
 			TargetPort:  8080,

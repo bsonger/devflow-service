@@ -15,8 +15,8 @@ func TestNewRouterWithOptionsRegistersNetworkSwaggerRoutes(t *testing.T) {
 		ServiceName:   "network-service",
 		EnableSwagger: true,
 		Modules: []Module{
-			ModuleAppService,
-			ModuleAppRoute,
+			ModuleService,
+			ModuleRoute,
 		},
 	})
 

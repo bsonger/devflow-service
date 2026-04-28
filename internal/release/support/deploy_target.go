@@ -104,10 +104,10 @@ func newDeployTargetResolver(cfg RuntimeConfig) *deployTargetResolver {
 	return &deployTargetResolver{
 		bindingReader: downstream.NewOrchestratorManifestClient(strings.TrimSpace(cfg.Downstream.PlatformOrchestratorBaseURL)),
 		ownerReader: deployTargetOwnerReaders{
-			applicationReader: applicationdownstream.New(strings.TrimSpace(cfg.Downstream.AppServiceBaseURL)),
-			projectReader:     projectdownstream.New(strings.TrimSpace(cfg.Downstream.AppServiceBaseURL)),
-			environmentReader: environmentdownstream.New(strings.TrimSpace(cfg.Downstream.AppServiceBaseURL)),
-			clusterReader:     clusterdownstream.New(strings.TrimSpace(cfg.Downstream.AppServiceBaseURL)),
+			applicationReader: applicationdownstream.New(strings.TrimSpace(cfg.Downstream.MetaServiceBaseURL)),
+			projectReader:     projectdownstream.New(strings.TrimSpace(cfg.Downstream.MetaServiceBaseURL)),
+			environmentReader: environmentdownstream.New(strings.TrimSpace(cfg.Downstream.MetaServiceBaseURL)),
+			clusterReader:     clusterdownstream.New(strings.TrimSpace(cfg.Downstream.MetaServiceBaseURL)),
 		},
 	}
 }

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bsonger/devflow-service/internal/appservice/domain"
-	appservice "github.com/bsonger/devflow-service/internal/appservice/service"
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
+	"github.com/bsonger/devflow-service/internal/service/domain"
+	servicesvc "github.com/bsonger/devflow-service/internal/service/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -21,7 +21,7 @@ type serviceService interface {
 	List(ctx context.Context, filter ServiceListFilter) ([]domain.Service, error)
 }
 
-type ServiceListFilter = appservice.ServiceListFilter
+type ServiceListFilter = servicesvc.ServiceListFilter
 
 type Handler struct {
 	services serviceService
@@ -48,7 +48,6 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // @Tags Service
 // @Accept json
 // @Produce json
-// @Param data body domain.ServiceInput true "Service data"
 // @Param data body domain.ServiceInput true "Service data"
 // @Success 201 {object} httpx.DataResponse[domain.Service]
 // @Router /api/v1/services [post]

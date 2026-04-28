@@ -33,7 +33,7 @@ data:
       shared_token: ""
     downstream:
       platform_orchestrator_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
-      app_service_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
+      meta_service_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
       network_service_base_url: "http://network-service.devflow-pre-production.svc.cluster.local:8086"
       config_service_base_url: "http://config-service.devflow-pre-production.svc.cluster.local:8082"
     image_registry:

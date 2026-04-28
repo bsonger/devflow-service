@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bsonger/devflow-service/internal/appservice/domain"
+	"github.com/bsonger/devflow-service/internal/service/domain"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -71,7 +71,7 @@ func TestCreateService(t *testing.T) {
 	r := setupTestRouter(h)
 
 	appID := uuid.New()
-	reqBody, _ := json.Marshal(domain.ServiceInput{ApplicationID: appID, Name: "test-svc", Ports: []domain.ServicePort{{ServicePort: 80}}})
+	reqBody, _ := json.Marshal(domain.ServiceInput{ApplicationID: appID, Name: "test-svc", Ports: []domain.ServicePort{{ServicePort: 80, TargetPort: 8080}}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/services", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -87,7 +87,7 @@ func TestCreateServiceInvalidApplicationID(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/services", bytes.NewBufferString(`{"application_id":"invalid-id","name":"test-svc","ports":[{"service_port":80}]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/services", bytes.NewBufferString(`{"application_id":"invalid-id","name":"test-svc","ports":[{"service_port":80,"target_port":8080}]}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -127,7 +127,7 @@ func TestUpdateService(t *testing.T) {
 	h := NewHandler(svc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.ServiceInput{ApplicationID: appID, Name: "updated-svc", Ports: []domain.ServicePort{{ServicePort: 8080}}})
+	reqBody, _ := json.Marshal(domain.ServiceInput{ApplicationID: appID, Name: "updated-svc", Ports: []domain.ServicePort{{ServicePort: 8080, TargetPort: 8080}}})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/services/"+svcID.String(), bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

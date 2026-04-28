@@ -9,7 +9,6 @@ import (
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	argoutil "github.com/argoproj/argo-cd/v3/util/argo"
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
-	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
@@ -20,6 +19,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/release/runtime"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/bsonger/devflow-service/internal/release/transport/argo"
+	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -49,7 +49,7 @@ type releaseManifestReader interface {
 }
 
 type releaseNetworkReader interface {
-	ListRoutes(context.Context, string, string) ([]appservicedownstream.Route, error)
+	ListRoutes(context.Context, string, string) ([]servicedownstream.Route, error)
 }
 
 type releaseConfigReader interface {
@@ -96,7 +96,7 @@ func releaseTargetEnvironment(release *model.Release) string {
 
 func newReleaseNetworkReader() releaseNetworkReader {
 	runtimeCfg := releasesupport.CurrentRuntimeConfig()
-	return appservicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
+	return servicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
 }
 
 func newReleaseConfigReader() releaseConfigReader {
@@ -104,9 +104,9 @@ func newReleaseConfigReader() releaseConfigReader {
 	return appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
 }
 
-func selectReleaseRoutes(items []appservicedownstream.Route, environmentId string) []appservicedownstream.Route {
+func selectReleaseRoutes(items []servicedownstream.Route, environmentId string) []servicedownstream.Route {
 	environmentId = strings.TrimSpace(environmentId)
-	out := make([]appservicedownstream.Route, 0, len(items))
+	out := make([]servicedownstream.Route, 0, len(items))
 	for _, item := range items {
 		routeEnv := strings.TrimSpace(item.EnvironmentID)
 		switch {
@@ -130,30 +130,24 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	if err != nil {
 		return err
 	}
-	if appConfig == nil || (len(appConfig.Files) == 0 && len(appConfig.RenderedConfigMap) == 0) {
+	if appConfig == nil || len(appConfig.Files) == 0 {
 		return ErrReleaseAppConfigMissing
 	}
 	files := make([]model.ReleaseFile, 0, len(appConfig.Files))
 	for _, item := range appConfig.Files {
 		files = append(files, model.ReleaseFile{Name: item.Name, Content: item.Content})
 	}
-	data := make(map[string]string, len(appConfig.RenderedConfigMap))
-	for key, value := range appConfig.RenderedConfigMap {
-		data[key] = value
-	}
-	if len(data) == 0 {
-		for _, item := range appConfig.Files {
-			data[item.Name] = item.Content
-		}
+	data := make(map[string]string, len(appConfig.Files))
+	for _, item := range appConfig.Files {
+		data[item.Name] = item.Content
 	}
 	release.AppConfigSnapshot = model.ReleaseAppConfig{
-		ID:           appConfig.ID,
-		Name:         appConfig.Name,
-		MountPath:    appConfig.MountPath,
-		Files:        files,
-		Data:         data,
-		SourcePath:   appConfig.SourcePath,
-		SourceCommit: appConfig.SourceCommit,
+		ID:              appConfig.ID,
+		MountPath:       appConfig.MountPath,
+		Files:           files,
+		Data:            data,
+		SourceDirectory: appConfig.SourceDirectory,
+		SourceCommit:    appConfig.SourceCommit,
 	}
 
 	networkReader := newReleaseNetworkReader()

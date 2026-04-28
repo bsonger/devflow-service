@@ -116,10 +116,8 @@ func TestGetReturnsDetailEnvelope(t *testing.T) {
 						Name: "staging",
 					},
 				},
-				AppConfigs: []appconfigdomain.AppConfig{{Name: "base-config", EnvironmentID: "base"}},
-				WorkloadConfigs: []workloadconfigdomain.WorkloadConfig{{
-					Name: "web",
-				}},
+				AppConfigs:      []appconfigdomain.AppConfig{{EnvironmentID: "base"}},
+				WorkloadConfigs: []workloadconfigdomain.WorkloadConfig{{Replicas: 1}},
 			}, nil
 		},
 	})

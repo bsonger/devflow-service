@@ -6,11 +6,7 @@ definitions:
         type: string
       created_at:
         type: string
-      data:
-        type: string
       deleted_at:
-        type: string
-      description:
         type: string
       environment_id:
         type: string
@@ -18,27 +14,17 @@ definitions:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.File'
         type: array
-      format:
-        type: string
       id:
         type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.LabelItem'
-        type: array
       latest_revision_id:
         type: string
       latest_revision_no:
         type: integer
       mount_path:
         type: string
-      name:
-        type: string
-      rendered_configmap:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.RenderedConfigMap'
       source_commit:
         type: string
-      source_path:
+      source_directory:
         type: string
       updated_at:
         type: string
@@ -47,23 +33,9 @@ definitions:
     properties:
       application_id:
         type: string
-      data:
-        type: string
-      description:
-        type: string
       environment_id:
         type: string
-      format:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.LabelItem'
-        type: array
       mount_path:
-        type: string
-      name:
-        type: string
-      source_path:
         type: string
     type: object
   github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfigRevision:
@@ -80,8 +52,6 @@ definitions:
         type: array
       id:
         type: string
-      rendered_configmap:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.RenderedConfigMap'
       revision_no:
         type: integer
       source_commit:
@@ -95,20 +65,6 @@ definitions:
         type: string
       name:
         type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_appconfig_domain.LabelItem:
-    properties:
-      key:
-        type: string
-      value:
-        type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_appconfig_domain.RenderedConfigMap:
-    properties:
-      data:
-        additionalProperties:
-          type: string
-        type: object
     type: object
   github_com_bsonger_devflow-service_internal_application_domain.Application:
     properties:
@@ -139,98 +95,6 @@ definitions:
         type: string
       value:
         type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_approute_domain.Route:
-    properties:
-      application_id:
-        type: string
-      created_at:
-        type: string
-      deleted_at:
-        type: string
-      environment_id:
-        type: string
-      host:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      path:
-        type: string
-      service_name:
-        type: string
-      service_port:
-        type: integer
-      updated_at:
-        type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_approute_domain.RouteInput:
-    properties:
-      application_id:
-        type: string
-      environment_id:
-        type: string
-      host:
-        type: string
-      name:
-        type: string
-      path:
-        type: string
-      service_name:
-        type: string
-      service_port:
-        type: integer
-    type: object
-  github_com_bsonger_devflow-service_internal_approute_domain.RouteValidationResult:
-    properties:
-      errors:
-        items:
-          type: string
-        type: array
-      valid:
-        type: boolean
-    type: object
-  github_com_bsonger_devflow-service_internal_appservice_domain.Service:
-    properties:
-      application_id:
-        type: string
-      created_at:
-        type: string
-      deleted_at:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      ports:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServicePort'
-        type: array
-      updated_at:
-        type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput:
-    properties:
-      application_id:
-        type: string
-      name:
-        type: string
-      ports:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServicePort'
-        type: array
-    type: object
-  github_com_bsonger_devflow-service_internal_appservice_domain.ServicePort:
-    properties:
-      name:
-        type: string
-      protocol:
-        type: string
-      service_port:
-        type: integer
-      target_port:
-        type: integer
     type: object
   github_com_bsonger_devflow-service_internal_cluster_domain.Cluster:
     properties:
@@ -323,21 +187,6 @@ definitions:
       data:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application'
     type: object
-  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route
-  : properties:
-      data:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.Route'
-    type: object
-  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult
-  : properties:
-      data:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteValidationResult'
-    type: object
-  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service
-  : properties:
-      data:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.Service'
-    type: object
   ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_cluster_domain_Cluster
   : properties:
       data:
@@ -352,6 +201,21 @@ definitions:
   : properties:
       data:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Project'
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_Route
+  : properties:
+      data:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_route_domain.Route'
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_RouteValidationResult
+  : properties:
+      data:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteValidationResult'
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_service_domain_Service
+  : properties:
+      data:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_service_domain.Service'
     type: object
   ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_workloadconfig_domain_WorkloadConfig
   : properties:
@@ -377,24 +241,6 @@ definitions:
       data:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application'
-        type: array
-      pagination:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
-    type: object
-  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route
-  : properties:
-      data:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.Route'
-        type: array
-      pagination:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
-    type: object
-  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service
-  : properties:
-      data:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.Service'
         type: array
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
@@ -431,6 +277,24 @@ definitions:
       data:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Project'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_route_domain_Route
+  : properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_route_domain.Route'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_service_domain_Service
+  : properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_service_domain.Service'
         type: array
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
@@ -508,21 +372,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar:
-    properties:
-      name:
-        type: string
-      value:
-        type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem:
-    properties:
-      key:
-        type: string
-      value:
-        type: string
-    type: object
-  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig:
+  github_com_bsonger_devflow-service_internal_route_domain.Route:
     properties:
       application_id:
         type: string
@@ -530,7 +380,108 @@ definitions:
         type: string
       deleted_at:
         type: string
-      description:
+      environment_id:
+        type: string
+      host:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      service_name:
+        type: string
+      service_port:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_route_domain.RouteInput:
+    properties:
+      application_id:
+        type: string
+      environment_id:
+        type: string
+      host:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      service_name:
+        type: string
+      service_port:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_route_domain.RouteValidationResult:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      valid:
+        type: boolean
+    type: object
+  github_com_bsonger_devflow-service_internal_service_domain.Service:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      ports:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServicePort'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_service_domain.ServiceInput:
+    properties:
+      application_id:
+        type: string
+      name:
+        type: string
+      ports:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServicePort'
+        type: array
+    type: object
+  github_com_bsonger_devflow-service_internal_service_domain.ServicePort:
+    properties:
+      name:
+        type: string
+      protocol:
+        type: string
+      service_port:
+        type: integer
+      target_port:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
         type: string
       env:
         items:
@@ -539,11 +490,9 @@ definitions:
       id:
         type: string
       labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem'
-        type: array
-      name:
-        type: string
+        additionalProperties:
+          type: string
+        type: object
       probes:
         additionalProperties: {}
         type: object
@@ -554,29 +503,25 @@ definitions:
         type: object
       service_account_name:
         type: string
-      strategy:
-        type: string
       updated_at:
-        type: string
-      workload_type:
         type: string
     type: object
   github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfigInput:
     properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
       application_id:
-        type: string
-      description:
         type: string
       env:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar'
         type: array
       labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.LabelItem'
-        type: array
-      name:
-        type: string
+        additionalProperties:
+          type: string
+        type: object
       probes:
         additionalProperties: {}
         type: object
@@ -586,10 +531,6 @@ definitions:
         additionalProperties: {}
         type: object
       service_account_name:
-        type: string
-      strategy:
-        type: string
-      workload_type:
         type: string
     type: object
   http.ArgoEventRequest:
@@ -637,25 +578,6 @@ definitions:
       data:
         $ref: '#/definitions/internal_intent_transport_http.IntentDoc'
     type: object
-  http.ManifestListResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
-        type: array
-      pagination:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
-    type: object
-  http.ManifestResourcesResponse:
-    properties:
-      data:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc'
-    type: object
-  http.ManifestResponse:
-    properties:
-      data:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
-    type: object
   http.ReleaseAppConfigDoc:
     properties:
       data:
@@ -676,7 +598,7 @@ definitions:
         type: string
       source_commit:
         type: string
-      source_path:
+      source_directory:
         type: string
     type: object
   http.ReleaseArtifactRequest:
@@ -1080,6 +1002,15 @@ definitions:
       virtualservice:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
     type: object
+  internal_manifest_transport_http.ManifestListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
+    type: object
   internal_manifest_transport_http.ManifestRenderedResourceDoc:
     properties:
       kind:
@@ -1094,6 +1025,11 @@ definitions:
       yaml:
         type: string
     type: object
+  internal_manifest_transport_http.ManifestResourcesResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc'
+    type: object
   internal_manifest_transport_http.ManifestResourcesViewDoc:
     properties:
       application_id:
@@ -1102,6 +1038,11 @@ definitions:
         type: string
       resources:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc'
+    type: object
+  internal_manifest_transport_http.ManifestResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
     type: object
   internal_manifest_transport_http.ManifestServiceDoc:
     properties:
@@ -1142,14 +1083,20 @@ definitions:
     type: object
   internal_manifest_transport_http.ManifestWorkloadConfigDoc:
     properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
       env:
         items:
           $ref: '#/definitions/internal_manifest_transport_http.ManifestEnvVarDoc'
         type: array
       id:
         type: string
-      name:
-        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
       probes:
         additionalProperties: {}
         type: object
@@ -1158,9 +1105,7 @@ definitions:
       resources:
         additionalProperties: {}
         type: object
-      strategy:
-        type: string
-      workload_type:
+      service_account_name:
         type: string
     type: object
   internal_project_transport_http.CreateProjectRequest:
@@ -1203,10 +1148,6 @@ paths:
         in: query
         name: environment_id
         required: true
-        type: string
-      - description: Name
-        in: query
-        name: name
         type: string
       - description: Page
         in: query
@@ -1600,7 +1541,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.ManifestListResponse'
+            $ref: '#/definitions/internal_manifest_transport_http.ManifestListResponse'
         "400":
           description: Bad Request
           schema:
@@ -1628,7 +1569,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/http.ManifestResponse'
+            $ref: '#/definitions/internal_manifest_transport_http.ManifestResponse'
         "400":
           description: Bad Request
           schema:
@@ -1687,7 +1628,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.ManifestResponse'
+            $ref: '#/definitions/internal_manifest_transport_http.ManifestResponse'
         "400":
           description: Bad Request
           schema:
@@ -1717,7 +1658,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.ManifestResourcesResponse'
+            $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesResponse'
         "400":
           description: Bad Request
           schema:
@@ -1978,7 +1919,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route'
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_route_domain_Route'
       summary: List application routes
       tags:
       - Route
@@ -1991,14 +1932,14 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_Route'
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_Route'
       summary: Create application route
       tags:
       - Route
@@ -2035,7 +1976,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteInput'
       produces:
       - application/json
       responses:
@@ -2054,14 +1995,14 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_approute_domain.RouteInput'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_approute_domain_RouteValidationResult'
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_RouteValidationResult'
       summary: Validate application route
       tags:
       - Route
@@ -2094,7 +2035,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service'
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_service_domain_Service'
       summary: List application services
       tags:
       - Service
@@ -2107,20 +2048,14 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
-      - description: Service data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServiceInput'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appservice_domain_Service'
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_service_domain_Service'
       summary: Create application service
       tags:
       - Service
@@ -2157,7 +2092,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appservice_domain.ServiceInput'
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServiceInput'
       produces:
       - application/json
       responses:
@@ -2259,10 +2194,6 @@ paths:
       - description: Application ID
         in: query
         name: application_id
-        type: string
-      - description: Name
-        in: query
-        name: name
         type: string
       - description: Page
         in: query

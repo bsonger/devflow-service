@@ -6,7 +6,6 @@ import (
 	"time"
 
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
-	appservicedownstream "github.com/bsonger/devflow-service/internal/appservice/transport/downstream"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	"github.com/bsonger/devflow-service/internal/manifest/repository"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
@@ -15,6 +14,7 @@ import (
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	localtekton "github.com/bsonger/devflow-service/internal/release/transport/tekton"
+	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
@@ -43,7 +43,7 @@ var (
 var ManifestService = NewManifestService()
 
 type manifestNetworkReader interface {
-	ListServices(context.Context, string) ([]appservicedownstream.Service, error)
+	ListServices(context.Context, string) ([]servicedownstream.Service, error)
 }
 
 type manifestConfigReader interface {
@@ -83,7 +83,7 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	)
 
 	runtimeCfg := releasesupport.CurrentRuntimeConfig()
-	networks := appservicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
+	networks := servicedownstream.New(strings.TrimSpace(runtimeCfg.Downstream.NetworkServiceBaseURL))
 	configs := appconfigdownstream.New(strings.TrimSpace(runtimeCfg.Downstream.ConfigServiceBaseURL))
 
 	application, err := s.apps.Get(ctx, req.ApplicationID)
@@ -399,7 +399,7 @@ func deriveManifestResourceApplicationName(item *manifestdomain.Manifest) string
 	return item.ApplicationID.String()
 }
 
-func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, repoAddress string, target oci.ImageTarget, imageDigest string, workload *appconfigdownstream.WorkloadConfig, services []appservicedownstream.Service) (*manifestdomain.Manifest, error) {
+func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, repoAddress string, target oci.ImageTarget, imageDigest string, workload *appconfigdownstream.WorkloadConfig, services []servicedownstream.Service) (*manifestdomain.Manifest, error) {
 	servicesSnapshot := make([]manifestdomain.ManifestService, 0, len(services))
 	for _, item := range services {
 		ports := make([]manifestdomain.ManifestServicePort, 0, len(item.Ports))

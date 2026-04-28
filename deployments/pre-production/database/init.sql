@@ -145,8 +145,7 @@ CREATE TABLE public.configuration_revisions (
     created_by text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     source_commit text DEFAULT ''::text NOT NULL,
-    source_digest text DEFAULT ''::text NOT NULL,
-    rendered_configmap jsonb DEFAULT '{"data": {}}'::jsonb NOT NULL
+    source_digest text DEFAULT ''::text NOT NULL
 );
 
 
@@ -159,20 +158,14 @@ ALTER TABLE public.configuration_revisions OWNER TO app;
 CREATE TABLE public.configurations (
     id uuid NOT NULL,
     application_id uuid NOT NULL,
-    name text NOT NULL,
     env text NOT NULL,
-    latest_revision_no integer DEFAULT 1 NOT NULL,
+    latest_revision_no integer DEFAULT 0 NOT NULL,
     latest_revision_id uuid,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
     source_path text DEFAULT ''::text NOT NULL,
-    files jsonb DEFAULT '[]'::jsonb NOT NULL,
-    description text DEFAULT ''::text NOT NULL,
-    format text DEFAULT ''::text NOT NULL,
-    data text DEFAULT ''::text NOT NULL,
-    labels jsonb DEFAULT '[]'::jsonb NOT NULL,
-    mount_path text DEFAULT '/etc/devflow/config'::text NOT NULL
+    mount_path text DEFAULT '/etc/config'::text NOT NULL
 );
 
 
@@ -856,10 +849,10 @@ CREATE UNIQUE INDEX uq_configuration_revisions_no ON public.configuration_revisi
 
 
 --
--- Name: uq_configurations_app_env_name_active; Type: INDEX; Schema: public; Owner: app
+-- Name: uq_configurations_app_env_active; Type: INDEX; Schema: public; Owner: app
 --
 
-CREATE UNIQUE INDEX uq_configurations_app_env_name_active ON public.configurations USING btree (application_id, env, name) WHERE (deleted_at IS NULL);
+CREATE UNIQUE INDEX uq_configurations_app_env_active ON public.configurations USING btree (application_id, env) WHERE (deleted_at IS NULL);
 
 
 --
