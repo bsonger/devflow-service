@@ -24,6 +24,12 @@ data:
       service_name: "runtime-service"
       resource_attributes: "deployment.environment=pre-production,service.version=preproduction-runtime-20260425"
       sample_ratio: 0.1
+    downstream:
+      release_service_base_url: "http://release-service.devflow-pre-production.svc.cluster.local:8083"
+    observer:
+      shared_token: ""
+      tekton_namespace: "tekton-pipelines"
+      poll_interval_seconds: 15
     pyroscope: ""
 ---
 apiVersion: v1

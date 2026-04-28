@@ -3,10 +3,14 @@ package config
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
+	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
 	"github.com/spf13/viper"
+	"k8s.io/client-go/rest"
 )
 
 type LogConfig struct {
@@ -33,12 +37,24 @@ type OtelConfig struct {
 	SampleRatio        float64 `mapstructure:"sample_ratio" json:"sample_ratio" yaml:"sample_ratio"`
 }
 
+type DownstreamConfig struct {
+	ReleaseServiceBaseURL string `mapstructure:"release_service_base_url" json:"release_service_base_url" yaml:"release_service_base_url"`
+}
+
+type ObserverConfig struct {
+	SharedToken         string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
+	TektonNamespace     string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
+	PollIntervalSeconds int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+}
+
 type Config struct {
-	Server    *ServerConfig   `mapstructure:"server" json:"server" yaml:"server"`
-	Postgres  *PostgresConfig `mapstructure:"postgres" json:"postgres" yaml:"postgres"`
-	Log       *LogConfig      `mapstructure:"log" json:"log" yaml:"log"`
-	Otel      *OtelConfig     `mapstructure:"otel" json:"otel" yaml:"otel"`
-	Pyroscope string          `mapstructure:"pyroscope" json:"pyroscope" yaml:"pyroscope"`
+	Server     *ServerConfig     `mapstructure:"server" json:"server" yaml:"server"`
+	Postgres   *PostgresConfig   `mapstructure:"postgres" json:"postgres" yaml:"postgres"`
+	Log        *LogConfig        `mapstructure:"log" json:"log" yaml:"log"`
+	Otel       *OtelConfig       `mapstructure:"otel" json:"otel" yaml:"otel"`
+	Downstream *DownstreamConfig `mapstructure:"downstream" json:"downstream" yaml:"downstream"`
+	Observer   *ObserverConfig   `mapstructure:"observer" json:"observer" yaml:"observer"`
+	Pyroscope  string            `mapstructure:"pyroscope" json:"pyroscope" yaml:"pyroscope"`
 }
 
 func Load() (*Config, error) {
@@ -95,6 +111,11 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	}
 
 	db.InitPostgres(conn)
+
+	if err := startTektonManifestObserver(ctx, config); err != nil {
+		_ = conn.Close()
+		return shutdown, err
+	}
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)
@@ -131,4 +152,19 @@ func configValue(cfg *Config, getter func(*Config) string) string {
 		return ""
 	}
 	return getter(cfg)
+}
+
+func startTektonManifestObserver(ctx context.Context, config *Config) error {
+	runtimehttp.ObserverSharedToken = stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken })
+	restCfg, err := rest.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+	return runtimeobserver.StartTektonManifestObserver(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
+		Enabled:               true,
+		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
+		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
+		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
+	})
 }
