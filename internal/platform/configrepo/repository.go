@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 var ErrSourcePathNotFound = errors.New("config repo source path not found")
@@ -18,7 +20,7 @@ var ErrRepositorySyncFailed = errors.New("config repo sync failed")
 var DefaultRepository *Repository
 
 const (
-	FixedRepositoryURL = "git@github.com:bsonger/devflow-config-repo.git"
+	FixedRepositoryURL = "https://github.com/bsonger/devflow-config-repo.git"
 	FixedBranch        = "main"
 )
 
@@ -105,9 +107,6 @@ func (r *Repository) sync(ctx context.Context) (string, error) {
 				return "", nil
 			}
 			if cloneErr := ensureClonedRepository(ctx, r.rootDir, r.defaultRefOrMain()); cloneErr != nil {
-				if isIgnorableSyncError(cloneErr) {
-					return "", nil
-				}
 				return "", fmt.Errorf("%w: %v", ErrRepositorySyncFailed, cloneErr)
 			}
 		} else {
@@ -116,9 +115,6 @@ func (r *Repository) sync(ctx context.Context) (string, error) {
 	}
 	commit, err := r.syncer.Sync(ctx, r.rootDir, r.defaultRefOrMain())
 	if err != nil {
-		if isIgnorableSyncError(err) {
-			return "", nil
-		}
 		return "", fmt.Errorf("%w: %v", ErrRepositorySyncFailed, err)
 	}
 	return commit, nil
@@ -137,38 +133,41 @@ func ensureClonedRepository(ctx context.Context, rootDir, ref string) error {
 	if err := os.MkdirAll(filepath.Dir(rootDir), 0o755); err != nil {
 		return err
 	}
-	clone := exec.CommandContext(ctx, "git", "clone", "--branch", ref, "--single-branch", FixedRepositoryURL, rootDir)
-	clone.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	output, err := clone.CombinedOutput()
+	_, err := git.PlainCloneContext(ctx, rootDir, false, &git.CloneOptions{
+		URL:           FixedRepositoryURL,
+		ReferenceName: plumbing.NewBranchReferenceName(ref),
+		SingleBranch:  true,
+		Depth:         1,
+		Progress:      nil,
+	})
 	if err != nil {
-		return fmt.Errorf("git clone %s %s: %w: %s", FixedRepositoryURL, rootDir, err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("git clone %s %s: %w", FixedRepositoryURL, rootDir, err)
 	}
 	return nil
 }
 
 func (commandGitSyncer) Sync(ctx context.Context, rootDir, ref string) (string, error) {
-	pull := exec.CommandContext(ctx, "git", "-C", rootDir, "pull", "--ff-only", "origin", ref)
-	pull.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	output, err := pull.CombinedOutput()
+	repo, err := git.PlainOpen(rootDir)
 	if err != nil {
-		return "", fmt.Errorf("git pull origin %s: %w: %s", ref, err, strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("git open %s: %w", rootDir, err)
 	}
-
-	head := exec.CommandContext(ctx, "git", "-C", rootDir, "rev-parse", "HEAD")
-	head.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	output, err = head.CombinedOutput()
+	worktree, err := repo.Worktree()
 	if err != nil {
-		return "", fmt.Errorf("git rev-parse HEAD: %w: %s", err, strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("git worktree %s: %w", rootDir, err)
 	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-func isIgnorableSyncError(err error) bool {
-	if err == nil {
-		return false
+	if err := worktree.PullContext(ctx, &git.PullOptions{
+		RemoteName:    "origin",
+		ReferenceName: plumbing.NewBranchReferenceName(ref),
+		SingleBranch:  true,
+		Depth:         1,
+		Progress:      nil,
+		Force:         false,
+	}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return "", fmt.Errorf("git pull origin %s: %w", ref, err)
 	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "exec format error") ||
-		strings.Contains(message, "executable file not found") ||
-		strings.Contains(message, "no such file or directory")
+	head, err := repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("git head %s: %w", rootDir, err)
+	}
+	return head.Hash().String(), nil
 }

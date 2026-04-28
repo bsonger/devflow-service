@@ -104,7 +104,7 @@ func TestRepositoryReadSnapshotReturnsSyncError(t *testing.T) {
 	}
 }
 
-func TestRepositoryReadSnapshotFallsBackWhenGitSyncBinaryIsUnavailable(t *testing.T) {
+func TestRepositoryReadSnapshotReturnsSyncErrorWhenSyncFails(t *testing.T) {
 	rootDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
 		t.Fatal(err)
@@ -120,19 +120,10 @@ func TestRepositoryReadSnapshotFallsBackWhenGitSyncBinaryIsUnavailable(t *testin
 		RootDir:    rootDir,
 		DefaultRef: "main",
 	})
-	repo.syncer = &stubGitSyncer{err: errors.New("fork/exec /usr/bin/git: exec format error")}
+	repo.syncer = &stubGitSyncer{err: errors.New("network unavailable")}
 
-	snapshot, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
-	if err != nil {
-		t.Fatalf("ReadSnapshot returned error: %v", err)
-	}
-	if snapshot == nil {
-		t.Fatal("expected snapshot")
-	}
-	if snapshot.SourceCommit != "main" {
-		t.Fatalf("SourceCommit = %q, want %q", snapshot.SourceCommit, "main")
-	}
-	if len(snapshot.Files) != 1 {
-		t.Fatalf("len(Files) = %d, want 1", len(snapshot.Files))
+	_, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
+	if !errors.Is(err, ErrRepositorySyncFailed) {
+		t.Fatalf("err = %v, want ErrRepositorySyncFailed", err)
 	}
 }
