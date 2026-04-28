@@ -18,13 +18,15 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
-func TestBuildArgoApplicationUsesRepoPluginSource(t *testing.T) {
-	model.InitConfigRepo(&model.Repo{Address: "https://github.com/bsonger/manifests.git", Path: "manifests"})
+func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	release := &model.Release{
-		BaseModel:     model.BaseModel{ID: uuid.New()},
-		ApplicationID: uuid.New(),
-		ManifestID:    uuid.New(),
-		EnvironmentID: "production",
+		BaseModel:          model.BaseModel{ID: uuid.New()},
+		ApplicationID:      uuid.New(),
+		ManifestID:         uuid.New(),
+		EnvironmentID:      "production",
+		ArtifactRepository: "zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/production",
+		ArtifactDigest:     "sha256:abc",
+		ArtifactRef:        "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/production@sha256:abc",
 	}
 	manifest := &manifestdomain.Manifest{BaseModel: model.BaseModel{ID: release.ManifestID}}
 	target := releasesupport.DeployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
@@ -34,38 +36,20 @@ func TestBuildArgoApplicationUsesRepoPluginSource(t *testing.T) {
 		ProjectName: "checkout",
 	}, target)
 
-	if app.Spec.Source == nil || app.Spec.Source.Plugin == nil {
-		t.Fatal("expected repo plugin fallback source")
+	if app.Spec.Source == nil {
+		t.Fatal("expected oci application source")
 	}
-	if app.Spec.Source.RepoURL != model.GetConfigRepo().Address {
+	if app.Spec.Source.Plugin != nil {
+		t.Fatalf("unexpected plugin source: %+v", app.Spec.Source.Plugin)
+	}
+	if app.Spec.Source.RepoURL != "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/production" {
 		t.Fatalf("RepoURL = %q", app.Spec.Source.RepoURL)
 	}
-	if app.Spec.Source.Path != "./" {
+	if app.Spec.Source.TargetRevision != "sha256:abc" {
+		t.Fatalf("TargetRevision = %q", app.Spec.Source.TargetRevision)
+	}
+	if app.Spec.Source.Path != "." {
 		t.Fatalf("Path = %q", app.Spec.Source.Path)
-	}
-	if len(app.Spec.Source.Plugin.Parameters) != 3 {
-		t.Fatalf("plugin parameters = %d", len(app.Spec.Source.Plugin.Parameters))
-	}
-	got := map[string]string{}
-	for _, item := range app.Spec.Source.Plugin.Parameters {
-		if item.String_ != nil {
-			got[item.Name] = *item.String_
-		}
-	}
-	if _, ok := got["manifest-id"]; ok {
-		t.Fatalf("unexpected legacy manifest-id parameter: %+v", got)
-	}
-	if got["application-id"] != release.ApplicationID.String() {
-		t.Fatalf("application-id = %q want %q", got["application-id"], release.ApplicationID.String())
-	}
-	if got["release-id"] != release.ID.String() {
-		t.Fatalf("release-id = %q want %q", got["release-id"], release.ID.String())
-	}
-	if _, ok := got["artifact-ref"]; ok {
-		t.Fatalf("unexpected artifact-ref in legacy fallback source: %+v", got)
-	}
-	if _, ok := got["image-id"]; ok {
-		t.Fatalf("unexpected legacy image-id parameter: %+v", got)
 	}
 	if app.Spec.Destination.Namespace != target.Namespace {
 		t.Fatalf("namespace = %q", app.Spec.Destination.Namespace)
@@ -75,14 +59,13 @@ func TestBuildArgoApplicationUsesRepoPluginSource(t *testing.T) {
 	}
 }
 
-func TestBuildArgoApplicationPrefersReleaseArtifactRef(t *testing.T) {
-	model.InitConfigRepo(&model.Repo{Address: "https://github.com/bsonger/manifests.git", Path: "manifests"})
+func TestBuildArgoApplicationDerivesOCIArtifactFromRef(t *testing.T) {
 	release := &model.Release{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
 		ApplicationID: uuid.New(),
 		ManifestID:    uuid.New(),
 		EnvironmentID: "production",
-		ArtifactRef:   "oci://registry.example.com/devflow/releases/demo-api:release-20260428",
+		ArtifactRef:   "oci://registry.example.com/devflow/releases/demo-api@sha256:def",
 	}
 	manifest := &manifestdomain.Manifest{BaseModel: model.BaseModel{ID: release.ManifestID}}
 	target := releasesupport.DeployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
@@ -92,20 +75,17 @@ func TestBuildArgoApplicationPrefersReleaseArtifactRef(t *testing.T) {
 		ProjectName: "checkout",
 	}, target)
 
-	if app.Spec.Source == nil || app.Spec.Source.Plugin == nil {
-		t.Fatal("expected plugin source")
+	if app.Spec.Source == nil {
+		t.Fatal("expected oci source")
 	}
-	got := map[string]string{}
-	for _, item := range app.Spec.Source.Plugin.Parameters {
-		if item.String_ != nil {
-			got[item.Name] = *item.String_
-		}
+	if app.Spec.Source.RepoURL != "oci://registry.example.com/devflow/releases/demo-api" {
+		t.Fatalf("RepoURL = %q", app.Spec.Source.RepoURL)
 	}
-	if got["artifact-ref"] != release.ArtifactRef {
-		t.Fatalf("artifact-ref = %q want %q", got["artifact-ref"], release.ArtifactRef)
+	if app.Spec.Source.TargetRevision != "sha256:def" {
+		t.Fatalf("TargetRevision = %q", app.Spec.Source.TargetRevision)
 	}
-	if _, ok := got["image-id"]; ok {
-		t.Fatalf("unexpected image-id when artifact-ref is present: %+v", got)
+	if app.Spec.Source.Path != "." {
+		t.Fatalf("Path = %q", app.Spec.Source.Path)
 	}
 }
 

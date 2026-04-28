@@ -1,0 +1,32 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: devflow-release-service-argocd
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: release-service
+    app.kubernetes.io/part-of: devflow
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["create", "get", "list", "watch", "patch", "update"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["appprojects"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: devflow-release-service-argocd
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: release-service
+    app.kubernetes.io/part-of: devflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: devflow-release-service-argocd
+subjects:
+  - kind: ServiceAccount
+    name: release-service
+    namespace: devflow-pre-production

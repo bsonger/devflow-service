@@ -587,6 +587,10 @@ func (s *releaseService) publishDeploymentBundle(ctx context.Context, release *m
 		_ = s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepFailed, 100, err.Error(), nil, nil)
 		return err
 	}
+	release.ArtifactRepository = strings.TrimSpace(result.Repository)
+	release.ArtifactTag = strings.TrimSpace(result.Tag)
+	release.ArtifactDigest = strings.TrimSpace(result.Digest)
+	release.ArtifactRef = strings.TrimSpace(result.Ref)
 	return s.UpdateArtifact(ctx, release.ID, result.Repository, result.Tag, result.Digest, result.Ref, publishBundleResultMessage(runtimeCfg, result), model.StepSucceeded, 100)
 }
 
@@ -809,32 +813,53 @@ func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manif
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: appv1.ApplicationSpec{
 			Project:     "app",
-			Source:      buildRepoPluginApplicationSource(release),
+			Source:      buildOCIApplicationSource(release),
 			Destination: appv1.ApplicationDestination{Server: target.DestinationServer, Namespace: target.Namespace},
 		},
 	}
 }
 
-func buildRepoPluginApplicationSource(release *model.Release) *appv1.ApplicationSource {
-	manifestRepo := model.GetConfigRepo()
-	applicationId := release.ApplicationID.String()
-	releaseID := release.ID.String()
-	parameters := []appv1.ApplicationSourcePluginParameter{
-		{Name: "env", String_: &release.EnvironmentID},
-		{Name: "application-id", String_: &applicationId},
-		{Name: "release-id", String_: &releaseID},
-	}
-	if artifactRef := strings.TrimSpace(release.ArtifactRef); artifactRef != "" {
-		parameters = append(parameters, appv1.ApplicationSourcePluginParameter{Name: "artifact-ref", String_: &artifactRef})
-	}
+func buildOCIApplicationSource(release *model.Release) *appv1.ApplicationSource {
+	repoURL, targetRevision := deriveOCIApplicationArtifact(release)
 	return &appv1.ApplicationSource{
-		RepoURL: manifestRepo.Address,
-		Path:    "./",
-		Plugin: &appv1.ApplicationSourcePlugin{
-			Name:       "plugin",
-			Parameters: parameters,
-		},
+		RepoURL:        repoURL,
+		TargetRevision: targetRevision,
+		Path:           ".",
 	}
+}
+
+func deriveOCIApplicationArtifact(release *model.Release) (string, string) {
+	if release == nil {
+		return "", ""
+	}
+	repository := strings.TrimSpace(release.ArtifactRepository)
+	targetRevision := strings.TrimSpace(release.ArtifactDigest)
+	if targetRevision == "" {
+		targetRevision = strings.TrimSpace(release.ArtifactTag)
+	}
+	artifactRef := strings.TrimSpace(release.ArtifactRef)
+	if strings.HasPrefix(artifactRef, "oci://") {
+		trimmed := strings.TrimPrefix(artifactRef, "oci://")
+		if repository == "" {
+			if idx := strings.LastIndex(trimmed, "@"); idx > 0 {
+				repository = trimmed[:idx]
+				if targetRevision == "" {
+					targetRevision = trimmed[idx+1:]
+				}
+			} else if idx := strings.LastIndex(trimmed, ":"); idx > 0 {
+				repository = trimmed[:idx]
+				if targetRevision == "" {
+					targetRevision = trimmed[idx+1:]
+				}
+			} else {
+				repository = trimmed
+			}
+		}
+	}
+	if repository == "" {
+		return "", targetRevision
+	}
+	return "oci://" + repository, targetRevision
 }
 
 func (s *releaseService) syncArgoApplication(ctx context.Context, appName string) error {
