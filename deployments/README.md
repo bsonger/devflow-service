@@ -23,13 +23,20 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
 
-By default, `release-service` is deployed as an in-cluster `ClusterIP` service only.
-It is not exposed by `deployments/pre-production/istio/shared-ingress.yaml`.
+`release-service` remains a backend `ClusterIP` service inside Kubernetes,
+but it is exposed at the shared edge through Istio path routing.
 
 Istio edge note:
 - `deployments/pre-production/istio/shared-ingress.yaml` is the committed pre-production edge contract for extracted service ingress
 - the committed pre-production namespace is `devflow-pre-production`
-- it uses one host, `devflow-pre-production.bei.com`, with `/api/v1/platform` routed to `meta-service` and service-specific subpaths: `/config`, `/network`, and `/runtime`
+- it uses one host, `devflow-pre-production.bei.com`
+- current primary service routes are:
+  - `/api/v1/meta/...` -> `meta-service`
+  - `/api/v1/config/...` -> `config-service`
+  - `/api/v1/network/...` -> `network-service`
+  - `/api/v1/runtime/...` -> `runtime-service`
+  - `/api/v1/release/...` -> `release-service`
+- `/api/v1/platform/...` remains as a legacy compatibility route to `meta-service`
 - the `Gateway` and `VirtualService` in that file should be updated together if the shared ingress host or gateway selector changes
 - the backend Kubernetes `Service` objects remain `ClusterIP`; edge exposure belongs to Istio ingress rather than per-service load balancers
 

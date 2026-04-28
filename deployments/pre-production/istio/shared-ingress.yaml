@@ -29,12 +29,25 @@ spec:
   hosts:
     - devflow-pre-production.bei.com
   gateways:
-    - devflow-pre-production/devflow-preproduction-gateway
+    - istio-system/devflow-gateway
   http:
-    - name: meta-service-platform-api
+    - name: meta-service-root
       match:
         - uri:
-            prefix: /api/v1/platform
+            exact: /api/v1/meta
+      rewrite:
+        uri: /api/v1
+      route:
+        - destination:
+            host: meta-service.devflow-pre-production.svc.cluster.local
+            port:
+              number: 8081
+    - name: meta-service-prefix
+      match:
+        - uri:
+            prefix: /api/v1/meta/
+      rewrite:
+        uri: /api/v1/
       route:
         - destination:
             host: meta-service.devflow-pre-production.svc.cluster.local
@@ -43,9 +56,9 @@ spec:
     - name: config-service-root
       match:
         - uri:
-            exact: /config
+            exact: /api/v1/config
       rewrite:
-        uri: /
+        uri: /api/v1
       route:
         - destination:
             host: config-service.devflow-pre-production.svc.cluster.local
@@ -54,9 +67,9 @@ spec:
     - name: config-service-prefix
       match:
         - uri:
-            prefix: /config/
+            prefix: /api/v1/config/
       rewrite:
-        uri: /
+        uri: /api/v1/
       route:
         - destination:
             host: config-service.devflow-pre-production.svc.cluster.local
@@ -65,9 +78,9 @@ spec:
     - name: network-service-root
       match:
         - uri:
-            exact: /network
+            exact: /api/v1/network
       rewrite:
-        uri: /
+        uri: /api/v1
       route:
         - destination:
             host: network-service.devflow-pre-production.svc.cluster.local
@@ -76,9 +89,9 @@ spec:
     - name: network-service-prefix
       match:
         - uri:
-            prefix: /network/
+            prefix: /api/v1/network/
       rewrite:
-        uri: /
+        uri: /api/v1/
       route:
         - destination:
             host: network-service.devflow-pre-production.svc.cluster.local
@@ -87,9 +100,9 @@ spec:
     - name: runtime-service-root
       match:
         - uri:
-            exact: /runtime
+            exact: /api/v1/runtime
       rewrite:
-        uri: /
+        uri: /api/v1
       route:
         - destination:
             host: runtime-service.devflow-pre-production.svc.cluster.local
@@ -98,11 +111,77 @@ spec:
     - name: runtime-service-prefix
       match:
         - uri:
-            prefix: /runtime/
+            prefix: /api/v1/runtime/
       rewrite:
-        uri: /
+        uri: /api/v1/
       route:
         - destination:
             host: runtime-service.devflow-pre-production.svc.cluster.local
             port:
               number: 8084
+    - name: release-service-root
+      match:
+        - uri:
+            exact: /api/v1/release
+      rewrite:
+        uri: /api/v1
+      route:
+        - destination:
+            host: release-service.devflow-pre-production.svc.cluster.local
+            port:
+              number: 8083
+    - name: release-service-prefix
+      match:
+        - uri:
+            prefix: /api/v1/release/
+      rewrite:
+        uri: /api/v1/
+      route:
+        - destination:
+            host: release-service.devflow-pre-production.svc.cluster.local
+            port:
+              number: 8083
+    - name: legacy-platform-root
+      match:
+        - uri:
+            exact: /api/v1/platform
+      rewrite:
+        uri: /api/v1
+      route:
+        - destination:
+            host: meta-service.devflow-pre-production.svc.cluster.local
+            port:
+              number: 8081
+    - name: legacy-platform-prefix
+      match:
+        - uri:
+            prefix: /api/v1/platform/
+      rewrite:
+        uri: /api/v1/
+      route:
+        - destination:
+            host: meta-service.devflow-pre-production.svc.cluster.local
+            port:
+              number: 8081
+    - name: platform-web-root
+      match:
+        - uri:
+            exact: /platform
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: devflow-platform-web.devflow-pre-production.svc.cluster.local
+            port:
+              number: 80
+    - name: platform-web-prefix
+      match:
+        - uri:
+            prefix: /platform/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: devflow-platform-web.devflow-pre-production.svc.cluster.local
+            port:
+              number: 80
