@@ -16,6 +16,7 @@ import (
 type ListFilter struct {
 	IncludeDeleted bool
 	ApplicationID  *uuid.UUID
+	EnvironmentID  string
 	ManifestID     *uuid.UUID
 	Status         string
 	Type           string
@@ -90,6 +91,10 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]*model.R
 	if filter.ApplicationID != nil {
 		args = append(args, *filter.ApplicationID)
 		clauses = append(clauses, dbsql.PlaceholderClause("application_id", len(args)))
+	}
+	if strings.TrimSpace(filter.EnvironmentID) != "" {
+		args = append(args, strings.TrimSpace(filter.EnvironmentID))
+		clauses = append(clauses, dbsql.PlaceholderClause("env", len(args)))
 	}
 	if filter.ManifestID != nil {
 		args = append(args, *filter.ManifestID)

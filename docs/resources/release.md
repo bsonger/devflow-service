@@ -247,7 +247,7 @@ Design rule:
 ## API surface
 
 - `POST /api/v1/releases`
-- `GET /api/v1/releases`
+- `GET /api/v1/releases?application_id=...&environment_id=...`
 - `GET /api/v1/releases/{id}`
 - `GET /api/v1/releases/{id}/bundle-preview`
 - `DELETE /api/v1/releases/{id}`
@@ -281,10 +281,15 @@ Recommended stable read fields:
 Recommended list filters:
 
 - `application_id`
+- `environment_id`
 - `manifest_id`
 - `status`
 - `type`
 - `include_deleted`
+
+Validation note:
+
+- `GET /api/v1/releases` requires both `application_id` and `environment_id`
 
 ## Execution model
 

@@ -31,6 +31,7 @@ import (
 type ReleaseListFilter struct {
 	IncludeDeleted bool
 	ApplicationID  *uuid.UUID
+	EnvironmentID  string
 	ManifestID     *uuid.UUID
 	Status         string
 	Type           string

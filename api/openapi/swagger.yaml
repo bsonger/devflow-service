@@ -1830,6 +1830,33 @@ paths:
       - Project
   /api/v1/releases:
     get:
+      parameters:
+      - description: Application ID
+        in: query
+        name: application_id
+        required: true
+        type: string
+      - description: Environment ID
+        in: query
+        name: environment_id
+        required: true
+        type: string
+      - description: Manifest ID
+        in: query
+        name: manifest_id
+        type: string
+      - description: Status
+        in: query
+        name: status
+        type: string
+      - description: Type
+        in: query
+        name: type
+        type: string
+      - description: Include deleted items
+        in: query
+        name: include_deleted
+        type: boolean
       responses:
         "200":
           description: OK

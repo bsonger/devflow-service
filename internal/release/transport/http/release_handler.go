@@ -168,17 +168,30 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 // List
 // @Summary 获取Release列表
 // @Tags Release
+// @Param application_id query string true "Application ID"
+// @Param environment_id query string true "Environment ID"
+// @Param manifest_id query string false "Manifest ID"
+// @Param status query string false "Status"
+// @Param type query string false "Type"
+// @Param include_deleted query bool false "Include deleted items"
 // @Success 200 {object} ReleaseListResponse
 // @Router /api/v1/releases [get]
 func (h *ReleaseHandler) List(c *gin.Context) {
 	filter := service.ReleaseListFilter{IncludeDeleted: httpx.IncludeDeleted(c)}
 	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
-	if !ok {
+	if !ok || applicationId == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "application_id is required")
+		}
 		return
 	}
-	if applicationId != nil {
-		filter.ApplicationID = applicationId
+	environmentID := c.Query("environment_id")
+	if environmentID == "" {
+		httpx.WriteInvalidArgument(c, "environment_id is required")
+		return
 	}
+	filter.ApplicationID = applicationId
+	filter.EnvironmentID = environmentID
 	manifestID, ok := httpx.ParseUUIDQuery(c, "manifest_id")
 	if !ok {
 		return
