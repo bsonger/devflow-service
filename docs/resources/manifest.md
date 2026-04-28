@@ -126,6 +126,19 @@ Reason:
 - source/build metadata should be resolved by the service from application/build context and later watcher writeback
 - older internal revision linkage should not be treated as manifest contract surface
 
+The active manifest persistence model also does **not** retain legacy release-era columns such as:
+
+- `environment_id`
+- `image_id`
+- `routes_snapshot`
+- `app_config_snapshot`
+- `rendered_yaml`
+- `rendered_objects`
+- `artifact_repository`
+- `artifact_tag`
+- `artifact_digest`
+- `artifact_ref`
+
 ## Create-time resolved fields
 
 The service is expected to resolve or fill these after request acceptance:
@@ -777,18 +790,18 @@ Current implementation direction should match this document:
 - manifest domain model stays environment-agnostic
 - manifest no longer owns release artifact packaging
 - manifest no longer persists rendered deployment YAML as its active contract
-- [ ] add/confirm runtime tracking fields:
-  - [ ] `pipeline_id`
-  - [ ] `trace_id`
-  - [ ] `span_id`
-  - [ ] `steps`
+- runtime tracking fields are part of the active contract:
+  - `pipeline_id`
+  - `trace_id`
+  - `span_id`
+  - `steps`
 
 ### Persistence
 
-- [ ] manifest table schema matches the target model
-- [ ] repository read/write paths persist build metadata fields
-- [ ] repository read/write paths persist dynamic `steps`
-- [ ] repository read/write paths preserve terminal state correctness
+- manifest table schema matches the target build-record model
+- repository read/write paths persist build metadata fields
+- repository read/write paths persist dynamic `steps`
+- repository read/write paths preserve terminal state correctness
 
 ### Source resolution
 
