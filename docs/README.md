@@ -15,8 +15,8 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/index/agent-path.md` — compact agent route map back to `AGENTS.md`
 - `docs/index/agent-recipes.md` — compact task recipes for common repo-local changes
 - `docs/system/` — current repo-local execution truth
-- `docs/services/` — current service-specific behavior and diagnostics
-- `docs/resources/` — current resource contracts and API behavior
+- `docs/services/` — current service ownership, ingress boundaries, diagnostics, and verification
+- `docs/resources/` — current resource contracts, API behavior, and validation rules
 - `docs/policies/` — durable repo rules such as layout, Docker, and verification
 - `docs/generated/` — generated artifacts only
 - `docs/archive/` — historical material only

@@ -11,14 +11,22 @@ It is the owning doc for token-gated writeback routes such as Argo event status 
 - owning HTTP package: `internal/release/transport/http`
 - owning config injection: `internal/release/config/config.go`
 
-## Protected writeback routes
+## API surfaces
 
-The current writeback routes live under the `release-service` API surface:
+Service-internal writeback routes:
 
 ```text
 POST /api/v1/verify/argo/events
 POST /api/v1/verify/release/steps
 POST /api/v1/verify/release/artifact
+```
+
+Pre-production shared ingress external routes:
+
+```text
+POST /api/v1/release/verify/argo/events
+POST /api/v1/release/verify/release/steps
+POST /api/v1/release/verify/release/artifact
 ```
 
 These routes are registered by:

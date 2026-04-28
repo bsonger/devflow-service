@@ -62,6 +62,7 @@ internal/release/
 ## Resource Contracts
 
 - `docs/resources/manifest.md`
+- `docs/resources/image.md`
 - `docs/resources/intent.md`
 - `docs/resources/release.md`
 

@@ -1,11 +1,17 @@
 # Index
 
+## Purpose
+
 This directory is index-only.
+It contains navigation entrypoints and should not become a source of implementation truth.
 
-This directory contains navigation entrypoints.
+## Current index docs
 
-- `getting-started.md` is the canonical docs navigation start point.
-- `agent-path.md` is an index-only agent route map that points back to `AGENTS.md`.
-- `agent-recipes.md` is an index-only recipe catalog for common repo-local tasks.
+- `getting-started.md` — canonical docs navigation start point
+- `agent-path.md` — index-only agent route map pointing back to `AGENTS.md`
+- `agent-recipes.md` — index-only recipe catalog for common repo-local tasks
 
-These files are navigation-only and must not become sources of implementation truth or startup authority.
+## Notes
+
+- use these files to find the right owning document faster
+- do not store active API contracts, service ownership, or startup authority here
