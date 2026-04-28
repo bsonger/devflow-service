@@ -80,5 +80,7 @@ The resource contracts owned by this boundary are documented at:
 - AppConfig is now unique by `application_id + environment_id`
 - config sync source is the fixed GitHub config repository
 - effective sync directory is derived as `{project_name}/{application_name}/{environment_name}`
+- config-service must initialize `config_repo.root_dir` and `config_repo.default_ref` at runtime before sync requests are served
+- the pre-production deployment mounts a writable `/tmp` volume and checks out the fixed repo under `/tmp/devflow-config-repo`
 - `mount_path` defaults to `/etc/config`
 - release-time rendering owns ConfigMap materialization; `AppConfig` no longer stores `rendered_configmap`

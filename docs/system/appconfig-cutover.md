@@ -34,6 +34,7 @@ Before cutover, confirm:
 ```text
 {project_name}/{application_name}/{environment_name}
 ```
+6. config-service runtime config includes a writable `config_repo.root_dir`
 
 ## Execution checklist
 

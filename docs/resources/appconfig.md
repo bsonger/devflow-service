@@ -83,6 +83,7 @@ The resource tracks the mount directory plus the latest synced revision, synced 
 
 - sync source is the fixed GitHub config repository
 - repository URL is system-configured and is not stored as a user-writable field on `AppConfig`
+- runtime config must provide `config_repo.root_dir` and may override `config_repo.default_ref`
 - sync path is system-derived from:
   - `project_name`
   - `application_name`

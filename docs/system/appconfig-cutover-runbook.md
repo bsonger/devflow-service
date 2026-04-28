@@ -53,6 +53,7 @@ rg -n "/etc/devflow/config" deployments/pre-production internal || true
 ```
 
 4. Announce write freeze for legacy AppConfig updates.
+5. Confirm `config-service` runtime config includes `config_repo.root_dir` and that the pod has a writable volume mounted there.
 
 ## T-10 min
 

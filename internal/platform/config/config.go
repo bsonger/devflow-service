@@ -6,11 +6,17 @@ import (
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/db"
+	platformconfigrepo "github.com/bsonger/devflow-service/internal/platform/configrepo"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
 	"github.com/spf13/viper"
 	"k8s.io/client-go/rest"
+)
+
+const (
+	defaultConfigRepoRootDir = "/tmp/devflow-config-repo"
+	defaultConfigRepoRef     = "main"
 )
 
 type LogConfig struct {
@@ -41,6 +47,11 @@ type DownstreamConfig struct {
 	ReleaseServiceBaseURL string `mapstructure:"release_service_base_url" json:"release_service_base_url" yaml:"release_service_base_url"`
 }
 
+type ConfigRepoConfig struct {
+	RootDir    string `mapstructure:"root_dir" json:"root_dir" yaml:"root_dir"`
+	DefaultRef string `mapstructure:"default_ref" json:"default_ref" yaml:"default_ref"`
+}
+
 type ObserverConfig struct {
 	SharedToken         string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
 	TektonNamespace     string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
@@ -53,6 +64,7 @@ type Config struct {
 	Log        *LogConfig        `mapstructure:"log" json:"log" yaml:"log"`
 	Otel       *OtelConfig       `mapstructure:"otel" json:"otel" yaml:"otel"`
 	Downstream *DownstreamConfig `mapstructure:"downstream" json:"downstream" yaml:"downstream"`
+	ConfigRepo *ConfigRepoConfig `mapstructure:"config_repo" json:"config_repo" yaml:"config_repo"`
 	Observer   *ObserverConfig   `mapstructure:"observer" json:"observer" yaml:"observer"`
 	Pyroscope  string            `mapstructure:"pyroscope" json:"pyroscope" yaml:"pyroscope"`
 }
@@ -111,6 +123,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	}
 
 	db.InitPostgres(conn)
+	initConfigRepo(config)
 
 	if err := startTektonManifestObserver(ctx, config); err != nil {
 		_ = conn.Close()
@@ -152,6 +165,23 @@ func configValue(cfg *Config, getter func(*Config) string) string {
 		return ""
 	}
 	return getter(cfg)
+}
+
+func initConfigRepo(config *Config) {
+	rootDir := defaultConfigRepoRootDir
+	defaultRef := defaultConfigRepoRef
+	if config != nil && config.ConfigRepo != nil {
+		if value := config.ConfigRepo.RootDir; value != "" {
+			rootDir = value
+		}
+		if value := config.ConfigRepo.DefaultRef; value != "" {
+			defaultRef = value
+		}
+	}
+	platformconfigrepo.DefaultRepository = platformconfigrepo.NewRepository(platformconfigrepo.Options{
+		RootDir:    rootDir,
+		DefaultRef: defaultRef,
+	})
 }
 
 func startTektonManifestObserver(ctx context.Context, config *Config) error {
