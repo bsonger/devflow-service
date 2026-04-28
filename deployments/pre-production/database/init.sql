@@ -301,20 +301,19 @@ CREATE TABLE public.manifests (
     git_revision text DEFAULT ''::text NOT NULL,
     repo_address text DEFAULT ''::text NOT NULL,
     commit_hash text DEFAULT ''::text NOT NULL,
+    image_ref text NOT NULL,
     image_tag text DEFAULT ''::text NOT NULL,
     image_digest text DEFAULT ''::text NOT NULL,
     pipeline_id text DEFAULT ''::text NOT NULL,
     trace_id text DEFAULT ''::text NOT NULL,
     span_id text DEFAULT ''::text NOT NULL,
     steps jsonb DEFAULT '[]'::jsonb NOT NULL,
-    image_ref text NOT NULL,
     services_snapshot jsonb DEFAULT '[]'::jsonb NOT NULL,
     workload_config_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
     status text CONSTRAINT manifests_status_not_null1 NOT NULL,
     created_at timestamp with time zone CONSTRAINT manifests_created_at_not_null1 NOT NULL,
     updated_at timestamp with time zone CONSTRAINT manifests_updated_at_not_null1 NOT NULL,
-    deleted_at timestamp with time zone,
-    tag text DEFAULT ''::text CONSTRAINT manifests_tag_not_null1 NOT NULL
+    deleted_at timestamp with time zone
 );
 
 

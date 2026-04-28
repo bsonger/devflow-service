@@ -62,12 +62,18 @@ Applying the manifest to an already-running cluster will not replay schema creat
 
 `deployments/pre-production/database/init.sql` started from the live `app` schema and was then corrected to match the current Go model and repository contract before being checked into the repo as the bootstrap baseline.
 
-As of `2026-04-26`, the live schema includes:
+As of `2026-04-28`, the live schema includes:
 
 - extension: `pgcrypto`
 - 22 application tables
 - corrected soft-delete support for `application_environment_bindings`
 - corrected `projects` shape to match the current `Project` model and repository contract
+- `manifests` reduced to the current build-record model only:
+  - kept: `application_id`, `git_revision`, `repo_address`, `commit_hash`, `image_ref`, `image_tag`, `image_digest`, `pipeline_id`, `trace_id`, `span_id`, `steps`, `services_snapshot`, `workload_config_snapshot`, `status`
+  - removed legacy release-era columns such as `environment_id`, `image_id`, `routes_snapshot`, `app_config_snapshot`, `rendered_yaml`, `rendered_objects`, `artifact_*`, and `tag`
+- `releases` aligned to the current release-service model:
+  - kept `env`, `manifest_id`, `routes_snapshot`, `app_config_snapshot`, `strategy`, `artifact_*`, `argocd_application_name`, `external_ref`, `steps`, `status`
+  - removed legacy `image_id`
 - primary keys, unique indexes, support indexes, and foreign keys required by the current repository implementations
 
 When repository-owned persistence changes, update the live schema and refresh `init.sql` together instead of letting bootstrap drift from production reality.
