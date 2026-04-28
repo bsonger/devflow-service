@@ -1,4 +1,0 @@
-kind: EnvironmentOverlay
-environment: staging
-configuration:
-  replicas: 2

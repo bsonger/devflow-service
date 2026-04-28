@@ -1,3 +1,0 @@
-kind: DeploymentConfig
-replicas: 2
-exposed: true

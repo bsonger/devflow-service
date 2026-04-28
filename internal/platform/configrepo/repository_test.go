@@ -28,7 +28,7 @@ func TestRepositoryReadSnapshot(t *testing.T) {
 		DefaultRef: "main",
 	})
 
-	snapshot, err := repo.ReadSnapshot(context.Background(), "applications/devflow-platform/services/devflow-app-service", "staging")
+	snapshot, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
 	if err != nil {
 		t.Fatalf("ReadSnapshot returned error: %v", err)
 	}
@@ -51,14 +51,11 @@ func TestRepositoryReadSnapshotPullsGitRepoBeforeReading(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	sourceDir := filepath.Join(rootDir, "applications/devflow-platform/services/devflow-app-service")
-	if err := os.MkdirAll(filepath.Join(sourceDir, "environments"), 0o755); err != nil {
+	sourceDir := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(sourceDir, "configuration.yaml"), []byte("foo: bar\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sourceDir, "environments", "staging.yaml"), []byte("replicas: 2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	syncer := &stubGitSyncer{commit: "abc123def456"}
@@ -68,7 +65,7 @@ func TestRepositoryReadSnapshotPullsGitRepoBeforeReading(t *testing.T) {
 	})
 	repo.syncer = syncer
 
-	snapshot, err := repo.ReadSnapshot(context.Background(), "applications/devflow-platform/services/devflow-app-service", "staging")
+	snapshot, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
 	if err != nil {
 		t.Fatalf("ReadSnapshot returned error: %v", err)
 	}
@@ -88,7 +85,7 @@ func TestRepositoryReadSnapshotReturnsSyncError(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	sourceDir := filepath.Join(rootDir, "applications/devflow-platform/services/devflow-app-service")
+	sourceDir := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +98,7 @@ func TestRepositoryReadSnapshotReturnsSyncError(t *testing.T) {
 	})
 	repo.syncer = &stubGitSyncer{err: errors.New("pull failed")}
 
-	_, err := repo.ReadSnapshot(context.Background(), "applications/devflow-platform/services/devflow-app-service", "staging")
+	_, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
 	if !errors.Is(err, ErrRepositorySyncFailed) {
 		t.Fatalf("err = %v, want ErrRepositorySyncFailed", err)
 	}
@@ -112,8 +109,8 @@ func TestRepositoryReadSnapshotFallsBackWhenGitSyncBinaryIsUnavailable(t *testin
 	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	sourceDir := filepath.Join(rootDir, "applications/devflow-platform/services/devflow-app-service")
-	if err := os.MkdirAll(filepath.Join(sourceDir, "environments"), 0o755); err != nil {
+	sourceDir := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(sourceDir, "configuration.yaml"), []byte("foo: bar\n"), 0o644); err != nil {
@@ -125,7 +122,7 @@ func TestRepositoryReadSnapshotFallsBackWhenGitSyncBinaryIsUnavailable(t *testin
 	})
 	repo.syncer = &stubGitSyncer{err: errors.New("fork/exec /usr/bin/git: exec format error")}
 
-	snapshot, err := repo.ReadSnapshot(context.Background(), "applications/devflow-platform/services/devflow-app-service", "base")
+	snapshot, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
 	if err != nil {
 		t.Fatalf("ReadSnapshot returned error: %v", err)
 	}

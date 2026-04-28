@@ -1,4 +1,0 @@
-kind: Configuration
-service: devflow-app-service
-data:
-  LOG_LEVEL: info
