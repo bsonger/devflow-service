@@ -39,10 +39,13 @@ type Service interface {
 	ListRuntimeSpecRevisions(context.Context, uuid.UUID) ([]*domain.RuntimeSpecRevision, error)
 	GetRuntimeSpecRevision(context.Context, uuid.UUID) (*domain.RuntimeSpecRevision, error)
 	ListObservedPods(context.Context, uuid.UUID) ([]*domain.RuntimeObservedPod, error)
+	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*domain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, SyncObservedPodInput) (*domain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, DeleteObservedPodInput) error
 	DeletePod(context.Context, uuid.UUID, string, string) error
+	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
 	RestartDeployment(context.Context, uuid.UUID, string, string) error
+	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
 	ListRuntimeOperations(context.Context, uuid.UUID) ([]*domain.RuntimeOperation, error)
 }
 
@@ -264,6 +267,21 @@ func (s *runtimeService) ListObservedPods(ctx context.Context, runtimeSpecID uui
 	return s.repoStore().ListObservedPods(ctx, runtimeSpecID)
 }
 
+func (s *runtimeService) ListObservedPodsByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) ([]*domain.RuntimeObservedPod, error) {
+	environment = strings.TrimSpace(environment)
+	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
+		return nil, err
+	}
+	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	if err != nil {
+		return nil, err
+	}
+	if spec == nil {
+		return nil, ErrRuntimeSpecNotFound
+	}
+	return s.repoStore().ListObservedPods(ctx, spec.ID)
+}
+
 func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPodInput) (*domain.RuntimeObservedPod, error) {
 	in.Environment = strings.TrimSpace(in.Environment)
 	in.Namespace = strings.TrimSpace(in.Namespace)
@@ -381,6 +399,21 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 	return s.recordOperation(ctx, spec.ID, "pod_delete", podName, operator)
 }
 
+func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) error {
+	environment = strings.TrimSpace(environment)
+	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
+		return err
+	}
+	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	if err != nil {
+		return err
+	}
+	if spec == nil {
+		return ErrRuntimeSpecNotFound
+	}
+	return s.DeletePod(ctx, spec.ID, podName, operator)
+}
+
 func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uuid.UUID, deploymentName, operator string) error {
 	if runtimeSpecID == uuid.Nil {
 		return sharederrs.Required("id")
@@ -417,6 +450,21 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 	}
 
 	return s.recordOperation(ctx, spec.ID, "deployment_restart", deploymentName, operator)
+}
+
+func (s *runtimeService) RestartDeploymentByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, deploymentName, operator string) error {
+	environment = strings.TrimSpace(environment)
+	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
+		return err
+	}
+	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	if err != nil {
+		return err
+	}
+	if spec == nil {
+		return ErrRuntimeSpecNotFound
+	}
+	return s.RestartDeployment(ctx, spec.ID, deploymentName, operator)
 }
 
 func (s *runtimeService) ListRuntimeOperations(ctx context.Context, runtimeSpecID uuid.UUID) ([]*domain.RuntimeOperation, error) {

@@ -25,10 +25,13 @@ type runtimeService interface {
 	ListRuntimeSpecRevisions(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
 	GetRuntimeSpecRevision(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
 	ListObservedPods(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
+	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, runtimeservice.DeleteObservedPodInput) error
 	DeletePod(context.Context, uuid.UUID, string, string) error
+	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
 	RestartDeployment(context.Context, uuid.UUID, string, string) error
+	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
 	ListRuntimeOperations(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
@@ -44,6 +47,24 @@ type CreateRuntimeSpecRequest struct {
 type DeleteRuntimeSpecRequest struct {
 	ApplicationID uuid.UUID `json:"application_id"`
 	Environment   string    `json:"environment"`
+}
+
+type RuntimePodsQuery struct {
+	ApplicationID uuid.UUID
+	EnvironmentID string
+}
+
+type DeleteRuntimePodRequest struct {
+	ApplicationID uuid.UUID `json:"application_id"`
+	EnvironmentID string    `json:"environment_id"`
+	Operator      string    `json:"operator"`
+}
+
+type RolloutRequest struct {
+	ApplicationID  uuid.UUID `json:"application_id"`
+	EnvironmentID  string    `json:"environment_id"`
+	DeploymentName string    `json:"deployment_name"`
+	Operator       string    `json:"operator"`
 }
 
 type CreateRuntimeSpecRevisionRequest struct {
@@ -96,6 +117,13 @@ func NewHandler(runtime runtimeService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
+	runtimeAPI := rg.Group("/runtime")
+	{
+		runtimeAPI.GET("/pods", h.ListRuntimePods)
+		runtimeAPI.DELETE("/pods/:pod_name", h.DeleteRuntimePod)
+		runtimeAPI.POST("/rollouts", h.RolloutRuntime)
+	}
+
 	runtimeSpecs := rg.Group("/runtime-specs")
 	{
 		runtimeSpecs.POST("", h.CreateRuntimeSpec)
@@ -119,6 +147,68 @@ func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
 		observer.POST("/sync", h.SyncObservedPod)
 		observer.POST("/delete", h.DeleteObservedPod)
 	}
+}
+
+func parseRuntimePodsQuery(c *gin.Context) (*RuntimePodsQuery, bool) {
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok || applicationID == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "application_id is required")
+		}
+		return nil, false
+	}
+	environmentID := strings.TrimSpace(c.Query("environment_id"))
+	if environmentID == "" {
+		httpx.WriteInvalidArgument(c, "environment_id is required")
+		return nil, false
+	}
+	return &RuntimePodsQuery{ApplicationID: *applicationID, EnvironmentID: environmentID}, true
+}
+
+func (h *Handler) ListRuntimePods(c *gin.Context) {
+	query, ok := parseRuntimePodsQuery(c)
+	if !ok {
+		return
+	}
+	items, err := h.runtime.ListObservedPodsByApplicationEnv(c.Request.Context(), query.ApplicationID, query.EnvironmentID)
+	if err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WritePaginatedList(c, http.StatusOK, items)
+}
+
+func (h *Handler) DeleteRuntimePod(c *gin.Context) {
+	podName := strings.TrimSpace(c.Param("pod_name"))
+	if podName == "" {
+		httpx.WriteInvalidArgument(c, "pod_name is required")
+		return
+	}
+	var req DeleteRuntimePodRequest
+	if !httpx.BindJSON(c, &req) {
+		return
+	}
+	if err := h.runtime.DeletePodByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, podName, req.Operator); err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
+}
+
+func (h *Handler) RolloutRuntime(c *gin.Context) {
+	var req RolloutRequest
+	if !httpx.BindJSON(c, &req) {
+		return
+	}
+	if strings.TrimSpace(req.DeploymentName) == "" {
+		httpx.WriteInvalidArgument(c, "deployment_name is required")
+		return
+	}
+	if err := h.runtime.RestartDeploymentByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, req.DeploymentName, req.Operator); err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
 }
 
 func (h *Handler) CreateRuntimeSpec(c *gin.Context) {

@@ -17,19 +17,22 @@ import (
 )
 
 type mockRuntimeService struct {
-	createRuntimeSpecFunc         func(context.Context, runtimeservice.CreateRuntimeSpecInput) (*runtimedomain.RuntimeSpec, error)
-	listRuntimeSpecsFunc          func(context.Context) ([]*runtimedomain.RuntimeSpec, error)
-	getRuntimeSpecFunc            func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
-	deleteRuntimeSpecFunc         func(context.Context, uuid.UUID, string) error
-	createRuntimeSpecRevisionFunc func(context.Context, uuid.UUID, runtimeservice.CreateRuntimeSpecRevisionInput) (*runtimedomain.RuntimeSpecRevision, error)
-	listRuntimeSpecRevisionsFunc  func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
-	getRuntimeSpecRevisionFunc    func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
-	listObservedPodsFunc          func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
-	syncObservedPodFunc           func(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
-	deleteObservedPodFunc         func(context.Context, runtimeservice.DeleteObservedPodInput) error
-	deletePodFunc                 func(context.Context, uuid.UUID, string, string) error
-	restartDeploymentFunc         func(context.Context, uuid.UUID, string, string) error
-	listRuntimeOperationsFunc     func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
+	createRuntimeSpecFunc                 func(context.Context, runtimeservice.CreateRuntimeSpecInput) (*runtimedomain.RuntimeSpec, error)
+	listRuntimeSpecsFunc                  func(context.Context) ([]*runtimedomain.RuntimeSpec, error)
+	getRuntimeSpecFunc                    func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
+	deleteRuntimeSpecFunc                 func(context.Context, uuid.UUID, string) error
+	createRuntimeSpecRevisionFunc         func(context.Context, uuid.UUID, runtimeservice.CreateRuntimeSpecRevisionInput) (*runtimedomain.RuntimeSpecRevision, error)
+	listRuntimeSpecRevisionsFunc          func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
+	getRuntimeSpecRevisionFunc            func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
+	listObservedPodsFunc                  func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
+	listObservedPodsByApplicationEnvFunc  func(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error)
+	syncObservedPodFunc                   func(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
+	deleteObservedPodFunc                 func(context.Context, runtimeservice.DeleteObservedPodInput) error
+	deletePodFunc                         func(context.Context, uuid.UUID, string, string) error
+	deletePodByApplicationEnvFunc         func(context.Context, uuid.UUID, string, string, string) error
+	restartDeploymentFunc                 func(context.Context, uuid.UUID, string, string) error
+	restartDeploymentByApplicationEnvFunc func(context.Context, uuid.UUID, string, string, string) error
+	listRuntimeOperationsFunc             func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
 func (m *mockRuntimeService) CreateRuntimeSpec(ctx context.Context, in runtimeservice.CreateRuntimeSpecInput) (*runtimedomain.RuntimeSpec, error) {
@@ -88,6 +91,13 @@ func (m *mockRuntimeService) ListObservedPods(ctx context.Context, runtimeSpecID
 	return nil, nil
 }
 
+func (m *mockRuntimeService) ListObservedPodsByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) ([]*runtimedomain.RuntimeObservedPod, error) {
+	if m.listObservedPodsByApplicationEnvFunc != nil {
+		return m.listObservedPodsByApplicationEnvFunc(ctx, applicationID, environment)
+	}
+	return nil, nil
+}
+
 func (m *mockRuntimeService) SyncObservedPod(ctx context.Context, in runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error) {
 	if m.syncObservedPodFunc != nil {
 		return m.syncObservedPodFunc(ctx, in)
@@ -109,9 +119,23 @@ func (m *mockRuntimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.U
 	return nil
 }
 
+func (m *mockRuntimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) error {
+	if m.deletePodByApplicationEnvFunc != nil {
+		return m.deletePodByApplicationEnvFunc(ctx, applicationID, environment, podName, operator)
+	}
+	return nil
+}
+
 func (m *mockRuntimeService) RestartDeployment(ctx context.Context, runtimeSpecID uuid.UUID, deploymentName, operator string) error {
 	if m.restartDeploymentFunc != nil {
 		return m.restartDeploymentFunc(ctx, runtimeSpecID, deploymentName, operator)
+	}
+	return nil
+}
+
+func (m *mockRuntimeService) RestartDeploymentByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, deploymentName, operator string) error {
+	if m.restartDeploymentByApplicationEnvFunc != nil {
+		return m.restartDeploymentByApplicationEnvFunc(ctx, applicationID, environment, deploymentName, operator)
 	}
 	return nil
 }
@@ -323,6 +347,94 @@ func TestDeleteObservedPodReturnsNotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListRuntimePods(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		listObservedPodsByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment string) ([]*runtimedomain.RuntimeObservedPod, error) {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			if environment != "env-1" {
+				t.Fatalf("environment = %s, want env-1", environment)
+			}
+			return []*runtimedomain.RuntimeObservedPod{{PodName: "demo-0", Phase: "Running"}}, nil
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/pods?application_id="+applicationID.String()+"&environment_id=env-1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteRuntimePod(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			if environment != "env-1" {
+				t.Fatalf("environment = %s, want env-1", environment)
+			}
+			if podName != "demo-0" {
+				t.Fatalf("podName = %s, want demo-0", podName)
+			}
+			if operator != "tester" {
+				t.Fatalf("operator = %s, want tester", operator)
+			}
+			return nil
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(DeleteRuntimePodRequest{ApplicationID: applicationID, EnvironmentID: "env-1", Operator: "tester"})
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/runtime/pods/demo-0", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRolloutRuntime(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			if environment != "env-1" {
+				t.Fatalf("environment = %s, want env-1", environment)
+			}
+			if deploymentName != "demo-api" {
+				t.Fatalf("deploymentName = %s, want demo-api", deploymentName)
+			}
+			if operator != "tester" {
+				t.Fatalf("operator = %s, want tester", operator)
+			}
+			return nil
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(RolloutRequest{ApplicationID: applicationID, EnvironmentID: "env-1", DeploymentName: "demo-api", Operator: "tester"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/rollouts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
