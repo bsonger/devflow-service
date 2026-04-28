@@ -359,3 +359,81 @@ func TestUpdateManifestStatusReadyWaitsForAllSteps(t *testing.T) {
 		t.Fatalf("status = %q, want %q", got.Status, model.ManifestRunning)
 	}
 }
+
+func TestUpdateBuildResultNoopWhenPayloadAlreadyPersisted(t *testing.T) {
+	setupManifestTestDB(t)
+	svc := &manifestService{}
+	manifestID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID: appID,
+		PipelineID:    "pipe-noop-result",
+		Status:        model.ManifestSucceeded,
+		CommitHash:    "abcdef123456",
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ImageTag:      "20260428-120000",
+		ImageDigest:   "sha256:abc",
+		Steps: []model.ImageTask{
+			{TaskName: "git-clone", Status: model.StepSucceeded},
+			{TaskName: "image-build-and-push", Status: model.StepSucceeded},
+		},
+	}
+	if err := svc.repoStore().Insert(context.Background(), manifest); err != nil {
+		t.Fatalf("insert manifest: %v", err)
+	}
+
+	before, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() before error = %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := svc.UpdateBuildResult(context.Background(), manifest.PipelineID, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest); err != nil {
+		t.Fatalf("UpdateBuildResult() error = %v", err)
+	}
+	after, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() after error = %v", err)
+	}
+	if !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("updated_at changed on noop build result: before=%s after=%s", before.UpdatedAt, after.UpdatedAt)
+	}
+}
+
+func TestUpdateManifestStatusByIDNoopWhenConverged(t *testing.T) {
+	setupManifestTestDB(t)
+	svc := &manifestService{}
+	manifestID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID: appID,
+		PipelineID:    "pipe-noop-status",
+		Status:        model.ManifestRunning,
+		Steps: []model.ImageTask{
+			{TaskName: "git-clone", Status: model.StepRunning},
+			{TaskName: "image-build-and-push", Status: model.StepPending},
+		},
+	}
+	if err := svc.repoStore().Insert(context.Background(), manifest); err != nil {
+		t.Fatalf("insert manifest: %v", err)
+	}
+
+	before, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() before error = %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := svc.UpdateManifestStatusByID(context.Background(), manifestID, model.ManifestRunning); err != nil {
+		t.Fatalf("UpdateManifestStatusByID() error = %v", err)
+	}
+	after, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() after error = %v", err)
+	}
+	if !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("updated_at changed on noop status write: before=%s after=%s", before.UpdatedAt, after.UpdatedAt)
+	}
+}

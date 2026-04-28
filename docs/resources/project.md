@@ -50,10 +50,6 @@ Pre-production shared ingress external surface:
 - `DELETE /api/v1/meta/projects/{id}`
 - `GET /api/v1/meta/projects/{id}/applications`
 
-Legacy external alias still routed in pre-production:
-
-- `/api/v1/platform/projects`
-
 ## Create / update rules
 
 ### Create

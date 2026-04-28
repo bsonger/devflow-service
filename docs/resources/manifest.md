@@ -459,6 +459,7 @@ Additional rules:
 - late watcher events must not reopen a terminal manifest unless there is an explicit rebuild/retry operation
 - step state is more granular than top-level status; callers should use `steps` for detailed progress and `status` for high-level summary
 - writeback result data alone must not promote a manifest to `Succeeded` while any persisted step is still `Pending` or `Running`
+- duplicate observer callbacks with unchanged status, step state, or build result should be treated as idempotent no-ops
 - if `git_revision` points to a moving reference such as a branch, the persisted `commit_hash` is the durable audit value
 
 ## Nested snapshot types

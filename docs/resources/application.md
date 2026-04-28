@@ -58,10 +58,6 @@ Pre-production shared ingress external surface:
 - `GET /api/v1/meta/applications/{id}/environments/{environment_id}`
 - `DELETE /api/v1/meta/applications/{id}/environments/{environment_id}`
 
-Legacy external alias still routed in pre-production:
-
-- `/api/v1/platform/applications`
-
 ## Create / update rules
 
 ### Create

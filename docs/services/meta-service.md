@@ -59,10 +59,6 @@ internal/environment/
 
 - `/api/v1/meta/...`
 
-Legacy alias still routed in pre-production:
-
-- `/api/v1/platform/...`
-
 ## Resource Contracts
 
 - `docs/resources/project.md`

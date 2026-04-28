@@ -279,7 +279,11 @@ func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifest
 	if err != nil {
 		return err
 	}
-	current.Status = convergeManifestStatus(current.Status, current.Steps, current.CommitHash, current.ImageRef, current.ImageTag, current.ImageDigest, status)
+	nextStatus := convergeManifestStatus(current.Status, current.Steps, current.CommitHash, current.ImageRef, current.ImageTag, current.ImageDigest, status)
+	if current.Status == nextStatus {
+		return nil
+	}
+	current.Status = nextStatus
 	current.UpdatedAt = time.Now()
 	return s.repoStore().UpdateStatusAndSteps(ctx, current.ID, current.Status, current.Steps, current.PipelineID)
 }
@@ -342,7 +346,11 @@ func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID s
 	if err != nil {
 		return err
 	}
-	manifest.Status = convergeManifestStatus(manifest.Status, manifest.Steps, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest, status)
+	nextStatus := convergeManifestStatus(manifest.Status, manifest.Steps, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest, status)
+	if manifest.Status == nextStatus {
+		return nil
+	}
+	manifest.Status = nextStatus
 	manifest.UpdatedAt = time.Now()
 	return s.repoStore().UpdateStatusAndSteps(ctx, manifest.ID, manifest.Status, manifest.Steps, manifest.PipelineID)
 }
@@ -352,11 +360,27 @@ func (s *manifestService) UpdateBuildResult(ctx context.Context, pipelineID, com
 	if err != nil {
 		return err
 	}
-	manifest.CommitHash = strings.TrimSpace(commitHash)
-	manifest.ImageRef = strings.TrimSpace(imageRef)
-	manifest.ImageTag = strings.TrimSpace(imageTag)
-	manifest.ImageDigest = strings.TrimSpace(imageDigest)
+	commitHash = strings.TrimSpace(commitHash)
+	imageRef = strings.TrimSpace(imageRef)
+	imageTag = strings.TrimSpace(imageTag)
+	imageDigest = strings.TrimSpace(imageDigest)
+	previousStatus := manifest.Status
+	previousCommitHash := manifest.CommitHash
+	previousImageRef := manifest.ImageRef
+	previousImageTag := manifest.ImageTag
+	previousImageDigest := manifest.ImageDigest
+	manifest.CommitHash = commitHash
+	manifest.ImageRef = imageRef
+	manifest.ImageTag = imageTag
+	manifest.ImageDigest = imageDigest
 	status := convergeManifestStatus(manifest.Status, manifest.Steps, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest, manifest.Status)
+	if previousCommitHash == commitHash &&
+		previousImageRef == imageRef &&
+		previousImageTag == imageTag &&
+		previousImageDigest == imageDigest &&
+		previousStatus == status {
+		return nil
+	}
 	return s.repoStore().UpdateBuildResult(ctx, manifest.ID, commitHash, imageRef, imageTag, imageDigest, status)
 }
 
