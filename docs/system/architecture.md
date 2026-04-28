@@ -57,7 +57,7 @@ Repo-local docs are layered by purpose:
 - `docs/index/` for navigation only
 - `docs/system/` for current repo-local execution truth
 - `docs/services/` for current service-specific behavior and diagnostics
-- `docs/resources/` for current resource contracts and API behavior
+- `docs/resources/` for current resource contracts, API behavior, and validation rules
 - `docs/policies/` for durable repo rules
 - `docs/generated/` for generated artifacts only
 - `docs/archive/` for historical material only

@@ -1,6 +1,13 @@
 # Resources
 
+## Purpose
+
 This directory contains the current resource-contract docs for `devflow-service`.
+Use these docs to answer three questions quickly:
+
+- which service owns this resource
+- what the current API surface looks like
+- what the current validation and write rules are
 
 ## Standard resource doc format
 
@@ -71,5 +78,8 @@ For pre-production shared ingress, use the service-prefixed external paths docum
 - `release.md`: `Release`
 - `image.md`: derived image-output contract owned by the release boundary
 
-For shared CRUD, pagination, filtering, and soft-delete rules, start with `docs/policies/resource-api.md`.
-Keep service-boundary and merge-status docs under `docs/services/`.
+## Notes
+
+- one resource belongs to exactly one active service boundary
+- for shared CRUD, pagination, filtering, and soft-delete rules, start with `docs/policies/resource-api.md`
+- keep service-boundary and merge-status docs under `docs/services/`

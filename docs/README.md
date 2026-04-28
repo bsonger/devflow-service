@@ -1,12 +1,16 @@
 # Docs
 
+## Purpose
+
 Use this page as the repo-local docs landing page.
 It is navigation-first and does not replace `AGENTS.md` as the startup contract.
 
-Canonical starts:
+## Canonical starts
 
 - canonical agent start -> `AGENTS.md`
 - canonical docs navigation start -> `docs/index/getting-started.md`
+
+## Navigation order
 
 Use these surfaces in roughly this order when navigating the doc set:
 
@@ -21,6 +25,8 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/generated/` — generated artifacts only
 - `docs/archive/` — historical material only
 - `docs/superpowers/` — historical specs and plans
+
+## Common starting points by topic
 
 For the detailed Go monorepo directory and dependency rules used by this repo, start with:
 
@@ -58,5 +64,7 @@ For resource CRUD behavior, list/filter/pagination rules, and resource-doc contr
 
 - `docs/policies/resource-api.md`
 
-Directory `README.md` files under `docs/index/`, `docs/services/`, `docs/resources/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only.
-The owning docs in `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/` hold the current facts.
+## Notes
+
+- directory `README.md` files under `docs/index/`, `docs/services/`, `docs/resources/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only
+- the owning docs in `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/` hold the current facts
