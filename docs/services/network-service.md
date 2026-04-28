@@ -1,7 +1,8 @@
 # Network Service
 
-This service boundary has been migrated into `devflow-service`.
-Use this file as the repo-local summary for where network-owned behavior now lives in code.
+## Purpose
+
+`network-service` owns application-facing network definitions and route validation.
 
 ## Owns
 
@@ -13,12 +14,19 @@ Use this file as the repo-local summary for where network-owned behavior now liv
 
 - `Project`
 - `Application`
+- `ApplicationEnvironment`
+- `Cluster`
+- `Environment`
 - `AppConfig`
 - `WorkloadConfig`
-- `Image`
 - `Manifest`
+- `Image`
 - `Release`
 - `Intent`
+- `RuntimeSpec`
+- `RuntimeSpecRevision`
+- `RuntimeObservedPod`
+- `RuntimeOperation`
 
 ## Upstream Dependencies
 
@@ -30,52 +38,44 @@ Use this file as the repo-local summary for where network-owned behavior now liv
 - release-time consumers
 - platform orchestration layers
 
-## Current Repo Entry
-
-`network-service` now boots as a separate runnable entrypoint in this repo.
-Its current repo-local entrypoint lives at `cmd/network-service/main.go`.
-
-Full path reference:
+## Entrypoint
 
 ```text
 cmd/network-service/main.go
 ```
 
-The migrated implementation is split by domain:
+## Registered Domains
 
 ```text
 internal/service/
 internal/route/
 ```
 
-The current repo-local layout follows the monorepo policy:
-
-```text
-internal/service/domain
-internal/service/service
-internal/service/repository
-internal/service/transport/http
-internal/service/transport/downstream
-internal/service/module.go
-internal/route/domain
-internal/route/service
-internal/route/repository
-internal/route/transport/http
-internal/route/module.go
-```
-
-Within the running process, these domains are registered through the `network-service` router and startup surfaces:
-
-```text
-cmd/network-service/main.go
-internal/networkservice/transport/http/router.go
-```
-
-Pre-production shared ingress external prefix:
+## Pre-production Shared Ingress
 
 - `/api/v1/network/...`
 
-The resource contracts owned by this boundary are documented at:
+## Resource Contracts
 
 - `docs/resources/service.md`
 - `docs/resources/route.md`
+
+## Diagnostics
+
+- `internal/networkservice/transport/http/router.go`
+- `internal/service/transport/http`
+- `internal/route/transport/http`
+
+Runtime endpoints:
+
+- `/healthz`
+- `/readyz`
+- `/internal/status`
+
+## Verification
+
+```sh
+go test ./internal/service/... ./internal/route/... ./internal/networkservice/...
+go build -o bin/network-service ./cmd/network-service
+bash scripts/verify.sh
+```

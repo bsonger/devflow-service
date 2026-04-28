@@ -19,5 +19,14 @@ Use:
 - `release.md` for the `Release` resource contract
 
 These docs should describe current resource behavior, request and response shape, validation, and source pointers in this repo.
+Unless a document says otherwise, treat `/api/v1/...` examples in this directory as service-internal routes.
+For pre-production external access, use the service-prefixed shared ingress paths documented in each resource file:
+
+- meta-owned resources: `/api/v1/meta/...`
+- config-owned resources: `/api/v1/config/...`
+- network-owned resources: `/api/v1/network/...`
+- release-owned resources: `/api/v1/release/...`
+- runtime-owned resources: `/api/v1/runtime/...`
+
 For shared resource CRUD, pagination, filter, and soft-delete rules, start with `docs/policies/resource-api.md`.
 Keep service-boundary and merge-status docs under `docs/services/`.

@@ -121,13 +121,13 @@ kubectl rollout status deploy/runtime-service -n devflow-pre-production
 For each active AppConfig ID:
 
 ```sh
-curl -X POST "$CONFIG_SERVICE_BASE_URL/api/v1/app-configs/{id}/sync-from-repo"
+curl -X POST "$CONFIG_SERVICE_BASE_URL/api/v1/config/app-configs/{id}/sync-from-repo"
 ```
 
 Validate one sample:
 
 ```sh
-curl "$CONFIG_SERVICE_BASE_URL/api/v1/app-configs/{id}"
+curl "$CONFIG_SERVICE_BASE_URL/api/v1/config/app-configs/{id}"
 ```
 
 Expected sample response characteristics:

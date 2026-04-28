@@ -1,11 +1,40 @@
 # Services
 
+## Purpose
+
 This directory contains current service-boundary docs for `devflow-service`.
 
-Use:
-- `meta-service.md` for the active service boundary and migration state
-- `config-service.md`, `network-service.md`, `release-service.md`, and `runtime-service.md` for extracted runnable service boundaries now hosted in this repo
-- `docs/resources/` for current resource contracts, API behavior, and validation rules
+## What Each Service Doc Should Contain
 
-These docs should describe the current code in this repo.
-Do not treat migrated material from sibling repos as authoritative if it conflicts with the current implementation here.
+Each service document should describe:
+
+- the purpose of the service boundary
+- which resources are owned by that service
+- which resources are explicitly not owned by that service
+- upstream dependencies
+- downstream consumers
+- the runnable entrypoint
+- the registered code domains
+- the pre-production shared ingress prefix
+- the resource-contract docs owned by that service
+- the main diagnostics and verification surfaces
+
+## Current Service Docs
+
+- `meta-service.md`
+- `config-service.md`
+- `network-service.md`
+- `release-service.md`
+- `runtime-service.md`
+
+## Related Docs
+
+- `docs/resources/` for resource contracts, API behavior, and validation rules
+- `docs/system/` for current repo-local execution truth
+- `docs/policies/` for durable repo rules
+
+## Notes
+
+- These docs should describe the current code in this repo.
+- One resource should belong to exactly one service boundary.
+- Do not treat migrated material from sibling repos as authoritative if it conflicts with the current implementation here.
