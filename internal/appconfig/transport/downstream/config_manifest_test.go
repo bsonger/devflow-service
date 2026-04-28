@@ -8,20 +8,18 @@ import (
 	"testing"
 )
 
-func TestFindAppConfigFallsBackToBaseEnvironmentEntry(t *testing.T) {
+func TestFindAppConfigUsesEnvironmentScopedEntryOnly(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/app-configs":
 			switch r.URL.RawQuery {
 			case "application_id=app-1&environment_id=env-1":
-				_, _ = io.WriteString(w, `{"data":[]}`)
-			case "application_id=app-1":
-				_, _ = io.WriteString(w, `{"data":[{"id":"cfg-base","application_id":"app-1","environment_id":"base","name":"base"}]}`)
+				_, _ = io.WriteString(w, `{"data":[{"id":"cfg-env-1","application_id":"app-1","environment_id":"env-1","name":"env-1"}]}`)
 			default:
 				t.Fatalf("unexpected query %s", r.URL.RawQuery)
 			}
-		case "/api/v1/app-configs/cfg-base":
-			_, _ = io.WriteString(w, `{"data":{"id":"cfg-base","application_id":"app-1","environment_id":"base","name":"base","mount_path":"/etc/devflow/config","files":[{"name":"configuration.yaml","content":"foo: bar"}],"rendered_configmap":{"data":{"configuration.yaml":"foo: bar"}}}}`)
+		case "/api/v1/app-configs/cfg-env-1":
+			_, _ = io.WriteString(w, `{"data":{"id":"cfg-env-1","application_id":"app-1","environment_id":"env-1","name":"env-1","mount_path":"/etc/devflow/config","files":[{"name":"configuration.yaml","content":"foo: bar"}],"rendered_configmap":{"data":{"configuration.yaml":"foo: bar"}}}}`)
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -33,11 +31,30 @@ func TestFindAppConfigFallsBackToBaseEnvironmentEntry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.ID != "cfg-base" || got.EnvironmentID != "base" {
+	if got == nil || got.ID != "cfg-env-1" || got.EnvironmentID != "env-1" {
 		t.Fatalf("unexpected config %+v", got)
 	}
 	if got.MountPath != "/etc/devflow/config" {
 		t.Fatalf("expected mount path, got %+v", got)
+	}
+}
+
+func TestFindAppConfigReturnsNilWhenEnvironmentEntryMissing(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app-configs" || r.URL.RawQuery != "application_id=app-1&environment_id=env-1" {
+			t.Fatalf("unexpected request path=%s query=%s", r.URL.Path, r.URL.RawQuery)
+		}
+		_, _ = io.WriteString(w, `{"data":[]}`)
+	}))
+	defer ts.Close()
+
+	client := New(ts.URL)
+	got, err := client.FindAppConfig(context.Background(), "app-1", "env-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil config, got %+v", got)
 	}
 }
 

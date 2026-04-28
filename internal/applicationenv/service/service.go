@@ -20,8 +20,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const BaseEnvironmentID = "base"
-
 var (
 	ErrEnvironmentIDRequired        = sharederrs.Required("environment_id")
 	ErrApplicationReferenceNotFound = sharederrs.InvalidArgument("application reference not found")
@@ -219,21 +217,9 @@ func (s *bindingService) resolveAppConfigs(ctx context.Context, applicationId uu
 	if s.appConfigs == nil {
 		return nil, nil
 	}
-
-	exact, err := s.appConfigs.List(ctx, appconfigservice.AppConfigListFilter{
-		ApplicationID: &applicationId,
-		EnvironmentID: environmentId,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(exact) > 0 {
-		return exact, nil
-	}
-
 	return s.appConfigs.List(ctx, appconfigservice.AppConfigListFilter{
 		ApplicationID: &applicationId,
-		EnvironmentID: BaseEnvironmentID,
+		EnvironmentID: environmentId,
 	})
 }
 

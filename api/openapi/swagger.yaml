@@ -1197,10 +1197,12 @@ paths:
       - description: Application ID
         in: query
         name: application_id
+        required: true
         type: string
       - description: Environment ID
         in: query
         name: environment_id
+        required: true
         type: string
       - description: Name
         in: query
@@ -1920,6 +1922,12 @@ paths:
       - description: Application ID
         in: query
         name: application_id
+        required: true
+        type: string
+      - description: Environment ID
+        in: query
+        name: environment_id
+        required: true
         type: string
       - description: Route name
         in: query

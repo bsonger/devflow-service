@@ -37,7 +37,7 @@ It stores host/path matching plus the target service name and port, and it expos
 ## API surface
 
 - `POST /api/v1/routes`
-- `GET /api/v1/routes`
+- `GET /api/v1/routes?application_id=...&environment_id=...`
 - `PATCH /api/v1/routes/{route_id}`
 - `DELETE /api/v1/routes/{route_id}?application_id=...`
 - `POST /api/v1/routes:validate`
@@ -70,6 +70,7 @@ It stores host/path matching plus the target service name and port, and it expos
 ## Validation notes
 
 - invalid `application_id` query/body values or `route_id` path values return `invalid_argument`
+- `GET /api/v1/routes` requires both `application_id` and `environment_id`
 - missing records return `not_found`
 - list endpoints support `name` filtering and `include_deleted`
 - `POST /routes:validate` returns `valid` plus validation errors without persisting the route

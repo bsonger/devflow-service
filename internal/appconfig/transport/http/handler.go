@@ -166,8 +166,8 @@ func (h *Handler) DeleteAppConfig(c *gin.Context) {
 // @Summary List app configs
 // @Tags AppConfig
 // @Produce json
-// @Param application_id query string false "Application ID"
-// @Param environment_id query string false "Environment ID"
+// @Param application_id query string true "Application ID"
+// @Param environment_id query string true "Environment ID"
 // @Param name query string false "Name"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
@@ -176,13 +176,19 @@ func (h *Handler) DeleteAppConfig(c *gin.Context) {
 func (h *Handler) ListAppConfigs(c *gin.Context) {
 	var filter appconfig.AppConfigListFilter
 	appID, ok := httpx.ParseUUIDQuery(c, "application_id")
-	if !ok {
+	if !ok || appID == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "application_id is required")
+		}
 		return
 	}
-	if appID != nil {
-		filter.ApplicationID = appID
+	environmentID := c.Query("environment_id")
+	if environmentID == "" {
+		httpx.WriteInvalidArgument(c, "environment_id is required")
+		return
 	}
-	filter.EnvironmentID = c.Query("environment_id")
+	filter.ApplicationID = appID
+	filter.EnvironmentID = environmentID
 	filter.Name = c.Query("name")
 	filter.IncludeDeleted = httpx.IncludeDeleted(c)
 	items, err := h.appConfigs.List(c.Request.Context(), filter)

@@ -30,6 +30,7 @@ It complements:
 3. Soft delete behavior must be explicit in both code and docs.
 4. Public resource docs must describe current behavior, not aspirational future behavior.
 5. Resource docs, handlers, and validation behavior must change together.
+6. Public API field names, request-body keys, and query parameters must use `snake_case`.
 
 ## Resource endpoint shape
 
@@ -48,9 +49,18 @@ Prefer flat resources plus explicit `application_id` in request body or query fi
 - `POST /api/v1/services` with `application_id` in body
 - `GET /api/v1/services?application_id=...`
 - `POST /api/v1/routes` with `application_id` in body
-- `GET /api/v1/routes?application_id=...`
+- `GET /api/v1/routes?application_id=...&environment_id=...`
 
 Only use parent-bound paths when a resource is intentionally path-scoped and the exception is explicitly documented in both the handler contract and `docs/resources/*.md`.
+
+Preferred API naming examples:
+
+- `application_id`
+- `environment_id`
+- `cluster_id`
+- `repo_address`
+- `page_size`
+- `include_deleted`
 
 ## List endpoint rules
 

@@ -114,12 +114,7 @@ func (c *Client) findAppConfigMetadata(ctx context.Context, applicationId, envir
 			return item, nil
 		}
 	}
-	path = fmt.Sprintf("/api/v1/app-configs?application_id=%s", url.QueryEscape(applicationId))
-	var fallback []AppConfig
-	if err := c.GetEnvelopeData(ctx, path, &fallback); err != nil {
-		return AppConfig{}, err
-	}
-	return selectBaseAppConfig(fallback), nil
+	return AppConfig{}, nil
 }
 
 func (c *Client) GetWorkloadConfig(ctx context.Context, id string) (*WorkloadConfig, error) {
@@ -140,21 +135,4 @@ func (c *Client) findWorkloadConfigMetadata(ctx context.Context, applicationId s
 		return WorkloadConfig{}, nil
 	}
 	return fallback[0], nil
-}
-
-func selectBaseAppConfig(items []AppConfig) AppConfig {
-	for _, item := range items {
-		if item.ID != "" && item.EnvironmentID == "base" {
-			return item
-		}
-	}
-	for _, item := range items {
-		if item.ID != "" && item.EnvironmentID == "" {
-			return item
-		}
-	}
-	if len(items) == 0 {
-		return AppConfig{}
-	}
-	return items[0]
 }

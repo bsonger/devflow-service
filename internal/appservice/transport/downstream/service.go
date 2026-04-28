@@ -44,9 +44,9 @@ func (c *Client) ListServices(ctx context.Context, applicationId string) ([]Serv
 	return out, nil
 }
 
-func (c *Client) ListRoutes(ctx context.Context, applicationId string) ([]Route, error) {
+func (c *Client) ListRoutes(ctx context.Context, applicationId, environmentId string) ([]Route, error) {
 	var out []Route
-	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/routes?application_id=%s", applicationId), &out); err != nil {
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/routes?application_id=%s&environment_id=%s", applicationId, environmentId), &out); err != nil {
 		return nil, err
 	}
 	return out, nil

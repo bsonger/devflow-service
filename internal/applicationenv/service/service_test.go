@@ -102,7 +102,7 @@ func TestAttachValidatesReferences(t *testing.T) {
 	}
 }
 
-func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
+func TestGetDetailUsesEnvironmentScopedAppConfigs(t *testing.T) {
 	applicationId := uuid.New()
 	environmentId := uuid.NewString()
 
@@ -120,10 +120,7 @@ func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
 		}},
 		stubAppConfigReader{listFn: func(_ context.Context, filter appconfigservice.AppConfigListFilter) ([]appconfigdomain.AppConfig, error) {
 			if filter.EnvironmentID == environmentId {
-				return nil, nil
-			}
-			if filter.EnvironmentID == BaseEnvironmentID {
-				return []appconfigdomain.AppConfig{{Name: "base-config", EnvironmentID: BaseEnvironmentID}}, nil
+				return []appconfigdomain.AppConfig{{Name: "env-config", EnvironmentID: environmentId}}, nil
 			}
 			return nil, nil
 		}},
@@ -139,7 +136,7 @@ func TestGetDetailFallsBackToBaseConfigs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(item.AppConfigs) != 1 || item.AppConfigs[0].EnvironmentID != BaseEnvironmentID {
+	if len(item.AppConfigs) != 1 || item.AppConfigs[0].EnvironmentID != environmentId {
 		t.Fatalf("unexpected app configs %+v", item.AppConfigs)
 	}
 	if len(item.WorkloadConfigs) != 1 || item.WorkloadConfigs[0].Name != "base-workload" {

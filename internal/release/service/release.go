@@ -48,7 +48,7 @@ type releaseManifestReader interface {
 }
 
 type releaseNetworkReader interface {
-	ListRoutes(context.Context, string) ([]appservicedownstream.Route, error)
+	ListRoutes(context.Context, string, string) ([]appservicedownstream.Route, error)
 }
 
 type releaseConfigReader interface {
@@ -156,13 +156,12 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	}
 
 	networkReader := newReleaseNetworkReader()
-	routes, err := networkReader.ListRoutes(ctx, release.ApplicationID.String())
+	routes, err := networkReader.ListRoutes(ctx, release.ApplicationID.String(), release.EnvironmentID)
 	if err != nil {
 		return err
 	}
-	selectedRoutes := selectReleaseRoutes(routes, releaseTargetEnvironment(release))
-	release.RoutesSnapshot = make([]model.ReleaseRoute, 0, len(selectedRoutes))
-	for _, item := range selectedRoutes {
+	release.RoutesSnapshot = make([]model.ReleaseRoute, 0, len(routes))
+	for _, item := range routes {
 		release.RoutesSnapshot = append(release.RoutesSnapshot, model.ReleaseRoute{
 			ID:          item.ID,
 			Name:        item.Name,

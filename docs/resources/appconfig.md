@@ -44,7 +44,7 @@ It also tracks repo-backed config sync state, rendered configmap output, and the
 ## API surface
 
 - `POST /api/v1/app-configs`
-- `GET /api/v1/app-configs`
+- `GET /api/v1/app-configs?application_id=...&environment_id=...`
 - `GET /api/v1/app-configs/{id}`
 - `PUT /api/v1/app-configs/{id}`
 - `DELETE /api/v1/app-configs/{id}`
@@ -75,6 +75,7 @@ It also tracks repo-backed config sync state, rendered configmap output, and the
 ## Validation notes
 
 - invalid UUID path or query parameters return `invalid_argument`
+- `GET /api/v1/app-configs` requires both `application_id` and `environment_id`
 - missing records return `not_found`
 - repo sync failures map to `failed_precondition`
 - list endpoints support `application_id`, `environment_id`, `name`, and `include_deleted`

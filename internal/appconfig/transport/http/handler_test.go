@@ -129,20 +129,41 @@ func TestGetAppConfigNotFound(t *testing.T) {
 }
 
 func TestListAppConfigs(t *testing.T) {
+	appID := uuid.New()
 	appSvc := &mockAppConfigService{
 		listFunc: func(ctx context.Context, filter appconfig.AppConfigListFilter) ([]domain.AppConfig, error) {
+			if filter.ApplicationID == nil || *filter.ApplicationID != appID {
+				t.Fatalf("ApplicationID = %+v want %s", filter.ApplicationID, appID)
+			}
+			if filter.EnvironmentID != "staging" {
+				t.Fatalf("EnvironmentID = %q want staging", filter.EnvironmentID)
+			}
 			return []domain.AppConfig{{BaseModel: domain.BaseModel{ID: uuid.New()}, Name: "cfg1"}}, nil
 		},
 	}
 	h := NewHandler(appSvc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/app-configs", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/app-configs?application_id="+appID.String()+"&environment_id=staging", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListAppConfigsRequiresEnvironmentID(t *testing.T) {
+	appID := uuid.New()
+	h := NewHandler(&mockAppConfigService{})
+	r := setupTestRouter(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/app-configs?application_id="+appID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

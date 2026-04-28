@@ -10,7 +10,7 @@ import (
 
 func TestNetworkClientTreatsNullEnvelopeDataAsEmptyList(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.URL.RequestURI(); got != "/api/v1/routes?application_id=app-1" {
+		if got := r.URL.RequestURI(); got != "/api/v1/routes?application_id=app-1&environment_id=prod" {
 			t.Fatalf("unexpected path %s", got)
 		}
 		_, _ = io.WriteString(w, `{"data":null,"pagination":{"total":0}}`)
@@ -18,7 +18,7 @@ func TestNetworkClientTreatsNullEnvelopeDataAsEmptyList(t *testing.T) {
 	defer ts.Close()
 
 	client := New(ts.URL)
-	got, err := client.ListRoutes(context.Background(), "app-1")
+	got, err := client.ListRoutes(context.Background(), "app-1", "prod")
 	if err != nil {
 		t.Fatal(err)
 	}

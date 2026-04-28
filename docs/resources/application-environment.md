@@ -13,7 +13,9 @@
 
 It binds one `Application` to one `Environment`.
 It does **not** create separate binding tables for `AppConfig` or `WorkloadConfig`.
-Those two resources continue to use their own tables and are resolved by `application_id + environment_id`, with `environment_id = "base"` used as fallback.
+Those two resources continue to use their own tables.
+`AppConfig` is resolved by exact `application_id + environment_id`.
+`WorkloadConfig` remains application-scoped.
 
 ## Field table
 
@@ -64,8 +66,8 @@ Request body:
 
 Config resolution order:
 
-1. exact match on `application_id + environment_id`
-2. if empty, fallback to `application_id + "base"`
+1. `AppConfig`: exact match on `application_id + environment_id`
+2. `WorkloadConfig`: application-scoped list by `application_id`
 
 ### Delete
 

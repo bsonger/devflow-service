@@ -79,7 +79,8 @@ func (h *Handler) CreateRoute(c *gin.Context) {
 // @Summary List application routes
 // @Tags Route
 // @Produce json
-// @Param application_id query string false "Application ID"
+// @Param application_id query string true "Application ID"
+// @Param environment_id query string true "Environment ID"
 // @Param name query string false "Route name"
 // @Param include_deleted query bool false "Include deleted items"
 // @Param page query int false "Page"
@@ -88,16 +89,22 @@ func (h *Handler) CreateRoute(c *gin.Context) {
 // @Router /api/v1/routes [get]
 func (h *Handler) ListRoutes(c *gin.Context) {
 	applicationId, ok := httpx.ParseUUIDQuery(c, "application_id")
-	if !ok {
+	if !ok || applicationId == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "application_id is required")
+		}
+		return
+	}
+	environmentId := c.Query("environment_id")
+	if environmentId == "" {
+		httpx.WriteInvalidArgument(c, "environment_id is required")
 		return
 	}
 	filter := RouteListFilter{
-		EnvironmentID:  c.Query("environment_id"),
+		ApplicationID:  *applicationId,
+		EnvironmentID:  environmentId,
 		IncludeDeleted: httpx.IncludeDeleted(c),
 		Name:           c.Query("name"),
-	}
-	if applicationId != nil {
-		filter.ApplicationID = *applicationId
 	}
 	items, err := h.routes.List(c.Request.Context(), filter)
 	if err != nil {

@@ -29,13 +29,15 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Application ID",
                         "name": "application_id",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "string",
                         "description": "Environment ID",
                         "name": "environment_id",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "string",
@@ -1145,7 +1147,15 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Application ID",
                         "name": "application_id",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "environment_id",
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "string",

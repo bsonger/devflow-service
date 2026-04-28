@@ -95,18 +95,38 @@ func TestListRoutes(t *testing.T) {
 	appID := uuid.New()
 	routeSvc := &mockRouteService{
 		listFunc: func(ctx context.Context, filter RouteListFilter) ([]domain.Route, error) {
+			if filter.ApplicationID != appID {
+				t.Fatalf("ApplicationID = %s want %s", filter.ApplicationID, appID)
+			}
+			if filter.EnvironmentID != "staging" {
+				t.Fatalf("EnvironmentID = %q want staging", filter.EnvironmentID)
+			}
 			return []domain.Route{{BaseModel: domain.BaseModel{ID: uuid.New()}, ApplicationID: appID, Name: "route1"}}, nil
 		},
 	}
 	h := NewHandler(routeSvc)
 	r := setupTestRouter(h)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/routes?application_id="+appID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/routes?application_id="+appID.String()+"&environment_id=staging", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListRoutesRequiresEnvironmentID(t *testing.T) {
+	h := NewHandler(&mockRouteService{})
+	r := setupTestRouter(h)
+	appID := uuid.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/routes?application_id="+appID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
