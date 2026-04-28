@@ -246,6 +246,8 @@ Design rule:
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/releases`
 - `GET /api/v1/releases?application_id=...&environment_id=...`
 - `GET /api/v1/releases/{id}`
@@ -254,6 +256,17 @@ Design rule:
 - `POST /api/v1/verify/argo/events`
 - `POST /api/v1/verify/release/steps`
 - `POST /api/v1/verify/release/artifact`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/release/releases`
+- `GET /api/v1/release/releases?application_id=...&environment_id=...`
+- `GET /api/v1/release/releases/{id}`
+- `GET /api/v1/release/releases/{id}/bundle-preview`
+- `DELETE /api/v1/release/releases/{id}`
+- `POST /api/v1/release/verify/argo/events`
+- `POST /api/v1/release/verify/release/steps`
+- `POST /api/v1/release/verify/release/artifact`
 
 ## List and read contract
 

@@ -33,6 +33,8 @@ It stores the project reference, repository address, descriptive fields, and lab
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/applications`
 - `GET /api/v1/applications`
 - `GET /api/v1/applications/{id}`
@@ -42,6 +44,22 @@ It stores the project reference, repository address, descriptive fields, and lab
 - `POST /api/v1/applications/{id}/environments`
 - `GET /api/v1/applications/{id}/environments/{environment_id}`
 - `DELETE /api/v1/applications/{id}/environments/{environment_id}`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/meta/applications`
+- `GET /api/v1/meta/applications`
+- `GET /api/v1/meta/applications/{id}`
+- `PUT /api/v1/meta/applications/{id}`
+- `DELETE /api/v1/meta/applications/{id}`
+- `GET /api/v1/meta/applications/{id}/environments`
+- `POST /api/v1/meta/applications/{id}/environments`
+- `GET /api/v1/meta/applications/{id}/environments/{environment_id}`
+- `DELETE /api/v1/meta/applications/{id}/environments/{environment_id}`
+
+Legacy external alias still routed in pre-production:
+
+- `/api/v1/platform/applications`
 
 ## Create / update rules
 

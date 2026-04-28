@@ -36,11 +36,21 @@ It stores host/path matching plus the target service name and port, and it expos
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/routes`
 - `GET /api/v1/routes?application_id=...&environment_id=...`
 - `PATCH /api/v1/routes/{route_id}`
 - `DELETE /api/v1/routes/{route_id}?application_id=...`
 - `POST /api/v1/routes:validate`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/network/routes`
+- `GET /api/v1/network/routes?application_id=...&environment_id=...`
+- `PATCH /api/v1/network/routes/{route_id}`
+- `DELETE /api/v1/network/routes/{route_id}?application_id=...`
+- `POST /api/v1/network/routes:validate`
 
 ## Create / update rules
 

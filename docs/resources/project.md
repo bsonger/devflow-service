@@ -31,12 +31,27 @@ It stores project metadata and exposes a related applications listing under the 
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/projects`
 - `GET /api/v1/projects`
 - `GET /api/v1/projects/{id}`
 - `PUT /api/v1/projects/{id}`
 - `DELETE /api/v1/projects/{id}`
 - `GET /api/v1/projects/{id}/applications`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/meta/projects`
+- `GET /api/v1/meta/projects`
+- `GET /api/v1/meta/projects/{id}`
+- `PUT /api/v1/meta/projects/{id}`
+- `DELETE /api/v1/meta/projects/{id}`
+- `GET /api/v1/meta/projects/{id}/applications`
+
+Legacy external alias still routed in pre-production:
+
+- `/api/v1/platform/projects`
 
 ## Create / update rules
 

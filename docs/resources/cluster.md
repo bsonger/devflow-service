@@ -37,11 +37,21 @@ It includes server address, kubeconfig material, Argo CD naming data, and onboar
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/clusters`
 - `GET /api/v1/clusters`
 - `GET /api/v1/clusters/{id}`
 - `PUT /api/v1/clusters/{id}`
 - `DELETE /api/v1/clusters/{id}`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/meta/clusters`
+- `GET /api/v1/meta/clusters`
+- `GET /api/v1/meta/clusters/{id}`
+- `PUT /api/v1/meta/clusters/{id}`
+- `DELETE /api/v1/meta/clusters/{id}`
 
 ## Create / update rules
 

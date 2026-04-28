@@ -6,6 +6,7 @@ Use this file as the repo-local summary for where release-owned behavior now liv
 ## Owns
 
 - `Manifest`
+- `Image`
 - `Release`
 - `Intent`
 - build and release lifecycle records around manifest OCI deployment artifacts plus release-owned rollout snapshots
@@ -15,10 +16,17 @@ Use this file as the repo-local summary for where release-owned behavior now liv
 
 - `Project`
 - `Application`
+- `ApplicationEnvironment`
+- `Cluster`
+- `Environment`
 - `AppConfig`
 - `WorkloadConfig`
 - `Service`
 - `Route`
+- `RuntimeSpec`
+- `RuntimeSpecRevision`
+- `RuntimeObservedPod`
+- `RuntimeOperation`
 
 ## Upstream Dependencies
 

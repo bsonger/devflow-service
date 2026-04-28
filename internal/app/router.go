@@ -3,7 +3,6 @@ package app
 import (
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/appconfig"
 	"github.com/bsonger/devflow-service/internal/application"
 	"github.com/bsonger/devflow-service/internal/applicationenv"
 	"github.com/bsonger/devflow-service/internal/cluster"
@@ -12,7 +11,6 @@ import (
 	"github.com/bsonger/devflow-service/internal/project"
 	routeapi "github.com/bsonger/devflow-service/internal/route"
 	serviceapi "github.com/bsonger/devflow-service/internal/service"
-	"github.com/bsonger/devflow-service/internal/workloadconfig"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/files"
@@ -30,8 +28,6 @@ const (
 	ModuleEnvironment    Module = "environment"
 	ModuleService        Module = "service"
 	ModuleRoute          Module = "route"
-	ModuleAppConfig      Module = "app-config"
-	ModuleWorkloadConfig Module = "workload-config"
 )
 
 type Options struct {
@@ -50,8 +46,6 @@ func NewRouter() *gin.Engine {
 			ModuleApplicationEnv,
 			ModuleCluster,
 			ModuleEnvironment,
-			ModuleAppConfig,
-			ModuleWorkloadConfig,
 		},
 	})
 }
@@ -125,14 +119,6 @@ func RegisterRouteRoutes(rg *gin.RouterGroup) {
 	routeapi.NewModule().RegisterRoutes(rg)
 }
 
-func RegisterAppConfigRoutes(rg *gin.RouterGroup) {
-	appconfig.NewModule().RegisterRoutes(rg)
-}
-
-func RegisterWorkloadConfigRoutes(rg *gin.RouterGroup) {
-	workloadconfig.NewModule().RegisterRoutes(rg)
-}
-
 func serviceName(opts Options) string {
 	if opts.ServiceName == "" {
 		return "devflow"
@@ -163,10 +149,6 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 			RegisterServiceRoutes(api)
 		case ModuleRoute:
 			RegisterRouteRoutes(api)
-		case ModuleAppConfig:
-			RegisterAppConfigRoutes(api)
-		case ModuleWorkloadConfig:
-			RegisterWorkloadConfigRoutes(api)
 		}
 	}
 }
@@ -179,8 +161,6 @@ func toStatusModules(modules []Module) []string {
 			ModuleApplicationEnv,
 			ModuleCluster,
 			ModuleEnvironment,
-			ModuleAppConfig,
-			ModuleWorkloadConfig,
 		}
 	}
 

@@ -30,10 +30,19 @@ Those two resources continue to use their own tables.
 
 ## API surface
 
+Service-internal route surface:
+
 - `GET /api/v1/applications/{id}/environments`
 - `POST /api/v1/applications/{id}/environments`
 - `GET /api/v1/applications/{id}/environments/{environment_id}`
 - `DELETE /api/v1/applications/{id}/environments/{environment_id}`
+
+Pre-production shared ingress external surface:
+
+- `GET /api/v1/meta/applications/{id}/environments`
+- `POST /api/v1/meta/applications/{id}/environments`
+- `GET /api/v1/meta/applications/{id}/environments/{environment_id}`
+- `DELETE /api/v1/meta/applications/{id}/environments/{environment_id}`
 
 ## Behavior
 

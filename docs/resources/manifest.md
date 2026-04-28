@@ -49,12 +49,22 @@
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/manifests`
 - `GET /api/v1/manifests`
 - `GET /api/v1/manifests/{id}`
 - `DELETE /api/v1/manifests/{id}`
 
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/release/manifests`
+- `GET /api/v1/release/manifests`
+- `GET /api/v1/release/manifests/{id}`
+- `DELETE /api/v1/release/manifests/{id}`
+
 `GET /api/v1/manifests/{id}/resources` returns a derived resource view built from frozen snapshots plus `image_ref`.
+On the pre-production shared ingress, the external path is `GET /api/v1/release/manifests/{id}/resources`.
 The manifest record itself does not persist rendered output payloads.
 
 ## Lifecycle
@@ -62,6 +72,7 @@ The manifest record itself does not persist rendered output payloads.
 The intended manifest lifecycle is:
 
 1. caller submits `POST /api/v1/manifests` with `application_id`
+   - pre-production external ingress path: `POST /api/v1/release/manifests`
 2. service freezes:
    - `services_snapshot`
    - `workload_config_snapshot`
@@ -228,6 +239,7 @@ This means:
 Client calls:
 
 - `POST /api/v1/manifests`
+- pre-production external ingress path: `POST /api/v1/release/manifests`
 
 Request fields:
 

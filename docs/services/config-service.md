@@ -9,14 +9,23 @@ Use this file as the repo-local summary for where config-owned behavior now live
 - `WorkloadConfig`
 - config repo sync semantics
 
+These are the canonical owners after the config boundary extraction.
+`meta-service` no longer serves `AppConfig` or `WorkloadConfig` after the hard cutover; these routes now belong only to `config-service`.
+
 ## Does Not Own
 
 - `Project`
 - `Application`
+- `ApplicationEnvironment`
+- `Cluster`
+- `Environment`
+- `Service`
+- `Route`
 - `Manifest`
 - `Image`
 - `Release`
 - `Intent`
+- `RuntimeSpec`
 
 ## Upstream Dependencies
 

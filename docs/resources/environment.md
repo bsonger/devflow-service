@@ -32,11 +32,21 @@ It does not accept a user-managed namespace field in the current implementation.
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/environments`
 - `GET /api/v1/environments`
 - `GET /api/v1/environments/{id}`
 - `PUT /api/v1/environments/{id}`
 - `DELETE /api/v1/environments/{id}`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/meta/environments`
+- `GET /api/v1/meta/environments`
+- `GET /api/v1/meta/environments/{id}`
+- `PUT /api/v1/meta/environments/{id}`
+- `DELETE /api/v1/meta/environments/{id}`
 
 ## Create / update rules
 

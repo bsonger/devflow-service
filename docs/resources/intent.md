@@ -51,8 +51,15 @@ It tracks the resource being acted on, current status, claim and lease state, re
 
 ## API surface
 
+Service-internal route surface:
+
 - `GET /api/v1/intents`
 - `GET /api/v1/intents/{id}`
+
+Pre-production shared ingress external surface:
+
+- `GET /api/v1/release/intents`
+- `GET /api/v1/release/intents/{id}`
 
 ## Read rules
 

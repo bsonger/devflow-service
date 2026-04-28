@@ -18,6 +18,8 @@ This extracted runtime-service surface now covers both release-time runtime look
 
 ## Current API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/runtime-specs`
 - `GET /api/v1/runtime-specs`
 - `GET /api/v1/runtime-specs/{id}`
@@ -31,6 +33,20 @@ This extracted runtime-service surface now covers both release-time runtime look
 - `GET /api/v1/runtime-specs/{id}/operations`
 - `POST /api/v1/internal/runtime-spec-pods/sync`
 - `POST /api/v1/internal/runtime-spec-pods/delete`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/runtime/runtime-specs`
+- `GET /api/v1/runtime/runtime-specs`
+- `GET /api/v1/runtime/runtime-specs/{id}`
+- `DELETE /api/v1/runtime/runtime-specs?application_id=...&environment=...`
+- `POST /api/v1/runtime/runtime-specs/{id}/revisions`
+- `GET /api/v1/runtime/runtime-specs/{id}/revisions`
+- `GET /api/v1/runtime/runtime-spec-revisions/{id}`
+- `GET /api/v1/runtime/runtime-specs/{id}/pods`
+- `POST /api/v1/runtime/runtime-specs/{id}/pods/{pod_name}/delete`
+- `POST /api/v1/runtime/runtime-specs/{id}/deployments/{deployment_name}/restart`
+- `GET /api/v1/runtime/runtime-specs/{id}/operations`
 
 ## Field table
 

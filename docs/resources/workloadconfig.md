@@ -51,11 +51,21 @@ Current contract:
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/workload-configs`
 - `GET /api/v1/workload-configs`
 - `GET /api/v1/workload-configs/{id}`
 - `PUT /api/v1/workload-configs/{id}`
 - `DELETE /api/v1/workload-configs/{id}`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/config/workload-configs`
+- `GET /api/v1/config/workload-configs`
+- `GET /api/v1/config/workload-configs/{id}`
+- `PUT /api/v1/config/workload-configs/{id}`
+- `DELETE /api/v1/config/workload-configs/{id}`
 
 The current HTTP surface is still collection-shaped, but the resource contract is application-scoped:
 

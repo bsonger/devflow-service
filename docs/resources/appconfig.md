@@ -46,12 +46,23 @@ The resource tracks the mount directory plus the latest synced revision, synced 
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/app-configs`
 - `GET /api/v1/app-configs?application_id=...&environment_id=...`
 - `GET /api/v1/app-configs/{id}`
 - `PUT /api/v1/app-configs/{id}`
 - `DELETE /api/v1/app-configs/{id}`
 - `POST /api/v1/app-configs/{id}/sync-from-repo`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/config/app-configs`
+- `GET /api/v1/config/app-configs?application_id=...&environment_id=...`
+- `GET /api/v1/config/app-configs/{id}`
+- `PUT /api/v1/config/app-configs/{id}`
+- `DELETE /api/v1/config/app-configs/{id}`
+- `POST /api/v1/config/app-configs/{id}/sync-from-repo`
 
 ## Create / update rules
 
@@ -106,6 +117,7 @@ The resource tracks the mount directory plus the latest synced revision, synced 
 
 - invalid UUID path or query parameters return `invalid_argument`
 - `GET /api/v1/app-configs` requires both `application_id` and `environment_id`
+- `POST /api/v1/config/app-configs` on the shared ingress creates one record per unique `application_id + environment_id`; duplicate active pairs return `invalid_argument` from the current handler mapping
 - `application_id + environment_id` must be unique among non-deleted records
 - `mount_path` defaults to `/etc/config` when omitted
 - `files`, `source_directory`, and `source_commit` are populated from the latest synced revision

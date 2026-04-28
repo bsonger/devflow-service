@@ -19,6 +19,19 @@ Use this file as the repo-local summary for where runtime-owned behavior now liv
 - image version
 - release execution state
 - rollout strategy
+- `Project`
+- `Application`
+- `ApplicationEnvironment`
+- `Cluster`
+- `Environment`
+- `AppConfig`
+- `WorkloadConfig`
+- `Service`
+- `Route`
+- `Manifest`
+- `Image`
+- `Release`
+- `Intent`
 
 ## Upstream Dependencies
 

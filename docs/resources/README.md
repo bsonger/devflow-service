@@ -5,6 +5,7 @@ This directory contains current resource-contract docs for `devflow-service`.
 Use:
 - `application.md` for the `Application` resource contract
 - `application-environment.md` for the application-to-environment binding contract
+- `frontend-ui.md` for the frontend information architecture and page-level field contract
 - `project.md` for the `Project` resource contract
 - `cluster.md` for the `Cluster` resource contract
 - `environment.md` for the `Environment` resource contract

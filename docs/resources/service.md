@@ -43,10 +43,19 @@ It stores the logical service name plus the exposed service ports and target por
 
 ## API surface
 
+Service-internal route surface:
+
 - `POST /api/v1/services`
 - `GET /api/v1/services`
 - `PATCH /api/v1/services/{service_id}`
 - `DELETE /api/v1/services/{service_id}?application_id=...`
+
+Pre-production shared ingress external surface:
+
+- `POST /api/v1/network/services`
+- `GET /api/v1/network/services`
+- `PATCH /api/v1/network/services/{service_id}`
+- `DELETE /api/v1/network/services/{service_id}?application_id=...`
 
 ## Create / update rules
 

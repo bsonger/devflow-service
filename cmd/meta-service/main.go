@@ -24,8 +24,6 @@ func main() {
 				app.ModuleApplicationEnv,
 				app.ModuleCluster,
 				app.ModuleEnvironment,
-				app.ModuleAppConfig,
-				app.ModuleWorkloadConfig,
 			},
 		},
 		Load:        config.Load,
