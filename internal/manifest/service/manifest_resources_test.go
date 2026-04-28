@@ -25,7 +25,6 @@ func TestBuildManifestResourcesViewDerivesResourcesFromSnapshots(t *testing.T) {
 			}},
 		}},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Name:     "demo-api",
 			Replicas: 2,
 			Env:      []model.EnvVar{{Name: "APP_ENV", Value: "prod"}},
 		},

@@ -25,7 +25,6 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 			},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Name:     "demo-api",
 			Replicas: 2,
 			Resources: map[string]any{
 				"limits": map[string]any{"cpu": "500m"},
@@ -78,13 +77,12 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	}
 }
 
-func TestBuildReleaseBundleUsesWorkloadNameFallback(t *testing.T) {
+func TestBuildReleaseBundleFallsBackToApplicationIDWithoutServiceName(t *testing.T) {
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
 		ApplicationID: uuid.New(),
 		ImageRef:      "registry.example.com/devflow/demo-api:latest",
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Name:     "workload-name",
 			Replicas: 1,
 		},
 	}
@@ -98,10 +96,10 @@ func TestBuildReleaseBundleUsesWorkloadNameFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
-	if bundle.ArtifactName != "workload-name" {
+	if bundle.ArtifactName != manifest.ApplicationID.String() {
 		t.Fatalf("artifact_name = %q", bundle.ArtifactName)
 	}
-	if bundle.Resources.Deployment == nil || bundle.Resources.Deployment.Name != "workload-name" {
+	if bundle.Resources.Deployment == nil || bundle.Resources.Deployment.Name != manifest.ApplicationID.String() {
 		t.Fatalf("unexpected deployment = %#v", bundle.Resources.Deployment)
 	}
 }
@@ -118,5 +116,47 @@ func TestReleaseBundleDigestUsesBundleYAML(t *testing.T) {
 	want := "sha256:" + hex.EncodeToString(sum[:])
 	if got != want {
 		t.Fatalf("digest = %q want %q", got, want)
+	}
+}
+
+func TestBuildReleaseBundleRendersRolloutForBlueGreenStrategy(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{
+			{
+				Name: "demo-api",
+				Ports: []manifestdomain.ManifestServicePort{
+					{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"},
+				},
+			},
+		},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas: 1,
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "production",
+		Strategy:      string(model.ReleaseStrategyBlueGreen),
+	}
+
+	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	if bundle.Resources.Rollout == nil {
+		t.Fatal("expected rollout")
+	}
+	if bundle.Resources.Deployment != nil {
+		t.Fatalf("expected deployment to be nil, got %#v", bundle.Resources.Deployment)
+	}
+	if len(bundle.Resources.Services) != 2 {
+		t.Fatalf("services = %d want 2", len(bundle.Resources.Services))
+	}
+	if bundle.Resources.Services[1].Name != "demo-api-preview" {
+		t.Fatalf("preview service = %q", bundle.Resources.Services[1].Name)
 	}
 }

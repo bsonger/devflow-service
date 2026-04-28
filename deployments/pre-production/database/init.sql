@@ -487,20 +487,17 @@ ALTER TABLE public.services OWNER TO app;
 CREATE TABLE public.workload_configs (
     id uuid NOT NULL,
     application_id uuid NOT NULL,
-    environment_id text,
-    name text NOT NULL,
     replicas integer DEFAULT 1 NOT NULL,
     resources jsonb DEFAULT '{}'::jsonb NOT NULL,
     probes jsonb DEFAULT '{}'::jsonb NOT NULL,
     env jsonb DEFAULT '[]'::jsonb NOT NULL,
-    workload_type text DEFAULT ''::text NOT NULL,
-    strategy text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted_at timestamp with time zone,
-    description text DEFAULT ''::text NOT NULL,
     service_account_name text DEFAULT ''::text NOT NULL,
-    labels jsonb DEFAULT '[]'::jsonb NOT NULL
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    annotations jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT workload_configs_replicas_check CHECK ((replicas >= 0))
 );
 
 
@@ -920,7 +917,7 @@ CREATE UNIQUE INDEX uq_services_name_active ON public.services USING btree (appl
 -- Name: uq_workload_configs_scope_name_active; Type: INDEX; Schema: public; Owner: app
 --
 
-CREATE UNIQUE INDEX uq_workload_configs_scope_name_active ON public.workload_configs USING btree (application_id, COALESCE(environment_id, ''::text), name) WHERE (deleted_at IS NULL);
+CREATE UNIQUE INDEX uq_workload_configs_application_active ON public.workload_configs USING btree (application_id) WHERE (deleted_at IS NULL);
 
 
 --

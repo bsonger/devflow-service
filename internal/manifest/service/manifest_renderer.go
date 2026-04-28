@@ -35,6 +35,12 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 		"app.kubernetes.io/name": applicationName,
 		"devflow.application/id": applicationId,
 	}
+	for k, v := range workload.Labels {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		workloadLabels[k] = v
+	}
 
 	for _, service := range services {
 		ports := make([]map[string]any, 0, len(service.Ports))
@@ -76,9 +82,16 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 	for k, v := range annotations {
 		templateAnnotations[k] = v
 	}
+	for k, v := range workload.Annotations {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		templateAnnotations[k] = v
+	}
 	deploymentMetadata := map[string]any{
-		"name":   applicationName,
-		"labels": workloadLabels,
+		"name":        applicationName,
+		"labels":      workloadLabels,
+		"annotations": templateAnnotations,
 	}
 	if namespace != "" {
 		deploymentMetadata["namespace"] = namespace
@@ -108,6 +121,9 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 				},
 			},
 		},
+	}
+	if strings.TrimSpace(workload.ServiceAccountName) != "" {
+		deploymentObj["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["serviceAccountName"] = workload.ServiceAccountName
 	}
 	if len(workload.Probes) > 0 {
 		container := deploymentObj["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)[0]

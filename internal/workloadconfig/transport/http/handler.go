@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	workloadconfig "github.com/bsonger/devflow-service/internal/workloadconfig/service"
 	"github.com/gin-gonic/gin"
@@ -57,19 +58,20 @@ func (h *Handler) CreateWorkloadConfig(c *gin.Context) {
 	}
 	item := &domain.WorkloadConfig{
 		ApplicationID:      req.ApplicationID,
-		Name:               req.Name,
-		Description:        req.Description,
 		Replicas:           req.Replicas,
 		ServiceAccountName: req.ServiceAccountName,
 		Resources:          req.Resources,
 		Probes:             req.Probes,
 		Env:                req.Env,
 		Labels:             req.Labels,
-		WorkloadType:       req.WorkloadType,
-		Strategy:           req.Strategy,
+		Annotations:        req.Annotations,
 	}
 	item.WithCreateDefault()
 	if _, err := h.workloadConfigs.Create(c.Request.Context(), item); err != nil {
+		if sharederrs.HasCode(err, sharederrs.CodeConflict) {
+			httpx.WriteConflict(c, err.Error())
+			return
+		}
 		httpx.WriteInvalidArgument(c, err.Error())
 		return
 	}
@@ -119,16 +121,13 @@ func (h *Handler) UpdateWorkloadConfig(c *gin.Context) {
 	}
 	item := &domain.WorkloadConfig{
 		ApplicationID:      req.ApplicationID,
-		Name:               req.Name,
-		Description:        req.Description,
 		Replicas:           req.Replicas,
 		ServiceAccountName: req.ServiceAccountName,
 		Resources:          req.Resources,
 		Probes:             req.Probes,
 		Env:                req.Env,
 		Labels:             req.Labels,
-		WorkloadType:       req.WorkloadType,
-		Strategy:           req.Strategy,
+		Annotations:        req.Annotations,
 	}
 	item.SetID(id)
 	if err := h.workloadConfigs.Update(c.Request.Context(), item); err != nil {
@@ -169,7 +168,6 @@ func (h *Handler) DeleteWorkloadConfig(c *gin.Context) {
 // @Tags WorkloadConfig
 // @Produce json
 // @Param application_id query string false "Application ID"
-// @Param name query string false "Name"
 // @Param page query int false "Page"
 // @Param page_size query int false "Page size"
 // @Success 200 {object} httpx.ListResponse[domain.WorkloadConfig]
@@ -183,7 +181,6 @@ func (h *Handler) ListWorkloadConfigs(c *gin.Context) {
 	if appID != nil {
 		filter.ApplicationID = appID
 	}
-	filter.Name = c.Query("name")
 	filter.IncludeDeleted = httpx.IncludeDeleted(c)
 	items, err := h.workloadConfigs.List(c.Request.Context(), filter)
 	if err != nil {

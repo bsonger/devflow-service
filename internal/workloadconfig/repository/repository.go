@@ -16,7 +16,6 @@ import (
 type ListFilter struct {
 	ApplicationID  *uuid.UUID
 	IncludeDeleted bool
-	Name           string
 }
 
 type Store interface {
@@ -36,9 +35,9 @@ func NewPostgresStore() Store {
 func (s *PostgresStore) Create(ctx context.Context, item *domain.WorkloadConfig) (uuid.UUID, error) {
 	_, err := db.Postgres().ExecContext(ctx, `
 		insert into workload_configs (
-			id, application_id, name, description, replicas, service_account_name, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-	`, item.ID, item.ApplicationID, item.Name, item.Description, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "[]"), item.WorkloadType, item.Strategy, item.CreatedAt, item.UpdatedAt, item.DeletedAt)
+			id, application_id, replicas, service_account_name, resources, probes, env, labels, annotations, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+	`, item.ID, item.ApplicationID, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), item.CreatedAt, item.UpdatedAt, item.DeletedAt)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -47,7 +46,7 @@ func (s *PostgresStore) Create(ctx context.Context, item *domain.WorkloadConfig)
 
 func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*domain.WorkloadConfig, error) {
 	return scanWorkloadConfig(db.Postgres().QueryRowContext(ctx, `
-		select id, application_id, name, description, replicas, service_account_name, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
+		select id, application_id, replicas, service_account_name, resources, probes, env, labels, annotations, created_at, updated_at, deleted_at
 		from workload_configs where id=$1 and deleted_at is null
 	`, id))
 }
@@ -55,9 +54,9 @@ func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*domain.Workload
 func (s *PostgresStore) Update(ctx context.Context, item *domain.WorkloadConfig) error {
 	result, err := db.Postgres().ExecContext(ctx, `
 		update workload_configs
-		set application_id=$2, name=$3, description=$4, replicas=$5, service_account_name=$6, resources=$7, probes=$8, env=$9, labels=$10, workload_type=$11, strategy=$12, updated_at=$13
+		set application_id=$2, replicas=$3, service_account_name=$4, resources=$5, probes=$6, env=$7, labels=$8, annotations=$9, updated_at=$10
 		where id=$1 and deleted_at is null
-	`, item.ID, item.ApplicationID, item.Name, item.Description, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "[]"), item.WorkloadType, item.Strategy, item.UpdatedAt)
+	`, item.ID, item.ApplicationID, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), item.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -78,7 +77,7 @@ func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.WorkloadConfig, error) {
 	query := `
-		select id, application_id, name, description, replicas, service_account_name, resources, probes, env, labels, workload_type, strategy, created_at, updated_at, deleted_at
+		select id, application_id, replicas, service_account_name, resources, probes, env, labels, annotations, created_at, updated_at, deleted_at
 		from workload_configs
 	`
 	clauses := make([]string, 0, 4)
@@ -89,10 +88,6 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.W
 	if filter.ApplicationID != nil {
 		args = append(args, *filter.ApplicationID)
 		clauses = append(clauses, dbsql.PlaceholderClause("application_id", len(args)))
-	}
-	if filter.Name != "" {
-		args = append(args, filter.Name)
-		clauses = append(clauses, dbsql.PlaceholderClause("name", len(args)))
 	}
 	if len(clauses) > 0 {
 		query += " where " + strings.Join(clauses, " and ")
@@ -122,9 +117,10 @@ func scanWorkloadConfig(scanner interface{ Scan(dest ...any) error }) (*domain.W
 		probesJSON         []byte
 		envJSON            []byte
 		labelsJSON         []byte
+		annotationsJSON    []byte
 		deletedAt          sql.NullTime
 	)
-	if err := scanner.Scan(&item.ID, &item.ApplicationID, &item.Name, &item.Description, &item.Replicas, &serviceAccountName, &resourcesJSON, &probesJSON, &envJSON, &labelsJSON, &item.WorkloadType, &item.Strategy, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
+	if err := scanner.Scan(&item.ID, &item.ApplicationID, &item.Replicas, &serviceAccountName, &resourcesJSON, &probesJSON, &envJSON, &labelsJSON, &annotationsJSON, &item.CreatedAt, &item.UpdatedAt, &deletedAt); err != nil {
 		return nil, err
 	}
 	if serviceAccountName.Valid {
@@ -141,6 +137,9 @@ func scanWorkloadConfig(scanner interface{ Scan(dest ...any) error }) (*domain.W
 	}
 	if len(labelsJSON) > 0 {
 		_ = json.Unmarshal(labelsJSON, &item.Labels)
+	}
+	if len(annotationsJSON) > 0 {
+		_ = json.Unmarshal(annotationsJSON, &item.Annotations)
 	}
 	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	return &item, nil

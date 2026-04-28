@@ -73,14 +73,14 @@ type ManifestAppConfig struct {
 }
 
 type ManifestWorkloadConfig struct {
-	ID           string         `json:"id,omitempty"`
-	Name         string         `json:"name,omitempty"`
-	Replicas     int            `json:"replicas"`
-	Resources    map[string]any `json:"resources,omitempty"`
-	Probes       map[string]any `json:"probes,omitempty"`
-	Env          []model.EnvVar `json:"env,omitempty"`
-	WorkloadType string         `json:"workload_type,omitempty"`
-	Strategy     string         `json:"strategy,omitempty"`
+	ID                 string            `json:"id,omitempty"`
+	Replicas           int               `json:"replicas"`
+	ServiceAccountName string            `json:"service_account_name,omitempty"`
+	Resources          map[string]any    `json:"resources,omitempty"`
+	Probes             map[string]any    `json:"probes,omitempty"`
+	Env                []model.EnvVar    `json:"env,omitempty"`
+	Labels             map[string]string `json:"labels,omitempty"`
+	Annotations        map[string]string `json:"annotations,omitempty"`
 }
 
 type ManifestRenderedResource struct {

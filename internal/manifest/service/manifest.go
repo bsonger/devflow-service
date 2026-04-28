@@ -396,9 +396,6 @@ func deriveManifestResourceApplicationName(item *manifestdomain.Manifest) string
 	if len(item.ServicesSnapshot) > 0 && strings.TrimSpace(item.ServicesSnapshot[0].Name) != "" {
 		return strings.TrimSpace(item.ServicesSnapshot[0].Name)
 	}
-	if strings.TrimSpace(item.WorkloadConfigSnapshot.Name) != "" {
-		return strings.TrimSpace(item.WorkloadConfigSnapshot.Name)
-	}
 	return item.ApplicationID.String()
 }
 
@@ -417,14 +414,14 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, r
 	}
 
 	workloadSnapshot := manifestdomain.ManifestWorkloadConfig{
-		ID:           workload.ID,
-		Name:         workload.Name,
-		Replicas:     workload.Replicas,
-		Resources:    workload.Resources,
-		Probes:       workload.Probes,
-		Env:          toModelEnvVars(workload.Env),
-		WorkloadType: workload.WorkloadType,
-		Strategy:     workload.Strategy,
+		ID:                 workload.ID,
+		Replicas:           workload.Replicas,
+		ServiceAccountName: workload.ServiceAccountName,
+		Resources:          workload.Resources,
+		Probes:             workload.Probes,
+		Env:                toModelEnvVars(workload.Env),
+		Labels:             workload.Labels,
+		Annotations:        workload.Annotations,
 	}
 
 	return &manifestdomain.Manifest{

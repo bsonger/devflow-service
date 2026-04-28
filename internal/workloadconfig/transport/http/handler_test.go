@@ -71,7 +71,7 @@ func TestCreateWorkloadConfig(t *testing.T) {
 	h := NewHandler(wlSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{ApplicationID: uuid.New(), Name: "test-wl", Replicas: 1, WorkloadType: "deployment"})
+	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{ApplicationID: uuid.New(), Replicas: 1, Labels: map[string]string{"team": "platform"}, Annotations: map[string]string{"sidecar.istio.io/inject": "true"}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/workload-configs", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -86,7 +86,7 @@ func TestGetWorkloadConfig(t *testing.T) {
 	id := uuid.New()
 	wlSvc := &mockWorkloadConfigService{
 		getFunc: func(ctx context.Context, uid uuid.UUID) (*domain.WorkloadConfig, error) {
-			return &domain.WorkloadConfig{BaseModel: domain.BaseModel{ID: uid}, Name: "test"}, nil
+			return &domain.WorkloadConfig{BaseModel: domain.BaseModel{ID: uid}, Replicas: 1}, nil
 		},
 	}
 	h := NewHandler(wlSvc)
@@ -123,7 +123,7 @@ func TestGetWorkloadConfigNotFound(t *testing.T) {
 func TestListWorkloadConfigs(t *testing.T) {
 	wlSvc := &mockWorkloadConfigService{
 		listFunc: func(ctx context.Context, filter workloadconfig.WorkloadConfigListFilter) ([]domain.WorkloadConfig, error) {
-			return []domain.WorkloadConfig{{BaseModel: domain.BaseModel{ID: uuid.New()}, Name: "wl1"}}, nil
+			return []domain.WorkloadConfig{{BaseModel: domain.BaseModel{ID: uuid.New()}, Replicas: 1}}, nil
 		},
 	}
 	h := NewHandler(wlSvc)
@@ -148,7 +148,7 @@ func TestUpdateWorkloadConfig(t *testing.T) {
 	h := NewHandler(wlSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{ApplicationID: uuid.New(), Name: "updated", Replicas: 2, WorkloadType: "deployment"})
+	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{ApplicationID: uuid.New(), Replicas: 2})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/workload-configs/"+id.String(), bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

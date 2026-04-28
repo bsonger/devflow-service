@@ -60,11 +60,11 @@ func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
 	}
 	workload := &appconfigdownstream.WorkloadConfig{
-		ID:           "wc-1",
-		Name:         "demo-workload",
-		Replicas:     2,
-		WorkloadType: "deployment",
-		Strategy:     "rolling-update",
+		ID:                 "wc-1",
+		Replicas:           2,
+		ServiceAccountName: "runtime-service",
+		Labels:             map[string]string{"team": "platform"},
+		Annotations:        map[string]string{"sidecar.istio.io/inject": "true"},
 	}
 	services := []appservicedownstream.Service{{
 		ID:   "svc-1",
@@ -95,7 +95,7 @@ func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.
 	req := &manifestdomain.CreateManifestRequest{
 		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
 	}
-	workload := &appconfigdownstream.WorkloadConfig{Replicas: 1, WorkloadType: "deployment"}
+	workload := &appconfigdownstream.WorkloadConfig{Replicas: 1}
 	target := oci.ImageTarget{
 		Name: "devflow-runtime-service",
 		Tag:  "20260411-120000",
@@ -241,7 +241,6 @@ func TestManifestResourcesViewStillBuildsLegacyResourcesEndpoint(t *testing.T) {
 			{Name: "cfg", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Name:     "cfg",
 			Replicas: 1,
 		},
 	}

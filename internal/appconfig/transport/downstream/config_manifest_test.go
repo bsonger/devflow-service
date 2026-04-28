@@ -64,12 +64,12 @@ func TestFindWorkloadConfigUsesApplicationScopedEntry(t *testing.T) {
 		case "/api/v1/workload-configs":
 			switch r.URL.RawQuery {
 			case "application_id=app-1":
-				_, _ = io.WriteString(w, `{"data":[{"id":"wc-base","application_id":"app-1","name":"base-workload","replicas":2,"workload_type":"deployment"}]}`)
+				_, _ = io.WriteString(w, `{"data":[{"id":"wc-base","application_id":"app-1","replicas":2}]}`)
 			default:
 				t.Fatalf("unexpected query %s", r.URL.RawQuery)
 			}
 		case "/api/v1/workload-configs/wc-base":
-			_, _ = io.WriteString(w, `{"data":{"id":"wc-base","application_id":"app-1","name":"base-workload","replicas":2,"workload_type":"deployment","strategy":"rolling-update"}}`)
+			_, _ = io.WriteString(w, `{"data":{"id":"wc-base","application_id":"app-1","replicas":2,"service_account_name":"default","labels":{"team":"platform"},"annotations":{"sidecar.istio.io/inject":"true"}}}`)
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}

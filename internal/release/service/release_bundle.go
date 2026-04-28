@@ -81,7 +81,7 @@ func renderReleaseBundleResources(namespace, applicationName string, manifest *m
 		objects = append(objects, item)
 	}
 
-	serviceResources, err := buildReleaseServiceResources(namespace, manifest.ServicesSnapshot)
+	serviceResources, err := buildReleaseServiceResources(namespace, manifest.ServicesSnapshot, release)
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +143,14 @@ func buildReleaseConfigMap(namespace, applicationName string, release *model.Rel
 	}
 }
 
-func buildReleaseServiceResources(namespace string, services []manifestdomain.ManifestService) ([]model.ReleaseRenderedResource, error) {
-	out := make([]model.ReleaseRenderedResource, 0, len(services))
-	for _, service := range services {
+func buildReleaseServiceResources(namespace string, services []manifestdomain.ManifestService, release *model.Release) ([]model.ReleaseRenderedResource, error) {
+	extras := 0
+	switch model.ReleaseStrategyToType(release.Strategy) {
+	case model.BlueGreen, model.Canary:
+		extras = 1
+	}
+	out := make([]model.ReleaseRenderedResource, 0, len(services)+extras)
+	for i, service := range services {
 		ports := make([]map[string]any, 0, len(service.Ports))
 		for _, port := range service.Ports {
 			ports = append(ports, map[string]any{
@@ -173,8 +178,50 @@ func buildReleaseServiceResources(namespace string, services []manifestdomain.Ma
 			return nil, err
 		}
 		out = append(out, item)
+		if i == 0 {
+			switch model.ReleaseStrategyToType(release.Strategy) {
+			case model.BlueGreen:
+				preview, err := buildDerivedReleaseServiceResource(namespace, service, service.Name+"-preview")
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, preview)
+			case model.Canary:
+				canary, err := buildDerivedReleaseServiceResource(namespace, service, service.Name+"-canary")
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, canary)
+			}
+		}
 	}
 	return out, nil
+}
+
+func buildDerivedReleaseServiceResource(namespace string, service manifestdomain.ManifestService, derivedName string) (model.ReleaseRenderedResource, error) {
+	ports := make([]map[string]any, 0, len(service.Ports))
+	for _, port := range service.Ports {
+		ports = append(ports, map[string]any{
+			"name":       port.Name,
+			"port":       port.ServicePort,
+			"targetPort": port.TargetPort,
+			"protocol":   releaseDefaultProtocol(port.Protocol),
+		})
+	}
+	metadata := map[string]any{"name": derivedName}
+	if namespace != "" {
+		metadata["namespace"] = namespace
+	}
+	obj := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Service",
+		"metadata":   metadata,
+		"spec": map[string]any{
+			"selector": map[string]any{"app.kubernetes.io/name": service.Name},
+			"ports":    ports,
+		},
+	}
+	return marshalReleaseRenderedObject("Service", derivedName, namespace, obj)
 }
 
 func buildReleaseWorkloadResource(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) (model.ReleaseRenderedResource, error) {
@@ -187,9 +234,25 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		"app.kubernetes.io/name": selectorName,
 		"devflow.application/id": release.ApplicationID.String(),
 	}
+	for k, v := range workload.Labels {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		labels[k] = v
+	}
+	annotations := map[string]any{}
+	for k, v := range workload.Annotations {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		annotations[k] = v
+	}
 	metadata := map[string]any{
 		"name":   applicationName,
 		"labels": labels,
+	}
+	if len(annotations) > 0 {
+		metadata["annotations"] = annotations
 	}
 	if namespace != "" {
 		metadata["namespace"] = namespace
@@ -221,6 +284,9 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		"imagePullSecrets": []map[string]any{{"name": "aliyun-docker-config"}},
 		"containers":       []map[string]any{container},
 	}
+	if strings.TrimSpace(workload.ServiceAccountName) != "" {
+		podSpec["serviceAccountName"] = workload.ServiceAccountName
+	}
 	if release.AppConfigSnapshot.Name != "" || len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
 		podSpec["volumes"] = []map[string]any{{
 			"name": "app-config",
@@ -229,22 +295,63 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 			},
 		}}
 	}
-	obj := map[string]any{
-		"apiVersion": "apps/v1",
-		"kind":       "Deployment",
-		"metadata":   metadata,
-		"spec": map[string]any{
-			"replicas": workload.Replicas,
-			"selector": map[string]any{
-				"matchLabels": map[string]any{"app.kubernetes.io/name": selectorName},
-			},
-			"template": map[string]any{
-				"metadata": map[string]any{"labels": labels},
-				"spec":     podSpec,
-			},
+	spec := map[string]any{
+		"replicas": workload.Replicas,
+		"selector": map[string]any{
+			"matchLabels": map[string]any{"app.kubernetes.io/name": selectorName},
+		},
+		"template": map[string]any{
+			"metadata": map[string]any{"labels": labels, "annotations": annotations},
+			"spec":     podSpec,
 		},
 	}
-	return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
+	switch model.ReleaseStrategyToType(release.Strategy) {
+	case model.BlueGreen:
+		spec["strategy"] = map[string]any{
+			"blueGreen": map[string]any{
+				"activeService":  selectorName,
+				"previewService": selectorName + "-preview",
+			},
+		}
+		obj := map[string]any{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "Rollout",
+			"metadata":   metadata,
+			"spec":       spec,
+		}
+		return marshalReleaseRenderedObject("Rollout", applicationName, namespace, obj)
+	case model.Canary:
+		spec["strategy"] = map[string]any{
+			"canary": map[string]any{
+				"stableService": selectorName,
+				"canaryService": selectorName + "-canary",
+				"steps": []map[string]any{
+					{"setWeight": 10},
+					{"pause": map[string]any{}},
+					{"setWeight": 30},
+					{"pause": map[string]any{}},
+					{"setWeight": 60},
+					{"pause": map[string]any{}},
+					{"setWeight": 100},
+				},
+			},
+		}
+		obj := map[string]any{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "Rollout",
+			"metadata":   metadata,
+			"spec":       spec,
+		}
+		return marshalReleaseRenderedObject("Rollout", applicationName, namespace, obj)
+	default:
+		obj := map[string]any{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   metadata,
+			"spec":       spec,
+		}
+		return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
+	}
 }
 
 func buildReleaseVirtualService(namespace, applicationName string, routes []model.ReleaseRoute) map[string]any {
@@ -313,9 +420,6 @@ func deriveReleaseApplicationName(manifest *manifestdomain.Manifest) string {
 	}
 	if len(manifest.ServicesSnapshot) > 0 && strings.TrimSpace(manifest.ServicesSnapshot[0].Name) != "" {
 		return strings.TrimSpace(manifest.ServicesSnapshot[0].Name)
-	}
-	if strings.TrimSpace(manifest.WorkloadConfigSnapshot.Name) != "" {
-		return strings.TrimSpace(manifest.WorkloadConfigSnapshot.Name)
 	}
 	return manifest.ApplicationID.String()
 }

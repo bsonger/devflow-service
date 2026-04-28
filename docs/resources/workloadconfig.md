@@ -10,33 +10,44 @@
 
 ## Purpose
 
-`WorkloadConfig` stores deployment-shape configuration for an application.
-It captures replicas, resource and probe settings, environment variables, workload type, and rollout strategy.
+`WorkloadConfig` stores the base Deployment runtime shape for one application.
+
+Current contract:
+
+- one active `WorkloadConfig` per `application_id`
+- current workload rendering target is `Deployment`
+- rollout strategy is **not** stored here; it belongs to `Release.strategy`
 
 ## Common base fields
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
-| `id` | `uuid.UUID` | server-generated | no | 主键 |
+| `id` | `uuid.UUID` | server-generated | no | 资源主键 |
 | `created_at` | `time.Time` | server-generated | no | 创建时间 |
-| `updated_at` | `time.Time` | server-generated | no | 更新时间 |
+| `updated_at` | `time.Time` | server-generated | no | 最后更新时间 |
 | `deleted_at` | `*time.Time` | optional | system-managed | 软删除时间 |
 
 ## Field table
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
-| `application_id` | `uuid.UUID` | required | user | 关联应用 ID |
-| `name` | `string` | required | user | 配置名 |
-| `description` | `string` | optional | user | 配置描述 |
-| `replicas` | `int` | required | user | 副本数 |
-| `service_account_name` | `string` | optional | user | 使用的 ServiceAccount 名称 |
-| `resources` | `map[string]any` | optional | user | 资源约束 |
-| `probes` | `map[string]any` | optional | user | 探针配置 |
-| `env` | `[]EnvVar` | optional | user | 环境变量 |
-| `labels` | `[]LabelItem` | optional | user | 扩展标签 |
-| `workload_type` | `string` | optional | user | 工作负载类型 |
-| `strategy` | `string` | optional | user | 发布策略 |
+| `application_id` | `uuid.UUID` | required | create-only | 所属应用 ID；每个应用只能有一个有效 workload config |
+| `replicas` | `int` | required | user | Deployment 副本数，必须 `>= 0` |
+| `service_account_name` | `string` | optional | user | Pod 使用的 Kubernetes `serviceAccountName` |
+| `resources` | `map[string]any` | optional | user | 容器资源配置，推荐使用 `requests` / `limits` 结构 |
+| `probes` | `map[string]any` | optional | user | 容器探针配置，推荐使用 `livenessProbe` / `readinessProbe` / `startupProbe` |
+| `env` | `[]EnvVar` | optional | user | 容器环境变量列表；当前只支持字面量 `{name, value}` |
+| `labels` | `map[string]string` | optional | user | 写入 Deployment / Pod metadata 的 labels |
+| `annotations` | `map[string]string` | optional | user | 写入 Deployment / Pod metadata 的 annotations |
+
+## Nested types
+
+### `EnvVar`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | required | 环境变量名 |
+| `value` | `string` | required | 环境变量值 |
 
 ## API surface
 
@@ -46,32 +57,195 @@ It captures replicas, resource and probe settings, environment variables, worklo
 - `PUT /api/v1/workload-configs/{id}`
 - `DELETE /api/v1/workload-configs/{id}`
 
+The current HTTP surface is still collection-shaped, but the resource contract is application-scoped:
+
+- `application_id` is the business lookup key
+- one active record per application
+
 ## Create / update rules
 
 ### Create
-- practical required fields:
-  - `application_id`
-  - `name`
-  - `replicas`
-- server-managed fields:
-  - `id`
-  - `created_at`
-  - `updated_at`
+
+required fields:
+
+- `application_id`
+- `replicas`
+
+optional fields:
+
+- `service_account_name`
+- `resources`
+- `probes`
+- `env`
+- `labels`
+- `annotations`
+
+server-managed fields:
+
+- `id`
+- `created_at`
+- `updated_at`
+
+conflict rules:
+
+- if an active record already exists for the same `application_id`, create returns `conflict`
 
 ### Update
-- mutable fields:
-  - `application_id`, `name`, `description`, `replicas`, `service_account_name`, `resources`, `probes`, `env`, `labels`, `workload_type`, `strategy`
-- immutable/system-managed fields:
-  - `id`, `created_at`, `deleted_at`
+
+mutable fields:
+
+- `replicas`
+- `service_account_name`
+- `resources`
+- `probes`
+- `env`
+- `labels`
+- `annotations`
+
+immutable/system-managed fields:
+
+- `application_id`
+- `id`
+- `created_at`
+- `deleted_at`
 
 ### Delete
-- supported as soft delete through the handler surface
+
+- soft delete through the handler surface
+
+## Recommended payload shapes
+
+### `resources`
+
+```json
+{
+  "requests": {
+    "cpu": "100m",
+    "memory": "64Mi"
+  },
+  "limits": {
+    "cpu": "500m",
+    "memory": "512Mi"
+  }
+}
+```
+
+### `probes`
+
+```json
+{
+  "livenessProbe": {
+    "httpGet": {
+      "path": "/healthz",
+      "port": "http"
+    },
+    "initialDelaySeconds": 10,
+    "periodSeconds": 10,
+    "timeoutSeconds": 5,
+    "failureThreshold": 3
+  },
+  "readinessProbe": {
+    "httpGet": {
+      "path": "/readyz",
+      "port": "http"
+    },
+    "initialDelaySeconds": 5,
+    "periodSeconds": 10,
+    "timeoutSeconds": 5,
+    "failureThreshold": 3
+  },
+  "startupProbe": {
+    "httpGet": {
+      "path": "/startupz",
+      "port": "http"
+    },
+    "periodSeconds": 5,
+    "failureThreshold": 12
+  }
+}
+```
+
+### Example create / update body
+
+```json
+{
+  "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+  "replicas": 1,
+  "service_account_name": "default",
+  "resources": {
+    "requests": {
+      "cpu": "100m",
+      "memory": "64Mi"
+    },
+    "limits": {
+      "cpu": "500m",
+      "memory": "512Mi"
+    }
+  },
+  "probes": {
+    "livenessProbe": {
+      "httpGet": {
+        "path": "/healthz",
+        "port": "http"
+      }
+    },
+    "readinessProbe": {
+      "httpGet": {
+        "path": "/readyz",
+        "port": "http"
+      }
+    }
+  },
+  "env": [
+    {
+      "name": "LOG_LEVEL",
+      "value": "info"
+    }
+  ],
+  "labels": {
+    "team": "platform"
+  },
+  "annotations": {
+    "sidecar.istio.io/inject": "true"
+  }
+}
+```
+
+## Removed legacy fields
+
+These fields are intentionally no longer part of `WorkloadConfig`:
+
+- `name`
+- `description`
+- `workload_type`
+- `strategy`
+
+Reasons:
+
+- one application has one workload config, so extra naming is not needed
+- description has no runtime value
+- workload kind is not chosen here
+- rollout strategy belongs to `Release`
 
 ## Validation notes
 
 - invalid UUID path or query parameters return `invalid_argument`
 - missing records return `not_found`
-- list endpoints support `application_id`, `name`, and `include_deleted`
+- duplicate create for the same `application_id` returns `conflict`
+- `replicas` must be `>= 0`
+- list endpoints support `application_id` and `include_deleted`
+
+## Rendering boundary
+
+`WorkloadConfig` does **not** decide whether release rendering produces:
+
+- `Deployment`
+- `Rollout`
+
+That decision belongs to `Release.strategy`:
+
+- `rolling` -> `Deployment`
+- `blueGreen` / `canary` -> `Rollout`
 
 ## Source pointers
 

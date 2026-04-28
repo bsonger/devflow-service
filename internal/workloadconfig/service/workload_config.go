@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strings"
 
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/bsonger/devflow-service/internal/workloadconfig/domain"
@@ -13,7 +12,6 @@ import (
 type WorkloadConfigListFilter struct {
 	ApplicationID  *uuid.UUID
 	IncludeDeleted bool
-	Name           string
 }
 
 type WorkloadConfigService struct {
@@ -27,6 +25,13 @@ func NewWorkloadConfigService() *WorkloadConfigService {
 func (s *WorkloadConfigService) Create(ctx context.Context, item *domain.WorkloadConfig) (uuid.UUID, error) {
 	if err := validateWorkloadConfig(item); err != nil {
 		return uuid.Nil, err
+	}
+	existing, err := s.store.List(ctx, repository.ListFilter{ApplicationID: &item.ApplicationID})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if len(existing) > 0 {
+		return uuid.Nil, sharederrs.Conflict("workload config already exists for application")
 	}
 	return s.store.Create(ctx, item)
 }
@@ -43,6 +48,9 @@ func (s *WorkloadConfigService) Update(ctx context.Context, item *domain.Workloa
 	if err != nil {
 		return err
 	}
+	if current.ApplicationID != item.ApplicationID {
+		return sharederrs.InvalidArgument("application_id cannot be changed")
+	}
 	item.CreatedAt = current.CreatedAt
 	item.DeletedAt = current.DeletedAt
 	item.WithUpdateDefault()
@@ -57,7 +65,6 @@ func (s *WorkloadConfigService) List(ctx context.Context, filter WorkloadConfigL
 	return s.store.List(ctx, repository.ListFilter{
 		ApplicationID:  filter.ApplicationID,
 		IncludeDeleted: filter.IncludeDeleted,
-		Name:           filter.Name,
 	})
 }
 
@@ -69,19 +76,8 @@ func validateWorkloadConfig(item *domain.WorkloadConfig) error {
 	if item.ApplicationID == uuid.Nil {
 		messages = append(messages, "application_id is required")
 	}
-	if strings.TrimSpace(item.Name) == "" {
-		messages = append(messages, "name is required")
-	}
 	if item.Replicas < 0 {
 		messages = append(messages, "replicas must be >= 0")
-	}
-	if strings.TrimSpace(item.WorkloadType) == "" {
-		messages = append(messages, "workload_type is required")
-	}
-	switch item.Strategy {
-	case "", "canary", "bluegreen", "rolling-update", "rolling":
-	default:
-		messages = append(messages, "strategy is invalid")
 	}
 	return sharederrs.JoinInvalid(messages)
 }

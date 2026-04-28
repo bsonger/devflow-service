@@ -487,13 +487,13 @@ Additional rules:
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
 | `id` | `string` | optional | system-managed | 源工作负载配置记录标识 |
-| `name` | `string` | optional | system-managed | 工作负载名称 |
 | `replicas` | `int` | system-managed | no | 副本数快照 |
+| `service_account_name` | `string` | optional | system-managed | 冻结的 Pod `serviceAccountName` |
 | `resources` | `map[string]any` | optional | system-managed | 资源限制/请求快照 |
 | `probes` | `map[string]any` | optional | system-managed | 健康检查快照 |
 | `env` | `[]EnvVar` | optional | system-managed | 环境变量快照 |
-| `workload_type` | `string` | optional | system-managed | workload 类型，如 `deployment` |
-| `strategy` | `string` | optional | system-managed | 发布策略快照 |
+| `labels` | `map[string]string` | optional | system-managed | Deployment / Pod metadata labels 快照 |
+| `annotations` | `map[string]string` | optional | system-managed | Deployment / Pod metadata annotations 快照 |
 
 ## Trace correlation contract
 

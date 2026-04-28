@@ -298,7 +298,7 @@ func TestPublishDeploymentBundleRecordsArtifactMetadataWhenRegistryEnabled(t *te
 		ServicesSnapshot: []manifestdomain.ManifestService{
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
-		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Name: "demo-api", Replicas: 1},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
 	}
 	if err := svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
 		t.Fatalf("publishDeploymentBundle failed: %v", err)
@@ -353,7 +353,7 @@ func TestPublishDeploymentBundleMarksStepWhenRegistryDisabled(t *testing.T) {
 		ServicesSnapshot: []manifestdomain.ManifestService{
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
-		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Name: "demo-api", Replicas: 1},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
 	}
 	if err := svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
 		t.Fatalf("publishDeploymentBundle failed: %v", err)
@@ -422,7 +422,7 @@ func TestPublishDeploymentBundleMarksStepFailedWhenPublisherFails(t *testing.T) 
 		ServicesSnapshot: []manifestdomain.ManifestService{
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
-		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Name: "demo-api", Replicas: 1},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
 	}
 	err = svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"})
 	if err == nil || err.Error() != "publisher failed" {
@@ -525,7 +525,7 @@ func TestPublishDeploymentBundleUsesOrasPublisherMode(t *testing.T) {
 		ServicesSnapshot: []manifestdomain.ManifestService{
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
-		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Name: "demo-api", Replicas: 1},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
 	}
 	if err := svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
 		t.Fatalf("publishDeploymentBundle failed: %v", err)
