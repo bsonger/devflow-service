@@ -252,3 +252,110 @@ func TestManifestResourcesViewStillBuildsLegacyResourcesEndpoint(t *testing.T) {
 		t.Fatalf("expected derived resources, got %+v", view.Resources)
 	}
 }
+
+func TestUpdateBuildResultDoesNotMarkSucceededBeforeAllStepsFinish(t *testing.T) {
+	setupManifestTestDB(t)
+	svc := &manifestService{}
+	manifestID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID: appID,
+		PipelineID:    "pipe-running",
+		Status:        model.ManifestRunning,
+		Steps: []model.ImageTask{
+			{TaskName: "git-clone", Status: model.StepSucceeded},
+			{TaskName: "image-build-and-push", Status: model.StepRunning},
+		},
+		ImageRef: "registry.example.com/devflow/demo-api:pending",
+	}
+	if err := svc.repoStore().Insert(context.Background(), manifest); err != nil {
+		t.Fatalf("insert manifest: %v", err)
+	}
+
+	if err := svc.UpdateBuildResult(context.Background(), manifest.PipelineID, "abcdef123456", "registry.example.com/devflow/demo-api@sha256:abc", "20260428-120000", "sha256:abc"); err != nil {
+		t.Fatalf("UpdateBuildResult() error = %v", err)
+	}
+
+	got, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.Status != model.ManifestRunning {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestRunning)
+	}
+	if got.ImageDigest != "sha256:abc" {
+		t.Fatalf("image digest = %q", got.ImageDigest)
+	}
+}
+
+func TestUpdateStepStatusPromotesToSucceededOnlyAfterAllStepsAndResultReady(t *testing.T) {
+	setupManifestTestDB(t)
+	svc := &manifestService{}
+	manifestID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID: appID,
+		PipelineID:    "pipe-success",
+		Status:        model.ManifestReady,
+		CommitHash:    "abcdef123456",
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ImageTag:      "20260428-120000",
+		ImageDigest:   "sha256:abc",
+		Steps: []model.ImageTask{
+			{TaskName: "git-clone", Status: model.StepSucceeded},
+			{TaskName: "image-build-and-push", Status: model.StepRunning},
+		},
+	}
+	if err := svc.repoStore().Insert(context.Background(), manifest); err != nil {
+		t.Fatalf("insert manifest: %v", err)
+	}
+
+	if err := svc.UpdateStepStatus(context.Background(), manifest.PipelineID, "image-build-and-push", model.StepSucceeded, "done", nil, nil); err != nil {
+		t.Fatalf("UpdateStepStatus() error = %v", err)
+	}
+
+	got, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.Status != model.ManifestSucceeded {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestSucceeded)
+	}
+}
+
+func TestUpdateManifestStatusReadyWaitsForAllSteps(t *testing.T) {
+	setupManifestTestDB(t)
+	svc := &manifestService{}
+	manifestID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID: appID,
+		PipelineID:    "pipe-gated",
+		Status:        model.ManifestRunning,
+		Steps: []model.ImageTask{
+			{TaskName: "git-clone", Status: model.StepSucceeded},
+			{TaskName: "image-build-and-push", Status: model.StepRunning},
+		},
+	}
+	if err := svc.repoStore().Insert(context.Background(), manifest); err != nil {
+		t.Fatalf("insert manifest: %v", err)
+	}
+
+	if err := svc.UpdateManifestStatus(context.Background(), manifest.PipelineID, model.ManifestReady); err != nil {
+		t.Fatalf("UpdateManifestStatus() error = %v", err)
+	}
+
+	got, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.Status != model.ManifestRunning {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestRunning)
+	}
+}

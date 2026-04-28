@@ -438,7 +438,7 @@ the manifest remains the durable source of truth for:
 Recommended `ManifestStatus` transitions:
 
 ```text
-Pending -> Running -> Succeeded
+Pending -> Running -> Ready -> Succeeded
 Pending -> Running -> Failed
 Pending -> Failed
 ```
@@ -449,7 +449,8 @@ Operational meaning:
 |---|---|
 | `Pending` | manifest record created, snapshots frozen, build not yet confirmed running |
 | `Running` | Tekton `PipelineRun` has started and at least one task is in progress |
-| `Succeeded` | Tekton pipeline completed successfully and final image metadata was written back |
+| `Ready` | all manifest steps have completed successfully, but the final build result writeback may still be settling |
+| `Succeeded` | all manifest steps completed successfully and final image metadata was written back |
 | `Failed` | Tekton pipeline failed, was cancelled, or ended without producing a valid final image result |
 
 Additional rules:
@@ -457,6 +458,7 @@ Additional rules:
 - terminal states are `Succeeded` and `Failed`
 - late watcher events must not reopen a terminal manifest unless there is an explicit rebuild/retry operation
 - step state is more granular than top-level status; callers should use `steps` for detailed progress and `status` for high-level summary
+- writeback result data alone must not promote a manifest to `Succeeded` while any persisted step is still `Pending` or `Running`
 - if `git_revision` points to a moving reference such as a branch, the persisted `commit_hash` is the durable audit value
 
 ## Nested snapshot types
