@@ -110,6 +110,7 @@ The resource tracks the mount directory plus the latest synced revision, synced 
 - `files`, `source_directory`, and `source_commit` are populated from the latest synced revision
 - `source_directory` records the effective directory inside the GitHub config repository used by the latest sync
 - rendered configmap output is not stored on `AppConfig`; release-time rendering owns that step
+- live PostgreSQL cutover for this shape is tracked in `deployments/pre-production/database/appconfig-hard-cutover.sql`
 - before the first successful sync, revision and sync output fields may be empty
 - missing records return `not_found`
 - repo sync failures map to `failed_precondition`

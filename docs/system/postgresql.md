@@ -58,6 +58,24 @@ The repo now supports a deterministic install path for a new parallel PostgreSQL
 The bootstrap flow uses `bootstrap.initdb.postInitApplicationSQLRefs`, so `init.sql` is executed only when the cluster is created from scratch.
 Applying the manifest to an already-running cluster will not replay schema creation.
 
+For an existing legacy database, run the checked-in hard-cutover SQL before rolling out the new AppConfig binaries:
+
+```sh
+psql "$DATABASE_URL" -f deployments/pre-production/database/appconfig-hard-cutover.sql
+```
+
+That cutover script consolidates legacy per-`name` AppConfig rows into one active record per `application_id + environment_id`, rewrites the latest revision payload to the new `files` model, drops obsolete `rendered_configmap` storage, removes the legacy `environment_app_config_bindings` table, and normalizes the default mount path to `/etc/config`.
+
+Detailed execution and rollback steps live in `docs/system/appconfig-cutover.md`.
+
+Recommended rollout order:
+
+1. stop or pause writes to legacy AppConfig APIs
+2. run `deployments/pre-production/database/appconfig-hard-cutover.sql` against the target database
+3. roll out `config-service`, `release-service`, and any process reading config files from `/etc/config`
+4. trigger AppConfig repo sync again for active application/environment pairs
+5. create one release smoke test and verify rendered workload mounts `/etc/config`
+
 ## Init SQL source of truth
 
 `deployments/pre-production/database/init.sql` started from the live `app` schema and was then corrected to match the current Go model and repository contract before being checked into the repo as the bootstrap baseline.
@@ -65,7 +83,7 @@ Applying the manifest to an already-running cluster will not replay schema creat
 As of `2026-04-28`, the live schema includes:
 
 - extension: `pgcrypto`
-- 22 application tables
+- application tables aligned to the current extracted service boundaries
 - corrected soft-delete support for `application_environment_bindings`
 - corrected `projects` shape to match the current `Project` model and repository contract
 - `manifests` reduced to the current build-record model only:
@@ -74,6 +92,12 @@ As of `2026-04-28`, the live schema includes:
 - `releases` aligned to the current release-service model:
   - kept `env`, `manifest_id`, `routes_snapshot`, `app_config_snapshot`, `strategy`, `artifact_*`, `argocd_application_name`, `external_ref`, `steps`, `status`
   - removed legacy `image_id`
+- `configurations` aligned to the new AppConfig model:
+  - one active record per `application_id + env`
+  - `mount_path` default normalized to `/etc/config`
+  - payload stored through `configuration_revisions.files` plus `source_commit` / `source_digest`
+  - removed legacy inline `name`, `description`, `format`, `data`, `labels`, and `rendered_configmap` storage
+- obsolete `environment_app_config_bindings` removed from the active schema
 - primary keys, unique indexes, support indexes, and foreign keys required by the current repository implementations
 
 When repository-owned persistence changes, update the live schema and refresh `init.sql` together instead of letting bootstrap drift from production reality.

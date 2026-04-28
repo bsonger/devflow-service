@@ -110,7 +110,7 @@ spec:
               type: RuntimeDefault
           volumeMounts:
             - name: config
-              mountPath: /etc/devflow/config
+              mountPath: /etc/config
               readOnly: true
       imagePullSecrets:
         - name: aliyun-docker-config

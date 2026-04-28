@@ -51,7 +51,7 @@ func Load() (*Config, error) {
 	//v.SetConfigName("config")
 	v.SetConfigType("yaml")
 	v.AddConfigPath("./config/")
-	v.AddConfigPath("/etc/devflow/config/")
+	v.AddConfigPath("/etc/config/")
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err

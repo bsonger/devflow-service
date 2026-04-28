@@ -74,3 +74,11 @@ The resource contracts owned by this boundary are documented at:
 
 - `docs/resources/appconfig.md`
 - `docs/resources/workloadconfig.md`
+
+## Current AppConfig contract notes
+
+- AppConfig is now unique by `application_id + environment_id`
+- config sync source is the fixed GitHub config repository
+- effective sync directory is derived as `{project_name}/{application_name}/{environment_name}`
+- `mount_path` defaults to `/etc/config`
+- release-time rendering owns ConfigMap materialization; `AppConfig` no longer stores `rendered_configmap`

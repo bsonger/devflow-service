@@ -171,28 +171,6 @@ CREATE TABLE public.configurations (
 
 ALTER TABLE public.configurations OWNER TO app;
 
---
--- Name: environment_app_config_bindings; Type: TABLE; Schema: public; Owner: app
---
-
-CREATE TABLE public.environment_app_config_bindings (
-    application_id text NOT NULL,
-    environment_id text NOT NULL,
-    binding_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    base_configuration_id text DEFAULT ''::text NOT NULL,
-    config_service_id text DEFAULT ''::text NOT NULL,
-    name_override text,
-    description_override text,
-    format_override text,
-    data_override text,
-    labels_override_set boolean DEFAULT false NOT NULL,
-    labels_override_json jsonb DEFAULT '[]'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
-ALTER TABLE public.environment_app_config_bindings OWNER TO app;
 
 --
 -- Name: environment_workload_config_bindings; Type: TABLE; Schema: public; Owner: app
@@ -568,12 +546,6 @@ ALTER TABLE ONLY public.configurations
     ADD CONSTRAINT configurations_pkey PRIMARY KEY (id);
 
 
---
--- Name: environment_app_config_bindings environment_app_config_bindings_pkey; Type: CONSTRAINT; Schema: public; Owner: app
---
-
-ALTER TABLE ONLY public.environment_app_config_bindings
-    ADD CONSTRAINT environment_app_config_bindings_pkey PRIMARY KEY (application_id, environment_id);
 
 
 --
@@ -921,12 +893,6 @@ ALTER TABLE ONLY public.application_runtime_spec_revisions
     ADD CONSTRAINT application_runtime_spec_revisions_runtime_spec_id_fkey FOREIGN KEY (runtime_spec_id) REFERENCES public.application_runtime_specs(id) ON DELETE CASCADE;
 
 
---
--- Name: environment_app_config_bindings environment_app_config_bindin_application_id_environment_i_fkey; Type: FK CONSTRAINT; Schema: public; Owner: app
---
-
-ALTER TABLE ONLY public.environment_app_config_bindings
-    ADD CONSTRAINT environment_app_config_bindin_application_id_environment_i_fkey FOREIGN KEY (application_id, environment_id) REFERENCES public.application_environment_bindings(application_id, environment_id) ON DELETE CASCADE;
 
 
 --
