@@ -79,6 +79,10 @@ cmd/config-service/main.go
 internal/configservice/transport/http/router.go
 ```
 
+Pre-production shared ingress external prefix:
+
+- `/api/v1/config/...`
+
 The resource contracts owned by this boundary are documented at:
 
 - `docs/resources/appconfig.md`

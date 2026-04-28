@@ -71,6 +71,10 @@ cmd/network-service/main.go
 internal/networkservice/transport/http/router.go
 ```
 
+Pre-production shared ingress external prefix:
+
+- `/api/v1/network/...`
+
 The resource contracts owned by this boundary are documented at:
 
 - `docs/resources/service.md`

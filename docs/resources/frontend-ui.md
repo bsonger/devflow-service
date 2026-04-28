@@ -114,6 +114,14 @@ The selected environment drives:
 - release list reads
 - release creation defaults
 
+Current pre-production shared ingress note:
+
+- meta-owned resources use `/api/v1/meta/...`
+- config-owned resources use `/api/v1/config/...`
+- network-owned resources use `/api/v1/network/...`
+- release-owned resources use `/api/v1/release/...`
+- runtime-owned resources use `/api/v1/runtime/...`
+
 ## Tabs
 
 Keep these tabs:
@@ -443,12 +451,19 @@ Create attach payload:
 }
 ```
 
-Use:
+Use service-internal routes:
 
 - `GET /api/v1/applications/{id}/environments`
 - `POST /api/v1/applications/{id}/environments`
 - `GET /api/v1/applications/{id}/environments/{environment_id}`
 - `DELETE /api/v1/applications/{id}/environments/{environment_id}`
+
+On the pre-production shared ingress, use:
+
+- `GET /api/v1/meta/applications/{id}/environments`
+- `POST /api/v1/meta/applications/{id}/environments`
+- `GET /api/v1/meta/applications/{id}/environments/{environment_id}`
+- `DELETE /api/v1/meta/applications/{id}/environments/{environment_id}`
 
 Application-environment detail is the right place to aggregate:
 

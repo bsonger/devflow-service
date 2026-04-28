@@ -63,6 +63,14 @@ Runtime endpoints:
 - `/readyz`
 - `/internal/status`
 
+Pre-production shared ingress external prefix:
+
+- `/api/v1/meta/...`
+
+Legacy alias still routed in pre-production:
+
+- `/api/v1/platform/...`
+
 ## Build and verification target
 
 The service should eventually prove cleanly with:

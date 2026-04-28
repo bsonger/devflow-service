@@ -72,6 +72,12 @@ The extracted HTTP surface in this repo now includes:
 - `POST /api/v1/internal/runtime-spec-pods/sync`
 - `POST /api/v1/internal/runtime-spec-pods/delete`
 
+Pre-production shared ingress external prefix for non-internal routes:
+
+- `/api/v1/runtime/...`
+
+The internal observer callback routes are service-internal and are not part of the shared-ingress external contract.
+
 The internal observed-pod write endpoints are token-gated through:
 
 - `X-Devflow-Observer-Token`

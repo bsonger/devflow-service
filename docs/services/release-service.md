@@ -108,6 +108,10 @@ Runtime endpoints for this boundary include:
 - `/readyz`
 - `/internal/status`
 
+Pre-production shared ingress external prefix:
+
+- `/api/v1/release/...`
+
 The same migration boundary now applies to release-time downstream readers:
 
 ```text
