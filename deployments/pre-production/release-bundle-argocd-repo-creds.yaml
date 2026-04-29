@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: devflow-release-bundle-oci-creds
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repo-creds
+    app.kubernetes.io/part-of: devflow
+stringData:
+  type: oci
+  url: oci://zot.zot.svc.cluster.local:5000/devflow/releases
+  insecureOCIForceHttp: "true"

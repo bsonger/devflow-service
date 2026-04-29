@@ -19,6 +19,7 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/meta-service.yaml` to deploy namespace `devflow-pre-production`, configmap, service, and deployment for `meta-service`
 - use `kubectl apply -f deployments/pre-production/config-service.yaml` to deploy `config-service`
 - use `kubectl apply -f deployments/pre-production/network-service.yaml` to deploy `network-service`
+- use `kubectl apply -f deployments/pre-production/release-bundle-argocd-repo-creds.yaml` to register the pre-production OCI release-bundle repo credentials/prefix for Argo CD
 - use `kubectl apply -f deployments/pre-production/release-service.yaml` to deploy `release-service`
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
@@ -45,6 +46,7 @@ Pre-production manifest note:
 - `deployments/pre-production/meta-service.yaml` uses a `ConfigMap` named `meta-service-config`
 - `deployments/pre-production/config-service.yaml` uses a `ConfigMap` named `config-service-config`
 - `deployments/pre-production/network-service.yaml` uses a `ConfigMap` named `network-service-config`
+- `deployments/pre-production/release-bundle-argocd-repo-creds.yaml` registers the `oci://zot.zot.svc.cluster.local:5000/devflow/releases` prefix as an Argo CD OCI repo-creds secret for release bundle pull access
 - `deployments/pre-production/release-service.yaml` uses a `ConfigMap` named `release-service-config`
 - `deployments/pre-production/runtime-service.yaml` uses a `ConfigMap` named `runtime-service-config`
 - update `data.config.yaml` in those files before applying them to a real environment

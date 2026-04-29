@@ -42,9 +42,11 @@ data:
       username: ""
       password: ""
     manifest_registry:
-      repository: "manifests"
-      plain_http: false
-      mode: "metadata"
+      registry: "zot.zot.svc.cluster.local:5000"
+      namespace: "devflow"
+      repository: "releases"
+      plain_http: true
+      mode: "oras"
     pyroscope: ""
 ---
 apiVersion: v1
