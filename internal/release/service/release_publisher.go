@@ -1,10 +1,14 @@
 package service
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"path"
 	"strings"
+	"time"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
@@ -62,22 +66,19 @@ func (metadataReleaseBundlePublisher) PublishBundle(_ context.Context, req Relea
 func (orasReleaseBundlePublisher) PublishBundle(ctx context.Context, req ReleaseBundlePublishRequest) (*ReleaseBundlePublishResult, error) {
 	repository, tag, _, _ := deriveReleaseArtifactMetadataFromBundle(req.Release, req.Application, req.RegistryConfig, req.Bundle)
 	store := memory.New()
-	layers := make([]ocispec.Descriptor, 0, len(req.Bundle.Files))
-	for _, file := range req.Bundle.Files {
-		mediaType := releaseBundleFileMediaType(file.Path)
-		desc := content.NewDescriptorFromBytes(mediaType, []byte(file.Content))
-		if file.Path != "" {
-			desc.Annotations = map[string]string{
-				"org.opencontainers.image.title": file.Path,
-			}
-		}
-		if err := store.Push(ctx, desc, bytes.NewReader([]byte(file.Content))); err != nil {
-			return nil, err
-		}
-		layers = append(layers, desc)
+	archiveBytes, err := buildReleaseBundleArchive(req.Bundle)
+	if err != nil {
+		return nil, err
 	}
-	manifestDesc, err := oras.PackManifest(ctx, store, oras.PackManifestVersion1_1, releaseBundleArtifactType, oras.PackManifestOptions{
-		Layers: layers,
+	layer := content.NewDescriptorFromBytes(releaseBundleLayerMediaType, archiveBytes)
+	layer.Annotations = map[string]string{
+		ocispec.AnnotationTitle: releaseBundleArchiveName,
+	}
+	if err := store.Push(ctx, layer, bytes.NewReader(archiveBytes)); err != nil {
+		return nil, err
+	}
+	manifestDesc, err := oras.PackManifest(ctx, store, oras.PackManifestVersion1_0, releaseBundleArtifactType, oras.PackManifestOptions{
+		Layers: []ocispec.Descriptor{layer},
 		ManifestAnnotations: map[string]string{
 			"devflow.io/release-id": req.Release.ID.String(),
 		},
@@ -123,6 +124,68 @@ func (orasReleaseBundlePublisher) PublishBundle(ctx context.Context, req Release
 }
 
 const releaseBundleArtifactType = "application/vnd.devflow.release-bundle.v1"
+const releaseBundleArchiveName = "bundle.tar.gz"
+const releaseBundleLayerMediaType = "application/vnd.oci.image.layer.v1.tar+gzip"
+
+func buildReleaseBundleArchive(bundle *model.ReleaseBundle) ([]byte, error) {
+	if bundle == nil {
+		return nil, fmt.Errorf("release bundle is nil")
+	}
+	if len(bundle.Files) == 0 {
+		return nil, fmt.Errorf("release bundle has no files")
+	}
+	var buffer bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buffer)
+	gzipWriter.Header.ModTime = time.Unix(0, 0).UTC()
+	gzipWriter.Header.Name = releaseBundleArchiveName
+	gzipWriter.Header.Comment = ""
+	tarWriter := tar.NewWriter(gzipWriter)
+	for _, file := range bundle.Files {
+		filePath := normalizeReleaseBundleArchivePath(file.Path)
+		if filePath == "" {
+			continue
+		}
+		contentBytes := []byte(file.Content)
+		header := &tar.Header{
+			Name:     filePath,
+			Mode:     0o644,
+			Size:     int64(len(contentBytes)),
+			ModTime:  time.Unix(0, 0).UTC(),
+			Typeflag: tar.TypeReg,
+		}
+		if err := tarWriter.WriteHeader(header); err != nil {
+			_ = tarWriter.Close()
+			_ = gzipWriter.Close()
+			return nil, err
+		}
+		if _, err := tarWriter.Write(contentBytes); err != nil {
+			_ = tarWriter.Close()
+			_ = gzipWriter.Close()
+			return nil, err
+		}
+	}
+	if err := tarWriter.Close(); err != nil {
+		_ = gzipWriter.Close()
+		return nil, err
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func normalizeReleaseBundleArchivePath(filePath string) string {
+	cleaned := path.Clean(strings.TrimSpace(filePath))
+	cleaned = strings.TrimPrefix(cleaned, "/")
+	switch cleaned {
+	case "", ".", "..":
+		return ""
+	}
+	if strings.HasPrefix(cleaned, "../") {
+		return ""
+	}
+	return cleaned
+}
 
 func buildOrasRemoteRepository(cfg manifestdomain.ManifestRegistryConfig, repository string) (*remote.Repository, error) {
 	repo, err := newOrasRemoteRepository(strings.TrimSpace(repository))
@@ -152,15 +215,5 @@ func resolveReleaseBundlePublisher(runtimeCfg releasesupport.RuntimeConfig) rele
 		return orasReleaseBundlePublisher{}
 	default:
 		return releaseBundlePublisherImpl
-	}
-}
-
-func releaseBundleFileMediaType(path string) string {
-	lower := strings.ToLower(strings.TrimSpace(path))
-	switch {
-	case strings.HasSuffix(lower, ".yaml"), strings.HasSuffix(lower, ".yml"):
-		return "application/yaml"
-	default:
-		return "application/octet-stream"
 	}
 }
