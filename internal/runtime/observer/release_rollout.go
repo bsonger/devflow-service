@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
+	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -34,12 +34,12 @@ type ReleaseRolloutObserverConfig struct {
 	HTTPTimeout           time.Duration
 }
 
-type activeReleaseSnapshot struct {
-	ID            uuid.UUID
-	ApplicationID uuid.UUID
-	EnvironmentID string
-	Strategy      string
-	Type          string
+type releaseRolloutContext struct {
+	ReleaseID      uuid.UUID
+	ApplicationID  uuid.UUID
+	EnvironmentID  string
+	Namespace      string
+	DeploymentName string
 }
 
 type ReleaseRolloutObserver struct {
@@ -72,7 +72,7 @@ func StartReleaseRolloutObserver(ctx context.Context, restCfg *rest.Config, cfg 
 		clientset:   clientset,
 		httpClient:  &http.Client{Timeout: cfg.HTTPTimeout},
 		releaseBase: cfg.ReleaseServiceBaseURL,
-		store:       repository.NewPostgresStore(),
+		store:       repository.RuntimeStore,
 		processed:   map[string]string{},
 	}
 	go observer.run(ctx)
@@ -98,107 +98,172 @@ func (o *ReleaseRolloutObserver) sync(ctx context.Context) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	releases, err := listActiveRollingReleases(ctx)
+
+	specs, err := o.store.ListRuntimeSpecs(ctx)
 	if err != nil {
-		log.Warn("list active rolling releases failed", zap.Error(err))
+		log.Warn("list runtime specs for release rollout observer failed", zap.Error(err))
 		return
 	}
-	for _, release := range releases {
-		if err := o.syncRelease(ctx, release); err != nil {
-			log.Warn("sync active rolling release failed",
-				zap.String("release_id", release.ID.String()),
-				zap.String("application_id", release.ApplicationID.String()),
-				zap.String("environment_id", release.EnvironmentID),
+	for _, spec := range specs {
+		if spec == nil {
+			continue
+		}
+		if err := o.syncRuntimeSpec(ctx, spec, log); err != nil {
+			log.Warn("sync rollout observer from runtime state failed",
+				zap.String("runtime_spec_id", spec.ID.String()),
+				zap.String("application_id", spec.ApplicationID.String()),
+				zap.String("environment_id", spec.Environment),
 				zap.Error(err),
 			)
 		}
 	}
 }
 
-func listActiveRollingReleases(ctx context.Context) ([]activeReleaseSnapshot, error) {
-	rows, err := platformdb.Postgres().QueryContext(ctx, `
-		select id, application_id, env, strategy, type
-		from releases
-		where deleted_at is null
-		  and status in ($1, $2)
-		order by created_at desc
-	`, releasedomain.ReleaseRunning, releasedomain.ReleaseSyncing)
+func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runtimedomain.RuntimeSpec, log *zap.Logger) error {
+	workload, err := o.store.GetObservedWorkload(ctx, spec.ID)
+	if err == sql.ErrNoRows || workload == nil {
+		log.Debug("skip release rollout observer because runtime workload state is missing",
+			zap.String("runtime_spec_id", spec.ID.String()),
+			zap.String("application_id", spec.ApplicationID.String()),
+			zap.String("environment_id", spec.Environment),
+		)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	rollout, skipReason := deriveReleaseRolloutContext(workload)
+	if skipReason != "" {
+		log.Debug("skip release rollout observer because release metadata is incomplete",
+			zap.String("runtime_spec_id", spec.ID.String()),
+			zap.String("namespace", strings.TrimSpace(workload.Namespace)),
+			zap.String("workload_name", strings.TrimSpace(workload.WorkloadName)),
+			zap.String("reason", skipReason),
+		)
+		return nil
+	}
+
+	deployment, err := o.lookupDeployment(ctx, rollout)
+	if err != nil {
+		return err
+	}
+	phase, message, progress, stateKey := deriveReleaseRolloutState(rollout.Namespace, rollout.DeploymentName, deployment)
+	if o.isProcessed(rollout.ReleaseID.String(), stateKey) {
+		log.Debug("skip duplicate rollout writeback event",
+			zap.String("release_id", rollout.ReleaseID.String()),
+			zap.String("deployment", rollout.DeploymentName),
+			zap.String("namespace", rollout.Namespace),
+			zap.String("state_key", stateKey),
+		)
+		return nil
+	}
+	if err := o.writeReleaseSteps(ctx, rollout, phase, progress, message); err != nil {
+		log.Warn("release rollout writeback failed",
+			zap.String("release_id", rollout.ReleaseID.String()),
+			zap.String("deployment", rollout.DeploymentName),
+			zap.String("namespace", rollout.Namespace),
+			zap.String("phase", string(phase)),
+			zap.Error(err),
+		)
+		return err
+	}
+	log.Debug("release rollout state emitted",
+		zap.String("release_id", rollout.ReleaseID.String()),
+		zap.String("application_id", rollout.ApplicationID.String()),
+		zap.String("environment_id", rollout.EnvironmentID),
+		zap.String("deployment", rollout.DeploymentName),
+		zap.String("namespace", rollout.Namespace),
+		zap.String("phase", string(phase)),
+		zap.Int32("progress", progress),
+		zap.String("state_key", stateKey),
+	)
+	o.markProcessed(rollout.ReleaseID.String(), stateKey)
+	return nil
+}
+
+func deriveReleaseRolloutContext(workload *runtimedomain.RuntimeObservedWorkload) (releaseRolloutContext, string) {
+	if workload == nil {
+		return releaseRolloutContext{}, "missing_workload"
+	}
+	releaseID, err := uuid.Parse(strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]))
+	if err != nil || releaseID == uuid.Nil {
+		return releaseRolloutContext{}, "missing_release_id_label"
+	}
+	applicationID, err := uuid.Parse(strings.TrimSpace(workload.Labels[releasedomain.ReleaseApplicationLabel]))
+	if err != nil || applicationID == uuid.Nil {
+		return releaseRolloutContext{}, "missing_application_id_label"
+	}
+	environmentID := strings.TrimSpace(workload.Labels[releasedomain.ReleaseEnvironmentLabel])
+	if environmentID == "" {
+		environmentID = strings.TrimSpace(workload.Environment)
+	}
+	if environmentID == "" {
+		return releaseRolloutContext{}, "missing_environment_id_label"
+	}
+	namespace := strings.TrimSpace(workload.Namespace)
+	if namespace == "" {
+		return releaseRolloutContext{}, "missing_namespace"
+	}
+	deploymentName := strings.TrimSpace(workload.WorkloadName)
+	if deploymentName == "" {
+		deploymentName = strings.TrimSpace(workload.Labels["app.kubernetes.io/name"])
+	}
+	if deploymentName == "" {
+		return releaseRolloutContext{}, "missing_deployment_name"
+	}
+	return releaseRolloutContext{
+		ReleaseID:      releaseID,
+		ApplicationID:  applicationID,
+		EnvironmentID:  environmentID,
+		Namespace:      namespace,
+		DeploymentName: deploymentName,
+	}, ""
+}
+
+func (o *ReleaseRolloutObserver) lookupDeployment(ctx context.Context, rollout releaseRolloutContext) (*appsv1.Deployment, error) {
+	deployments, err := o.clientset.AppsV1().Deployments(rollout.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String(),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-
-	out := make([]activeReleaseSnapshot, 0)
-	for rows.Next() {
-		var item activeReleaseSnapshot
-		if err := rows.Scan(&item.ID, &item.ApplicationID, &item.EnvironmentID, &item.Strategy, &item.Type); err != nil {
-			return nil, err
-		}
-		if releasedomain.NormalizeReleaseStrategy(item.Strategy) != string(releasedomain.ReleaseStrategyRolling) {
-			continue
-		}
-		out = append(out, item)
+	deployment := pickPrimaryDeployment(rollout.DeploymentName, deployments.Items)
+	if deployment != nil {
+		return deployment, nil
 	}
-	return out, rows.Err()
+	return nil, nil
 }
 
-func (o *ReleaseRolloutObserver) syncRelease(ctx context.Context, release activeReleaseSnapshot) error {
-	appName, err := o.store.GetApplicationName(ctx, release.ApplicationID)
-	if err == sql.ErrNoRows || strings.TrimSpace(appName) == "" {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	namespace, err := o.store.ResolveTargetNamespace(ctx, release.ApplicationID, release.EnvironmentID)
-	if err == sql.ErrNoRows || strings.TrimSpace(namespace) == "" {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	deployments, err := o.clientset.AppsV1().Deployments(strings.TrimSpace(namespace)).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=" + strings.TrimSpace(appName),
-	})
-	if err != nil {
-		return err
-	}
-	deployment := pickPrimaryDeployment(strings.TrimSpace(appName), deployments.Items)
-	phase, message, progress, stateKey := deriveReleaseRolloutState(strings.TrimSpace(namespace), strings.TrimSpace(appName), deployment)
-	if o.isProcessed(release.ID.String(), stateKey) {
-		return nil
-	}
+func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout releaseRolloutContext, phase releasedomain.StepStatus, progress int32, message string) error {
 	switch phase {
 	case releasedomain.StepSucceeded:
-		if err := o.postStep(ctx, release.ID, "start_deployment", releasedomain.StepSucceeded, 100, message); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "start_deployment", releasedomain.StepSucceeded, 100, message); err != nil {
 			return err
 		}
-		if err := o.postStep(ctx, release.ID, "observe_rollout", releasedomain.StepSucceeded, 100, message); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepSucceeded, 100, message); err != nil {
 			return err
 		}
-		if err := o.postStep(ctx, release.ID, "finalize_release", releasedomain.StepSucceeded, 100, "release finalized after deployment became healthy"); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "finalize_release", releasedomain.StepSucceeded, 100, "release finalized after deployment became healthy"); err != nil {
 			return err
 		}
 	case releasedomain.StepFailed:
-		if err := o.postStep(ctx, release.ID, "start_deployment", releasedomain.StepFailed, 100, message); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "start_deployment", releasedomain.StepFailed, 100, message); err != nil {
 			return err
 		}
-		if err := o.postStep(ctx, release.ID, "observe_rollout", releasedomain.StepFailed, 100, message); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepFailed, 100, message); err != nil {
 			return err
 		}
-		if err := o.postStep(ctx, release.ID, "finalize_release", releasedomain.StepFailed, 100, "release finalized after deployment failure"); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "finalize_release", releasedomain.StepFailed, 100, "release finalized after deployment failure"); err != nil {
 			return err
 		}
 	default:
-		if err := o.postStep(ctx, release.ID, "start_deployment", releasedomain.StepRunning, progress, message); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "start_deployment", releasedomain.StepRunning, progress, message); err != nil {
 			return err
 		}
-		if err := o.postStep(ctx, release.ID, "observe_rollout", releasedomain.StepRunning, progress, message); err != nil {
+		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepRunning, progress, message); err != nil {
 			return err
 		}
 	}
-	o.markProcessed(release.ID.String(), stateKey)
 	return nil
 }
 
