@@ -36,12 +36,14 @@ Read:
 1. `AGENTS.md`
 2. `docs/services/release-service.md`
 3. `docs/system/release-writeback.md`
-4. `docs/resources/release.md`
-5. `docs/policies/verification.md`
+4. `docs/system/release-steps.md`
+5. `docs/resources/release.md`
+6. `docs/policies/verification.md`
 
 Verify:
 - token-gated writeback behavior still matches `observer.shared_token` wiring
 - callback routes, accepted headers, and status normalization still match the current handlers
+- step semantics still match `docs/system/release-steps.md`
 - release writeback docs and resource docs were updated in the same change
 - `bash scripts/verify.sh` still passes
 
@@ -82,3 +84,20 @@ Verify:
 - rerun the repo-local verification stack
 - confirm docs and code still describe the same layout
 - confirm the active service still builds as `meta-service`
+
+
+## Recipe: Runtime read model or runtime action change
+
+Read:
+1. `AGENTS.md`
+2. `docs/services/runtime-service.md`
+3. `docs/resources/runtime-spec.md`
+4. `docs/system/runtime-observer.md`
+5. `docs/system/flow-overview.md`
+6. `docs/policies/verification.md`
+
+Verify:
+- read routes still use runtime-owned observer/index state where expected
+- action routes still map to explicit Kubernetes mutations only
+- runtime docs and runtime service behavior changed together
+- `bash scripts/verify.sh` still passes

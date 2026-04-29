@@ -156,6 +156,7 @@ Normalized step statuses:
 - these routes are writeback surfaces, not public user-facing CRUD resources
 - they mutate existing `Release` execution state only; they do not create releases
 - the canonical resource-level shape for release data still lives in `docs/resources/release.md`
+- the canonical step-by-step meaning of each release step now lives in `docs/system/release-steps.md`
 - when writeback contracts change, update this file, `docs/resources/release.md`, and the handler tests in the same change
 
 ## Source pointers
