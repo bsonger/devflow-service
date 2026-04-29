@@ -28,6 +28,12 @@ For operator understanding, the preferred model is:
 - display reads from runtime-owned observed index data
 - explicit actions call Kubernetes
 
+The current observed index now includes:
+
+- `RuntimeObservedWorkload`
+- `RuntimeObservedPod`
+- `RuntimeOperation`
+
 Current code still contains PostgreSQL-backed runtime persistence, but that should be treated as an implementation detail or migration residue rather than the main API contract.
 
 ## Main operator flows
@@ -89,13 +95,10 @@ Current service-internal route surface:
 
 Current pre-production shared ingress external surface:
 
+- `GET /api/v1/runtime/workload?application_id=...&environment_id=...`
 - `GET /api/v1/runtime/pods?application_id=...&environment_id=...`
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
-
-Planned next read-model route:
-
-- `GET /api/v1/runtime/workload?application_id=...&environment_id=...`
 
 Selector placement follows the repo-wide policy:
 
@@ -120,6 +123,7 @@ Implementation status:
 
 - this endpoint is part of the current preferred runtime read surface
 - it should read runtime-owned observed workload index data
+- pre-production shared ingress has been verified to return workload overview data
 
 ### List pod status
 
@@ -188,6 +192,84 @@ Future simplification note:
 
 - if runtime-service can resolve the single primary workload automatically, `deployment_name` can become server-resolved later
 - until then, frontend and callers should send it explicitly
+
+## Internal observer sync surface
+
+These routes are service-internal observer callbacks and are not part of the shared external ingress contract:
+
+- `POST /api/v1/internal/runtime-spec-workloads/sync`
+- `POST /api/v1/internal/runtime-spec-workloads/delete`
+- `POST /api/v1/internal/runtime-spec-pods/sync`
+- `POST /api/v1/internal/runtime-spec-pods/delete`
+
+### Sync workload summary
+
+```http
+POST /api/v1/internal/runtime-spec-workloads/sync
+```
+
+Request body shape:
+
+```json
+{
+  "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+  "environment": "production",
+  "namespace": "devflow-pre-production",
+  "workload_kind": "Deployment",
+  "workload_name": "meta-service",
+  "desired_replicas": 1,
+  "ready_replicas": 1,
+  "updated_replicas": 1,
+  "available_replicas": 1,
+  "unavailable_replicas": 0,
+  "observed_generation": 9,
+  "summary_status": "Healthy",
+  "images": [
+    "registry.cn-hangzhou.aliyuncs.com/devflow/meta-service:preproduction"
+  ],
+  "conditions": [
+    {
+      "type": "Available",
+      "status": "True",
+      "reason": "MinimumReplicasAvailable",
+      "message": "Deployment has minimum availability."
+    }
+  ],
+  "labels": {
+    "app.kubernetes.io/name": "meta-service"
+  },
+  "annotations": {
+    "kubectl.kubernetes.io/restartedAt": "2026-04-29T04:08:52Z"
+  },
+  "observed_at": "2026-04-29T06:35:00Z",
+  "restart_at": "2026-04-29T04:08:52Z"
+}
+```
+
+Validation notes:
+
+- `application_id`, `environment`, `workload_kind`, and `workload_name` are required
+- namespace must match the runtime namespace derived by runtime-service
+- sync is idempotent at the runtime-spec level and updates the latest observed workload summary
+
+### Delete workload summary
+
+```http
+POST /api/v1/internal/runtime-spec-workloads/delete
+```
+
+Request body shape:
+
+```json
+{
+  "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+  "environment": "production",
+  "namespace": "devflow-pre-production",
+  "workload_kind": "Deployment",
+  "workload_name": "meta-service",
+  "observed_at": "2026-04-29T06:40:00Z"
+}
+```
 
 ## Response focus
 
@@ -273,6 +355,7 @@ The current code still persists and uses these internal records:
 
 - `RuntimeSpec`
 - `RuntimeSpecRevision`
+- `RuntimeObservedWorkload`
 - `RuntimeObservedPod`
 - `RuntimeOperation`
 
@@ -281,6 +364,19 @@ The matching read model now includes a workload-level observed summary alongside
 - controller-level overview from workload index
 - pod-level detail from pod index
 - actions through Kubernetes
+
+## Current pre-production status
+
+As of April 29, 2026:
+
+- `GET /api/v1/runtime/workload` is deployed on pre-production and returns workload overview data
+- the runtime-service database schema includes `runtime_observed_workloads`
+- runtime-service code can accept internal workload sync callbacks
+
+Remaining operational gap:
+
+- the current `resource-observer` deployment has not yet been updated in this repo to automatically post workload summary sync events
+- workload overview can be read today, but automatic population still depends on observer-side follow-up work
 
 Those records may continue to exist for implementation, history, or observer-sync purposes.
 But they should not dominate the external API contract if the main user value is:

@@ -163,6 +163,7 @@ flowchart TB
     subgraph Runtime["runtime-service"]
         RSPEC[RuntimeSpec]
         RREV[RuntimeSpecRevision]
+        RWORK[RuntimeObservedWorkload]
         RPOD[RuntimeObservedPod]
         ROP[RuntimeOperation]
     end
@@ -207,6 +208,7 @@ flowchart LR
 - `Release` freezes app config and route snapshot at release time, then resolves the final deploy target from meta-service
 - Argo deploys the release-generated bundle, not the original Git config repo directly
 - runtime pod inspection and runtime operations act on live Kubernetes workloads rather than reading release state from PostgreSQL first
+- runtime workload overview and pod display both prefer runtime-owned observed index data
 
 ## Source pointers
 

@@ -68,6 +68,10 @@ For architecture and service/resource flow diagrams, start with:
 
 - `docs/system/diagrams.md`
 
+For runtime workload / pod display model, observer writeback, and the read-vs-action split, start with:
+
+- `docs/system/runtime-observer.md`
+
 ## Notes
 
 - directory `README.md` files under `docs/index/`, `docs/services/`, `docs/resources/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only

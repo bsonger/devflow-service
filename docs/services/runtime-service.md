@@ -62,6 +62,7 @@ The current codebase still contains PostgreSQL-backed runtime persistence for:
 
 - `RuntimeSpec`
 - `RuntimeSpecRevision`
+- `RuntimeObservedWorkload`
 - `RuntimeObservedPod`
 - `RuntimeOperation`
 
@@ -159,6 +160,7 @@ Then it should:
 
 ### Current external surface
 
+- `GET /api/v1/runtime/workload`
 - `GET /api/v1/runtime/pods`
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
@@ -185,6 +187,31 @@ The intended UI split is:
 - `runtime/workload` for controller-level summary
 - `runtime/pods` for pod-level details
 - runtime actions for explicit Kubernetes mutations
+
+## Internal observer surface
+
+Observer-side internal routes now include:
+
+- `POST /api/v1/internal/runtime-spec-workloads/sync`
+- `POST /api/v1/internal/runtime-spec-workloads/delete`
+- `POST /api/v1/internal/runtime-spec-pods/sync`
+- `POST /api/v1/internal/runtime-spec-pods/delete`
+
+These routes are intended for observer/index writeback only.
+They are not user-facing API routes.
+
+## Pre-production status
+
+As of April 29, 2026:
+
+- pre-production runtime-service has been updated to serve `GET /api/v1/runtime/workload`
+- pre-production database includes `runtime_observed_workloads`
+- public workload overview reads are working through shared ingress
+
+Known remaining gap:
+
+- `resource-observer` automatic workload sync is not yet wired through this repo's committed deployment or observer source
+- current production-like proof for workload overview used a direct internal sync request against runtime-service
 
 ## Resource Contracts
 
