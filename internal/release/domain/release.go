@@ -129,6 +129,9 @@ func DefaultReleaseSteps(strategy ReleaseType, releaseAction string) []ReleaseSt
 	case Canary:
 		return []ReleaseStep{
 			newReleaseStep("freeze_inputs", "Freeze release inputs"),
+			newReleaseStep("ensure_namespace", "Ensure namespace"),
+			newReleaseStep("ensure_pull_secret", "Ensure pull secret"),
+			newReleaseStep("ensure_appproject_destination", "Ensure AppProject destination"),
 			newReleaseStep("render_deployment_bundle", "Render deployment bundle"),
 			newReleaseStep("publish_bundle", "Publish bundle to OCI"),
 			newReleaseStep("create_argocd_application", "Create ArgoCD application"),
@@ -142,6 +145,9 @@ func DefaultReleaseSteps(strategy ReleaseType, releaseAction string) []ReleaseSt
 	case BlueGreen:
 		return []ReleaseStep{
 			newReleaseStep("freeze_inputs", "Freeze release inputs"),
+			newReleaseStep("ensure_namespace", "Ensure namespace"),
+			newReleaseStep("ensure_pull_secret", "Ensure pull secret"),
+			newReleaseStep("ensure_appproject_destination", "Ensure AppProject destination"),
 			newReleaseStep("render_deployment_bundle", "Render deployment bundle"),
 			newReleaseStep("publish_bundle", "Publish bundle to OCI"),
 			newReleaseStep("create_argocd_application", "Create ArgoCD application"),
@@ -155,6 +161,9 @@ func DefaultReleaseSteps(strategy ReleaseType, releaseAction string) []ReleaseSt
 		_ = releaseAction
 		return []ReleaseStep{
 			newReleaseStep("freeze_inputs", "Freeze release inputs"),
+			newReleaseStep("ensure_namespace", "Ensure namespace"),
+			newReleaseStep("ensure_pull_secret", "Ensure pull secret"),
+			newReleaseStep("ensure_appproject_destination", "Ensure AppProject destination"),
 			newReleaseStep("render_deployment_bundle", "Render deployment bundle"),
 			newReleaseStep("publish_bundle", "Publish bundle to OCI"),
 			newReleaseStep("create_argocd_application", "Create ArgoCD application"),

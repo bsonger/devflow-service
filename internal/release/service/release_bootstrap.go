@@ -96,7 +96,7 @@ func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target releas
 func (e *bootstrapExecutor) gateEnsureNamespace(ctx context.Context, namespace string) bootstrapResult {
 	now := time.Now()
 	res := bootstrapResult{
-		StepName: "ensure namespace",
+		StepName: "ensure_namespace",
 		Status:   model.StepRunning,
 		Start:    &now,
 	}
@@ -144,7 +144,7 @@ func (e *bootstrapExecutor) gateEnsureNamespace(ctx context.Context, namespace s
 func (e *bootstrapExecutor) gateEnsurePullSecret(ctx context.Context, namespace string) bootstrapResult {
 	now := time.Now()
 	res := bootstrapResult{
-		StepName: "ensure pull secret",
+		StepName: "ensure_pull_secret",
 		Status:   model.StepRunning,
 		Start:    &now,
 	}
@@ -217,7 +217,7 @@ func (e *bootstrapExecutor) gateEnsurePullSecret(ctx context.Context, namespace 
 func (e *bootstrapExecutor) gateEnsureAppProjectDestination(ctx context.Context, appProjectName, server, namespace string) bootstrapResult {
 	now := time.Now()
 	res := bootstrapResult{
-		StepName: "ensure appproject destination",
+		StepName: "ensure_appproject_destination",
 		Status:   model.StepRunning,
 		Start:    &now,
 	}

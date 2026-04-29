@@ -45,6 +45,7 @@ var (
 	ErrReleaseManifestNotReady = sharederrs.FailedPrecondition("manifest is not ready")
 	ErrReleaseAppConfigMissing = sharederrs.FailedPrecondition("effective app config is missing")
 	ErrReleaseBundleNotReady   = sharederrs.FailedPrecondition("bundle not ready")
+	ErrReleaseUnknownStep      = sharederrs.InvalidArgument("unknown release step")
 )
 
 type releaseManifestReader interface {
@@ -252,6 +253,7 @@ func markReleaseStepCompleted(release *model.Release, stepCode, message string) 
 	if release == nil {
 		return
 	}
+	stepCode = normalizeReleaseStepKey(stepCode)
 	now := time.Now()
 	for i := range release.Steps {
 		if release.Steps[i].Code != stepCode && release.Steps[i].Name != stepCode {
@@ -310,6 +312,7 @@ func (s *releaseService) loadRelease(ctx context.Context, id uuid.UUID) (*model.
 	if err != nil {
 		return nil, err
 	}
+	release.Steps = normalizeReleaseSteps(release)
 	s.attachBundleSummary(ctx, release)
 	return release, nil
 }
@@ -394,6 +397,7 @@ func (s *releaseService) List(ctx context.Context, filter ReleaseListFilter) ([]
 		return nil, err
 	}
 	for _, release := range releases {
+		release.Steps = normalizeReleaseSteps(release)
 		s.attachBundleSummary(ctx, release)
 	}
 	return releases, nil
@@ -454,6 +458,7 @@ func (s *releaseService) UpdateStatus(ctx context.Context, releaseID uuid.UUID, 
 }
 
 func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) error {
+	stepName = normalizeReleaseStepKey(stepName)
 	if stepName == "" {
 		return nil
 	}
@@ -470,13 +475,7 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 	nextSteps := cloneReleaseSteps(release.Steps)
 	currentStep := findReleaseStep(release.Steps, stepName)
 	if currentStep == nil {
-		nextSteps = append(nextSteps, model.ReleaseStep{Code: stepName, Name: stepName, Progress: progress, Status: status, Message: message, StartTime: start, EndTime: end})
-		release.Steps = nextSteps
-		release.UpdatedAt = time.Now()
-		if err := s.repoStore().UpdateSteps(ctx, release); err != nil {
-			return err
-		}
-		return s.updateStatusFromSteps(ctx, releaseID, release.Type, release.Status, nextSteps)
+		return ErrReleaseUnknownStep
 	}
 	if currentStep.Status == model.StepFailed || currentStep.Status == model.StepSucceeded {
 		return nil
@@ -491,8 +490,9 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 }
 
 func findReleaseStep(steps []model.ReleaseStep, stepName string) *model.ReleaseStep {
+	stepName = normalizeReleaseStepKey(stepName)
 	for _, step := range steps {
-		if step.Code == stepName || step.Name == stepName {
+		if step.Code == stepName || normalizeReleaseStepKey(step.Name) == stepName {
 			current := step
 			return &current
 		}
@@ -510,8 +510,9 @@ func cloneReleaseSteps(steps []model.ReleaseStep) []model.ReleaseStep {
 }
 
 func applyReleaseStepUpdate(steps []model.ReleaseStep, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) {
+	stepName = normalizeReleaseStepKey(stepName)
 	for i := range steps {
-		if steps[i].Code != stepName && steps[i].Name != stepName {
+		if steps[i].Code != stepName && normalizeReleaseStepKey(steps[i].Name) != stepName {
 			continue
 		}
 		steps[i].Status = status
@@ -672,6 +673,7 @@ func setReleaseStepState(release *model.Release, stepName string, status model.S
 	if release == nil || stepName == "" {
 		return false
 	}
+	stepName = normalizeReleaseStepKey(stepName)
 	if progress < 0 {
 		progress = 0
 	}
@@ -680,7 +682,7 @@ func setReleaseStepState(release *model.Release, stepName string, status model.S
 	}
 	now := time.Now()
 	for i := range release.Steps {
-		if release.Steps[i].Code != stepName && release.Steps[i].Name != stepName {
+		if release.Steps[i].Code != stepName && normalizeReleaseStepKey(release.Steps[i].Name) != stepName {
 			continue
 		}
 		changed := false
@@ -718,16 +720,89 @@ func setReleaseStepState(release *model.Release, stepName string, status model.S
 		}
 		return changed
 	}
-	release.Steps = append(release.Steps, model.ReleaseStep{
-		Code:      stepName,
-		Name:      stepName,
-		Status:    status,
-		Progress:  progress,
-		Message:   message,
-		StartTime: &now,
-		EndTime:   endTimeForStatus(status, &now),
-	})
-	return true
+	return false
+}
+
+func normalizeReleaseStepKey(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	value = strings.ReplaceAll(value, "-", "_")
+	switch value {
+	case "":
+		return ""
+	case "ensure namespace":
+		return "ensure_namespace"
+	case "ensure pull secret":
+		return "ensure_pull_secret"
+	case "ensure appproject destination":
+		return "ensure_appproject_destination"
+	case "canary 10% traffic":
+		return "canary_10"
+	case "canary 30% traffic":
+		return "canary_30"
+	case "canary 60% traffic":
+		return "canary_60"
+	case "canary 100% traffic":
+		return "canary_100"
+	}
+	value = strings.ReplaceAll(value, " ", "_")
+	return value
+}
+
+func normalizeReleaseSteps(release *model.Release) []model.ReleaseStep {
+	if release == nil {
+		return nil
+	}
+	releaseType := inferReleaseType(release)
+	canonical := model.DefaultReleaseSteps(releaseType, release.Type)
+	if len(canonical) == 0 {
+		return release.Steps
+	}
+	byCode := make(map[string]model.ReleaseStep, len(release.Steps))
+	for _, step := range release.Steps {
+		key := normalizeReleaseStepKey(step.Code)
+		if key == "" {
+			key = normalizeReleaseStepKey(step.Name)
+		}
+		if key == "" {
+			continue
+		}
+		if step.Code == "" {
+			step.Code = key
+		}
+		byCode[key] = step
+	}
+	out := make([]model.ReleaseStep, 0, len(canonical))
+	for _, expected := range canonical {
+		if actual, ok := byCode[expected.Code]; ok {
+			actual.Code = expected.Code
+			if strings.TrimSpace(actual.Name) == "" {
+				actual.Name = expected.Name
+			}
+			out = append(out, actual)
+			continue
+		}
+		out = append(out, expected)
+	}
+	return out
+}
+
+func inferReleaseType(release *model.Release) model.ReleaseType {
+	if release == nil {
+		return model.Normal
+	}
+	releaseType := model.ReleaseStrategyToType(release.Strategy)
+	if releaseType != model.Normal {
+		return releaseType
+	}
+	for _, step := range release.Steps {
+		switch normalizeReleaseStepKey(step.Code) {
+		case "deploy_preview", "observe_preview", "switch_traffic", "verify_active":
+			return model.BlueGreen
+		case "deploy_canary", "canary_10", "canary_30", "canary_60", "canary_100":
+			return model.Canary
+		}
+	}
+	return model.Normal
 }
 
 func endTimeForStatus(status model.StepStatus, now *time.Time) *time.Time {

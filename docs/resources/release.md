@@ -946,6 +946,9 @@ Reason:
 ### rolling
 
 - `freeze_inputs`
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -956,6 +959,9 @@ Reason:
 Suggested display names:
 
 - `freeze_inputs` -> `Freeze release inputs`
+- `ensure_namespace` -> `Ensure namespace`
+- `ensure_pull_secret` -> `Ensure pull secret`
+- `ensure_appproject_destination` -> `Ensure AppProject destination`
 - `render_deployment_bundle` -> `Render deployment bundle`
 - `publish_bundle` -> `Publish bundle to OCI`
 - `create_argocd_application` -> `Create ArgoCD application`
@@ -966,6 +972,9 @@ Suggested display names:
 ### blueGreen
 
 - `freeze_inputs`
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -978,6 +987,9 @@ Suggested display names:
 ### canary
 
 - `freeze_inputs`
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -1015,6 +1027,9 @@ These are advanced by the asynchronous deployment executor.
 
 Common executor-owned steps:
 
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -1046,6 +1061,9 @@ Examples:
 | Step code | Owner | Meaning |
 |---|---|---|
 | `freeze_inputs` | release-service create phase | 冻结 release-time snapshots |
+| `ensure_namespace` | async executor | 确保目标 namespace 已存在 |
+| `ensure_pull_secret` | async executor | 确保目标 namespace 已具备拉镜像 secret |
+| `ensure_appproject_destination` | async executor | 确保 ArgoCD AppProject 放通目标集群与 namespace |
 | `render_deployment_bundle` | async executor | 渲染 deployment bundle |
 | `publish_bundle` | async executor | 上传 deployment bundle 到 OCI |
 | `create_argocd_application` | async executor | 创建 ArgoCD Application |
@@ -1087,6 +1105,9 @@ Then:
 
 #### async executor phase
 
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -1105,6 +1126,9 @@ Then:
 
 #### async executor phase
 
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -1125,6 +1149,9 @@ Then:
 
 #### async executor phase
 
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`

@@ -38,6 +38,7 @@ Important rules:
 - `steps[*].name` is display text and may evolve over time
 - the frontend should render the returned `steps` list instead of assuming a fixed step count
 - the release create call initializes the full step list early, then different components advance different steps over time
+- release-service should keep `steps` in canonical execution order and should not append unknown ad-hoc step entries at runtime
 
 ## Execution phases
 
@@ -68,6 +69,9 @@ Purpose:
 These steps appear on all release strategies:
 
 - `freeze_inputs`
+- `ensure_namespace`
+- `ensure_pull_secret`
+- `ensure_appproject_destination`
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
@@ -513,41 +517,50 @@ Failure usually means:
 Expected sequence:
 
 1. `freeze_inputs`
-2. `render_deployment_bundle`
-3. `publish_bundle`
-4. `create_argocd_application`
-5. `start_deployment`
-6. `observe_rollout`
-7. `finalize_release`
+2. `ensure_namespace`
+3. `ensure_pull_secret`
+4. `ensure_appproject_destination`
+5. `render_deployment_bundle`
+6. `publish_bundle`
+7. `create_argocd_application`
+8. `start_deployment`
+9. `observe_rollout`
+10. `finalize_release`
 
 ### Blue-green
 
 Expected sequence:
 
 1. `freeze_inputs`
-2. `render_deployment_bundle`
-3. `publish_bundle`
-4. `create_argocd_application`
-5. `deploy_preview`
-6. `observe_preview`
-7. `switch_traffic`
-8. `verify_active`
-9. `finalize_release`
+2. `ensure_namespace`
+3. `ensure_pull_secret`
+4. `ensure_appproject_destination`
+5. `render_deployment_bundle`
+6. `publish_bundle`
+7. `create_argocd_application`
+8. `deploy_preview`
+9. `observe_preview`
+10. `switch_traffic`
+11. `verify_active`
+12. `finalize_release`
 
 ### Canary
 
 Expected sequence:
 
 1. `freeze_inputs`
-2. `render_deployment_bundle`
-3. `publish_bundle`
-4. `create_argocd_application`
-5. `deploy_canary`
-6. `canary_10`
-7. `canary_30`
-8. `canary_60`
-9. `canary_100`
-10. `finalize_release`
+2. `ensure_namespace`
+3. `ensure_pull_secret`
+4. `ensure_appproject_destination`
+5. `render_deployment_bundle`
+6. `publish_bundle`
+7. `create_argocd_application`
+8. `deploy_canary`
+9. `canary_10`
+10. `canary_30`
+11. `canary_60`
+12. `canary_100`
+13. `finalize_release`
 
 ## How to read a stuck release
 

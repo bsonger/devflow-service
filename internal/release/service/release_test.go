@@ -12,6 +12,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
@@ -631,28 +632,11 @@ func TestUpdateStepAppendsOrphanStep(t *testing.T) {
 
 	svc := &releaseService{}
 	err = svc.UpdateStep(context.Background(), releaseID, "orphan step", model.StepRunning, 25, "working", nil, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected unknown release step error")
 	}
-
-	release, err := svc.Get(context.Background(), releaseID)
-	if err != nil {
-		t.Fatalf("get failed: %v", err)
-	}
-	if len(release.Steps) != len(steps)+1 {
-		t.Fatalf("expected %d steps, got %d", len(steps)+1, len(release.Steps))
-	}
-	found := false
-	for _, s := range release.Steps {
-		if s.Name == "orphan step" {
-			found = true
-			if s.Status != model.StepRunning || s.Progress != 25 {
-				t.Fatalf("unexpected step state: %+v", s)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("orphan step not appended")
+	if !sharederrs.HasCode(err, sharederrs.CodeInvalidArgument) {
+		t.Fatalf("unexpected error code: %v", err)
 	}
 }
 
@@ -737,7 +721,7 @@ func TestReleaseStatusConvergenceFromSyncingToRunning(t *testing.T) {
 	}
 
 	svc := &releaseService{}
-	err = svc.UpdateStep(context.Background(), releaseID, "ensure namespace", model.StepSucceeded, 100, "done", nil, nil)
+	err = svc.UpdateStep(context.Background(), releaseID, "ensure_namespace", model.StepSucceeded, 100, "done", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -868,6 +852,9 @@ func TestReleaseStatusConvergenceBootstrapApplyRolloutSuccess(t *testing.T) {
 
 	svc := &releaseService{}
 	_ = svc.UpdateStep(context.Background(), releaseID, "freeze_inputs", model.StepSucceeded, 100, "inputs frozen", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_namespace", model.StepSucceeded, 100, "namespace ready", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_pull_secret", model.StepSucceeded, 100, "pull secret ready", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_appproject_destination", model.StepSucceeded, 100, "appproject destination ready", nil, nil)
 	_ = svc.UpdateStep(context.Background(), releaseID, "render_deployment_bundle", model.StepSucceeded, 100, "bundle rendered", nil, nil)
 	_ = svc.UpdateStep(context.Background(), releaseID, "publish_bundle", model.StepSucceeded, 100, "bundle published", nil, nil)
 	_ = svc.UpdateStep(context.Background(), releaseID, "create_argocd_application", model.StepSucceeded, 100, "application created", nil, nil)
@@ -915,8 +902,8 @@ func TestReleaseStatusConvergenceSyncFailure(t *testing.T) {
 
 	svc := &releaseService{}
 	// Sync fails during bootstrap
-	_ = svc.UpdateStep(context.Background(), releaseID, "ensure namespace", model.StepSucceeded, 100, "namespace ready", nil, nil)
-	_ = svc.UpdateStep(context.Background(), releaseID, "ensure pull secret", model.StepFailed, 0, "secret creation denied: rbac forbidden", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_namespace", model.StepSucceeded, 100, "namespace ready", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_pull_secret", model.StepFailed, 0, "secret creation denied: rbac forbidden", nil, nil)
 
 	release, err := svc.Get(context.Background(), releaseID)
 	if err != nil {
@@ -928,7 +915,7 @@ func TestReleaseStatusConvergenceSyncFailure(t *testing.T) {
 	// Verify failure message is preserved
 	foundSecret := false
 	for _, s := range release.Steps {
-		if s.Name == "ensure pull secret" {
+		if s.Code == "ensure_pull_secret" {
 			foundSecret = true
 			if s.Message != "secret creation denied: rbac forbidden" {
 				t.Fatalf("expected step message 'secret creation denied: rbac forbidden', got %q", s.Message)
@@ -936,7 +923,7 @@ func TestReleaseStatusConvergenceSyncFailure(t *testing.T) {
 		}
 	}
 	if !foundSecret {
-		t.Fatal("ensure pull secret step not found")
+		t.Fatal("ensure_pull_secret step not found")
 	}
 }
 
@@ -958,11 +945,16 @@ func TestReleaseStatusConvergenceRolloutFailure(t *testing.T) {
 
 	svc := &releaseService{}
 	// Bootstrap and apply succeed
-	_ = svc.UpdateStep(context.Background(), releaseID, "ensure namespace", model.StepSucceeded, 100, "done", nil, nil)
-	_ = svc.UpdateStep(context.Background(), releaseID, "apply manifests", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_namespace", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_pull_secret", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "ensure_appproject_destination", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "render_deployment_bundle", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "publish_bundle", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "create_argocd_application", model.StepSucceeded, 100, "done", nil, nil)
 	// Canary rollout fails at 30%
-	_ = svc.UpdateStep(context.Background(), releaseID, "canary 10% traffic", model.StepSucceeded, 100, "done", nil, nil)
-	_ = svc.UpdateStep(context.Background(), releaseID, "canary 30% traffic", model.StepFailed, 0, "analysis failed: error rate 15% > threshold 5%", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "deploy_canary", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "canary_10", model.StepSucceeded, 100, "done", nil, nil)
+	_ = svc.UpdateStep(context.Background(), releaseID, "canary_30", model.StepFailed, 0, "analysis failed: error rate 15% > threshold 5%", nil, nil)
 
 	release, err := svc.Get(context.Background(), releaseID)
 	if err != nil {
@@ -974,7 +966,7 @@ func TestReleaseStatusConvergenceRolloutFailure(t *testing.T) {
 	// Verify rollout failure message is preserved
 	foundCanary := false
 	for _, s := range release.Steps {
-		if s.Name == "canary 30% traffic" {
+		if s.Code == "canary_30" {
 			foundCanary = true
 			if s.Message != "analysis failed: error rate 15% > threshold 5%" {
 				t.Fatalf("expected step message 'analysis failed: error rate 15%% > threshold 5%%', got %q", s.Message)
@@ -982,7 +974,7 @@ func TestReleaseStatusConvergenceRolloutFailure(t *testing.T) {
 		}
 	}
 	if !foundCanary {
-		t.Fatal("canary 30% traffic step not found")
+		t.Fatal("canary_30 step not found")
 	}
 }
 
