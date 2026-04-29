@@ -267,6 +267,9 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		"env":       env,
 		"resources": workload.Resources,
 	}
+	if ports := buildReleaseContainerPorts(manifest.ServicesSnapshot); len(ports) > 0 {
+		container["ports"] = ports
+	}
 	if len(workload.Probes) > 0 {
 		for k, v := range workload.Probes {
 			container[k] = v
@@ -352,6 +355,35 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		}
 		return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
 	}
+}
+
+func buildReleaseContainerPorts(services []manifestdomain.ManifestService) []map[string]any {
+	if len(services) == 0 {
+		return nil
+	}
+	ports := make([]map[string]any, 0)
+	seen := map[string]struct{}{}
+	for _, service := range services {
+		for _, port := range service.Ports {
+			key := fmt.Sprintf("%s/%d/%s", strings.TrimSpace(port.Name), port.TargetPort, releaseDefaultProtocol(port.Protocol))
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			item := map[string]any{
+				"containerPort": port.TargetPort,
+				"protocol":      releaseDefaultProtocol(port.Protocol),
+			}
+			if name := strings.TrimSpace(port.Name); name != "" {
+				item["name"] = name
+			}
+			ports = append(ports, item)
+		}
+	}
+	if len(ports) == 0 {
+		return nil
+	}
+	return ports
 }
 
 func buildReleaseVirtualService(namespace, applicationName string, routes []model.ReleaseRoute) map[string]any {
@@ -468,6 +500,14 @@ func releaseBundleCombinedContent(bundle *model.ReleaseBundle) string {
 			continue
 		}
 		parts = append(parts, strings.TrimSpace(file.Content))
+	}
+	if len(parts) == 0 {
+		for _, object := range bundle.RenderedObjects {
+			if strings.TrimSpace(object.YAML) == "" {
+				continue
+			}
+			parts = append(parts, strings.TrimSpace(object.YAML))
+		}
 	}
 	if len(parts) == 0 {
 		return ""

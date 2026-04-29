@@ -59,6 +59,17 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if bundle.Resources.Deployment == nil {
 		t.Fatal("expected deployment")
 	}
+	containerSpec, ok := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)
+	if !ok || len(containerSpec) == 0 {
+		t.Fatalf("deployment containers missing: %#v", bundle.Resources.Deployment.Object)
+	}
+	ports, ok := containerSpec[0]["ports"].([]map[string]any)
+	if !ok || len(ports) != 1 {
+		t.Fatalf("deployment ports missing: %#v", containerSpec[0])
+	}
+	if ports[0]["name"] != "http" || ports[0]["containerPort"] != 8080 {
+		t.Fatalf("deployment port = %#v", ports[0])
+	}
 	if bundle.Resources.VirtualService == nil {
 		t.Fatal("expected virtualservice")
 	}
