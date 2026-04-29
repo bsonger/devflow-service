@@ -108,6 +108,9 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 			continue
 		}
 		if err := o.syncPipelineRun(ctx, pr); err != nil {
+			if isNotFoundWriteback(err) {
+				continue
+			}
 			log.Warn("sync tekton pipeline run failed",
 				zap.String("pipeline_run", pr.Name),
 				zap.String("manifest_id", pr.Labels[manifestIDLabel]),
@@ -138,6 +141,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 		if err := o.syncTaskRun(ctx, manifestID, pr.Name, &taskRuns.Items[i]); err != nil {
 			if terminal && isNotFoundWriteback(err) {
 				o.markProcessed(pr.Name, stateKey)
+				return nil
 			}
 			return err
 		}
@@ -152,6 +156,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	if err := o.postJSON(ctx, "/api/v1/manifests/tekton/status", statusPayload); err != nil {
 		if terminal && isNotFoundWriteback(err) {
 			o.markProcessed(pr.Name, stateKey)
+			return nil
 		}
 		return err
 	}
@@ -160,6 +165,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 		if err := o.postJSON(ctx, "/api/v1/manifests/tekton/result", result); err != nil {
 			if terminal && isNotFoundWriteback(err) {
 				o.markProcessed(pr.Name, stateKey)
+				return nil
 			}
 			return err
 		}

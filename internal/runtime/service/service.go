@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +30,7 @@ var ErrK8sForbidden = sharederrs.FailedPrecondition("kubernetes operation forbid
 type K8sExecutor interface {
 	DeletePod(ctx context.Context, namespace, name string) error
 	RestartDeployment(ctx context.Context, namespace, name string) error
+	ListPods(ctx context.Context, namespace, labelSelector string) ([]corev1.Pod, error)
 }
 
 type Service interface {
@@ -145,6 +148,14 @@ func (k *k8sExecutor) RestartDeployment(ctx context.Context, namespace, name str
 	patch := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().Format(time.RFC3339)))
 	_, err := k.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	return err
+}
+
+func (k *k8sExecutor) ListPods(ctx context.Context, namespace, labelSelector string) ([]corev1.Pod, error) {
+	items, err := k.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, err
+	}
+	return items.Items, nil
 }
 
 func (s *runtimeService) CreateRuntimeSpec(ctx context.Context, in CreateRuntimeSpecInput) (*domain.RuntimeSpec, error) {
@@ -279,7 +290,14 @@ func (s *runtimeService) ListObservedPodsByApplicationEnv(ctx context.Context, a
 	if spec == nil {
 		return nil, ErrRuntimeSpecNotFound
 	}
-	return s.repoStore().ListObservedPods(ctx, spec.ID)
+	items, err := s.repoStore().ListObservedPods(ctx, spec.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) > 0 {
+		return items, nil
+	}
+	return s.listLivePodsByApplicationEnv(ctx, spec)
 }
 
 func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPodInput) (*domain.RuntimeObservedPod, error) {
@@ -303,8 +321,8 @@ func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPod
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
-	derivedNamespace := deriveRuntimeNamespace(spec.ApplicationID, spec.Environment)
-	if in.Namespace != "" && in.Namespace != derivedNamespace {
+	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	if in.Namespace != "" && in.Namespace != resolvedNamespace {
 		return nil, ErrNamespaceMismatch
 	}
 
@@ -313,7 +331,7 @@ func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPod
 		RuntimeSpecID: spec.ID,
 		ApplicationID: spec.ApplicationID,
 		Environment:   spec.Environment,
-		Namespace:     derivedNamespace,
+		Namespace:     resolvedNamespace,
 		PodName:       in.PodName,
 		Phase:         in.Phase,
 		Ready:         in.Ready,
@@ -354,11 +372,11 @@ func (s *runtimeService) DeleteObservedPod(ctx context.Context, in DeleteObserve
 		now := time.Now().UTC()
 		observedAt = now
 	}
-	derivedNamespace := deriveRuntimeNamespace(spec.ApplicationID, spec.Environment)
-	if in.Namespace != "" && in.Namespace != derivedNamespace {
+	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	if in.Namespace != "" && in.Namespace != resolvedNamespace {
 		return ErrNamespaceMismatch
 	}
-	return s.repoStore().DeleteObservedPod(ctx, spec.ID, derivedNamespace, in.PodName, observedAt)
+	return s.repoStore().DeleteObservedPod(ctx, spec.ID, resolvedNamespace, in.PodName, observedAt)
 }
 
 func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID, podName, operator string) error {
@@ -385,7 +403,7 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 		return err
 	}
 
-	namespace := deriveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	namespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
 	if err := k8s.DeletePod(ctx, namespace, podName); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ErrK8sNotFound
@@ -438,7 +456,7 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 		return err
 	}
 
-	namespace := deriveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	namespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
 	if err := k8s.RestartDeployment(ctx, namespace, deploymentName); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ErrK8sNotFound
@@ -487,6 +505,39 @@ func (s *runtimeService) recordOperation(ctx context.Context, runtimeSpecID uuid
 		return err
 	}
 	return nil
+}
+
+func (s *runtimeService) listLivePodsByApplicationEnv(ctx context.Context, spec *domain.RuntimeSpec) ([]*domain.RuntimeObservedPod, error) {
+	if spec == nil {
+		return nil, ErrRuntimeSpecNotFound
+	}
+	k8s, err := s.k8s()
+	if err != nil {
+		return nil, err
+	}
+	appName, err := s.repoStore().GetApplicationName(ctx, spec.ApplicationID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrRuntimeSpecNotFound
+		}
+		return nil, err
+	}
+	if appName == "" {
+		return []*domain.RuntimeObservedPod{}, nil
+	}
+	namespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	pods, err := k8s.ListPods(ctx, namespace, "app.kubernetes.io/name="+appName)
+	if err != nil {
+		if apierrors.IsNotFound(err) || apierrors.IsForbidden(err) {
+			return []*domain.RuntimeObservedPod{}, nil
+		}
+		return nil, err
+	}
+	items := make([]*domain.RuntimeObservedPod, 0, len(pods))
+	for i := range pods {
+		items = append(items, mapLivePodToObserved(spec, &pods[i]))
+	}
+	return items, nil
 }
 
 func validateRuntimeSpecInput(applicationId uuid.UUID, environment string) error {
@@ -567,4 +618,75 @@ func deriveRuntimeNamespace(applicationId uuid.UUID, environment string) string 
 		return base
 	}
 	return base + "-" + environment
+}
+
+func resolveRuntimeNamespace(applicationId uuid.UUID, environment string) string {
+	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
+		return ns
+	}
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); ns != "" {
+			return ns
+		}
+	}
+	return deriveRuntimeNamespace(applicationId, environment)
+}
+
+func mapLivePodToObserved(spec *domain.RuntimeSpec, pod *corev1.Pod) *domain.RuntimeObservedPod {
+	containers := make([]domain.RuntimeObservedPodContainer, 0, len(pod.Status.ContainerStatuses))
+	restarts := 0
+	ready := true
+	for _, item := range pod.Status.ContainerStatuses {
+		restarts += int(item.RestartCount)
+		ready = ready && item.Ready
+		state := ""
+		switch {
+		case item.State.Running != nil:
+			state = "Running"
+		case item.State.Waiting != nil:
+			state = item.State.Waiting.Reason
+		case item.State.Terminated != nil:
+			state = item.State.Terminated.Reason
+		}
+		containers = append(containers, domain.RuntimeObservedPodContainer{
+			Name:         strings.TrimSpace(item.Name),
+			Image:        strings.TrimSpace(item.Image),
+			ImageID:      strings.TrimSpace(item.ImageID),
+			Ready:        item.Ready,
+			RestartCount: int(item.RestartCount),
+			State:        strings.TrimSpace(state),
+		})
+	}
+	if len(pod.Status.ContainerStatuses) == 0 {
+		ready = false
+	}
+	ownerKind := ""
+	ownerName := ""
+	if len(pod.OwnerReferences) > 0 {
+		ownerKind = strings.TrimSpace(pod.OwnerReferences[0].Kind)
+		ownerName = strings.TrimSpace(pod.OwnerReferences[0].Name)
+	}
+	observedAt := pod.CreationTimestamp.Time.UTC()
+	if pod.Status.StartTime != nil && !pod.Status.StartTime.IsZero() {
+		observedAt = pod.Status.StartTime.Time.UTC()
+	}
+	return &domain.RuntimeObservedPod{
+		ID:            uuid.New(),
+		RuntimeSpecID: spec.ID,
+		ApplicationID: spec.ApplicationID,
+		Environment:   spec.Environment,
+		Namespace:     strings.TrimSpace(pod.Namespace),
+		PodName:       strings.TrimSpace(pod.Name),
+		Phase:         strings.TrimSpace(string(pod.Status.Phase)),
+		Ready:         ready,
+		Restarts:      restarts,
+		NodeName:      strings.TrimSpace(pod.Spec.NodeName),
+		PodIP:         strings.TrimSpace(pod.Status.PodIP),
+		HostIP:        strings.TrimSpace(pod.Status.HostIP),
+		OwnerKind:     ownerKind,
+		OwnerName:     ownerName,
+		Labels:        copyLabels(pod.Labels),
+		Containers:    containers,
+		ObservedAt:    observedAt,
+	}
 }
