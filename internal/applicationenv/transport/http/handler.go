@@ -37,6 +37,18 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	appEnvironments.DELETE("/:environment_id", h.Delete)
 }
 
+// Attach
+// @Summary Attach environment to application
+// @Tags ApplicationEnvironment
+// @Accept json
+// @Produce json
+// @Param id path string true "Application ID"
+// @Param data body domain.BindingInput true "Binding Data"
+// @Success 201 {object} domain.Binding
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/applications/{id}/environments [post]
 func (h *Handler) Attach(c *gin.Context) {
 	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
@@ -57,6 +69,16 @@ func (h *Handler) Attach(c *gin.Context) {
 	httpx.WriteData(c, http.StatusCreated, item)
 }
 
+// List
+// @Summary List application environment bindings
+// @Tags ApplicationEnvironment
+// @Produce json
+// @Param id path string true "Application ID"
+// @Success 200 {object} httpx.PaginatedResponse
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/applications/{id}/environments [get]
 func (h *Handler) List(c *gin.Context) {
 	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
@@ -72,6 +94,17 @@ func (h *Handler) List(c *gin.Context) {
 	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
+// Get
+// @Summary Get application environment binding detail
+// @Tags ApplicationEnvironment
+// @Produce json
+// @Param id path string true "Application ID"
+// @Param environment_id path string true "Environment ID"
+// @Success 200 {object} applicationenvservice.BindingDetail
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/applications/{id}/environments/{environment_id} [get]
 func (h *Handler) Get(c *gin.Context) {
 	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {
@@ -87,6 +120,16 @@ func (h *Handler) Get(c *gin.Context) {
 	httpx.WriteData(c, http.StatusOK, item)
 }
 
+// Delete
+// @Summary Delete application environment binding
+// @Tags ApplicationEnvironment
+// @Param id path string true "Application ID"
+// @Param environment_id path string true "Environment ID"
+// @Success 204
+// @Failure 400 {object} httpx.ErrorResponse
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 500 {object} httpx.ErrorResponse
+// @Router /api/v1/applications/{id}/environments/{environment_id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	applicationId, ok := httpx.ParseUUIDParam(c, "id")
 	if !ok {

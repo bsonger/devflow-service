@@ -246,7 +246,7 @@ Failure usually means:
 ### `observe_rollout`
 
 Owner:
-- runtime-service or Argo observer callbacks
+- rollout callback sender
 
 Strategy:
 - rolling only
@@ -268,12 +268,12 @@ Failure usually means:
 
 - pods failed readiness or startup
 - rollout stalled
-- Argo or runtime observer saw a terminal unhealthy state
+- a callback sender reported a terminal unhealthy state
 
 ### `deploy_preview`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - blue-green only
@@ -298,7 +298,7 @@ Failure usually means:
 ### `observe_preview`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - blue-green only
@@ -325,7 +325,7 @@ Failure usually means:
 ### `switch_traffic`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - blue-green only
@@ -350,7 +350,7 @@ Failure usually means:
 ### `verify_active`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - blue-green only
@@ -375,7 +375,7 @@ Failure usually means:
 ### `deploy_canary`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - canary only
@@ -399,7 +399,7 @@ Failure usually means:
 ### `canary_10`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - canary only
@@ -423,7 +423,7 @@ Failure usually means:
 ### `canary_30`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - canary only
@@ -447,7 +447,7 @@ Failure usually means:
 ### `canary_60`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - canary only
@@ -471,7 +471,7 @@ Failure usually means:
 ### `canary_100`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Strategy:
 - canary only
@@ -496,7 +496,7 @@ Failure usually means:
 ### `finalize_release`
 
 Owner:
-- runtime-service or rollout observer
+- rollout callback sender
 
 Meaning:
 - the system closes the rollout and writes the final terminal outcome

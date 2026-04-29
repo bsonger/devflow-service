@@ -356,7 +356,7 @@ Design rule:
 
 - `code` is for machines and must stay stable
 - `name` is for humans and may change over time
-- runtime-service and release-service should update steps by `code`, not by display name
+- callback senders and release-service should update steps by `code`, not by display name
 - writeback payloads should prefer `step_code`; `step_name` is migration-only compatibility input
 
 ## Question routing
@@ -593,15 +593,15 @@ Recommended non-goals for this resource:
 
 ## Execution model
 
-Release execution should be modeled as asynchronous intent-driven work.
+Release execution is long-running work, but the exact handoff shape depends on runtime mode.
 
-`POST /api/v1/releases` should:
+Current repo facts:
 
-- validate the request
-- freeze release-time inputs
-- create the release record
-- create/schedule execution intent
-- return the release record quickly
+- `POST /api/v1/releases` always validates the request, freezes release-time inputs, and creates the release record
+- when intent mode is enabled, the flow may also create/schedule an execution intent
+- in the default path, `release-service` may continue directly into dispatch work before the HTTP response returns
+
+`POST /api/v1/releases` should therefore not be interpreted as proof that deployment has completed, even if create returned successfully.
 
 It should **not** require the HTTP request to synchronously complete:
 
