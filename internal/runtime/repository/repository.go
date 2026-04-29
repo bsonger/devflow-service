@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
+	platformk8s "github.com/bsonger/devflow-service/internal/platform/k8s"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/google/uuid"
 )
@@ -19,6 +21,7 @@ type Store interface {
 	GetRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	EnsureRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	GetApplicationName(context.Context, uuid.UUID) (string, error)
+	ResolveTargetNamespace(context.Context, uuid.UUID, string) (string, error)
 	DeleteRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) error
 	ListRuntimeSpecs(context.Context) ([]*runtimedomain.RuntimeSpec, error)
 	NextRevisionNumber(context.Context, uuid.UUID) (int, error)
@@ -125,6 +128,37 @@ func (s *postgresStore) GetApplicationName(ctx context.Context, applicationId uu
 		where id = $1 and deleted_at is null
 	`, applicationId).Scan(&name)
 	return name, err
+}
+
+func (s *postgresStore) ResolveTargetNamespace(ctx context.Context, applicationId uuid.UUID, environment string) (string, error) {
+	environment = strings.TrimSpace(environment)
+	var projectName string
+	var environmentName string
+	err := platformdb.Postgres().QueryRowContext(ctx, `
+		select p.name, e.name
+		from applications a
+		join projects p
+		  on p.id = a.project_id
+		join application_environment_bindings aeb
+		  on aeb.application_id = a.id::text
+		 and aeb.deleted_at is null
+		join environments e
+		  on e.id::text = aeb.environment_id
+		 and e.deleted_at is null
+		where a.id = $1
+		  and (e.name = $2 or aeb.environment_id = $2)
+		  and a.deleted_at is null
+		  and p.deleted_at is null
+		limit 1
+	`, applicationId, environment).Scan(&projectName, &environmentName)
+	if err != nil {
+		return "", err
+	}
+	namespace, err := platformk8s.DeriveNamespace(projectName, environmentName)
+	if err != nil {
+		return "", fmt.Errorf("derive namespace from project=%q environment=%q: %w", projectName, environmentName, err)
+	}
+	return namespace, nil
 }
 
 func (s *postgresStore) resolveEnvironmentName(ctx context.Context, applicationId uuid.UUID, selector string) (string, error) {

@@ -102,6 +102,43 @@ func TestReconcileReleaseFromArgoApplicationMarksSucceeded(t *testing.T) {
 	}
 }
 
+func TestReconcileReleaseFromArgoApplicationDoesNotMarkSucceededWhenOutOfSync(t *testing.T) {
+	release := &model.Release{
+		BaseModel: model.BaseModel{ID: uuid.New()},
+		Type:      model.ReleaseUpgrade,
+		Status:    model.ReleaseRunning,
+		Steps:     model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+	}
+	app := &appv1.Application{}
+	app.Status.Sync.Status = appv1.SyncStatusCodeOutOfSync
+	app.Status.Health.Status = "Healthy"
+	app.Status.OperationState = &appv1.OperationState{Phase: "Succeeded"}
+
+	changed := reconcileReleaseFromArgoApplication(release, app)
+	if !changed {
+		t.Fatal("expected running state reconciliation to update step messages")
+	}
+	if release.Status != model.ReleaseRunning {
+		t.Fatalf("status = %q want %q", release.Status, model.ReleaseRunning)
+	}
+	for _, code := range []string{"start_deployment", "observe_rollout"} {
+		step := findReleaseStep(release.Steps, code)
+		if step == nil {
+			t.Fatalf("step %s not found", code)
+		}
+		if step.Status != model.StepRunning {
+			t.Fatalf("%s status = %q want %q", code, step.Status, model.StepRunning)
+		}
+	}
+	finalize := findReleaseStep(release.Steps, "finalize_release")
+	if finalize == nil {
+		t.Fatal("finalize_release step not found")
+	}
+	if finalize.Status != model.StepPending {
+		t.Fatalf("finalize_release status = %q want %q", finalize.Status, model.StepPending)
+	}
+}
+
 func TestReconcileReleaseFromArgoApplicationMarksFailed(t *testing.T) {
 	release := &model.Release{
 		BaseModel: model.BaseModel{ID: uuid.New()},

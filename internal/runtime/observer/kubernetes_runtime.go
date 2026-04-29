@@ -108,28 +108,32 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 	if err != nil {
 		return err
 	}
+	targetNamespace, err := o.resolveSpecNamespace(ctx, spec)
+	if err != nil {
+		return err
+	}
 	selector := "app.kubernetes.io/name=" + strings.TrimSpace(appName)
 
-	deployments, err := o.clientset.AppsV1().Deployments(o.cfg.Namespace).List(ctx, metav1.ListOptions{
+	deployments, err := o.clientset.AppsV1().Deployments(targetNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: selector,
 	})
 	if err != nil {
 		return err
 	}
-	if err := o.syncDeployment(ctx, spec, appName, deployments.Items); err != nil {
+	if err := o.syncDeployment(ctx, spec, appName, targetNamespace, deployments.Items); err != nil {
 		return err
 	}
 
-	pods, err := o.clientset.CoreV1().Pods(o.cfg.Namespace).List(ctx, metav1.ListOptions{
+	pods, err := o.clientset.CoreV1().Pods(targetNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: selector,
 	})
 	if err != nil {
 		return err
 	}
-	return o.syncPods(ctx, spec, pods.Items)
+	return o.syncPods(ctx, spec, targetNamespace, pods.Items)
 }
 
-func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *domain.RuntimeSpec, appName string, deployments []appsv1.Deployment) error {
+func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *domain.RuntimeSpec, appName, namespace string, deployments []appsv1.Deployment) error {
 	sort.SliceStable(deployments, func(i, j int) bool {
 		if deployments[i].Name == appName {
 			return true
@@ -146,7 +150,7 @@ func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *do
 			return o.runtime.DeleteObservedWorkload(ctx, runtimeservice.DeleteObservedWorkloadInput{
 				ApplicationID: spec.ApplicationID,
 				Environment:   spec.Environment,
-				Namespace:     o.cfg.Namespace,
+				Namespace:     existing.Namespace,
 				WorkloadKind:  existing.WorkloadKind,
 				WorkloadName:  existing.WorkloadName,
 				ObservedAt:    time.Now().UTC(),
@@ -163,7 +167,7 @@ func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *do
 	_, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
 		ApplicationID:       spec.ApplicationID,
 		Environment:         spec.Environment,
-		Namespace:           o.cfg.Namespace,
+		Namespace:           namespace,
 		WorkloadKind:        "Deployment",
 		WorkloadName:        deployment.Name,
 		DesiredReplicas:     int32Value(deployment.Spec.Replicas),
@@ -183,7 +187,7 @@ func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *do
 	return err
 }
 
-func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.RuntimeSpec, pods []corev1.Pod) error {
+func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.RuntimeSpec, namespace string, pods []corev1.Pod) error {
 	existing, err := o.store.ListObservedPods(ctx, spec.ID)
 	if err != nil {
 		return err
@@ -196,12 +200,13 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 		existingByName[item.PodName] = item
 	}
 	now := time.Now().UTC()
+	seenNames := make(map[string]struct{}, len(pods))
 	for _, pod := range pods {
-		delete(existingByName, pod.Name)
+		seenNames[pod.Name] = struct{}{}
 		_, err := o.runtime.SyncObservedPod(ctx, runtimeservice.SyncObservedPodInput{
 			ApplicationID: spec.ApplicationID,
 			Environment:   spec.Environment,
-			Namespace:     o.cfg.Namespace,
+			Namespace:     namespace,
 			PodName:       pod.Name,
 			Phase:         string(pod.Status.Phase),
 			Ready:         isPodReady(pod),
@@ -219,11 +224,19 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 			return err
 		}
 	}
-	for podName := range existingByName {
+	for podName, item := range existingByName {
+		if item == nil {
+			continue
+		}
+		if item != nil && item.Namespace == namespace {
+			if _, ok := seenNames[podName]; ok {
+				continue
+			}
+		}
 		if err := o.runtime.DeleteObservedPod(ctx, runtimeservice.DeleteObservedPodInput{
 			ApplicationID: spec.ApplicationID,
 			Environment:   spec.Environment,
-			Namespace:     o.cfg.Namespace,
+			Namespace:     item.Namespace,
 			PodName:       podName,
 			ObservedAt:    now,
 		}); err != nil {
@@ -231,6 +244,16 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 		}
 	}
 	return nil
+}
+
+func (o *KubernetesRuntimeObserver) resolveSpecNamespace(ctx context.Context, spec *domain.RuntimeSpec) (string, error) {
+	if spec == nil {
+		return "", nil
+	}
+	if namespace, err := o.store.ResolveTargetNamespace(ctx, spec.ApplicationID, spec.Environment); err == nil && strings.TrimSpace(namespace) != "" {
+		return strings.TrimSpace(namespace), nil
+	}
+	return strings.TrimSpace(o.cfg.Namespace), nil
 }
 
 func detectObserverNamespace() string {

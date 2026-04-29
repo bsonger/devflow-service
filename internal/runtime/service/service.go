@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -355,7 +354,10 @@ func (s *runtimeService) SyncObservedWorkload(ctx context.Context, in SyncObserv
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
-	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	resolvedNamespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, in.Namespace)
+	if err != nil {
+		return nil, err
+	}
 	if in.Namespace != "" && in.Namespace != resolvedNamespace {
 		return nil, ErrNamespaceMismatch
 	}
@@ -409,7 +411,10 @@ func (s *runtimeService) DeleteObservedWorkload(ctx context.Context, in DeleteOb
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
-	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	resolvedNamespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, in.Namespace)
+	if err != nil {
+		return err
+	}
 	if in.Namespace != "" && in.Namespace != resolvedNamespace {
 		return ErrNamespaceMismatch
 	}
@@ -459,7 +464,10 @@ func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPod
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
-	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	resolvedNamespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, in.Namespace)
+	if err != nil {
+		return nil, err
+	}
 	if in.Namespace != "" && in.Namespace != resolvedNamespace {
 		return nil, ErrNamespaceMismatch
 	}
@@ -510,7 +518,10 @@ func (s *runtimeService) DeleteObservedPod(ctx context.Context, in DeleteObserve
 		now := time.Now().UTC()
 		observedAt = now
 	}
-	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	resolvedNamespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, in.Namespace)
+	if err != nil {
+		return err
+	}
 	if in.Namespace != "" && in.Namespace != resolvedNamespace {
 		return ErrNamespaceMismatch
 	}
@@ -541,7 +552,10 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 		return err
 	}
 
-	namespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	namespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, "")
+	if err != nil {
+		return err
+	}
 	if err := k8s.DeletePod(ctx, namespace, podName); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ErrK8sNotFound
@@ -595,7 +609,10 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 		return err
 	}
 
-	namespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	namespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, "")
+	if err != nil {
+		return err
+	}
 	if err := k8s.RestartDeployment(ctx, namespace, deploymentName); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ErrK8sNotFound
@@ -799,23 +816,16 @@ func trimStringSlice(in []string) []string {
 	return out
 }
 
-func deriveRuntimeNamespace(applicationId uuid.UUID, environment string) string {
-	base := applicationId.String()
-	environment = strings.ToLower(strings.TrimSpace(environment))
-	if environment == "" || environment == "production" {
-		return base
+func (s *runtimeService) resolveRuntimeNamespace(ctx context.Context, applicationId uuid.UUID, environment, fallback string) (string, error) {
+	namespace, err := s.repoStore().ResolveTargetNamespace(ctx, applicationId, environment)
+	if err == nil && strings.TrimSpace(namespace) != "" {
+		return strings.TrimSpace(namespace), nil
 	}
-	return base + "-" + environment
-}
-
-func resolveRuntimeNamespace(applicationId uuid.UUID, environment string) string {
-	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
-		return ns
+	if ns := strings.TrimSpace(fallback); ns != "" {
+		return ns, nil
 	}
-	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		if ns := strings.TrimSpace(string(data)); ns != "" {
-			return ns
-		}
+	if err != nil {
+		return "", err
 	}
-	return deriveRuntimeNamespace(applicationId, environment)
+	return "", sharederrs.FailedPrecondition("runtime namespace could not be resolved")
 }

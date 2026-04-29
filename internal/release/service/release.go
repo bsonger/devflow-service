@@ -742,7 +742,10 @@ func isArgoFailure(phase, health string) bool {
 }
 
 func isArgoHealthy(phase, health, syncStatus string) bool {
-	return health == "healthy" && (phase == "succeeded" || phase == "" || syncStatus == "synced")
+	if health != "healthy" || syncStatus != "synced" {
+		return false
+	}
+	return phase == "succeeded" || phase == ""
 }
 
 func isArgoRunning(phase, health, syncStatus string) bool {

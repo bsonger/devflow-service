@@ -17,6 +17,7 @@ type stubStore struct {
 	getRuntimeSpecByApplicationEnvFunc    func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	ensureRuntimeSpecByApplicationEnvFunc func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	getApplicationNameFunc                func(context.Context, uuid.UUID) (string, error)
+	resolveTargetNamespaceFunc            func(context.Context, uuid.UUID, string) (string, error)
 	deleteRuntimeSpecByApplicationEnvFunc func(context.Context, uuid.UUID, string) error
 	listRuntimeSpecsFunc                  func(context.Context) ([]*runtimedomain.RuntimeSpec, error)
 	nextRevisionNumberFunc                func(context.Context, uuid.UUID) (int, error)
@@ -84,6 +85,13 @@ func (s stubStore) EnsureRuntimeSpecByApplicationEnv(ctx context.Context, applic
 func (s stubStore) GetApplicationName(ctx context.Context, applicationId uuid.UUID) (string, error) {
 	if s.getApplicationNameFunc != nil {
 		return s.getApplicationNameFunc(ctx, applicationId)
+	}
+	return "", sql.ErrNoRows
+}
+
+func (s stubStore) ResolveTargetNamespace(ctx context.Context, applicationId uuid.UUID, environment string) (string, error) {
+	if s.resolveTargetNamespaceFunc != nil {
+		return s.resolveTargetNamespaceFunc(ctx, applicationId, environment)
 	}
 	return "", sql.ErrNoRows
 }
@@ -199,6 +207,9 @@ func TestCreateRuntimeSpecRejectsDuplicate(t *testing.T) {
 		getRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationId, Environment: "staging"}, nil
 		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "expected-namespace", nil
+		},
 	}, nil)
 
 	_, err := svc.CreateRuntimeSpec(context.Background(), CreateRuntimeSpecInput{
@@ -258,6 +269,9 @@ func TestSyncObservedPodRejectsNamespaceMismatch(t *testing.T) {
 		getRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: uuid.New(), ApplicationID: applicationId, Environment: "staging"}, nil
 		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "expected-namespace", nil
+		},
 	}, nil)
 
 	_, err := svc.SyncObservedPod(context.Background(), SyncObservedPodInput{
@@ -279,6 +293,9 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	svc := New(stubStore{
 		ensureRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "devflow", nil
 		},
 		upsertObservedWorkloadFunc: func(_ context.Context, item *runtimedomain.RuntimeObservedWorkload) error {
 			captured = item
@@ -315,6 +332,9 @@ func TestRestartDeploymentFallsBackToObservedWorkloadName(t *testing.T) {
 	svc := New(stubStore{
 		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "devflow", nil
 		},
 		getObservedWorkloadFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
 			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, WorkloadKind: "Deployment", WorkloadName: "meta-service"}, nil
