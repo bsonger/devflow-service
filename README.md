@@ -121,6 +121,8 @@ The first command to rerun after interruption is:
 bash scripts/verify.sh
 ```
 
+That verifier is also the mechanical anti-regression guard against reintroducing runtime-domain PostgreSQL access under `internal/runtime/**` while the rest of the repository may still legitimately use PostgreSQL.
+
 The target verification stack from the repo root is:
 
 ```sh

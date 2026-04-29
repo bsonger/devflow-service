@@ -74,6 +74,8 @@ make ci
 Local ad-hoc Docker image builds are not part of the active verification or deployment contract.
 For packaging-related work, verify the root `Dockerfile` and Docker policy instead.
 
+When debugging `runtime-service`, pair `bash scripts/verify.sh` with `docs/system/runtime-storage-model.md`: the verifier enforces the no-Postgres runtime-domain guardrail, and the runtime doc explains the accepted cold-start window where observer-backed in-memory state is temporarily empty after restart.
+
 Only runnable repo entrypoints under `cmd/` may be packaged this way.
 Current runnable entries are `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`.
 

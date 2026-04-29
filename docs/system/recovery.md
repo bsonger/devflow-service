@@ -37,7 +37,7 @@ Run this first from the repo root:
 bash scripts/verify.sh
 ```
 
-Use it first because it is the canonical repo-local proof surface and should remain the highest-value recovery command during the migration.
+Use it first because it is the canonical repo-local proof surface and should remain the highest-value recovery command during the migration. It also carries the mechanical runtime-domain no-Postgres guard for `internal/runtime/**`, so rerunning it is the fastest way to catch accidental PostgreSQL reintroduction in the Kubernetes-first runtime path.
 
 ## Current verification stack
 
@@ -126,3 +126,4 @@ Inspect next:
 - Do not reintroduce catch-all `common/`, `util/`, or business-heavy `shared/` directories.
 - Do not add install commands into service Dockerfiles.
 - Do not treat stale docs as acceptable during the migration; update docs and verification together.
+ not treat stale docs as acceptable during the migration; update docs and verification together.

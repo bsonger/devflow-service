@@ -85,7 +85,7 @@ For runtime workload / pod display model, observer writeback, and the read-vs-ac
 
 - `docs/system/runtime-observer.md`
 
-For runtime-service memory, observer, action, and remaining PostgreSQL-backed support boundaries, start with:
+For runtime-service memory, observer, action, cold-start rebuild behavior, and the runtime-domain no-Postgres guardrail, start with:
 
 - `docs/system/runtime-storage-model.md`
 

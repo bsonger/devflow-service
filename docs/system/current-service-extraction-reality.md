@@ -41,7 +41,8 @@ Some implementation paths are still transitional because the code lives in one G
 - A separate runnable service does not always mean every dependency is already a runtime HTTP dependency.
 - Several domains still share a root Go module, shared platform code, and direct repository stores.
 - Some validation that should logically belong across service boundaries is still local or absent.
-- Runtime default read/action state is memory-backed, while Postgres-backed runtime code remains in the repository.
+- Runtime default read/action state is memory-backed, and the active runtime-domain path is PostgreSQL-free even though other repo areas still use PostgreSQL.
+- After restart, runtime observer state is intentionally rebuilt in memory and can remain temporarily empty until Kubernetes sync repopulates it.
 
 ## Rules for future docs
 

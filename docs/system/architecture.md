@@ -82,7 +82,7 @@ For the current extraction state and remaining same-repo implementation realitie
 
 - `docs/system/current-service-extraction-reality.md`
 
-For runtime-service memory, observer, and remaining PostgreSQL-backed support boundaries, use:
+For runtime-service memory, observer, cold-start rebuild behavior, and the runtime-domain no-Postgres guardrail, use:
 
 - `docs/system/runtime-storage-model.md`
 
