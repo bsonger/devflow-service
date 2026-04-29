@@ -67,7 +67,7 @@ Current wiring note:
 
 - `release-service` advances create/render/publish/Argo-start steps directly during normal create/dispatch
 - release-owned callback routes under `/api/v1/verify/...` can advance later rollout steps
-- `internal/runtime/observer/release_rollout.go` exists in-tree, but the active `runtime-service` startup path does not start it
+- the clustered `runtime-service` startup path now starts `internal/runtime/observer/release_rollout.go` when Kubernetes config and release writeback wiring are available, making it one active callback sender without changing release ownership of the callback contract
 
 
 ### Common steps for all strategies

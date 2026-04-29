@@ -84,5 +84,5 @@ See also:
 
 - `release-service` starts deployment by creating/updating the Argo CD `Application`
 - `release-service` no longer polls Argo CD application status directly during release detail reads
-- rollout progress, when reported asynchronously, should come back through release-owned writeback routes
-- do not read this diagram as proof that `runtime-service` currently auto-starts release rollout writeback; the in-tree rollout observer is not started by the active runtime startup path
+- rollout progress, when reported asynchronously, comes back through release-owned writeback routes
+- in clustered startup paths with Kubernetes wiring, `runtime-service` starts the in-tree rollout observer and can act as one callback sender; this does not move release ownership or imply that every environment always has live callback senders

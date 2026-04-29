@@ -780,14 +780,15 @@ Current implementation facts:
 
 - `release-service` exposes token-gated callback routes under `/api/v1/verify/...`
 - `release-service` itself advances several steps synchronously during create/dispatch
-- the repository contains rollout observer code under `internal/runtime/observer/release_rollout.go`, but the active `runtime-service` startup path does not start that observer
-- therefore rollout writeback should be described as a release-owned callback contract, not as an always-on `runtime-service` capability
+- when `runtime-service` starts with in-cluster Kubernetes wiring and release writeback configuration, it starts the in-tree rollout observer under `internal/runtime/observer/release_rollout.go`
+- rollout writeback should still be described as a release-owned callback contract: `release-service` owns release truth and callback routes, while `runtime-service` is one active clustered sender rather than the owner of release state
 
 Possible callback sources may include:
 
 - Argo-side phase callbacks
 - external executors
-- future rollout observers explicitly wired into startup
+- `runtime-service` rollout observers in clustered startup paths with Kubernetes wiring
+- future callback senders explicitly wired into startup
 
 ## 9. Release remains the durable deployment record
 
@@ -929,8 +930,8 @@ This prefix-based ArgoCD credential contract is required because release artifac
 
 Current implementation note:
 
-- the repository contains rollout observer code, but active `runtime-service` startup does not auto-start it
-- treat this as a callback contract, not as proof of an always-on runtime-side observer
+- the repository contains rollout observer code, and the clustered `runtime-service` startup path now starts it when in-cluster config and release writeback wiring are available
+- treat this as a callback contract owned by `release-service`: runtime-side observers are active senders in supported clustered paths, but callback availability still depends on environment wiring rather than being guaranteed in every runtime mode
 
 ## Step naming guidance
 
@@ -1057,7 +1058,7 @@ Current implementation note:
 
 - the step schema exists now
 - `release-service` accepts callback updates now
-- but `runtime-service` startup does not currently auto-start the in-tree release rollout observer
+- the clustered `runtime-service` startup path can now auto-start the in-tree release rollout observer when Kubernetes config and release writeback wiring are available, so runtime-side observers are one active callback sender rather than a disabled code path
 
 Examples:
 
