@@ -574,9 +574,6 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 	if runtimeSpecID == uuid.Nil {
 		return sharederrs.Required("id")
 	}
-	if strings.TrimSpace(deploymentName) == "" {
-		return sharederrs.Required("deployment_name")
-	}
 
 	spec, err := s.repoStore().GetRuntimeSpec(ctx, runtimeSpecID)
 	if err != nil {
@@ -587,6 +584,10 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 	}
 	if spec == nil {
 		return ErrRuntimeSpecNotFound
+	}
+	deploymentName, err = s.resolveDeploymentName(ctx, spec, deploymentName)
+	if err != nil {
+		return err
 	}
 
 	k8s, err := s.k8s()
@@ -643,6 +644,32 @@ func (s *runtimeService) recordOperation(ctx context.Context, runtimeSpecID uuid
 		return err
 	}
 	return nil
+}
+
+func (s *runtimeService) resolveDeploymentName(ctx context.Context, spec *domain.RuntimeSpec, requested string) (string, error) {
+	if spec == nil {
+		return "", ErrRuntimeSpecNotFound
+	}
+	if name := strings.TrimSpace(requested); name != "" {
+		return name, nil
+	}
+	workload, err := s.repoStore().GetObservedWorkload(ctx, spec.ID)
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+	if workload != nil && strings.EqualFold(strings.TrimSpace(workload.WorkloadKind), "Deployment") {
+		if name := strings.TrimSpace(workload.WorkloadName); name != "" {
+			return name, nil
+		}
+	}
+	appName, err := s.repoStore().GetApplicationName(ctx, spec.ApplicationID)
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+	if name := strings.TrimSpace(appName); name != "" {
+		return name, nil
+	}
+	return "", sharederrs.Required("deployment_name")
 }
 
 func validateRuntimeSpecInput(applicationId uuid.UUID, environment string) error {

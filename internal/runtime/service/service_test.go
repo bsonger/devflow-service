@@ -34,6 +34,25 @@ type stubStore struct {
 	listRuntimeOperationsFunc             func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
+type stubK8sExecutor struct {
+	deletePodFunc         func(context.Context, string, string) error
+	restartDeploymentFunc func(context.Context, string, string) error
+}
+
+func (s stubK8sExecutor) DeletePod(ctx context.Context, namespace, name string) error {
+	if s.deletePodFunc != nil {
+		return s.deletePodFunc(ctx, namespace, name)
+	}
+	return nil
+}
+
+func (s stubK8sExecutor) RestartDeployment(ctx context.Context, namespace, name string) error {
+	if s.restartDeploymentFunc != nil {
+		return s.restartDeploymentFunc(ctx, namespace, name)
+	}
+	return nil
+}
+
 func (s stubStore) CreateRuntimeSpec(ctx context.Context, item *runtimedomain.RuntimeSpec) error {
 	if s.createRuntimeSpecFunc != nil {
 		return s.createRuntimeSpecFunc(ctx, item)
@@ -286,5 +305,32 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	}
 	if captured == nil || captured.WorkloadName != "meta-service" {
 		t.Fatalf("captured workload = %#v", captured)
+	}
+}
+
+func TestRestartDeploymentFallsBackToObservedWorkloadName(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	var restartedName string
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		getObservedWorkloadFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
+			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, WorkloadKind: "Deployment", WorkloadName: "meta-service"}, nil
+		},
+		createRuntimeOperationFunc: func(context.Context, *runtimedomain.RuntimeOperation) error { return nil },
+	}, stubK8sExecutor{
+		restartDeploymentFunc: func(_ context.Context, namespace, name string) error {
+			restartedName = name
+			return nil
+		},
+	})
+
+	if err := svc.RestartDeployment(context.Background(), runtimeSpecID, "", "tester"); err != nil {
+		t.Fatalf("RestartDeployment() error = %v", err)
+	}
+	if restartedName != "meta-service" {
+		t.Fatalf("restartedName = %s, want meta-service", restartedName)
 	}
 }

@@ -847,7 +847,7 @@ Presentation rules:
 - keep delete action at individual pod row level
 - require clear loading state and success/failure feedback
 - after an action succeeds, refresh workload + pods from runtime index endpoints
-- current restart payload should include `deployment_name` explicitly
+- restart payload may omit `deployment_name` and let runtime-service resolve the primary Deployment automatically
 
 ### Runtime page boundaries
 
@@ -1169,8 +1169,8 @@ Remove these concepts from the frontend:
   - `POST /api/v1/runtime/rollouts`
 - delete one pod with:
   - `DELETE /api/v1/runtime/pods/{pod_name}`
-- for current restart requests also send:
-  - `deployment_name`
+- optional for restart requests:
+  - `deployment_name` when the UI wants to target a specific Deployment explicitly
 
 ## Source pointers
 

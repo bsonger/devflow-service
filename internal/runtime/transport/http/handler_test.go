@@ -514,6 +514,38 @@ func TestRolloutRuntime(t *testing.T) {
 	}
 }
 
+func TestRolloutRuntimeAllowsServerResolvedDeploymentName(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			if environment != "env-1" {
+				t.Fatalf("environment = %s, want env-1", environment)
+			}
+			if deploymentName != "" {
+				t.Fatalf("deploymentName = %s, want empty", deploymentName)
+			}
+			if operator != "tester" {
+				t.Fatalf("operator = %s, want tester", operator)
+			}
+			return nil
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(RolloutRequest{ApplicationID: applicationID, EnvironmentID: "env-1", Operator: "tester"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/rollouts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDeletePod(t *testing.T) {
 	runtimeSpecID := uuid.New()
 	h := NewHandler(&mockRuntimeService{

@@ -173,7 +173,6 @@ Request body:
 {
   "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
   "environment_id": "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
-  "deployment_name": "meta-service",
   "operator": "songbei"
 }
 ```
@@ -182,16 +181,20 @@ Required fields:
 
 - `application_id`
 - `environment_id`
-- `deployment_name` in the current implementation
 
 Optional fields:
 
+- `deployment_name`
 - `operator`
 
-Future simplification note:
+Resolution note:
 
-- if runtime-service can resolve the single primary workload automatically, `deployment_name` can become server-resolved later
-- until then, frontend and callers should send it explicitly
+- runtime-service now tries to resolve the primary Deployment automatically
+- resolution order:
+  1. explicit `deployment_name`
+  2. current observed workload name when the observed workload kind is `Deployment`
+  3. application name as Deployment name fallback
+- callers may still send `deployment_name` explicitly when they want deterministic targeting
 
 ## Internal observer sync surface
 

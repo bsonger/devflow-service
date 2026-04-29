@@ -282,10 +282,6 @@ func (h *Handler) RolloutRuntime(c *gin.Context) {
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	if strings.TrimSpace(req.DeploymentName) == "" {
-		httpx.WriteInvalidArgument(c, "deployment_name is required")
-		return
-	}
 	if err := h.runtime.RestartDeploymentByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, req.DeploymentName, req.Operator); err != nil {
 		writeRuntimeError(c, err)
 		return
