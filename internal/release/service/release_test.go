@@ -1007,3 +1007,98 @@ func TestReleaseStatusConvergenceDuplicateLateEventsAfterTerminal(t *testing.T) 
 		t.Fatalf("terminal Succeeded was overwritten by late events: got %q", release.Status)
 	}
 }
+
+func TestUpdateStepNormalizesLegacyStepNameAndStatus(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Running',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	if err := svc.UpdateStep(context.Background(), releaseID, "canary 10% traffic", model.StepRunning, 55, "canary progressing", nil, nil); err != nil {
+		t.Fatalf("UpdateStep failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	for _, step := range release.Steps {
+		if step.Code != "canary_10" {
+			continue
+		}
+		if step.Status != model.StepRunning {
+			t.Fatalf("canary_10 status = %q", step.Status)
+		}
+		if step.Progress != 55 {
+			t.Fatalf("canary_10 progress = %d", step.Progress)
+		}
+		if step.Message != "canary progressing" {
+			t.Fatalf("canary_10 message = %q", step.Message)
+		}
+		return
+	}
+	t.Fatal("normalized canary_10 step not found")
+}
+
+func TestUpdateStepIgnoresLateRunningEventAfterStepSucceeded(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		if steps[i].Code == "observe_rollout" {
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "deployment healthy"
+			steps[i].EndTime = &now
+		}
+	}
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Running',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepRunning, 60, "late duplicate running event", nil, nil); err != nil {
+		t.Fatalf("UpdateStep failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	for _, step := range release.Steps {
+		if step.Code != "observe_rollout" {
+			continue
+		}
+		if step.Status != model.StepSucceeded {
+			t.Fatalf("observe_rollout status = %q", step.Status)
+		}
+		if step.Progress != 100 {
+			t.Fatalf("observe_rollout progress = %d", step.Progress)
+		}
+		if step.Message != "deployment healthy" {
+			t.Fatalf("observe_rollout message = %q", step.Message)
+		}
+		return
+	}
+	t.Fatal("observe_rollout step not found")
+}

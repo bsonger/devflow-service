@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	platformobservability "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
 	"github.com/spf13/viper"
@@ -47,6 +47,17 @@ type Config struct {
 	Pyroscope  string            `mapstructure:"pyroscope" json:"pyroscope" yaml:"pyroscope"`
 }
 
+type observabilityOptions = platformobservability.RuntimeOptions
+
+var (
+	initObservability = platformobservability.Init
+	inClusterConfig   = rest.InClusterConfig
+
+	startTektonManifestObserverFn    = runtimeobserver.StartTektonManifestObserver
+	startKubernetesRuntimeObserverFn = runtimeobserver.StartKubernetesRuntimeObserver
+	startReleaseRolloutObserverFn    = runtimeobserver.StartReleaseRolloutObserver
+)
+
 func Load() (*Config, error) {
 	v := viper.New()
 	v.SetConfigType("yaml")
@@ -68,7 +79,7 @@ func Load() (*Config, error) {
 func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(context.Context) error, error) {
 	runtimehttp.ObserverSharedToken = stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken })
 
-	shutdown, err := observability.Init(ctx, observability.RuntimeOptions{
+	shutdown, err := initObservability(ctx, observabilityOptions{
 		LogLevel:               stringValue(config.Log, func(v *LogConfig) string { return v.Level }),
 		LogFormat:              stringValue(config.Log, func(v *LogConfig) string { return v.Format }),
 		OtelEndpoint:           stringValue(config.Otel, func(v *OtelConfig) string { return v.Endpoint }),
@@ -89,15 +100,18 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	if err := startKubernetesRuntimeObserver(ctx, config); err != nil {
 		return shutdown, err
 	}
+	if err := startReleaseRolloutObserver(ctx, config); err != nil {
+		return shutdown, err
+	}
 	return shutdown, nil
 }
 
 func startTektonManifestObserver(ctx context.Context, config *Config) error {
-	restCfg, err := rest.InClusterConfig()
+	restCfg, err := inClusterConfig()
 	if err != nil {
 		return nil
 	}
-	return runtimeobserver.StartTektonManifestObserver(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
+	return startTektonManifestObserverFn(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
 		Enabled:               true,
 		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
 		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
@@ -107,13 +121,26 @@ func startTektonManifestObserver(ctx context.Context, config *Config) error {
 }
 
 func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
-	restCfg, err := rest.InClusterConfig()
+	restCfg, err := inClusterConfig()
 	if err != nil {
 		return nil
 	}
-	return runtimeobserver.StartKubernetesRuntimeObserver(ctx, restCfg, runtimeobserver.KubernetesRuntimeObserverConfig{
+	return startKubernetesRuntimeObserverFn(ctx, restCfg, runtimeobserver.KubernetesRuntimeObserverConfig{
 		Enabled:      true,
 		PollInterval: time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+	})
+}
+
+func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
+	restCfg, err := inClusterConfig()
+	if err != nil {
+		return nil
+	}
+	return startReleaseRolloutObserverFn(ctx, restCfg, runtimeobserver.ReleaseRolloutObserverConfig{
+		Enabled:               true,
+		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
+		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
 	})
 }
 
