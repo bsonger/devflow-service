@@ -311,6 +311,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		"containers":       []map[string]any{container},
 	}
 	if strings.TrimSpace(workload.ServiceAccountName) != "" {
+		podSpec["serviceAccount"] = workload.ServiceAccountName
 		podSpec["serviceAccountName"] = workload.ServiceAccountName
 	}
 	if len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
