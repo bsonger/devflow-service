@@ -44,6 +44,39 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
+  name: runtime-service-runtime-operator
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: runtime-service
+    app.kubernetes.io/part-of: devflow
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: runtime-service-runtime-operator
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: runtime-service
+    app.kubernetes.io/part-of: devflow
+subjects:
+  - kind: ServiceAccount
+    name: runtime-service
+    namespace: devflow-pre-production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: runtime-service-runtime-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
   name: runtime-service-tekton-observer
   namespace: tekton-pipelines
   labels:
