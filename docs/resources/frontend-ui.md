@@ -915,6 +915,36 @@ Presentation rules:
 - after an action succeeds, refresh workload + pods from runtime index endpoints
 - restart payload may omit `deployment_name` and let runtime-service resolve the primary Deployment automatically
 
+Recommended restart request:
+
+```json
+{
+  "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+  "environment_id": "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
+  "operator": "songbei"
+}
+```
+
+Use explicit `deployment_name` only when the UI intentionally exposes multiple Deployment targets.
+
+Recommended delete-pod request:
+
+```json
+{
+  "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+  "environment_id": "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
+  "operator": "songbei"
+}
+```
+
+Runtime refresh rule after action:
+
+1. call restart or delete
+2. if response is `204`, keep the action control in loading / pending state briefly
+3. refetch `GET /api/v1/runtime/workload`
+4. refetch `GET /api/v1/runtime/pods`
+5. update the page from those index-backed reads only
+
 ### Runtime page boundaries
 
 Keep these concepts separate in the UI:
@@ -1237,6 +1267,13 @@ Remove these concepts from the frontend:
   - `DELETE /api/v1/runtime/pods/{pod_name}`
 - optional for restart requests:
   - `deployment_name` when the UI wants to target a specific Deployment explicitly
+
+Minimal frontend runtime sequence:
+
+1. load `runtime/workload`
+2. load `runtime/pods`
+3. render summary + conditions + pods
+4. on restart/delete success, refetch both runtime read endpoints
 
 ## Source pointers
 

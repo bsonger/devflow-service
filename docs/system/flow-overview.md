@@ -243,6 +243,7 @@ What happens:
 - operator can restart / rollout one workload
 - these action routes call Kubernetes explicitly
 - after success, UI should refresh runtime read surfaces from the observer/index model
+- restart can now resolve the primary Deployment server-side and does not require the UI to send `deployment_name` in the common path
 
 Primary runtime action surfaces:
 
