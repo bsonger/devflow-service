@@ -24,7 +24,9 @@ That DSN is currently present in:
 - `deployments/pre-production/config-service.yaml`
 - `deployments/pre-production/network-service.yaml`
 - `deployments/pre-production/release-service.yaml`
-- `deployments/pre-production/runtime-service.yaml`
+
+`runtime-service` is no longer part of the active PostgreSQL dependency contract.
+The committed `deployments/pre-production/runtime-service.yaml` no longer contains PostgreSQL configuration; if a running cluster copy still does, treat that live manifest as stale drift and reconcile it back to the repo contract.
 
 ## Repo-managed install surfaces
 

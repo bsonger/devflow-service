@@ -52,7 +52,12 @@ The current observed index now includes:
 - `RuntimeObservedPod`
 - `RuntimeOperation`
 
-Current code still contains PostgreSQL-backed runtime persistence, but that should be treated as an implementation detail or migration residue rather than the main API contract.
+Current implementation note:
+
+- runtime-service no longer requires PostgreSQL for startup or request handling
+- the active runtime index is kept in-process
+- observer sync rebuilds that in-process state after restart
+- release-generated workloads should carry labels such as `devflow.application/id` and `devflow.environment/id` so runtime-service can recover `application + environment` ownership from live Kubernetes resources
 
 ## Boundary summary
 
@@ -265,6 +270,11 @@ These routes are service-internal observer callbacks and are not part of the sha
 - `POST /api/v1/internal/runtime-pods/sync`
 - `POST /api/v1/internal/runtime-pods/delete`
 
+Authentication note:
+
+- these routes use `X-Devflow-Observer-Token` when `observer.shared_token` is configured
+- if `observer.shared_token` is empty, the middleware allows the request through
+
 ### Sync workload summary
 
 ```http
@@ -427,21 +437,21 @@ The matching read model now includes a workload-level observed summary alongside
 - pod-level detail from pod index
 - actions through Kubernetes
 
+Those model names are still useful for code navigation, but the active runtime contract should be understood as observer-rebuilt in-memory state rather than PostgreSQL-backed runtime CRUD.
+
 ## Current pre-production status
 
-As of April 29, 2026:
+As of April 30, 2026:
 
 - `GET /api/v1/runtime/workload` is deployed on pre-production and returns workload overview data
-- the runtime-service database schema includes `runtime_observed_workloads`
 - runtime-service code can accept internal workload sync callbacks
-- runtime-service observer has been verified to repopulate deleted workload and pod observed rows automatically in pre-production
+- runtime-service should be treated as PostgreSQL-independent for startup and request handling in the active contract
 
 Remaining operational gap:
 
-- runtime-service now contains an in-process Kubernetes observer that refreshes workload and pod index rows directly
+- runtime-service now contains in-process observers that rebuild workload and pod index state from live cluster signals
 
-Those records may continue to exist for implementation, history, or observer-sync purposes.
-But they should not dominate the external API contract if the main user value is:
+That internal observer detail should not dominate the external API contract if the main user value is:
 
 - inspect application pod status
 - delete a pod

@@ -58,7 +58,7 @@ type runtimeService struct {
 	k8sExecutor K8sExecutor
 }
 
-var DefaultService Service = New(repository.NewPostgresStore(), nil)
+var DefaultService Service = New(repository.RuntimeStore, nil)
 
 func New(store repository.Store, k8s K8sExecutor) Service {
 	return &runtimeService{store: store, k8sExecutor: k8s}
@@ -154,7 +154,7 @@ type DeleteObservedPodInput struct {
 
 func (s *runtimeService) repoStore() repository.Store {
 	if s.store == nil {
-		s.store = repository.NewPostgresStore()
+		s.store = repository.RuntimeStore
 	}
 	return s.store
 }
@@ -820,6 +820,26 @@ func (s *runtimeService) resolveRuntimeNamespace(ctx context.Context, applicatio
 	namespace, err := s.repoStore().ResolveTargetNamespace(ctx, applicationId, environment)
 	if err == nil && strings.TrimSpace(namespace) != "" {
 		return strings.TrimSpace(namespace), nil
+	}
+	spec, specErr := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
+	if specErr == nil && spec != nil {
+		workload, workloadErr := s.repoStore().GetObservedWorkload(ctx, spec.ID)
+		if workloadErr == nil && workload != nil {
+			if namespace := strings.TrimSpace(workload.Namespace); namespace != "" {
+				return namespace, nil
+			}
+		}
+		pods, podsErr := s.repoStore().ListObservedPods(ctx, spec.ID)
+		if podsErr == nil {
+			for _, pod := range pods {
+				if pod == nil {
+					continue
+				}
+				if namespace := strings.TrimSpace(pod.Namespace); namespace != "" {
+					return namespace, nil
+				}
+			}
+		}
 	}
 	if ns := strings.TrimSpace(fallback); ns != "" {
 		return ns, nil

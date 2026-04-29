@@ -2,267 +2,37 @@
 
 ## Purpose
 
-This document provides visual repo-local diagrams for the current DevFlow backend runtime shape.
-It is visualization support for the active local contract, not a replacement for the owning resource or service docs.
+This document is now the index for repo-local system diagrams.
+Use the split docs below instead of one oversized page.
 
-Use these diagrams when you need to explain:
+## Diagram index
 
-- service-to-service dependencies
-- `Manifest` and `Release` execution flow
-- resource ownership boundaries
+- `docs/system/diagrams/service-dependencies.md`
+  - service-to-service dependencies
+  - external systems
+  - ownership-oriented dependency view
+- `docs/system/diagrams/release-flow.md`
+  - manifest build flow
+  - release deploy flow
+  - release/runtime boundary
+- `docs/system/diagrams/runtime-flow.md`
+  - runtime reads
+  - runtime actions
+  - observer/index mental model
+- `docs/system/diagrams/resource-ownership.md`
+  - resource ownership
+  - cross-service dependency view
 
-## 1. Service dependency diagram
+## Current contract note
 
-```mermaid
-flowchart LR
-    User[Platform / UI / Operator]
+- `runtime-service` should be understood as Kubernetes-first
+- `runtime-service` no longer depends on PostgreSQL for startup or request handling in the active contract
+- runtime observer state is rebuilt in-process after restart from Kubernetes / Tekton observation
+- runtime reads come from runtime-owned observed state
+- runtime actions call Kubernetes for explicit operator-triggered mutations
 
-    User --> CS[config-service]
-    User --> NS[network-service]
-    User --> RS[release-service]
-    User --> RTS[runtime-service]
+For narrative context, also see:
 
-    META[meta-service]
-    PG[(PostgreSQL)]
-    KS[Kubernetes API]
-    TK[Tekton]
-    ARGO[Argo CD]
-    ZOT[zot OCI registry]
-    ALIYUN[Aliyun image registry]
-
-    CS --> META
-    CS --> PG
-
-    NS --> META
-    NS --> PG
-
-    RS --> META
-    RS --> CS
-    RS --> NS
-    RS --> PG
-    RS --> TK
-    RS --> ARGO
-    RS --> ZOT
-    RS --> KS
-
-    RTS --> KS
-    RTS -. current implementation still persists runtime records .-> PG
-
-    TK --> ALIYUN
-    ARGO --> ZOT
-    ARGO --> KS
-```
-
-### Notes
-
-- `config-service` owns `AppConfig` and `WorkloadConfig`
-- `network-service` owns `Service` and `Route`
-- `release-service` owns `Manifest`, `Release`, `Image`, and `Intent`
-- `runtime-service` owns runtime inspection and runtime operations
-- `release-service` is the main cross-service composer: it reads application / environment / cluster metadata from `meta-service`, workload and app config from `config-service`, and network topology from `network-service`
-- `runtime-service` should be understood as Kubernetes-first; current code still contains runtime persistence in PostgreSQL, but pod listing / pod delete / rollout restart are Kubernetes-driven operations
-
-## 2. Manifest build sequence diagram
-
-```mermaid
-sequenceDiagram
-    participant U as Platform / Operator
-    participant RS as release-service
-    participant META as meta-service
-    participant CS as config-service
-    participant NS as network-service
-    participant TK as Tekton
-    participant IMG as Image Registry
-    participant PG as PostgreSQL
-
-    U->>RS: POST /api/v1/release/manifests
-    RS->>META: resolve application projection
-    RS->>CS: read workload config
-    RS->>NS: read services
-    RS->>TK: start image build pipeline
-    RS->>PG: create manifest row with frozen snapshots
-    TK->>IMG: build and push application image
-    TK->>RS: write back task / status / result
-    RS->>PG: update manifest status to Ready/Succeeded
-```
-
-### Notes
-
-- `Manifest` is the release-owned durable build record
-- its frozen inputs come from `meta-service`, `config-service`, and `network-service`
-- Tekton produces the image result, but the durable system record lives on the manifest row
-
-## 3. Release deploy sequence diagram
-
-```mermaid
-sequenceDiagram
-    participant U as Platform / Operator
-    participant RS as release-service
-    participant META as meta-service
-    participant CS as config-service
-    participant NS as network-service
-    participant PG as PostgreSQL
-    participant ZOT as zot
-    participant ARGO as Argo CD
-    participant RTS as runtime-service
-    participant K8S as Kubernetes
-
-    U->>RS: POST /api/v1/release/releases
-    RS->>PG: read frozen manifest
-    RS->>CS: read app config for target environment
-    RS->>NS: read routes for target environment
-    RS->>META: resolve application / environment / cluster deploy target
-    RS->>PG: create release row + freeze live inputs
-    RS->>PG: store rendered release bundle
-    RS->>ZOT: publish deployment bundle as OCI artifact
-    RS->>ARGO: create or update Application
-    RS->>ARGO: request sync
-    ARGO->>ZOT: pull OCI bundle
-    ARGO->>K8S: apply ServiceAccount / ConfigMap / Service / Deployment / VirtualService
-    RTS->>K8S: observe Deployment / Pod rollout state
-    RTS->>RS: POST /api/v1/verify/release/steps
-    RS->>PG: persist release step updates + final status
-```
-
-### Current release stages
-
-For normal rolling release, the key steps are:
-
-1. `freeze_inputs`
-2. `ensure_namespace`
-3. `ensure_pull_secret`
-4. `ensure_appproject_destination`
-5. `render_deployment_bundle`
-6. `publish_bundle`
-7. `create_argocd_application`
-8. `start_deployment`
-9. `observe_rollout`
-10. `finalize_release`
-
-See also:
-
-- `docs/system/release-steps.md`
-- `docs/system/release-writeback.md`
-
-### Boundary note
-
-The active boundary is:
-
-- `release-service` starts deployment by creating/updating the Argo CD `Application`
-- `release-service` no longer polls Argo CD application status directly during release detail reads
-- `runtime-service` observes Kubernetes rollout state and writes release progress back through release writeback routes
-
-## 4. Runtime read / action sequence diagram
-
-```mermaid
-sequenceDiagram
-    participant U as Platform / Operator
-    participant RTS as runtime-service
-    participant IDX as Runtime observer / index
-    participant K8S as Kubernetes
-
-    U->>RTS: GET /api/v1/runtime/workload?application_id&environment_id
-    RTS->>IDX: read observed workload summary
-    IDX-->>RTS: latest workload state
-    RTS-->>U: workload overview
-
-    U->>RTS: GET /api/v1/runtime/pods?application_id&environment_id
-    RTS->>IDX: read observed pod list
-    IDX-->>RTS: latest pod state
-    RTS-->>U: pod list
-
-    U->>RTS: POST /api/v1/runtime/rollouts
-    RTS->>K8S: patch Deployment restartedAt
-    K8S-->>RTS: accepted
-    RTS-->>U: action accepted
-
-    U->>RTS: DELETE /api/v1/runtime/pods/{pod_name}
-    RTS->>K8S: delete Pod
-    K8S-->>RTS: accepted
-    RTS-->>U: action accepted
-```
-
-### Notes
-
-- runtime reads should prefer observer/index-backed state
-- runtime actions should call Kubernetes only for explicit user-triggered mutations
-- after an action succeeds, the UI should refresh workload + pod reads from the runtime index
-
-## 5. Resource ownership diagram
-
-```mermaid
-flowchart TB
-    subgraph Config["config-service"]
-        AC[AppConfig]
-        WC[WorkloadConfig]
-    end
-
-    subgraph Network["network-service"]
-        SVC[Service]
-        RT[Route]
-    end
-
-    subgraph Release["release-service"]
-        MF[Manifest]
-        RL[Release]
-        IMG[Image]
-        INT[Intent]
-    end
-
-    subgraph Runtime["runtime-service"]
-        RSPEC[RuntimeSpec]
-        RREV[RuntimeSpecRevision]
-        RWORK[RuntimeObservedWorkload]
-        RPOD[RuntimeObservedPod]
-        ROP[RuntimeOperation]
-    end
-```
-
-### Ownership rules
-
-- one resource belongs to one service only
-- `Manifest` and `Release` are release-owned resources
-- `Service` and `Route` are network-owned resources
-- `AppConfig` is config-owned and is consumed by release at freeze time
-- runtime data is runtime-owned even when release reads deployment health indirectly through Argo
-
-## 6. Cross-service resource dependency view
-
-```mermaid
-flowchart LR
-    APPMETA[Application / Environment / Cluster]
-    AC[AppConfig]
-    WC[WorkloadConfig]
-    SVC[Service]
-    RT[Route]
-    MF[Manifest]
-    RL[Release]
-    APP[Argo Application]
-    WK[Workload in Kubernetes]
-
-    APPMETA --> MF
-    APPMETA --> RL
-    WC --> MF
-    SVC --> MF
-    MF --> RL
-    AC --> RL
-    RT --> RL
-    RL --> APP
-    APP --> WK
-```
-
-### Notes
-
-- `Manifest` freezes application metadata, workload config, and service snapshot for build-time and later deploy-time consumption
-- `Release` freezes app config and route snapshot at release time, then resolves the final deploy target from meta-service
-- Argo deploys the release-generated bundle, not the original Git config repo directly
-- runtime pod inspection and runtime operations act on live Kubernetes workloads rather than reading release state from PostgreSQL first
-- runtime workload overview and pod display both prefer runtime-owned observed index data
-
-## Source pointers
-
-- service ownership: `docs/services/`
-- resource ownership: `docs/resources/`
-- current repo shape: `docs/system/architecture.md`
-- release writeback: `docs/system/release-writeback.md`
-- release steps: `docs/system/release-steps.md`
+- `docs/system/architecture.md`
+- `docs/system/flow-overview.md`
+- `docs/services/runtime-service.md`

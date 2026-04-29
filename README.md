@@ -20,6 +20,7 @@ Today this repo is in a transition state:
 - `network-service` now also boots from the root layout at `cmd/network-service` and owns the extracted network API surface for `Service` and `Route`
 - `release-service` now also boots from the root layout at `cmd/release-service` with verify ingress folded into its release-owned HTTP surface
 - `runtime-service` now also boots from the root layout at `cmd/runtime-service` and owns the extracted runtime inspection, runtime operation, and internal observer/index API surface
+- `runtime-service` is Kubernetes-first in the active contract: startup/request handling no longer require PostgreSQL, and runtime state is rebuilt in-process by observers after restart
 - release-owned resource domains are split into `internal/manifest` and `internal/intent`, with release-specific orchestration remaining in `internal/release`
 - the target code layout is root `cmd/` plus root `internal/`
 - business code follows `internal/<domain>/{service,domain,repository,transport}`
@@ -32,7 +33,7 @@ It is not a place for business logic, private models, or generic `common`/`util`
 
 ## Kubernetes Database Baseline
 
-Pre-production service manifests in this repo currently share one PostgreSQL 18 cluster in the Kubernetes `database` namespace:
+Pre-production service manifests in this repo currently share one PostgreSQL 18 cluster in the Kubernetes `database` namespace for `meta-service`, `config-service`, `network-service`, and `release-service`:
 
 - cluster: `pg18-next`
 - writer endpoint: `pg18-next-rw.database:5432`
@@ -44,6 +45,8 @@ The repo-managed install and bootstrap artifacts for that database now live unde
 ```text
 deployments/pre-production/database/
 ```
+
+`runtime-service` is intentionally outside this active PostgreSQL dependency contract.
 
 The repo-local operational reference for this contract is:
 

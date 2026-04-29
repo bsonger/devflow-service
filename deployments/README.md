@@ -51,6 +51,9 @@ Pre-production manifest note:
 - `deployments/pre-production/release-service.yaml` uses a `ConfigMap` named `release-service-config`
 - `deployments/pre-production/runtime-service.yaml` uses a `ConfigMap` named `runtime-service-config`
 - `deployments/pre-production/runtime-service.yaml` also carries the RBAC needed for runtime pod/deployment operations and Tekton build observation
+- `deployments/pre-production/runtime-service.yaml` no longer carries PostgreSQL config in the active contract
+- runtime-service currently rebuilds its runtime workload/pod index through in-process observers after startup rather than loading runtime state from PostgreSQL
+- release-generated workloads should carry runtime recovery labels such as `devflow.application/id` and `devflow.environment/id` so runtime-service can reconstruct `application + environment` ownership from live Kubernetes resources
 - update `data.config.yaml` in those files before applying them to a real environment
 
 Docker build note for this monorepo:

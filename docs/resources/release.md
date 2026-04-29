@@ -666,20 +666,24 @@ It also reads from manifest:
 
 Together these form the immutable deployment input set for the release. In the current mainline flow, `AppConfig` is active input; `Route` inputs remain deferred unless that workflow is explicitly re-enabled.
 
-## 3.5 Service creates release record and execution intent
+## 3.5 Service creates the release record
 
 After validation and snapshot freeze, release-service should:
 
 - persist the release record
 - initialize release steps
 - set initial `status`, typically `Pending`
-- create/schedule execution intent
+- optionally create/schedule execution intent when intent mode is enabled
 
-The HTTP create call should return after this phase.
+Current implementation note:
 
-## 4. Executor renders deployment bundle
+- release creation does not universally stop here
+- in the default path, `release-service` continues into dispatch work during the create flow
+- intent creation is mode-dependent, not a guaranteed always-on phase
 
-An asynchronous executor should render environment-specific Kubernetes resources from:
+## 4. Release execution renders deployment bundle
+
+The active release execution path renders environment-specific Kubernetes resources from:
 
 ### Inputs from Manifest
 
@@ -705,7 +709,7 @@ The output of this phase is a deployment bundle, not a manifest resource record.
 
 This rendering responsibility belongs to release-service's deployment execution flow, not manifest.
 
-## 5. Executor uploads deployment bundle to OCI
+## 5. Release execution uploads deployment bundle to OCI
 
 After rendering the deployment bundle:
 
@@ -736,9 +740,9 @@ Why single-layer packaging matters:
 - release execution should not publish one OCI layer per YAML file and then hope ArgoCD reassembles them
 - the deployment bundle must be a stable artifact that ArgoCD can pull as-is
 
-## 6. Executor creates ArgoCD Application
+## 6. Release execution creates ArgoCD Application
 
-The asynchronous execution flow creates an ArgoCD Application that points to the OCI bundle.
+The active release execution flow creates an ArgoCD Application that points to the OCI bundle.
 
 ArgoCD should pull:
 
@@ -764,29 +768,28 @@ Depending on strategy:
 - blueGreen manages preview/active switch
 - canary performs staged traffic progression
 
-## 8. runtime-service tracks rollout status
+## 8. rollout callbacks update release progress
 
-runtime-service continuously watches rollout execution and writes back:
+Release progress after Argo CD handoff is represented on the release record through release-owned writeback routes:
 
 - release top-level `status`
 - release `steps`
 - progress messages
 - failure reasons
-- external deployment references
+- deployment artifact metadata
 
-Tracked objects may include:
+Current implementation facts:
 
-- ArgoCD Application
-- Rollout / Deployment
-- ReplicaSet
-- Pod
-- Service
-- VirtualService
+- `release-service` exposes token-gated callback routes under `/api/v1/verify/...`
+- `release-service` itself advances several steps synchronously during create/dispatch
+- the repository contains rollout observer code under `internal/runtime/observer/release_rollout.go`, but the active `runtime-service` startup path does not start that observer
+- therefore rollout writeback should be described as a release-owned callback contract, not as an always-on `runtime-service` capability
 
-Boundary rule:
+Possible callback sources may include:
 
-- `release-service` should not be the primary long-running rollout observer
-- `runtime-service` should own deployment-progress observation and release step/status writeback
+- Argo-side phase callbacks
+- external executors
+- future rollout observers explicitly wired into startup
 
 ## 9. Release remains the durable deployment record
 
@@ -841,7 +844,7 @@ Even after transient runtime objects change or are garbage-collected, the releas
 `POST /api/v1/releases` should be treated as:
 
 - release record created
-- execution scheduled
+- dispatch may already have started before the response returns, depending on runtime mode
 
 It should not be interpreted as:
 
@@ -860,7 +863,7 @@ It should not be interpreted as:
 - release 渲染 deployment bundle 时应使用 manifest 中已经冻结好的 workload/service/image 信息
 - release 的 environment 语义应该由 `release.environment_id` 明确表达，而不是由 build-time image metadata 反推
 - ArgoCD source 应该消费 release 产出的 OCI deployment bundle
-- release create 接口应快速返回，外部部署动作应由异步执行链路推进
+- release create 是否快速返回取决于当前运行模式；默认实现会在 create 流程内继续做 dispatch
 
 ## Responsibility split by phase
 
@@ -872,20 +875,20 @@ It should not be interpreted as:
 - freeze optional/deferred `routes_snapshot` only when route flow is enabled
 - persist release
 - initialize steps and status
-- create execution intent
+- optionally create execution intent when intent mode is enabled
 
-### asynchronous executor phase
+### release execution phase
 
 - `render_deployment_bundle`
 - `publish_bundle`
 - `create_argocd_application`
 - trigger deployment start
 
-Current implementation direction:
+Current implementation facts:
 
-- release intents are claimed by kind = `release`
-- executor dispatches the release through release-service orchestration
-- dispatch flow is now split into explicit phases:
+- when intent mode is enabled, release intents are claimed by kind = `release`
+- the normal dispatch path runs through release-service orchestration
+- the dispatch flow is split into explicit phases:
   - `render_deployment_bundle`
   - `publish_bundle`
   - `create_argocd_application`
@@ -895,7 +898,7 @@ Current implementation direction:
   - `manifest.image_ref`
   - `release.app_config_snapshot`
   - optional/deferred `release.routes_snapshot`
-- render phase should become the point where one canonical release-owned bundle fact is fixed for that release
+- render phase is the point where one canonical release-owned bundle fact is fixed for that release
 - publish phase now flows through a bundle publisher abstraction
 - publish phase should consume the already-rendered bundle fact instead of introducing a different rendering source of truth
 - current default publisher records artifact metadata from rendered bundle content and digest
@@ -904,8 +907,8 @@ Current implementation direction:
   - `oras`: package the rendered bundle as a single OCI tar.gz layer and push/tag it to the remote registry when manifest registry is enabled
 - `publish_bundle` step message should prefer carrying both publisher mode and final artifact ref for operator diagnostics
 - `create_argocd_application` step message should prefer carrying application name, target environment, and final artifact ref when available
-- intent is then marked as `Running` after dispatch is accepted
-- later runtime / writeback callbacks continue updating release status and steps
+- when intent mode is enabled, the intent is marked as `Running` after dispatch is accepted
+- later writeback callbacks continue updating release status and steps
 - when release-service runs in intent mode and worker config is enabled, it starts a background release intent worker loop
 
 ### Pre-production OCI wiring note
@@ -918,13 +921,18 @@ Committed pre-production release deployment currently expects:
 
 This prefix-based ArgoCD credential contract is required because release artifact repositories are application-scoped beneath the `releases/` prefix.
 
-### runtime-service observer phase
+### rollout callback phase
 
-- watch ArgoCD / rollout progress
+- report ArgoCD / rollout progress through release-owned callback routes when callback senders are wired
 - update step status by `code`
 - update top-level release status
 - persist rollout messages and failures
 - finalize release outcome
+
+Current implementation note:
+
+- the repository contains rollout observer code, but active `runtime-service` startup does not auto-start it
+- treat this as a callback contract, not as proof of an always-on runtime-side observer
 
 ## Step naming guidance
 
@@ -1026,11 +1034,11 @@ Suggested behavior:
 - mark all steps as `Pending`
 - once snapshots are frozen successfully, mark `freeze_inputs` as `Succeeded`
 
-### 2. asynchronous executor steps
+### 2. release execution steps
 
-These are advanced by the asynchronous deployment executor.
+These are advanced by the active release execution path before or during deployment handoff.
 
-Common executor-owned steps:
+Common release-execution-owned steps:
 
 - `ensure_namespace`
 - `ensure_pull_secret`
@@ -1043,9 +1051,15 @@ Rolling deployments may also include:
 
 - `start_deployment`
 
-### 3. runtime-service observer steps
+### 3. rollout callback steps
 
-These are advanced by runtime-service based on real cluster rollout state.
+These steps are intended to be advanced through release-owned callback routes after deployment has been handed to external systems.
+
+Current implementation note:
+
+- the step schema exists now
+- `release-service` accepts callback updates now
+- but `runtime-service` startup does not currently auto-start the in-tree release rollout observer
 
 Examples:
 
@@ -1066,24 +1080,24 @@ Examples:
 | Step code | Owner | Meaning |
 |---|---|---|
 | `freeze_inputs` | release-service create phase | 冻结 release-time snapshots |
-| `ensure_namespace` | async executor | 确保目标 namespace 已存在 |
-| `ensure_pull_secret` | async executor | 确保目标 namespace 已具备拉镜像 secret |
-| `ensure_appproject_destination` | async executor | 确保 ArgoCD AppProject 放通目标集群与 namespace |
-| `render_deployment_bundle` | async executor | 渲染 deployment bundle |
-| `publish_bundle` | async executor | 上传 deployment bundle 到 OCI |
-| `create_argocd_application` | async executor | 创建 ArgoCD Application |
-| `start_deployment` | async executor | 触发 rolling deployment 开始 |
-| `observe_rollout` | runtime-service | 跟踪 rolling rollout |
-| `deploy_preview` | runtime-service | blueGreen preview 部署阶段 |
-| `observe_preview` | runtime-service | 观察 blueGreen preview 健康状态 |
-| `switch_traffic` | runtime-service | blueGreen 切流 |
-| `verify_active` | runtime-service | blueGreen active 验证 |
-| `deploy_canary` | runtime-service | canary 初始部署 |
-| `canary_10` | runtime-service | canary 10% 流量阶段 |
-| `canary_30` | runtime-service | canary 30% 流量阶段 |
-| `canary_60` | runtime-service | canary 60% 流量阶段 |
-| `canary_100` | runtime-service | canary 100% 流量阶段 |
-| `finalize_release` | runtime-service | 收口 release 成功/失败终态 |
+| `ensure_namespace` | release execution path | 确保目标 namespace 已存在 |
+| `ensure_pull_secret` | release execution path | 确保目标 namespace 已具备拉镜像 secret |
+| `ensure_appproject_destination` | release execution path | 确保 ArgoCD AppProject 放通目标集群与 namespace |
+| `render_deployment_bundle` | release-service dispatch | 渲染 deployment bundle |
+| `publish_bundle` | release-service dispatch / artifact callback | 上传 deployment bundle 到 OCI |
+| `create_argocd_application` | release-service dispatch | 创建 ArgoCD Application |
+| `start_deployment` | release-service dispatch / rollout callback | 触发 rolling deployment 开始 |
+| `observe_rollout` | rollout callback | 跟踪 rolling rollout |
+| `deploy_preview` | rollout callback | blueGreen preview 部署阶段 |
+| `observe_preview` | rollout callback | 观察 blueGreen preview 健康状态 |
+| `switch_traffic` | rollout callback | blueGreen 切流 |
+| `verify_active` | rollout callback | blueGreen active 验证 |
+| `deploy_canary` | rollout callback | canary 初始部署 |
+| `canary_10` | rollout callback | canary 10% 流量阶段 |
+| `canary_30` | rollout callback | canary 30% 流量阶段 |
+| `canary_60` | rollout callback | canary 60% 流量阶段 |
+| `canary_100` | rollout callback | canary 100% 流量阶段 |
+| `finalize_release` | rollout callback | 收口 release 成功/失败终态 |
 
 ## Step initialization rules
 
@@ -1097,8 +1111,8 @@ When a release record is first created:
 Then:
 
 - release-service marks `freeze_inputs` as `Succeeded` once snapshot freeze completes
-- async executor advances executor-owned steps
-- runtime-service advances rollout-observer steps
+- release-service dispatch currently advances render/publish/Argo creation steps during normal create flow
+- callback senders advance later rollout steps through release-owned writeback routes
 
 ## Strategy-specific lifecycle templates
 
@@ -1108,7 +1122,7 @@ Then:
 
 - `freeze_inputs` -> `Succeeded`
 
-#### async executor phase
+#### release execution phase
 
 - `ensure_namespace`
 - `ensure_pull_secret`
@@ -1118,7 +1132,7 @@ Then:
 - `create_argocd_application`
 - `start_deployment`
 
-#### runtime-service phase
+#### rollout callback phase
 
 - `observe_rollout`
 - `finalize_release`
@@ -1129,7 +1143,7 @@ Then:
 
 - `freeze_inputs` -> `Succeeded`
 
-#### async executor phase
+#### release execution phase
 
 - `ensure_namespace`
 - `ensure_pull_secret`
@@ -1138,7 +1152,7 @@ Then:
 - `publish_bundle`
 - `create_argocd_application`
 
-#### runtime-service phase
+#### rollout callback phase
 
 - `deploy_preview`
 - `observe_preview`
@@ -1152,7 +1166,7 @@ Then:
 
 - `freeze_inputs` -> `Succeeded`
 
-#### async executor phase
+#### release execution phase
 
 - `ensure_namespace`
 - `ensure_pull_secret`
@@ -1161,7 +1175,7 @@ Then:
 - `publish_bundle`
 - `create_argocd_application`
 
-#### runtime-service phase
+#### rollout callback phase
 
 - `deploy_canary`
 - `canary_10`
@@ -1175,7 +1189,7 @@ Then:
 Recommended top-level status semantics:
 
 - `Pending` -> release record created, execution not yet completed
-- `Running` -> async executor or rollout observer has started advancing deployment
+- `Running` -> release dispatch or rollout callback has started advancing deployment
 - `Succeeded` -> all required steps completed successfully
 - `Failed` -> one of the required steps failed terminally
 - `RollingBack` / `RolledBack` -> explicit rollback flow

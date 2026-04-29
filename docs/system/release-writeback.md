@@ -77,8 +77,9 @@ Purpose:
 
 Current implementation note:
 
-- this route still exists, but it is no longer the primary rollout progression path for normal rolling releases
-- the active rolling rollout path is `runtime-service` observing Kubernetes Deployment state and posting `POST /api/v1/verify/release/steps`
+- this route still exists for Argo-side status callbacks
+- the repository also contains rollout-callback code under `internal/runtime/observer/release_rollout.go`, but that observer is not started by the active `runtime-service` startup path in `internal/runtime/config/config.go`
+- therefore no doc should describe runtime-side release rollout writeback as an always-on current capability
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -104,8 +105,8 @@ Purpose:
 
 Current primary use:
 
-- Tekton / runtime-side observers should use this route for ongoing release step progression
-- rolling release rollout progression is now primarily written by the runtime-side Kubernetes rollout observer
+- external executors or observers may use this route for ongoing release step progression
+- in the current repo contract, this is a token-gated callback surface, not proof that a particular always-on rollout observer is wired into service startup
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -126,7 +127,7 @@ Preferred step targeting rule:
 
 Purpose:
 
-- allow async executor or callback workers to write back release-owned deployment bundle metadata
+- allow release execution paths or callback workers to write back release-owned deployment bundle metadata
 - update:
   - `artifact_repository`
   - `artifact_tag`

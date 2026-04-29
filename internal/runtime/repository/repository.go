@@ -39,7 +39,7 @@ type Store interface {
 	ListRuntimeOperations(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
-var RuntimeStore Store = NewPostgresStore()
+var RuntimeStore Store = NewMemoryStore()
 
 type postgresStore struct{}
 

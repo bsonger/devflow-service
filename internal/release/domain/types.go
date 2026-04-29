@@ -79,7 +79,9 @@ const (
 	ReleaseUpgrade  string = "Upgrade"
 	ReleaseRollback string = "Rollback"
 
-	ReleaseIDLabel = "devflow.io/release-id"
+	ReleaseIDLabel          = "devflow.io/release-id"
+	ReleaseApplicationLabel = "devflow.application/id"
+	ReleaseEnvironmentLabel = "devflow.environment/id"
 )
 
 type Port struct {

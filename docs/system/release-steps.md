@@ -37,7 +37,7 @@ Important rules:
 - `steps[*].code` is the stable identifier and should be used by writeback and automation
 - `steps[*].name` is display text and may evolve over time
 - the frontend should render the returned `steps` list instead of assuming a fixed step count
-- the release create call initializes the full step list early, then different components advance different steps over time
+- the release create call initializes the full step list early, then release dispatch and later callback senders advance different steps over time
 - release-service should keep `steps` in canonical execution order and should not append unknown ad-hoc step entries at runtime
 
 ## Execution phases
@@ -50,19 +50,25 @@ Purpose:
 - freeze deployment inputs
 - create the release record and initial steps
 
-2. asynchronous executor phase
+2. release execution phase
 Purpose:
 - build the environment-specific deployment bundle
 - publish that bundle
 - create the external deployment object
 
-3. runtime or observer phase
+3. rollout callback phase
 Purpose:
-- observe real rollout state
-- progress traffic movement
+- accept rollout-state callbacks after deployment handoff
+- progress traffic movement when callback senders are wired
 - finalize the release outcome
 
 ## Step overview
+Current wiring note:
+
+- `release-service` advances create/render/publish/Argo-start steps directly during normal create/dispatch
+- release-owned callback routes under `/api/v1/verify/...` can advance later rollout steps
+- `internal/runtime/observer/release_rollout.go` exists in-tree, but the active `runtime-service` startup path does not start it
+
 
 ### Common steps for all strategies
 
@@ -136,7 +142,7 @@ Failure usually means:
 ### `render_deployment_bundle`
 
 Owner:
-- asynchronous executor
+- release-service dispatch path
 
 Meaning:
 - the executor renders environment-specific deployment objects from frozen manifest inputs plus release-time inputs
@@ -162,7 +168,7 @@ Failure usually means:
 ### `publish_bundle`
 
 Owner:
-- asynchronous executor
+- release-service dispatch path
 
 Meaning:
 - the rendered deployment bundle is published to OCI as a release-owned artifact
@@ -191,7 +197,7 @@ Failure usually means:
 ### `create_argocd_application`
 
 Owner:
-- asynchronous executor
+- release-service dispatch path
 
 Meaning:
 - the deployment controller object for this release is created and pointed at the published artifact
@@ -215,7 +221,7 @@ Failure usually means:
 ### `start_deployment`
 
 Owner:
-- asynchronous executor
+- release-service dispatch path
 
 Strategy:
 - rolling only
@@ -576,11 +582,11 @@ Practical routing:
 - stuck at `freeze_inputs`:
   inspect release create validation, manifest readiness, app config availability, and deploy target readiness
 - stuck at `render_deployment_bundle` or `publish_bundle`:
-  inspect the asynchronous executor and artifact publication flow
+  inspect release-service dispatch and artifact publication flow
 - stuck at `create_argocd_application`:
   inspect ArgoCD application creation and deployment target metadata
 - stuck at rolling, blue-green, or canary observation steps:
-  inspect runtime-service and observer callbacks
+  inspect release writeback routes and whichever callback sender is expected in that environment
 - stuck at `finalize_release`:
   inspect the last rollout callback and terminal-state writeback path
 

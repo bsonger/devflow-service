@@ -25,7 +25,7 @@ That means:
 
 ## Read-model resources
 
-Runtime-service currently persists and serves:
+Runtime-service currently maintains and serves:
 
 - `RuntimeObservedWorkload`
 - `RuntimeObservedPod`
@@ -33,6 +33,12 @@ Runtime-service currently persists and serves:
 
 The workload overview is controller-level state.
 The pod list is instance-level state.
+
+Important implementation note:
+
+- this read model is currently kept in-process inside `runtime-service`
+- it is rebuilt by observers after restart rather than being loaded from PostgreSQL at boot
+- the active recovery path depends on Kubernetes workloads carrying runtime-relevant labels such as `devflow.application/id` and `devflow.environment/id`
 
 ## Public runtime read surface
 
@@ -58,16 +64,21 @@ Observer callbacks:
 
 These routes are runtime-owned index write APIs, not user-facing APIs.
 
+Authentication note:
+
+- these routes use `X-Devflow-Observer-Token` when `observer.shared_token` is configured
+- if `observer.shared_token` is empty, the middleware allows the request through
+
 ## Current pre-production status
 
-As of April 29, 2026:
+As of April 30, 2026:
 
 - runtime-service supports workload overview reads
 - runtime-service supports internal workload summary sync
-- the pre-production database contains `runtime_observed_workloads`
 - shared ingress has been verified for public `GET /api/v1/runtime/workload`
-- pre-production runtime-service has been verified to repopulate both workload and pod index rows automatically after those rows are deleted from PostgreSQL
 - pre-production runtime observation is now owned by the in-process Kubernetes observer inside `runtime-service`
+- runtime-service no longer requires PostgreSQL for startup or request handling
+- runtime observation should be understood as observer-rebuilt in-memory state in the active contract
 
 ## Operator mental model
 
@@ -77,6 +88,12 @@ When a user opens the runtime page, think:
 2. read latest pod list from runtime index
 3. when the user clicks restart or delete, call Kubernetes through runtime-service
 4. refresh workload + pods from runtime index after the action
+
+When runtime-service restarts, think:
+
+1. observers rescan live Kubernetes resources
+2. runtime-service reconstructs `application + environment` ownership from workload labels
+3. workload and pod state is repopulated into the in-process runtime index
 
 ## Source pointers
 

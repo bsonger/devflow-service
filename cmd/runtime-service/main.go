@@ -6,14 +6,14 @@
 package main
 
 import (
-	platformconfig "github.com/bsonger/devflow-service/internal/platform/config"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/bootstrap"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	runtimeconfig "github.com/bsonger/devflow-service/internal/runtime/config"
 	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
 )
 
 func main() {
-	err := bootstrap.Run(bootstrap.Options[platformconfig.Config, runtimehttp.Options, string]{
+	err := bootstrap.Run(bootstrap.Options[runtimeconfig.Config, runtimehttp.Options, string]{
 		Name: "runtime-service",
 		RouteOptions: runtimehttp.Options{
 			ServiceName:   "runtime-service",
@@ -24,12 +24,12 @@ func main() {
 				runtimehttp.ModuleRuntimeObservedPod,
 			},
 		},
-		Load:        platformconfig.Load,
-		InitRuntime: platformconfig.InitRuntime,
+		Load:        runtimeconfig.Load,
+		InitRuntime: runtimeconfig.InitRuntime,
 		NewRouter: func(opts runtimehttp.Options) bootstrap.Runner {
 			return runtimehttp.NewRouterWithOptions(opts)
 		},
-		ResolveConfigPort: func(cfg *platformconfig.Config) int {
+		ResolveConfigPort: func(cfg *runtimeconfig.Config) int {
 			if cfg != nil && cfg.Server != nil {
 				return cfg.Server.Port
 			}

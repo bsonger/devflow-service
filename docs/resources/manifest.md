@@ -941,7 +941,7 @@ Current implementation direction should match this document:
 - [ ] initial `steps` are derived from Tekton `Pipeline` structure
 - [ ] no hardcoded task list is used as the source of truth
 
-### runtime-service writeback
+### Tekton observer writeback
 
 - [ ] watcher can correlate `PipelineRun` to manifest
 - [ ] watcher updates top-level `status`

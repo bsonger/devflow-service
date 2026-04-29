@@ -42,6 +42,7 @@ It is runtime inspection and runtime control against live Kubernetes workloads f
 For the operator-facing runtime API, `runtime-service` should be understood as depending on:
 
 - runtime observer / index
+- Kubernetes API
 - shared backend primitives
 
 That is the important mental model for these flows:
@@ -58,16 +59,21 @@ Read vs write split:
 
 ### Current implementation note
 
-The current codebase still contains PostgreSQL-backed runtime persistence for:
+The active contract is Kubernetes-first:
 
-- `RuntimeSpec`
-- `RuntimeSpecRevision`
-- `RuntimeObservedWorkload`
-- `RuntimeObservedPod`
-- `RuntimeOperation`
+- runtime reads come from runtime-owned observed state
+- runtime actions mutate Kubernetes directly
+- runtime-service no longer depends on PostgreSQL for startup or request handling
+- runtime-service keeps its active runtime index in-process
+- runtime-service rebuilds that in-process index through observer sync rather than by loading rows from PostgreSQL at boot
 
-So the present implementation is not yet fully aligned with the simpler Kubernetes-first dependency model.
-Documenting that gap explicitly is important so readers do not confuse target API semantics with current storage internals.
+Important current nuance:
+
+- the runtime index is not durable local storage inside `runtime-service`
+- after restart, runtime state is expected to be rebuilt by the in-process observers
+- release bundles now need runtime-relevant Kubernetes labels such as `devflow.application/id` and `devflow.environment/id` so the observer can reconstruct `application + environment` ownership from live workloads
+
+Any older PostgreSQL-oriented description should be treated as historical and non-owning.
 
 ## Read and action split
 
@@ -218,38 +224,20 @@ Observer-side internal routes now include:
 These routes are intended for observer/index writeback only.
 They are not user-facing API routes.
 
-## Release rollout observer
+Authentication note:
 
-`runtime-service` now also owns the active rolling-release rollout observer path.
-
-Current behavior:
-
-- poll active `Release` rows in `Running` or `Syncing`
-- support rolling strategy first
-- resolve target namespace from application + environment
-- observe Kubernetes `Deployment` health for the application workload
-- write step progress back through `POST /api/v1/verify/release/steps`
-- advance:
-  - `start_deployment`
-  - `observe_rollout`
-  - `finalize_release`
-
-This is the current concrete implementation of the release/runtime boundary:
-
-- `release-service` starts the deployment
-- `runtime-service` watches the live rollout convergence
-- release progress is persisted through release writeback handlers
+- these internal routes are protected by `X-Devflow-Observer-Token` when `observer.shared_token` is configured
+- when `observer.shared_token` is empty, the middleware allows the request through
 
 ## Pre-production status
 
 As of April 29, 2026:
 
 - pre-production runtime-service has been updated to serve `GET /api/v1/runtime/workload`
-- pre-production database includes `runtime_observed_workloads`
 - public workload overview reads are working through shared ingress
-- pre-production runtime-service has been verified to restore deleted workload and pod observed rows automatically on the next observer poll cycle
 - pre-production runtime observation is owned by the in-process Kubernetes observer inside runtime-service
-- pre-production runtime-service now also owns rolling release deployment observation and release step writeback
+- pre-production runtime-service rebuilds runtime workload/pod state from observer sync instead of PostgreSQL-backed startup state
+- runtime-service should be treated as PostgreSQL-independent in the active contract for startup and request handling
 
 ## Resource Contracts
 

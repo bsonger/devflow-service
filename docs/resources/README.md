@@ -55,6 +55,12 @@ Use this shape when the contract is derived from another persisted resource and 
 
 Some resources add extra sections such as nested types, lifecycle, sync behavior, relationship notes, or UI guidance, but the owning headings above should stay stable for that document type.
 
+Runtime-specific note:
+
+- `runtime-spec.md` is currently an operation-oriented runtime surface doc, not a normal CRUD resource doc
+- for current work, read it as a runtime inspection / action / observer-read-model contract
+- internal names such as `RuntimeSpec` and `RuntimeSpecRevision` are still useful for code navigation, but they are not the main public API story
+
 ## Resource ownership map
 
 - `meta-service`
@@ -103,7 +109,7 @@ For pre-production shared ingress, use the service-prefixed external paths docum
 - `workloadconfig.md`: `WorkloadConfig`
 - `service.md`: application-owned network `Service`
 - `route.md`: application-owned `Route`
-- `runtime-spec.md`: `RuntimeSpec`, `RuntimeSpecRevision`, `RuntimeObservedWorkload`, `RuntimeObservedPod`, `RuntimeOperation`
+- `runtime-spec.md`: runtime inspection and action surface backed by `RuntimeObservedWorkload`, `RuntimeObservedPod`, and `RuntimeOperation`
 - `manifest.md`: `Manifest`
 - `intent.md`: `Intent`
 - `release.md`: `Release`

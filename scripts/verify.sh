@@ -469,7 +469,7 @@ require_literal "$ROOT_DIR/docs/resources/runtime-spec.md" "runtime API surface 
 require_literal "$ROOT_DIR/docs/resources/runtime-spec.md" "runtime API surface pods" "/api/v1/runtime/pods/{pod_name}"
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README Istio contract" "Istio-oriented"
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared ingress manifest" "deployments/pre-production/istio/shared-ingress.yaml"
-require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared host" "devflow-pre.example.com"
+require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared host" "devflow-pre-production.bei.com"
 require_literal "$ROOT_DIR/docs/services/release-service.md" "release-service release support area" "internal/release/support"
 
 info "Checking repo-local documentation alignment"

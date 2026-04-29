@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	runtimeservice "github.com/bsonger/devflow-service/internal/runtime/service"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,17 +42,11 @@ func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, c
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = defaultObserverInterval
 	}
-	if strings.TrimSpace(cfg.Namespace) == "" {
-		cfg.Namespace = detectObserverNamespace()
-	}
-	if strings.TrimSpace(cfg.Namespace) == "" {
-		return nil
-	}
 	clientset, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return err
 	}
-	store := repository.NewPostgresStore()
+	store := repository.RuntimeStore
 	observer := &KubernetesRuntimeObserver{
 		cfg:       cfg,
 		clientset: clientset,
@@ -80,37 +76,40 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	specs, err := o.store.ListRuntimeSpecs(ctx)
+	namespace := strings.TrimSpace(o.cfg.Namespace)
+	if namespace == "" {
+		namespace = metav1.NamespaceAll
+	}
+	deployments, err := o.clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: releasedomain.ReleaseApplicationLabel,
+	})
 	if err != nil {
-		log.Warn("list runtime specs failed", zap.Error(err))
+		log.Warn("list runtime deployments failed", zap.Error(err))
 		return
 	}
-	for _, spec := range specs {
-		if spec == nil {
+	for i := range deployments.Items {
+		deployment := &deployments.Items[i]
+		spec, appName, ok := o.runtimeSpecFromDeployment(deployment)
+		if !ok {
 			continue
 		}
-		if err := o.syncRuntimeSpec(ctx, spec); err != nil {
-			log.Warn("sync runtime spec from kubernetes failed",
+		if err := o.syncRuntimeSpec(ctx, spec, appName, deployment.Namespace); err != nil {
+			log.Warn("sync runtime deployment from kubernetes failed",
 				zap.String("runtime_spec_id", spec.ID.String()),
 				zap.String("application_id", spec.ApplicationID.String()),
 				zap.String("environment", spec.Environment),
+				zap.String("namespace", deployment.Namespace),
+				zap.String("deployment", deployment.Name),
 				zap.Error(err),
 			)
 		}
 	}
 }
 
-func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *domain.RuntimeSpec) error {
-	appName, err := o.store.GetApplicationName(ctx, spec.ApplicationID)
-	if err == sql.ErrNoRows {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	targetNamespace, err := o.resolveSpecNamespace(ctx, spec)
-	if err != nil {
-		return err
+func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *domain.RuntimeSpec, appName, targetNamespace string) error {
+	targetNamespace = strings.TrimSpace(targetNamespace)
+	if targetNamespace == "" {
+		targetNamespace = o.resolveSpecNamespace(spec)
 	}
 	selector := "app.kubernetes.io/name=" + strings.TrimSpace(appName)
 
@@ -131,6 +130,33 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 		return err
 	}
 	return o.syncPods(ctx, spec, targetNamespace, pods.Items)
+}
+
+func (o *KubernetesRuntimeObserver) runtimeSpecFromDeployment(deployment *appsv1.Deployment) (*domain.RuntimeSpec, string, bool) {
+	if deployment == nil {
+		return nil, "", false
+	}
+	labels := deployment.GetLabels()
+	applicationID, err := uuid.Parse(strings.TrimSpace(labels[releasedomain.ReleaseApplicationLabel]))
+	if err != nil || applicationID == uuid.Nil {
+		return nil, "", false
+	}
+	environment := strings.TrimSpace(labels[releasedomain.ReleaseEnvironmentLabel])
+	if environment == "" {
+		return nil, "", false
+	}
+	appName := strings.TrimSpace(labels["app.kubernetes.io/name"])
+	if appName == "" {
+		appName = strings.TrimSpace(deployment.Name)
+	}
+	if appName == "" {
+		return nil, "", false
+	}
+	spec, err := o.store.EnsureRuntimeSpecByApplicationEnv(context.Background(), applicationID, environment)
+	if err != nil || spec == nil {
+		return nil, "", false
+	}
+	return spec, appName, true
 }
 
 func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *domain.RuntimeSpec, appName, namespace string, deployments []appsv1.Deployment) error {
@@ -240,14 +266,20 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 	return nil
 }
 
-func (o *KubernetesRuntimeObserver) resolveSpecNamespace(ctx context.Context, spec *domain.RuntimeSpec) (string, error) {
+func (o *KubernetesRuntimeObserver) resolveSpecNamespace(spec *domain.RuntimeSpec) string {
 	if spec == nil {
-		return "", nil
+		return strings.TrimSpace(o.cfg.Namespace)
 	}
-	if namespace, err := o.store.ResolveTargetNamespace(ctx, spec.ApplicationID, spec.Environment); err == nil && strings.TrimSpace(namespace) != "" {
-		return strings.TrimSpace(namespace), nil
+	if workload, err := o.store.GetObservedWorkload(context.Background(), spec.ID); err == nil && workload != nil {
+		if namespace := strings.TrimSpace(workload.Namespace); namespace != "" {
+			return namespace
+		}
 	}
-	return strings.TrimSpace(o.cfg.Namespace), nil
+	namespace := strings.TrimSpace(o.cfg.Namespace)
+	if namespace == "" {
+		namespace = detectObserverNamespace()
+	}
+	return namespace
 }
 
 func detectObserverNamespace() string {

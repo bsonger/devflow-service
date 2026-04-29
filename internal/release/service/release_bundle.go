@@ -255,7 +255,8 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	}
 	labels := map[string]any{
 		"app.kubernetes.io/name": selectorName,
-		"devflow.application/id": release.ApplicationID.String(),
+		model.ReleaseApplicationLabel: release.ApplicationID.String(),
+		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
 	}
 	for k, v := range workload.Labels {
 		if strings.TrimSpace(k) == "" {
