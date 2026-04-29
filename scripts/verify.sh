@@ -256,6 +256,19 @@ run_layout_refactor_policy_check() {
   [[ -z "$platform_business_imports" ]] || fail "internal/platform and internal/shared must not import business-domain packages directly:\n$platform_business_imports"
 }
 
+run_runtime_no_postgres_policy_check() {
+  info "Running runtime no-Postgres policy checks"
+
+  local pattern='NewPostgresStore\(|platformdb\.Postgres\('
+  local matches
+
+  matches="$(
+    cd "$ROOT_DIR"
+    rg -n "$pattern" internal/runtime --glob '!**/*_test.go' || true
+  )"
+  [[ -z "$matches" ]] || fail "runtime code must not reintroduce NewPostgresStore() or platformdb.Postgres() outside tests:\n$matches"
+}
+
 require_file() {
   local path="$1"
   local label="$2"
@@ -556,6 +569,7 @@ run_http_handler_uuid_policy_check
 run_http_handler_helper_policy_check
 run_http_api_selector_policy_check
 run_layout_refactor_policy_check
+run_runtime_no_postgres_policy_check
 run_go_test
 run_go_build_targets
 

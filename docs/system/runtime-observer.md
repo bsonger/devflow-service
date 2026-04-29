@@ -75,7 +75,9 @@ Authentication note:
 - runtime-service supports internal workload summary sync
 - pre-production runtime observation is now owned by the in-process Kubernetes observer inside `runtime-service`
 - the default runtime HTTP path is memory-backed and rebuilt by observer sync
-- PostgreSQL-backed runtime repository and release-rollout observer support code still exist
+- runtime-service active/runtime-domain storage is PostgreSQL-free
+- release rollout observation is also started by the active runtime startup path and consumes the in-memory runtime observer state plus Kubernetes labels
+- shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 
 For the storage boundary, see `docs/system/runtime-storage-model.md`.
 

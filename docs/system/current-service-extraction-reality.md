@@ -26,7 +26,7 @@ Some implementation paths are still transitional because the code lives in one G
 | `config-service` | Runnable entrypoint and owner of config resources | `AppConfig` still resolves some metadata through same-repo support/service code; `WorkloadConfig` does not currently prove application existence through a downstream `meta-service` HTTP call |
 | `network-service` | Runnable entrypoint and owner of network resources | `Service` and `Route` use network-owned persistence and validation; they do not currently prove application/environment existence through downstream `meta-service` HTTP calls |
 | `release-service` | Runnable entrypoint and release composer | Uses downstream adapters for config/network/meta-facing reads in release and manifest flows, while still owning release persistence locally through Postgres stores |
-| `runtime-service` | Runnable entrypoint for runtime read/action APIs | Default runtime service uses in-memory `RuntimeStore`; Postgres-backed runtime repository and release-rollout observer support code still exist |
+| `runtime-service` | Runnable entrypoint for runtime read/action APIs | Default runtime service uses in-memory `RuntimeStore`; active runtime-domain storage is PostgreSQL-free; release rollout observer startup is active and consumes observer state plus Kubernetes labels |
 
 ## What is already real
 

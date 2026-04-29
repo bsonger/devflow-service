@@ -57,7 +57,9 @@ Current implementation note:
 - the default runtime HTTP service uses an in-memory `RuntimeStore`
 - the active runtime index is kept in-process
 - observer sync rebuilds that in-process state after restart
-- PostgreSQL-backed runtime repository and rollout-observer support code still exist
+- runtime-service active/runtime-domain storage is PostgreSQL-free
+- release rollout observation is also started by the active runtime startup path and consumes runtime observer state plus Kubernetes labels
+- shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release-generated workloads should carry labels such as `devflow.application/id` and `devflow.environment/id` so runtime-service can recover `application + environment` ownership from live Kubernetes resources
 
 For the full storage boundary, see `docs/system/runtime-storage-model.md`.
@@ -440,7 +442,7 @@ The matching read model now includes a workload-level observed summary alongside
 - pod-level detail from pod index
 - actions through Kubernetes
 
-Those model names are still useful for code navigation, but the active runtime contract should be understood as observer-rebuilt in-memory state rather than PostgreSQL-backed runtime CRUD.
+Those model names are still useful for code navigation, but the active runtime contract should be understood as observer-rebuilt in-memory state with PostgreSQL-free runtime-domain storage rather than PostgreSQL-backed runtime CRUD.
 
 ## Current storage and observer status
 
@@ -449,7 +451,9 @@ Current runtime behavior should be read through the storage model in `docs/syste
 - the default runtime HTTP path is memory-backed
 - runtime-service can accept internal workload and pod sync callbacks
 - in-process observers rebuild workload and pod index state from live cluster signals
-- PostgreSQL-backed runtime repository and release-rollout observer support code still exist
+- runtime-service active/runtime-domain storage is PostgreSQL-free
+- release rollout observation is also started by the active runtime startup path and consumes runtime observer state plus Kubernetes labels
+- shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 
 That internal observer detail should not dominate the external API contract if the main user value is:
 

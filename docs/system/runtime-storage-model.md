@@ -51,20 +51,16 @@ Runtime actions are executed through the runtime service and Kubernetes executor
 Namespace and workload identity are resolved from stored observed runtime state.
 If observer state is missing or stale, actions can fail even when the workload still exists in Kubernetes.
 
-## PostgreSQL-backed code still exists
+## Runtime-domain PostgreSQL guardrail
 
-Do not describe runtime-service as fully database-free.
-The repository still contains a PostgreSQL-backed runtime store implementation:
+`internal/runtime/**` non-test code must not reintroduce runtime-domain PostgreSQL access.
+`scripts/verify.sh` fails if it finds either of these patterns under `internal/runtime/**`:
 
-- `internal/runtime/repository/repository.go`
-- `internal/runtime/repository.NewPostgresStore`
+- `NewPostgresStore()`
+- `platformdb.Postgres()`
 
-The release rollout observer also still uses PostgreSQL-backed support:
-
-- `internal/runtime/observer/release_rollout.go`
-- direct release-table reads through `platformdb.Postgres()`
-
-This means the current default runtime HTTP path is memory-backed, while some runtime-adjacent support code remains PostgreSQL-backed.
+This guard is intentionally narrower than a repo-wide PostgreSQL ban.
+Shared platform startup and non-runtime services may still use PostgreSQL, but runtime-service's active runtime-domain store contract is PostgreSQL-free.
 
 ## Documentation rule
 
@@ -72,5 +68,6 @@ When documenting runtime-service:
 
 - say "default runtime HTTP service is memory-backed" instead of "runtime-service has no PostgreSQL code"
 - say "observer sync rebuilds in-memory state" instead of "runtime reads directly from Kubernetes"
-- mention the remaining PostgreSQL-backed repository and rollout observer where storage boundaries matter
+- say "runtime-service active/runtime-domain storage is PostgreSQL-free" while keeping shared platform startup outside `cmd/runtime-service` separate
+- mention release rollout observation as an active observer-startup path, but do not describe it as a runtime-domain PostgreSQL store path
 - keep shared ingress paths separate from backend-local runtime routes; see `docs/system/ingress-routing.md`

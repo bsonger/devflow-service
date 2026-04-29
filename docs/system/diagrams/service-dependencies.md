@@ -48,4 +48,6 @@ flowchart LR
 - `runtime-service` owns runtime inspection, runtime observation, and runtime operations
 - `release-service` is the main cross-service composer
 - `runtime-service` is Kubernetes-first for operator-facing reads/actions, with a memory-backed default HTTP path
-- PostgreSQL-backed runtime repository and release-rollout observer support code still exist
+- `runtime-service` active/runtime-domain storage is PostgreSQL-free
+- release rollout observer startup is active and consumes runtime observer state plus Kubernetes labels
+- shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services

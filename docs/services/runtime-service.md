@@ -71,10 +71,11 @@ Important current nuance:
 - the runtime index is not durable local storage inside `runtime-service`
 - after restart, runtime state is expected to be rebuilt by the in-process observers
 - release bundles now need runtime-relevant Kubernetes labels such as `devflow.application/id` and `devflow.environment/id` so the observer can reconstruct `application + environment` ownership from live workloads
-- Postgres-backed runtime repository code still exists under `internal/runtime/repository/repository.go`
-- release rollout observation still has Postgres-backed support code under `internal/runtime/observer/release_rollout.go`
+- runtime-service active/runtime-domain storage is PostgreSQL-free
+- shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
+- release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
 
-Do not read the current runtime contract as a complete removal of all Postgres-related runtime code.
+Do not read the current runtime contract as a repo-wide PostgreSQL removal.
 For operator-facing workload and pod reads, the active path should be treated as observer/index-backed and memory-backed by default.
 
 ## Read and action split
@@ -236,7 +237,8 @@ Authentication note:
 Current code should be read in two layers:
 
 - operator-facing runtime read/action endpoints use the runtime service default store, which currently points at the in-memory `RuntimeStore`
-- Postgres-backed runtime repository and release-rollout observer support code still exist in the repo and should not be described as removed
+- runtime-service active/runtime-domain storage is PostgreSQL-free, even though shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
+- release rollout observer startup is active in `internal/runtime/config/config.go`, and that observer consumes runtime observer state plus Kubernetes labels rather than a runtime-domain PostgreSQL store
 
 For the detailed storage model, see `docs/system/runtime-storage-model.md`.
 

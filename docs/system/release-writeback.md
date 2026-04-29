@@ -78,8 +78,9 @@ Purpose:
 Current implementation note:
 
 - this route still exists for Argo-side status callbacks
-- the repository also contains rollout-callback code under `internal/runtime/observer/release_rollout.go`, but that observer is not started by the active `runtime-service` startup path in `internal/runtime/config/config.go`
-- therefore no doc should describe runtime-side release rollout writeback as an always-on current capability
+- the active `runtime-service` startup path in `internal/runtime/config/config.go` now starts the in-tree release rollout observer when in-cluster config is available
+- that observer derives rollout association from runtime observer state and Kubernetes workload labels, then writes back to `release-service`
+- docs should describe this as an active observer callback path, not as a PostgreSQL-backed runtime store path
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -106,7 +107,8 @@ Purpose:
 Current primary use:
 
 - external executors or observers may use this route for ongoing release step progression
-- in the current repo contract, this is a token-gated callback surface, not proof that a particular always-on rollout observer is wired into service startup
+- the in-tree runtime rollout observer is one active caller when `runtime-service` starts with in-cluster config and release-service writeback configuration
+- this remains a token-gated callback surface rather than a public user-facing route
 
 Expected behavior:
 - request body must include a valid `release_id`
