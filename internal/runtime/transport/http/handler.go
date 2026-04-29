@@ -190,12 +190,12 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
-	observer := rg.Group("/internal/runtime-spec-pods")
+	observer := rg.Group("/internal/runtime-pods")
 	{
 		observer.POST("/sync", h.SyncObservedPod)
 		observer.POST("/delete", h.DeleteObservedPod)
 	}
-	workloads := rg.Group("/internal/runtime-spec-workloads")
+	workloads := rg.Group("/internal/runtime-workloads")
 	{
 		workloads.POST("/sync", h.SyncObservedWorkload)
 		workloads.POST("/delete", h.DeleteObservedWorkload)

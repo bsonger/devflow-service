@@ -51,10 +51,10 @@ Frontend usage model:
 
 Observer callbacks:
 
-- `POST /api/v1/internal/runtime-spec-workloads/sync`
-- `POST /api/v1/internal/runtime-spec-workloads/delete`
-- `POST /api/v1/internal/runtime-spec-pods/sync`
-- `POST /api/v1/internal/runtime-spec-pods/delete`
+- `POST /api/v1/internal/runtime-workloads/sync`
+- `POST /api/v1/internal/runtime-workloads/delete`
+- `POST /api/v1/internal/runtime-pods/sync`
+- `POST /api/v1/internal/runtime-pods/delete`
 
 These routes are runtime-owned index write APIs, not user-facing APIs.
 

@@ -332,7 +332,7 @@ func TestObserverEndpointsRequireToken(t *testing.T) {
 	r := setupRuntimeTestRouter(h, "secret")
 
 	body, _ := json.Marshal(SyncObservedPodRequest{ApplicationID: uuid.New(), Environment: "staging", PodName: "demo-0", Phase: "Running", ObservedAt: time.Now().UTC()})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-spec-pods/sync", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-pods/sync", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -351,7 +351,7 @@ func TestSyncObservedPodReturnsInvalidArgument(t *testing.T) {
 	r := setupRuntimeTestRouter(h, "secret")
 
 	body, _ := json.Marshal(SyncObservedPodRequest{ApplicationID: uuid.New(), Environment: "staging", Namespace: "wrong", PodName: "demo-0", Phase: "Running", ObservedAt: time.Now().UTC()})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-spec-pods/sync", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-pods/sync", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(ObserverTokenHeader, "secret")
 	rec := httptest.NewRecorder()
@@ -371,7 +371,7 @@ func TestDeleteObservedPodReturnsNotFound(t *testing.T) {
 	r := setupRuntimeTestRouter(h, "secret")
 
 	body, _ := json.Marshal(DeleteObservedPodRequest{ApplicationID: uuid.New(), Environment: "staging", Namespace: "ns", PodName: "demo-0", ObservedAt: time.Now().UTC()})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-spec-pods/delete", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-pods/delete", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(ObserverTokenHeader, "secret")
 	rec := httptest.NewRecorder()
@@ -471,7 +471,7 @@ func TestSyncObservedWorkloadReturnsInvalidArgument(t *testing.T) {
 	r := setupRuntimeTestRouter(h, "secret")
 
 	body, _ := json.Marshal(SyncObservedWorkloadRequest{ApplicationID: uuid.New(), Environment: "staging", Namespace: "wrong", WorkloadKind: "Deployment", WorkloadName: "demo", ObservedAt: time.Now().UTC()})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-spec-workloads/sync", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-workloads/sync", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(ObserverTokenHeader, "secret")
 	rec := httptest.NewRecorder()

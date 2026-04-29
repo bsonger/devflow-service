@@ -259,15 +259,15 @@ Resolution note:
 
 These routes are service-internal observer callbacks and are not part of the shared external ingress contract:
 
-- `POST /api/v1/internal/runtime-spec-workloads/sync`
-- `POST /api/v1/internal/runtime-spec-workloads/delete`
-- `POST /api/v1/internal/runtime-spec-pods/sync`
-- `POST /api/v1/internal/runtime-spec-pods/delete`
+- `POST /api/v1/internal/runtime-workloads/sync`
+- `POST /api/v1/internal/runtime-workloads/delete`
+- `POST /api/v1/internal/runtime-pods/sync`
+- `POST /api/v1/internal/runtime-pods/delete`
 
 ### Sync workload summary
 
 ```http
-POST /api/v1/internal/runtime-spec-workloads/sync
+POST /api/v1/internal/runtime-workloads/sync
 ```
 
 Request body shape:
@@ -317,7 +317,7 @@ Validation notes:
 ### Delete workload summary
 
 ```http
-POST /api/v1/internal/runtime-spec-workloads/delete
+POST /api/v1/internal/runtime-workloads/delete
 ```
 
 Request body shape:
