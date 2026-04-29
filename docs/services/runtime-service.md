@@ -218,6 +218,28 @@ Observer-side internal routes now include:
 These routes are intended for observer/index writeback only.
 They are not user-facing API routes.
 
+## Release rollout observer
+
+`runtime-service` now also owns the active rolling-release rollout observer path.
+
+Current behavior:
+
+- poll active `Release` rows in `Running` or `Syncing`
+- support rolling strategy first
+- resolve target namespace from application + environment
+- observe Kubernetes `Deployment` health for the application workload
+- write step progress back through `POST /api/v1/verify/release/steps`
+- advance:
+  - `start_deployment`
+  - `observe_rollout`
+  - `finalize_release`
+
+This is the current concrete implementation of the release/runtime boundary:
+
+- `release-service` starts the deployment
+- `runtime-service` watches the live rollout convergence
+- release progress is persisted through release writeback handlers
+
 ## Pre-production status
 
 As of April 29, 2026:
@@ -227,6 +249,7 @@ As of April 29, 2026:
 - public workload overview reads are working through shared ingress
 - pre-production runtime-service has been verified to restore deleted workload and pod observed rows automatically on the next observer poll cycle
 - pre-production runtime observation is owned by the in-process Kubernetes observer inside runtime-service
+- pre-production runtime-service now also owns rolling release deployment observation and release step writeback
 
 ## Resource Contracts
 

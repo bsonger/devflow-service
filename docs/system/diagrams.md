@@ -119,10 +119,8 @@ sequenceDiagram
     RS->>ARGO: request sync
     ARGO->>ZOT: pull OCI bundle
     ARGO->>K8S: apply ServiceAccount / ConfigMap / Service / Deployment / VirtualService
-    RTS->>ARGO: observe Application sync / health
-    RTS->>K8S: observe Rollout / Deployment / Pod state
-    RTS->>RS: POST /api/v1/release/verify/argo/events
-    RTS->>RS: POST /api/v1/release/verify/release/steps
+    RTS->>K8S: observe Deployment / Pod rollout state
+    RTS->>RS: POST /api/v1/verify/release/steps
     RS->>PG: persist release step updates + final status
 ```
 
@@ -131,12 +129,15 @@ sequenceDiagram
 For normal rolling release, the key steps are:
 
 1. `freeze_inputs`
-2. `render_deployment_bundle`
-3. `publish_bundle`
-4. `create_argocd_application`
-5. `start_deployment`
-6. `observe_rollout`
-7. `finalize_release`
+2. `ensure_namespace`
+3. `ensure_pull_secret`
+4. `ensure_appproject_destination`
+5. `render_deployment_bundle`
+6. `publish_bundle`
+7. `create_argocd_application`
+8. `start_deployment`
+9. `observe_rollout`
+10. `finalize_release`
 
 See also:
 
@@ -148,7 +149,8 @@ See also:
 The active boundary is:
 
 - `release-service` starts deployment by creating/updating the Argo CD `Application`
-- `runtime-service` observes rollout state and writes release progress back through release writeback routes
+- `release-service` no longer polls Argo CD application status directly during release detail reads
+- `runtime-service` observes Kubernetes rollout state and writes release progress back through release writeback routes
 
 ## 4. Runtime read / action sequence diagram
 

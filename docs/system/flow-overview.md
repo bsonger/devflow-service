@@ -194,7 +194,8 @@ What happens:
 - `release-service` creates or updates an Argo CD `Application`
 - Argo CD pulls the release-owned OCI artifact
 - Argo CD syncs the rendered bundle into Kubernetes
-- `release-service` does not own long-running rollout observation
+- `release-service` stops at deployment initiation and does not own long-running rollout observation
+- `release-service` does not read Argo CD application status during normal release detail reads
 - rollout progress should be observed by `runtime-service` and written back onto the release record
 
 Key boundary rule:
@@ -215,6 +216,9 @@ Owning service:
 What happens:
 
 - runtime observer/index state tracks workload summary and pod state
+- runtime-service now also runs the rolling release rollout observer for active releases
+- that observer checks Kubernetes Deployment health for running rolling releases
+- it advances `start_deployment`, `observe_rollout`, and `finalize_release` through release writeback routes
 - runtime reads should come from runtime-owned observed data
 - runtime page display should not require direct Kubernetes reads for every refresh
 

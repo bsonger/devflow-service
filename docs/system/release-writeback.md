@@ -3,7 +3,7 @@
 ## Purpose
 
 This document defines the current repo-local operational contract for `release-service` writeback and observer callbacks.
-It is the owning doc for token-gated writeback routes such as Argo event status updates and release step progress updates.
+It is the owning doc for token-gated writeback routes such as release step progress updates and artifact writebacks.
 
 ## Current owner
 
@@ -75,6 +75,11 @@ internal/release/config/config.go
 Purpose:
 - update release-level status from Argo-side phase callbacks
 
+Current implementation note:
+
+- this route still exists, but it is no longer the primary rollout progression path for normal rolling releases
+- the active rolling rollout path is `runtime-service` observing Kubernetes Deployment state and posting `POST /api/v1/verify/release/steps`
+
 Expected behavior:
 - request body must include a valid `release_id`
 - invalid payload or malformed `release_id` returns `400 invalid_argument`
@@ -87,7 +92,7 @@ Current status mapping:
 - `failed` -> `Failed`
 - `error` -> `SyncFailed`
 - `running` -> `Running`
-- these callbacks are expected to come from `runtime-service` or another rollout observer, not from normal end-user traffic
+- these callbacks are expected to come from a rollout observer, not from normal end-user traffic
 - these callbacks should also advance `observe_rollout` step state with normalized messages such as:
   - `rollout is running in argocd`
   - `rollout observed as succeeded by argocd`
@@ -96,6 +101,11 @@ Current status mapping:
 
 Purpose:
 - update release step status and progress from external execution callbacks
+
+Current primary use:
+
+- Tekton / runtime-side observers should use this route for ongoing release step progression
+- rolling release rollout progression is now primarily written by the runtime-side Kubernetes rollout observer
 
 Expected behavior:
 - request body must include a valid `release_id`

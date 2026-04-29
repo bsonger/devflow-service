@@ -93,8 +93,9 @@ Target boundary:
 
 1. `release-service` creates or updates the Argo CD `Application`
 2. Argo CD syncs the release-owned OCI bundle into Kubernetes
-3. `runtime-service` observes Application / Rollout / Deployment / Pod state
-4. `runtime-service` writes rollout progress back through release writeback routes
+3. `release-service` does not poll Argo CD application status during normal release detail reads
+4. `runtime-service` observes rolling Deployment / Pod state in Kubernetes
+5. `runtime-service` writes rollout progress back through release writeback routes
 
 ## Downstream Consumers
 
