@@ -787,7 +787,6 @@ Boundary rule:
 
 - `release-service` should not be the primary long-running rollout observer
 - `runtime-service` should own deployment-progress observation and release step/status writeback
-- if current code still performs release-side Argo CD reads, treat that as transitional implementation residue rather than the target contract
 
 ## 9. Release remains the durable deployment record
 

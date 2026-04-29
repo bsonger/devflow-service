@@ -96,9 +96,6 @@ Target boundary:
 3. `runtime-service` observes Application / Rollout / Deployment / Pod state
 4. `runtime-service` writes rollout progress back through release writeback routes
 
-Current implementation still contains a release-side Argo CD read path during release detail reads.
-That behavior is implementation residue and should not be treated as the intended long-term service boundary.
-
 ## Downstream Consumers
 
 - platform orchestration layers

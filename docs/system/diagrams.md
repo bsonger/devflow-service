@@ -143,15 +143,12 @@ See also:
 - `docs/system/release-steps.md`
 - `docs/system/release-writeback.md`
 
-### Current implementation gap
+### Boundary note
 
-The desired boundary is:
+The active boundary is:
 
 - `release-service` starts deployment by creating/updating the Argo CD `Application`
 - `runtime-service` observes rollout state and writes release progress back through release writeback routes
-
-Current code still contains a release-side Argo CD read path during release detail reads.
-That direct read path is implementation residue and should not be treated as the long-term ownership model.
 
 ## 4. Runtime read / action sequence diagram
 
