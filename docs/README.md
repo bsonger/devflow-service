@@ -67,6 +67,7 @@ For resource CRUD behavior, list/filter/pagination rules, and resource-doc contr
 For architecture and service/resource flow diagrams, start with:
 
 - `docs/system/diagrams.md`
+- `docs/system/flow-overview.md`
 
 For runtime workload / pod display model, observer writeback, and the read-vs-action split, start with:
 

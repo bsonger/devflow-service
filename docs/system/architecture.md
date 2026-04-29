@@ -68,6 +68,7 @@ Repo-local docs are layered by purpose:
 For a visual companion to this document, use:
 
 - `docs/system/diagrams.md`
+- `docs/system/flow-overview.md`
 
 ## Non-goals
 
