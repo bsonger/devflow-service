@@ -25,7 +25,8 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 			},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Replicas: 2,
+			Replicas:           2,
+			ServiceAccountName: "demo-api",
 			Resources: map[string]any{
 				"limits": map[string]any{"cpu": "500m"},
 			},
@@ -59,9 +60,15 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if bundle.Resources.Deployment == nil {
 		t.Fatal("expected deployment")
 	}
+	if !strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "kind: ServiceAccount") {
+		t.Fatalf("bundle.yaml missing serviceaccount: %s", bundle.Files[len(bundle.Files)-1].Content)
+	}
 	containerSpec, ok := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)
 	if !ok || len(containerSpec) == 0 {
 		t.Fatalf("deployment containers missing: %#v", bundle.Resources.Deployment.Object)
+	}
+	if got := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["serviceAccountName"]; got != "demo-api" {
+		t.Fatalf("serviceAccountName = %#v", got)
 	}
 	ports, ok := containerSpec[0]["ports"].([]map[string]any)
 	if !ok || len(ports) != 1 {
@@ -83,7 +90,7 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if lastFile.Path != "bundle.yaml" {
 		t.Fatalf("expected bundle.yaml, got %q", lastFile.Path)
 	}
-	if !strings.Contains(lastFile.Content, "kind: ConfigMap") || !strings.Contains(lastFile.Content, "kind: Deployment") || !strings.Contains(lastFile.Content, "kind: VirtualService") {
+	if !strings.Contains(lastFile.Content, "kind: ConfigMap") || !strings.Contains(lastFile.Content, "kind: ServiceAccount") || !strings.Contains(lastFile.Content, "kind: Deployment") || !strings.Contains(lastFile.Content, "kind: VirtualService") {
 		t.Fatalf("bundle.yaml missing expected kinds: %s", lastFile.Content)
 	}
 }

@@ -72,9 +72,16 @@ func buildReleaseBundle(namespace, applicationName string, manifest *manifestdom
 }
 
 func renderReleaseBundleResources(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) ([]model.ReleaseRenderedResource, error) {
-	objects := make([]model.ReleaseRenderedResource, 0, len(manifest.ServicesSnapshot)+3)
+	objects := make([]model.ReleaseRenderedResource, 0, len(manifest.ServicesSnapshot)+4)
 	if configMap := buildReleaseConfigMap(namespace, applicationName, release); configMap != nil {
 		item, err := marshalReleaseRenderedObject("ConfigMap", applicationName, namespace, configMap)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, item)
+	}
+	if serviceAccount := buildReleaseServiceAccount(namespace, manifest.WorkloadConfigSnapshot.ServiceAccountName); serviceAccount != nil {
+		item, err := marshalReleaseRenderedObject("ServiceAccount", strings.TrimSpace(manifest.WorkloadConfigSnapshot.ServiceAccountName), namespace, serviceAccount)
 		if err != nil {
 			return nil, err
 		}
@@ -101,6 +108,22 @@ func renderReleaseBundleResources(namespace, applicationName string, manifest *m
 		objects = append(objects, item)
 	}
 	return objects, nil
+}
+
+func buildReleaseServiceAccount(namespace, name string) map[string]any {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	metadata := map[string]any{"name": name}
+	if namespace != "" {
+		metadata["namespace"] = namespace
+	}
+	return map[string]any{
+		"apiVersion": "v1",
+		"kind":       "ServiceAccount",
+		"metadata":   metadata,
+	}
 }
 
 func buildReleaseConfigMap(namespace, applicationName string, release *model.Release) map[string]any {

@@ -1,8 +1,12 @@
 package service
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -56,6 +60,66 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	}
 	if app.Spec.Destination.Server != target.DestinationServer {
 		t.Fatalf("server = %q", app.Spec.Destination.Server)
+	}
+}
+
+func TestReconcileReleaseFromArgoApplicationMarksSucceeded(t *testing.T) {
+	release := &model.Release{
+		BaseModel: model.BaseModel{ID: uuid.New()},
+		Type:      model.ReleaseUpgrade,
+		Status:    model.ReleaseRunning,
+		Steps:     model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+	}
+	app := &appv1.Application{}
+	app.Status.Sync.Status = appv1.SyncStatusCodeSynced
+	app.Status.Health.Status = "Healthy"
+	app.Status.OperationState = &appv1.OperationState{Phase: "Succeeded"}
+
+	changed := reconcileReleaseFromArgoApplication(release, app)
+	if !changed {
+		t.Fatal("expected release reconciliation to change state")
+	}
+	if release.Status != model.ReleaseSucceeded {
+		t.Fatalf("status = %q want %q", release.Status, model.ReleaseSucceeded)
+	}
+	for _, code := range []string{"start_deployment", "observe_rollout", "finalize_release"} {
+		step := findReleaseStep(release.Steps, code)
+		if step == nil {
+			t.Fatalf("step %s not found", code)
+		}
+		if step.Status != model.StepSucceeded {
+			t.Fatalf("%s status = %q", code, step.Status)
+		}
+	}
+}
+
+func TestReconcileReleaseFromArgoApplicationMarksFailed(t *testing.T) {
+	release := &model.Release{
+		BaseModel: model.BaseModel{ID: uuid.New()},
+		Type:      model.ReleaseUpgrade,
+		Status:    model.ReleaseRunning,
+		Steps:     model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+	}
+	app := &appv1.Application{}
+	app.Status.Sync.Status = appv1.SyncStatusCodeOutOfSync
+	app.Status.Health.Status = "Degraded"
+	app.Status.OperationState = &appv1.OperationState{Phase: "Failed"}
+
+	changed := reconcileReleaseFromArgoApplication(release, app)
+	if !changed {
+		t.Fatal("expected release reconciliation to change state")
+	}
+	if release.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q want %q", release.Status, model.ReleaseFailed)
+	}
+	for _, code := range []string{"start_deployment", "observe_rollout", "finalize_release"} {
+		step := findReleaseStep(release.Steps, code)
+		if step == nil {
+			t.Fatalf("step %s not found", code)
+		}
+		if step.Status != model.StepFailed {
+			t.Fatalf("%s status = %q", code, step.Status)
+		}
 	}
 }
 
@@ -142,6 +206,50 @@ func TestDeriveReleaseArtifactMetadataFromBundlePrefersDigestRef(t *testing.T) {
 	}
 	if ref != "oci://registry.example.com/devflow/releases/demo-api@"+digest {
 		t.Fatalf("ref = %q", ref)
+	}
+}
+
+func TestBuildReleaseBundleArchiveProducesTarGz(t *testing.T) {
+	bundle := &model.ReleaseBundle{
+		Files: []model.ReleaseBundleFile{
+			{Path: "01-service-demo-api.yaml", Content: "kind: Service\nmetadata:\n  name: demo-api\n"},
+			{Path: "bundle.yaml", Content: "kind: Service\n---\nkind: Deployment\n"},
+		},
+	}
+
+	archiveBytes, err := buildReleaseBundleArchive(bundle)
+	if err != nil {
+		t.Fatalf("buildReleaseBundleArchive failed: %v", err)
+	}
+
+	gzipReader, err := gzip.NewReader(bytes.NewReader(archiveBytes))
+	if err != nil {
+		t.Fatalf("gzip.NewReader failed: %v", err)
+	}
+	defer gzipReader.Close()
+
+	tarReader := tar.NewReader(gzipReader)
+	files := map[string]string{}
+	for {
+		header, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("tarReader.Next failed: %v", err)
+		}
+		payload, err := io.ReadAll(tarReader)
+		if err != nil {
+			t.Fatalf("io.ReadAll failed: %v", err)
+		}
+		files[header.Name] = string(payload)
+	}
+
+	if files["01-service-demo-api.yaml"] != "kind: Service\nmetadata:\n  name: demo-api\n" {
+		t.Fatalf("service archive entry = %q", files["01-service-demo-api.yaml"])
+	}
+	if files["bundle.yaml"] != "kind: Service\n---\nkind: Deployment\n" {
+		t.Fatalf("bundle archive entry = %q", files["bundle.yaml"])
 	}
 }
 
@@ -240,6 +348,64 @@ func TestPersistArgoApplicationMetadataUpdatesRelease(t *testing.T) {
 	}
 }
 
+func TestPersistArgoApplicationMetadataDoesNotOverwriteUpdatedSteps(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	stepsJSON, _ := marshalJSON(model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade), "[]")
+
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, strategy, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','rolling','Upgrade',$4,'Syncing',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	staleRelease, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	if err := svc.UpdateStep(context.Background(), releaseID, "render_deployment_bundle", model.StepSucceeded, 100, "bundle rendered", nil, nil); err != nil {
+		t.Fatalf("UpdateStep render_deployment_bundle failed: %v", err)
+	}
+	if err := svc.UpdateStep(context.Background(), releaseID, "create_argocd_application", model.StepRunning, 25, "creating argocd application", nil, nil); err != nil {
+		t.Fatalf("UpdateStep create_argocd_application failed: %v", err)
+	}
+
+	if err := svc.persistArgoApplicationMetadata(context.Background(), staleRelease, "demo-api"); err != nil {
+		t.Fatalf("persistArgoApplicationMetadata failed: %v", err)
+	}
+
+	updated, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get updated failed: %v", err)
+	}
+	renderStep := findReleaseStep(updated.Steps, "render_deployment_bundle")
+	if renderStep == nil {
+		t.Fatal("render_deployment_bundle step not found")
+	}
+	if renderStep.Status != model.StepSucceeded {
+		t.Fatalf("render_deployment_bundle status = %q", renderStep.Status)
+	}
+	createStep := findReleaseStep(updated.Steps, "create_argocd_application")
+	if createStep == nil {
+		t.Fatal("create_argocd_application step not found")
+	}
+	if createStep.Status != model.StepRunning {
+		t.Fatalf("create_argocd_application status = %q", createStep.Status)
+	}
+	if updated.ArgoCDApplicationName != "demo-api" {
+		t.Fatalf("argocd_application_name = %q", updated.ArgoCDApplicationName)
+	}
+	if updated.ExternalRef != "demo-api" {
+		t.Fatalf("external_ref = %q", updated.ExternalRef)
+	}
+}
+
 func TestPublishDeploymentBundleRecordsArtifactMetadataWhenRegistryEnabled(t *testing.T) {
 	setupTestDB(t)
 	originalRuntimeConfig := releasesupport.CurrentRuntimeConfig()
@@ -279,6 +445,9 @@ func TestPublishDeploymentBundleRecordsArtifactMetadataWhenRegistryEnabled(t *te
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
+	}
+	if err := svc.renderDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
+		t.Fatalf("renderDeploymentBundle failed: %v", err)
 	}
 	if err := svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
 		t.Fatalf("publishDeploymentBundle failed: %v", err)
@@ -334,6 +503,9 @@ func TestPublishDeploymentBundleMarksStepWhenRegistryDisabled(t *testing.T) {
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
+	}
+	if err := svc.renderDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
+		t.Fatalf("renderDeploymentBundle failed: %v", err)
 	}
 	if err := svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
 		t.Fatalf("publishDeploymentBundle failed: %v", err)
@@ -403,6 +575,9 @@ func TestPublishDeploymentBundleMarksStepFailedWhenPublisherFails(t *testing.T) 
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
+	}
+	if err := svc.renderDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
+		t.Fatalf("renderDeploymentBundle failed: %v", err)
 	}
 	err = svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"})
 	if err == nil || err.Error() != "publisher failed" {
@@ -506,6 +681,9 @@ func TestPublishDeploymentBundleUsesOrasPublisherMode(t *testing.T) {
 			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080}}},
 		},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
+	}
+	if err := svc.renderDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
+		t.Fatalf("renderDeploymentBundle failed: %v", err)
 	}
 	if err := svc.publishDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
 		t.Fatalf("publishDeploymentBundle failed: %v", err)

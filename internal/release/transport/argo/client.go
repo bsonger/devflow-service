@@ -51,6 +51,10 @@ func UpdateApplication(ctx context.Context, app *appv1.Application) error {
 	return applyApplication(ctx, Client.ArgoprojV1alpha1().Applications(namespace), app)
 }
 
+func GetApplication(ctx context.Context, name string) (*appv1.Application, error) {
+	return Client.ArgoprojV1alpha1().Applications(namespace).Get(ctx, name, metav1.GetOptions{})
+}
+
 func applyApplication(ctx context.Context, applications applicationAPI, app *appv1.Application) error {
 	current, err := applications.Get(ctx, app.Name, metav1.GetOptions{})
 	if err != nil {

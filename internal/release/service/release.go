@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -37,11 +39,12 @@ type ReleaseListFilter struct {
 	Type           string
 }
 
-var ReleaseService = &releaseService{store: repository.NewPostgresStore()}
+var ReleaseService = &releaseService{store: repository.NewPostgresStore(), bundleStore: repository.NewBundlePostgresStore()}
 
 var (
 	ErrReleaseManifestNotReady = sharederrs.FailedPrecondition("manifest is not ready")
 	ErrReleaseAppConfigMissing = sharederrs.FailedPrecondition("effective app config is missing")
+	ErrReleaseBundleNotReady   = sharederrs.FailedPrecondition("bundle not ready")
 )
 
 type releaseManifestReader interface {
@@ -59,7 +62,8 @@ type releaseConfigReader interface {
 var releaseManifestSource releaseManifestReader = manifestservice.ManifestService
 
 type releaseService struct {
-	store repository.Store
+	store       repository.Store
+	bundleStore repository.BundleStore
 }
 
 func (s *releaseService) repoStore() repository.Store {
@@ -67,6 +71,13 @@ func (s *releaseService) repoStore() repository.Store {
 		s.store = repository.NewPostgresStore()
 	}
 	return s.store
+}
+
+func (s *releaseService) repoBundleStore() repository.BundleStore {
+	if s.bundleStore == nil {
+		s.bundleStore = repository.NewBundlePostgresStore()
+	}
+	return s.bundleStore
 }
 
 func populateReleaseDefaults(release *model.Release, applicationId uuid.UUID, environmentId string) {
@@ -288,35 +299,45 @@ func (s *releaseService) handleSyncArgoError(ctx context.Context, release *model
 }
 
 func (s *releaseService) Get(ctx context.Context, id uuid.UUID) (*model.Release, error) {
-	return s.repoStore().Get(ctx, id)
+	if err := s.reconcileObservedState(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.loadRelease(ctx, id)
 }
 
-func (s *releaseService) GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundle, error) {
-	release, err := s.Get(ctx, id)
+func (s *releaseService) loadRelease(ctx context.Context, id uuid.UUID) (*model.Release, error) {
+	release, err := s.repoStore().Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	app, err := releasesupport.ApplicationService.Get(ctx, release.ApplicationID)
+	s.attachBundleSummary(ctx, release)
+	return release, nil
+}
+
+func (s *releaseService) GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundlePreview, error) {
+	release, err := s.loadRelease(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	bundle, err := s.repoBundleStore().GetByReleaseID(ctx, release.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			step := findReleaseStep(release.Steps, "render_deployment_bundle")
+			if step == nil || step.Status != model.StepSucceeded {
+				return nil, ErrReleaseBundleNotReady
+			}
+		}
 		return nil, err
 	}
 	manifest, err := releaseManifestSource.Get(ctx, release.ManifestID)
 	if err != nil {
 		return nil, err
 	}
-	target, err := releasesupport.ResolveDeployTarget(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
-	if err != nil {
-		return nil, err
-	}
-	applicationName := ""
-	if app != nil {
-		applicationName = app.Name
-	}
-	return buildReleaseBundle(target.Namespace, applicationName, manifest, release)
+	return buildReleaseBundlePreview(release, manifest, bundle), nil
 }
 
 func (s *releaseService) Update(ctx context.Context, release *model.Release) error {
-	current, err := s.Get(ctx, release.ID)
+	current, err := s.loadRelease(ctx, release.ID)
 	if err != nil {
 		return err
 	}
@@ -327,7 +348,7 @@ func (s *releaseService) Update(ctx context.Context, release *model.Release) err
 }
 
 func (s *releaseService) UpdateArtifact(ctx context.Context, releaseID uuid.UUID, repository, tag, digest, ref, message string, status model.StepStatus, progress int32) error {
-	release, err := s.Get(ctx, releaseID)
+	release, err := s.loadRelease(ctx, releaseID)
 	if err != nil {
 		return err
 	}
@@ -368,11 +389,34 @@ func (s *releaseService) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *releaseService) List(ctx context.Context, filter ReleaseListFilter) ([]*model.Release, error) {
-	return s.repoStore().List(ctx, repository.ListFilter(filter))
+	releases, err := s.repoStore().List(ctx, repository.ListFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	for _, release := range releases {
+		s.attachBundleSummary(ctx, release)
+	}
+	return releases, nil
+}
+
+func (s *releaseService) attachBundleSummary(ctx context.Context, release *model.Release) {
+	if release == nil {
+		return
+	}
+	bundle, err := s.repoBundleStore().GetByReleaseID(ctx, release.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			release.BundleSummary = nil
+			return
+		}
+		release.BundleSummary = nil
+		return
+	}
+	release.BundleSummary = buildReleaseBundleSummary(release, bundle)
 }
 
 func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, status model.ReleaseStatus) error {
-	release, err := s.Get(ctx, releaseID)
+	release, err := s.loadRelease(ctx, releaseID)
 	if err != nil {
 		return err
 	}
@@ -419,7 +463,7 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 	if progress > 100 {
 		progress = 100
 	}
-	release, err := s.Get(ctx, releaseID)
+	release, err := s.loadRelease(ctx, releaseID)
 	if err != nil {
 		return err
 	}
@@ -542,6 +586,207 @@ func (s *releaseService) executeReleasePhases(ctx context.Context, release *mode
 	return nil
 }
 
+func (s *releaseService) reconcileObservedState(ctx context.Context, releaseID uuid.UUID) error {
+	release, err := s.loadRelease(ctx, releaseID)
+	if err != nil {
+		return err
+	}
+	if release == nil {
+		return nil
+	}
+	switch release.Status {
+	case model.ReleaseSucceeded, model.ReleaseFailed, model.ReleaseRolledBack, model.ReleaseSyncFailed:
+		return nil
+	}
+	if release.Status != model.ReleaseRunning && release.Status != model.ReleaseSyncing {
+		return nil
+	}
+	appName := strings.TrimSpace(release.ArgoCDApplicationName)
+	if appName == "" {
+		return nil
+	}
+	if argoclient.Client == nil {
+		return nil
+	}
+	app, err := argoclient.GetApplication(ctx, appName)
+	if err != nil {
+		return err
+	}
+	changed := reconcileReleaseFromArgoApplication(release, app)
+	if !changed {
+		return nil
+	}
+	release.UpdatedAt = time.Now()
+	return s.repoStore().UpdateRow(ctx, release)
+}
+
+func reconcileReleaseFromArgoApplication(release *model.Release, app *appv1.Application) bool {
+	if release == nil || app == nil {
+		return false
+	}
+	phase := ""
+	if app.Status.OperationState != nil {
+		phase = strings.ToLower(strings.TrimSpace(string(app.Status.OperationState.Phase)))
+	}
+	health := strings.ToLower(strings.TrimSpace(string(app.Status.Health.Status)))
+	syncStatus := strings.ToLower(strings.TrimSpace(string(app.Status.Sync.Status)))
+
+	changed := false
+	switch {
+	case isArgoFailure(phase, health):
+		changed = setReleaseStepState(release, "start_deployment", model.StepFailed, 100, argoDeploymentFailureMessage(phase, health, syncStatus)) || changed
+		changed = setReleaseStepState(release, "observe_rollout", model.StepFailed, 100, argoObserveFailureMessage(phase, health, syncStatus)) || changed
+		changed = setReleaseStepState(release, "finalize_release", model.StepFailed, 100, argoFinalizeFailureMessage(phase, health, syncStatus)) || changed
+		nextStatus := model.ReleaseFailed
+		if phase == "error" {
+			nextStatus = model.ReleaseSyncFailed
+		}
+		if release.Status != nextStatus {
+			release.Status = nextStatus
+			changed = true
+		}
+	case isArgoHealthy(phase, health, syncStatus):
+		changed = setReleaseStepState(release, "start_deployment", model.StepSucceeded, 100, argoDeploymentSuccessMessage(app)) || changed
+		changed = setReleaseStepState(release, "observe_rollout", model.StepSucceeded, 100, argoObserveSuccessMessage(app)) || changed
+		changed = setReleaseStepState(release, "finalize_release", model.StepSucceeded, 100, argoFinalizeSuccessMessage(app)) || changed
+		nextStatus := model.ReleaseSucceeded
+		if release.Type == model.ReleaseRollback {
+			nextStatus = model.ReleaseRolledBack
+		}
+		if release.Status != nextStatus {
+			release.Status = nextStatus
+			changed = true
+		}
+	case isArgoRunning(phase, health, syncStatus):
+		changed = setReleaseStepState(release, "start_deployment", model.StepRunning, 50, argoDeploymentRunningMessage(app)) || changed
+		changed = setReleaseStepState(release, "observe_rollout", model.StepRunning, 50, argoObserveRunningMessage(app)) || changed
+		if release.Status != model.ReleaseRunning {
+			release.Status = model.ReleaseRunning
+			changed = true
+		}
+	}
+	return changed
+}
+
+func setReleaseStepState(release *model.Release, stepName string, status model.StepStatus, progress int32, message string) bool {
+	if release == nil || stepName == "" {
+		return false
+	}
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 100 {
+		progress = 100
+	}
+	now := time.Now()
+	for i := range release.Steps {
+		if release.Steps[i].Code != stepName && release.Steps[i].Name != stepName {
+			continue
+		}
+		changed := false
+		if release.Steps[i].Status != status {
+			release.Steps[i].Status = status
+			changed = true
+		}
+		if release.Steps[i].Progress != progress {
+			release.Steps[i].Progress = progress
+			changed = true
+		}
+		if strings.TrimSpace(message) != "" && release.Steps[i].Message != message {
+			release.Steps[i].Message = message
+			changed = true
+		}
+		if status == model.StepRunning {
+			if release.Steps[i].StartTime == nil {
+				release.Steps[i].StartTime = &now
+				changed = true
+			}
+			if release.Steps[i].EndTime != nil {
+				release.Steps[i].EndTime = nil
+				changed = true
+			}
+		}
+		if status == model.StepSucceeded || status == model.StepFailed {
+			if release.Steps[i].StartTime == nil {
+				release.Steps[i].StartTime = &now
+				changed = true
+			}
+			if release.Steps[i].EndTime == nil {
+				release.Steps[i].EndTime = &now
+				changed = true
+			}
+		}
+		return changed
+	}
+	release.Steps = append(release.Steps, model.ReleaseStep{
+		Code:      stepName,
+		Name:      stepName,
+		Status:    status,
+		Progress:  progress,
+		Message:   message,
+		StartTime: &now,
+		EndTime:   endTimeForStatus(status, &now),
+	})
+	return true
+}
+
+func endTimeForStatus(status model.StepStatus, now *time.Time) *time.Time {
+	if status == model.StepSucceeded || status == model.StepFailed {
+		return now
+	}
+	return nil
+}
+
+func isArgoFailure(phase, health string) bool {
+	return phase == "failed" || phase == "error" || health == "degraded" || health == "missing"
+}
+
+func isArgoHealthy(phase, health, syncStatus string) bool {
+	return health == "healthy" && (phase == "succeeded" || phase == "" || syncStatus == "synced")
+}
+
+func isArgoRunning(phase, health, syncStatus string) bool {
+	if phase == "running" {
+		return true
+	}
+	if health == "progressing" || health == "suspended" {
+		return true
+	}
+	return syncStatus == "outofsync"
+}
+
+func argoDeploymentRunningMessage(app *appv1.Application) string {
+	return fmt.Sprintf("argocd deployment running (sync=%s, health=%s)", app.Status.Sync.Status, app.Status.Health.Status)
+}
+
+func argoObserveRunningMessage(app *appv1.Application) string {
+	return fmt.Sprintf("argocd rollout in progress (sync=%s, health=%s)", app.Status.Sync.Status, app.Status.Health.Status)
+}
+
+func argoDeploymentSuccessMessage(app *appv1.Application) string {
+	return fmt.Sprintf("argocd deployment synced successfully (sync=%s, health=%s)", app.Status.Sync.Status, app.Status.Health.Status)
+}
+
+func argoObserveSuccessMessage(app *appv1.Application) string {
+	return fmt.Sprintf("argocd rollout healthy (sync=%s, health=%s)", app.Status.Sync.Status, app.Status.Health.Status)
+}
+
+func argoFinalizeSuccessMessage(app *appv1.Application) string {
+	return fmt.Sprintf("release finalized from argocd state (sync=%s, health=%s)", app.Status.Sync.Status, app.Status.Health.Status)
+}
+
+func argoDeploymentFailureMessage(phase, health, syncStatus string) string {
+	return fmt.Sprintf("argocd deployment failed (phase=%s, sync=%s, health=%s)", firstNonEmptyString(phase, "unknown"), firstNonEmptyString(syncStatus, "unknown"), firstNonEmptyString(health, "unknown"))
+}
+
+func argoObserveFailureMessage(phase, health, syncStatus string) string {
+	return fmt.Sprintf("argocd rollout failed (phase=%s, sync=%s, health=%s)", firstNonEmptyString(phase, "unknown"), firstNonEmptyString(syncStatus, "unknown"), firstNonEmptyString(health, "unknown"))
+}
+
+func argoFinalizeFailureMessage(phase, health, syncStatus string) string {
+	return fmt.Sprintf("release finalized as failed from argocd state (phase=%s, sync=%s, health=%s)", firstNonEmptyString(phase, "unknown"), firstNonEmptyString(syncStatus, "unknown"), firstNonEmptyString(health, "unknown"))
+}
+
 func (s *releaseService) renderDeploymentBundle(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
 	if err := s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepRunning, 25, "rendering deployment bundle", nil, nil); err != nil {
 		return err
@@ -555,6 +800,11 @@ func (s *releaseService) renderDeploymentBundle(ctx context.Context, release *mo
 		_ = s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepFailed, 100, err.Error(), nil, nil)
 		return err
 	}
+	record := newReleaseBundleRecord(bundle)
+	if err := s.repoBundleStore().Insert(ctx, record); err != nil {
+		_ = s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepFailed, 100, err.Error(), nil, nil)
+		return err
+	}
 	message := fmt.Sprintf("deployment bundle rendered (%d resources, %d files)", len(bundle.RenderedObjects), len(bundle.Files))
 	return s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepSucceeded, 100, message, nil, nil)
 }
@@ -564,18 +814,15 @@ func (s *releaseService) publishDeploymentBundle(ctx context.Context, release *m
 	if err := s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepRunning, 25, publishBundleStartMessage(runtimeCfg), nil, nil); err != nil {
 		return err
 	}
-	if !runtimeCfg.ManifestRegistryEnabled {
-		return s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepSucceeded, 100, "bundle publication skipped; manifest registry disabled", nil, nil)
-	}
-	applicationName := ""
-	if app != nil {
-		applicationName = app.Name
-	}
-	bundle, err := buildReleaseBundle(target.Namespace, applicationName, manifest, release)
+	bundleRecord, err := s.repoBundleStore().GetByReleaseID(ctx, release.ID)
 	if err != nil {
 		_ = s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepFailed, 100, err.Error(), nil, nil)
 		return err
 	}
+	if !runtimeCfg.ManifestRegistryEnabled {
+		return s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepSucceeded, 100, "bundle publication skipped; manifest registry disabled", nil, nil)
+	}
+	bundle := buildReleaseBundleFromRecord(release, bundleRecord)
 	publisher := resolveReleaseBundlePublisher(runtimeCfg)
 	result, err := publisher.PublishBundle(ctx, ReleaseBundlePublishRequest{
 		Release:        release,
@@ -749,10 +996,11 @@ func (s *releaseService) persistArgoApplicationMetadata(ctx context.Context, rel
 	if release.ArgoCDApplicationName == appName && release.ExternalRef == appName {
 		return nil
 	}
+	updatedAt := time.Now()
 	release.ArgoCDApplicationName = appName
 	release.ExternalRef = appName
-	release.UpdatedAt = time.Now()
-	return s.repoStore().UpdateRow(ctx, release)
+	release.UpdatedAt = updatedAt
+	return s.repoStore().UpdateArgoMetadata(ctx, release.ID, appName, appName, updatedAt)
 }
 
 func releaseDeploymentStartStep(release *model.Release) (string, string) {
