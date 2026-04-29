@@ -372,6 +372,7 @@ As of April 29, 2026:
 - `GET /api/v1/runtime/workload` is deployed on pre-production and returns workload overview data
 - the runtime-service database schema includes `runtime_observed_workloads`
 - runtime-service code can accept internal workload sync callbacks
+- runtime-service observer has been verified to repopulate deleted workload and pod observed rows automatically in pre-production
 
 Remaining operational gap:
 

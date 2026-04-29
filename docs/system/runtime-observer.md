@@ -66,6 +66,7 @@ As of April 29, 2026:
 - runtime-service supports internal workload summary sync
 - the pre-production database contains `runtime_observed_workloads`
 - shared ingress has been verified for public `GET /api/v1/runtime/workload`
+- pre-production runtime-service has been verified to repopulate both workload and pod index rows automatically after those rows are deleted from PostgreSQL
 
 Known remaining gap:
 

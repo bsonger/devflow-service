@@ -207,6 +207,7 @@ As of April 29, 2026:
 - pre-production runtime-service has been updated to serve `GET /api/v1/runtime/workload`
 - pre-production database includes `runtime_observed_workloads`
 - public workload overview reads are working through shared ingress
+- pre-production runtime-service has been verified to restore deleted workload and pod observed rows automatically on the next observer poll cycle
 
 Known remaining gap:
 
