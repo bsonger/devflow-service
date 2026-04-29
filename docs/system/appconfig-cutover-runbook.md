@@ -124,10 +124,11 @@ For each active AppConfig ID:
 curl -X POST "$CONFIG_SERVICE_BASE_URL/api/v1/config/app-configs/{id}/sync-from-repo"
 ```
 
-Validate one sample:
+Validate one sample (detail or list both work; both should expose latest synced `files` / `source_commit`):
 
 ```sh
 curl "$CONFIG_SERVICE_BASE_URL/api/v1/config/app-configs/{id}"
+curl "$CONFIG_SERVICE_BASE_URL/api/v1/config/app-configs?application_id={application_id}&environment_id={environment_id}"
 ```
 
 Expected sample response characteristics:

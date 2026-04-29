@@ -116,12 +116,12 @@ Pre-production shared ingress external surface:
 ## Validation notes
 
 - invalid UUID path or query parameters return `invalid_argument`
-- `GET /api/v1/app-configs` requires both `application_id` and `environment_id`
+- `GET /api/v1/app-configs` requires both `application_id` and `environment_id` and returns the latest revision-backed `files` / `source_commit` payload when a synced revision exists
 - `environment_id` is documented as a string because it is an identifier field, but the current implementation requires a valid environment UUID string
 - `POST /api/v1/config/app-configs` on the shared ingress creates one record per unique `application_id + environment_id`; duplicate active pairs return `invalid_argument` from the current handler mapping
 - `application_id + environment_id` must be unique among non-deleted records
 - `mount_path` defaults to `/etc/config` when omitted
-- `files`, `source_directory`, and `source_commit` are populated from the latest synced revision
+- `GET /api/v1/app-configs/{id}` and `GET /api/v1/app-configs?application_id=...&environment_id=...` both populate `files`, `source_directory`, and `source_commit` from the latest synced revision when one exists
 - `source_directory` records the effective directory inside the GitHub config repository used by the latest sync
 - rendered configmap output is not stored on `AppConfig`; release-time rendering owns that step
 - live PostgreSQL cutover for this shape is tracked in `deployments/pre-production/database/appconfig-hard-cutover.sql`

@@ -99,7 +99,7 @@ For each active application/environment pair:
 
 Check:
 
-1. the service-internal route `GET /api/v1/app-configs?application_id=...&environment_id=...` returns exactly one active AppConfig
+1. the service-internal route `GET /api/v1/app-configs?application_id=...&environment_id=...` returns exactly one active AppConfig and includes latest synced `files` / `source_commit` when a revision exists
    - on the pre-production shared ingress, use `GET /api/v1/config/app-configs?application_id=...&environment_id=...`
 2. `mount_path` defaults to `/etc/config` when omitted
 3. release rendering does not depend on `rendered_configmap`
