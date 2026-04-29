@@ -5,6 +5,7 @@
 `devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
 The active local migration focuses on `meta-service`, while `config-service`, `network-service`, `release-service`, and `runtime-service` have also been brought into the same root-level `cmd` and `internal` layout.
 Inside `internal/`, release-owned business resources now follow the same top-level split pattern as the rest of the repo: `internal/manifest`, `internal/intent`, plus release-specific assembly and adapters in `internal/release`.
+At the service-dependency layer, `release-service` is the main cross-service composer: it reads upstream truth from `meta-service`, `config-service`, and `network-service`, then freezes that data into release-owned `Manifest` and `Release` records. `runtime-service` is primarily a Kubernetes-facing runtime operations service, even though current implementation details still include some persisted runtime records.
 
 ## Root structure
 

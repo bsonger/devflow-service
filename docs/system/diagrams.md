@@ -22,19 +22,33 @@ flowchart LR
     User --> RS[release-service]
     User --> RTS[runtime-service]
 
-    CS --> PG[(PostgreSQL)]
-    NS --> PG
-    RS --> PG
-    RTS --> PG
+    META[meta-service]
+    PG[(PostgreSQL)]
+    KS[Kubernetes API]
+    TK[Tekton]
+    ARGO[Argo CD]
+    ZOT[zot OCI registry]
+    ALIYUN[Aliyun image registry]
 
-    RS --> TK[Tekton]
-    RS --> ARGO[Argo CD]
-    RS --> ZOT[zot OCI registry]
-    RS --> KS[Kubernetes API]
+    CS --> META
+    CS --> PG
+
+    NS --> META
+    NS --> PG
+
+    RS --> META
+    RS --> CS
+    RS --> NS
+    RS --> PG
+    RS --> TK
+    RS --> ARGO
+    RS --> ZOT
+    RS --> KS
 
     RTS --> KS
+    RTS -. current implementation still persists runtime records .-> PG
 
-    TK --> ALIYUN[Aliyun image registry]
+    TK --> ALIYUN
     ARGO --> ZOT
     ARGO --> KS
 ```
@@ -45,36 +59,65 @@ flowchart LR
 - `network-service` owns `Service` and `Route`
 - `release-service` owns `Manifest`, `Release`, `Image`, and `Intent`
 - `runtime-service` owns runtime inspection and runtime operations
-- all four services currently depend on the shared PostgreSQL cluster
+- `release-service` is the main cross-service composer: it reads application / environment / cluster metadata from `meta-service`, workload and app config from `config-service`, and network topology from `network-service`
+- `runtime-service` should be understood as Kubernetes-first; current code still contains runtime persistence in PostgreSQL, but pod listing / pod delete / rollout restart are Kubernetes-driven operations
 
-## 2. Manifest / Release sequence diagram
+## 2. Manifest build sequence diagram
 
 ```mermaid
 sequenceDiagram
     participant U as Platform / Operator
     participant RS as release-service
+    participant META as meta-service
+    participant CS as config-service
+    participant NS as network-service
     participant TK as Tekton
     participant IMG as Image Registry
-    participant ZOT as zot
-    participant ARGO as Argo CD
-    participant K8S as Kubernetes
     participant PG as PostgreSQL
 
     U->>RS: POST /api/v1/release/manifests
-    RS->>PG: create manifest row
+    RS->>META: resolve application projection
+    RS->>CS: read workload config
+    RS->>NS: read services
     RS->>TK: start image build pipeline
+    RS->>PG: create manifest row with frozen snapshots
     TK->>IMG: build and push application image
     TK->>RS: write back task / status / result
     RS->>PG: update manifest status to Ready/Succeeded
+```
+
+### Notes
+
+- `Manifest` is the release-owned durable build record
+- its frozen inputs come from `meta-service`, `config-service`, and `network-service`
+- Tekton produces the image result, but the durable system record lives on the manifest row
+
+## 3. Release deploy sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant U as Platform / Operator
+    participant RS as release-service
+    participant META as meta-service
+    participant CS as config-service
+    participant NS as network-service
+    participant PG as PostgreSQL
+    participant ZOT as zot
+    participant ARGO as Argo CD
+    participant K8S as Kubernetes
 
     U->>RS: POST /api/v1/release/releases
-    RS->>PG: create release row + freeze inputs
+    RS->>PG: read frozen manifest
+    RS->>CS: read app config for target environment
+    RS->>NS: read routes for target environment
+    RS->>META: resolve application / environment / cluster deploy target
+    RS->>PG: create release row + freeze live inputs
     RS->>PG: store rendered release bundle
     RS->>ZOT: publish deployment bundle as OCI artifact
     RS->>ARGO: create or update Application
     RS->>ARGO: request sync
     ARGO->>ZOT: pull OCI bundle
-    ARGO->>K8S: apply ServiceAccount / ConfigMap / Service / Deployment
+    ARGO->>K8S: apply ServiceAccount / ConfigMap / Service / Deployment / VirtualService
     RS->>ARGO: read Application status
     RS->>PG: reconcile release steps + final status
 ```
@@ -96,7 +139,7 @@ See also:
 - `docs/system/release-steps.md`
 - `docs/system/release-writeback.md`
 
-## 3. Resource ownership diagram
+## 4. Resource ownership diagram
 
 ```mermaid
 flowchart TB
@@ -133,10 +176,11 @@ flowchart TB
 - `AppConfig` is config-owned and is consumed by release at freeze time
 - runtime data is runtime-owned even when release reads deployment health indirectly through Argo
 
-## 4. Cross-service resource dependency view
+## 5. Cross-service resource dependency view
 
 ```mermaid
 flowchart LR
+    APPMETA[Application / Environment / Cluster]
     AC[AppConfig]
     WC[WorkloadConfig]
     SVC[Service]
@@ -146,10 +190,12 @@ flowchart LR
     APP[Argo Application]
     WK[Workload in Kubernetes]
 
-    AC --> RL
-    SVC --> MF
+    APPMETA --> MF
+    APPMETA --> RL
     WC --> MF
+    SVC --> MF
     MF --> RL
+    AC --> RL
     RT --> RL
     RL --> APP
     APP --> WK
@@ -157,9 +203,10 @@ flowchart LR
 
 ### Notes
 
-- `Manifest` freezes workload and service snapshot
-- `Release` freezes app config and route snapshot at release time
+- `Manifest` freezes application metadata, workload config, and service snapshot for build-time and later deploy-time consumption
+- `Release` freezes app config and route snapshot at release time, then resolves the final deploy target from meta-service
 - Argo deploys the release-generated bundle, not the original Git config repo directly
+- runtime pod inspection and runtime operations act on live Kubernetes workloads rather than reading release state from PostgreSQL first
 
 ## Source pointers
 

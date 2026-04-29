@@ -22,6 +22,7 @@ Its core jobs are:
 
 From the external API point of view, this service should be understood as a runtime operations surface first.
 The internal storage model may still use `RuntimeSpec`, `RuntimeSpecRevision`, `RuntimeObservedPod`, and `RuntimeOperation`, but those are supporting implementation details rather than the primary API story.
+For operator understanding, the dependency model should be Kubernetes-first, not PostgreSQL-first. Current code still contains PostgreSQL-backed runtime persistence, but that should be treated as an implementation detail or migration residue rather than the main API contract.
 
 ## Main operator flows
 

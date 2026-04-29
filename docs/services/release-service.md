@@ -4,6 +4,9 @@
 
 `release-service` owns build artifact records, deployment intent, release execution, and verify/writeback callbacks.
 
+It is also the main cross-service orchestration boundary for build and deploy.
+It does not own upstream resource truth such as application metadata, app config, workload config, services, or routes, but it composes those facts into frozen manifest and release records.
+
 ## Owns
 
 - `Manifest`
@@ -29,12 +32,58 @@
 - `RuntimeObservedPod`
 - `RuntimeOperation`
 
-## Upstream Dependencies
+## Dependency model
+
+`release-service` depends on both persisted release data and upstream service truth.
+
+### Control-plane and persistence dependencies
 
 - PostgreSQL
 - Tekton
 - Argo CD
 - Kubernetes API
+- OCI registry for deployment bundle publication in pre-production (`zot`)
+
+### Upstream business dependencies
+
+- `meta-service`
+  - application metadata
+  - environment metadata
+  - cluster metadata
+  - deploy target resolution
+- `config-service`
+  - workload config during manifest creation
+  - app config during release creation
+- `network-service`
+  - service topology during manifest creation
+  - route topology during release creation
+
+## Dependency detail by workflow
+
+### Manifest create path
+
+When creating a manifest, `release-service` composes these upstream facts:
+
+1. read application projection from `meta-service`
+2. read workload config from `config-service`
+3. read service list from `network-service`
+4. derive image target and submit Tekton build
+5. persist one frozen manifest record in PostgreSQL
+
+This means `Manifest` is a release-owned record, but some of its frozen inputs come from other services.
+
+### Release create path
+
+When creating a release, `release-service` composes these upstream facts:
+
+1. read frozen manifest from release-owned persistence
+2. read app config from `config-service`
+3. read route list from `network-service`
+4. resolve application / environment / cluster deploy target from `meta-service`
+5. freeze those live inputs onto the release row
+6. render, publish, and deploy the release bundle
+
+This means `Release` is also release-owned, but it is intentionally assembled from cross-service inputs at freeze time.
 
 ## Downstream Consumers
 
@@ -71,6 +120,7 @@ internal/release/
 Operational callback contract:
 
 - `docs/system/release-writeback.md`
+- `docs/system/release-steps.md`
 
 ## Diagnostics
 
@@ -86,6 +136,26 @@ Runtime endpoints:
 - `/healthz`
 - `/readyz`
 - `/internal/status`
+
+## Pre-production OCI deployment bundle flow
+
+The current pre-production deployment path for release execution is:
+
+1. `release-service` renders one canonical deployment bundle for the release.
+2. `publish_bundle` packages that bundle as a single OCI tar.gz layer and pushes it to the configured OCI registry.
+3. The pre-production committed registry target is the in-cluster `zot` service, not the `zot-0` pod name.
+4. `create_argocd_application` creates an Argo CD `Application` whose source points at the published OCI artifact.
+5. Argo CD pulls the OCI artifact and syncs it into the target namespace.
+
+The committed pre-production config now expects:
+
+- `manifest_registry.registry = zot.zot.svc.cluster.local:5000`
+- `manifest_registry.namespace = devflow`
+- `manifest_registry.repository = releases`
+- `manifest_registry.plain_http = true`
+- `manifest_registry.mode = oras`
+
+Because release bundle repository paths are application-scoped under the `releases/` prefix, Argo CD should be configured with a repo-creds prefix secret rather than a single fixed repository entry.
 
 ## Verification
 
