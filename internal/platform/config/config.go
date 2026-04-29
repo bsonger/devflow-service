@@ -134,6 +134,10 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		_ = conn.Close()
 		return shutdown, err
 	}
+	if err := startReleaseRolloutObserver(ctx, config); err != nil {
+		_ = conn.Close()
+		return shutdown, err
+	}
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)
@@ -213,5 +217,18 @@ func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
 	return runtimeobserver.StartKubernetesRuntimeObserver(ctx, restCfg, runtimeobserver.KubernetesRuntimeObserverConfig{
 		Enabled:      true,
 		PollInterval: time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+	})
+}
+
+func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
+	restCfg, err := rest.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+	return runtimeobserver.StartReleaseRolloutObserver(ctx, restCfg, runtimeobserver.ReleaseRolloutObserverConfig{
+		Enabled:               true,
+		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
+		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
 	})
 }
