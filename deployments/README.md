@@ -22,6 +22,7 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/release-bundle-argocd-repo-creds.yaml` to register the pre-production OCI release-bundle repo credentials/prefix for Argo CD
 - use `kubectl apply -f deployments/pre-production/release-service.yaml` to deploy `release-service`
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
+- pre-production runtime observation is now owned by the in-process observer inside `runtime-service`; there is no separate `resource-observer.yaml` deployment artifact in the active contract
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
 
 `release-service` remains a backend `ClusterIP` service inside Kubernetes,
@@ -49,6 +50,7 @@ Pre-production manifest note:
 - `deployments/pre-production/release-bundle-argocd-repo-creds.yaml` registers the `oci://zot.zot.svc.cluster.local:5000/devflow/releases` prefix as an Argo CD OCI repo-creds secret for release bundle pull access
 - `deployments/pre-production/release-service.yaml` uses a `ConfigMap` named `release-service-config`
 - `deployments/pre-production/runtime-service.yaml` uses a `ConfigMap` named `runtime-service-config`
+- `deployments/pre-production/runtime-service.yaml` also carries the RBAC needed for runtime pod/deployment operations and Tekton build observation
 - update `data.config.yaml` in those files before applying them to a real environment
 
 Docker build note for this monorepo:
