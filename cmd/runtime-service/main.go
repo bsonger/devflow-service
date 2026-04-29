@@ -19,8 +19,9 @@ func main() {
 			ServiceName:   "runtime-service",
 			EnableSwagger: true,
 			Modules: []runtimehttp.Module{
-				runtimehttp.ModuleRuntimeSpec,
-				runtimehttp.ModuleRuntimeSpecRevision,
+				runtimehttp.ModuleRuntimeAPI,
+				runtimehttp.ModuleRuntimeObservedWorkload,
+				runtimehttp.ModuleRuntimeObservedPod,
 			},
 		},
 		Load:        platformconfig.Load,

@@ -20,7 +20,7 @@ After reading it, a fresh engineer or agent should know:
 - Active config migration: `config-service` now boots from `cmd/config-service` and owns the extracted `AppConfig` and `WorkloadConfig` API surface
 - Active network migration: `network-service` now boots from `cmd/network-service` and owns the extracted `Service` and `Route` API surface
 - Active release migration: `release-service` now boots from `cmd/release-service` and owns the verify ingress/writeback paths that were previously modeled as `verify-service`
-- Active runtime migration: `runtime-service` now boots from `cmd/runtime-service` and owns extracted runtime spec, runtime revision, and observer pod APIs
+- Active runtime migration: `runtime-service` now boots from `cmd/runtime-service` and owns the extracted runtime inspection, runtime operation, and internal observer/index API surface
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
 - Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`, while non-default service image selection is hardcoded in committed Tekton manifests for `config-service`, `network-service`, `release-service`, and `runtime-service`

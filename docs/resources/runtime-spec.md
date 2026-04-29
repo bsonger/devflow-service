@@ -146,8 +146,9 @@ Use `Manifest` when the question starts with:
 
 ## API surface
 
-Current service-internal route surface:
+Current service route surface:
 
+- `GET /api/v1/runtime/workload?application_id=...&environment_id=...`
 - `GET /api/v1/runtime/pods?application_id=...&environment_id=...`
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
@@ -312,7 +313,7 @@ Validation notes:
 
 - `application_id`, `environment`, `workload_kind`, and `workload_name` are required
 - namespace must match the runtime namespace derived by runtime-service
-- sync is idempotent at the runtime-spec level and updates the latest observed workload summary
+- sync is idempotent for the same `application + environment + namespace + workload_kind + workload_name` target and updates the latest observed workload summary
 
 ### Delete workload summary
 
@@ -398,16 +399,7 @@ Read-model rule:
 - runtime overview and pod display should read from observer/index-backed runtime records
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
 
-## Legacy implementation note
-
-The current codebase still contains an older `runtime-spec`-shaped surface, including routes such as:
-
-- `/api/v1/runtime-specs`
-- `/api/v1/runtime-specs/{id}/pods`
-- `/api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart`
-
-That shape reflects repository-internal or compatibility-oriented implementation history.
-It is not the preferred frontend or operator-facing runtime API.
+## Public API note
 
 Frontend and operator docs should treat the active runtime contract as:
 
@@ -416,7 +408,8 @@ Frontend and operator docs should treat the active runtime contract as:
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
 
-The `runtime/workload` overview endpoint now belongs to the active preferred external contract.
+The legacy public `runtime-specs` and `runtime-spec-revisions` route families have been retired from the runtime-service HTTP surface.
+Any remaining `RuntimeSpec` or `RuntimeSpecRevision` concepts are internal implementation details, not public operator-facing routes.
 
 ## Internal model notes
 

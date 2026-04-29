@@ -15,8 +15,7 @@ import (
 type Module string
 
 const (
-	ModuleRuntimeSpec             Module = "runtime-spec"
-	ModuleRuntimeSpecRevision     Module = "runtime-spec-revision"
+	ModuleRuntimeAPI              Module = "runtime-api"
 	ModuleRuntimeObservedWorkload Module = "runtime-observed-workload"
 	ModuleRuntimeObservedPod      Module = "runtime-observed-pod"
 )
@@ -33,8 +32,7 @@ func NewRouter() *gin.Engine {
 		ServiceName:   "runtime-service",
 		EnableSwagger: true,
 		Modules: []Module{
-			ModuleRuntimeSpec,
-			ModuleRuntimeSpecRevision,
+			ModuleRuntimeAPI,
 			ModuleRuntimeObservedWorkload,
 			ModuleRuntimeObservedPod,
 		},
@@ -96,8 +94,7 @@ func registerModules(api *gin.RouterGroup, opts Options) {
 func toStatusModules(modules []Module) []string {
 	if len(modules) == 0 {
 		modules = []Module{
-			ModuleRuntimeSpec,
-			ModuleRuntimeSpecRevision,
+			ModuleRuntimeAPI,
 			ModuleRuntimeObservedWorkload,
 			ModuleRuntimeObservedPod,
 		}

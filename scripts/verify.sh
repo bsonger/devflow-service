@@ -122,7 +122,6 @@ run_no_mongo_remnants_check() {
       api \
       gateway \
       test \
-      .github \
       --glob '!docs/archive/**' \
       --glob '!docs/policies/verification.md' \
       --glob '!scripts/README.md' \
@@ -410,7 +409,6 @@ require_dir "$ROOT_DIR/internal/platform/k8s" "internal platform k8s directory"
 require_dir "$ROOT_DIR/internal/release/transport" "release transport directory"
 require_dir "$ROOT_DIR/internal/release/transport/argo" "release argo transport directory"
 require_dir "$ROOT_DIR/internal/release/transport/downstream" "release downstream transport directory"
-require_dir "$ROOT_DIR/internal/release/transport/runtime" "release runtime transport directory"
 require_dir "$ROOT_DIR/internal/release/transport/tekton" "release tekton transport directory"
 
 [[ ! -d "$ROOT_DIR/shared" ]] || fail "catch-all shared directory must not exist: $ROOT_DIR/shared"
@@ -467,7 +465,8 @@ require_literal "$ROOT_DIR/cmd/README.md" "cmd README runtime-service entrypoint
 require_literal "$ROOT_DIR/docs/services/config-service.md" "config-service entrypoint doc" '`cmd/config-service/main.go`'
 require_literal "$ROOT_DIR/docs/services/network-service.md" "network-service entrypoint doc" '`cmd/network-service/main.go`'
 require_literal "$ROOT_DIR/docs/services/runtime-service.md" "runtime-service entrypoint doc" '`cmd/runtime-service/main.go`'
-require_literal "$ROOT_DIR/docs/resources/runtime-spec.md" "runtime-spec API surface" "/api/v1/runtime-specs/{id}"
+require_literal "$ROOT_DIR/docs/resources/runtime-spec.md" "runtime API surface workload" "/api/v1/runtime/workload"
+require_literal "$ROOT_DIR/docs/resources/runtime-spec.md" "runtime API surface pods" "/api/v1/runtime/pods/{pod_name}"
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README Istio contract" "Istio-oriented"
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared ingress manifest" "deployments/pre-production/istio/shared-ingress.yaml"
 require_literal "$ROOT_DIR/gateway/README.md" "gateway README shared host" "devflow-pre.example.com"

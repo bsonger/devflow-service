@@ -17,40 +17,18 @@ import (
 )
 
 type runtimeService interface {
-	CreateRuntimeSpec(context.Context, runtimeservice.CreateRuntimeSpecInput) (*runtimedomain.RuntimeSpec, error)
-	ListRuntimeSpecs(context.Context) ([]*runtimedomain.RuntimeSpec, error)
-	GetRuntimeSpec(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
-	DeleteRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) error
-	CreateRuntimeSpecRevision(context.Context, uuid.UUID, runtimeservice.CreateRuntimeSpecRevisionInput) (*runtimedomain.RuntimeSpecRevision, error)
-	ListRuntimeSpecRevisions(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
-	GetRuntimeSpecRevision(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
-	GetObservedWorkload(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error)
 	GetObservedWorkloadByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeObservedWorkload, error)
 	SyncObservedWorkload(context.Context, runtimeservice.SyncObservedWorkloadInput) (*runtimedomain.RuntimeObservedWorkload, error)
 	DeleteObservedWorkload(context.Context, runtimeservice.DeleteObservedWorkloadInput) error
-	ListObservedPods(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
 	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, runtimeservice.DeleteObservedPodInput) error
-	DeletePod(context.Context, uuid.UUID, string, string) error
 	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
-	RestartDeployment(context.Context, uuid.UUID, string, string) error
 	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
-	ListRuntimeOperations(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeOperation, error)
 }
 
 type Handler struct {
 	runtime runtimeService
-}
-
-type CreateRuntimeSpecRequest struct {
-	ApplicationID uuid.UUID `json:"application_id"`
-	Environment   string    `json:"environment"`
-}
-
-type DeleteRuntimeSpecRequest struct {
-	ApplicationID uuid.UUID `json:"application_id"`
-	Environment   string    `json:"environment"`
 }
 
 type RuntimePodsQuery struct {
@@ -74,16 +52,6 @@ type RolloutRequest struct {
 	EnvironmentID  string    `json:"environment_id"`
 	DeploymentName string    `json:"deployment_name"`
 	Operator       string    `json:"operator"`
-}
-
-type CreateRuntimeSpecRevisionRequest struct {
-	Replicas         int    `json:"replicas"`
-	HealthThresholds string `json:"health_thresholds"`
-	Resources        string `json:"resources"`
-	Autoscaling      string `json:"autoscaling"`
-	Scheduling       string `json:"scheduling"`
-	PodEnvs          string `json:"pod_envs"`
-	CreatedBy        string `json:"created_by"`
 }
 
 type SyncObservedWorkloadRequest struct {
@@ -171,22 +139,6 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 		runtimeAPI.DELETE("/pods/:pod_name", h.DeleteRuntimePod)
 		runtimeAPI.POST("/rollouts", h.RolloutRuntime)
 	}
-
-	runtimeSpecs := rg.Group("/runtime-specs")
-	{
-		runtimeSpecs.POST("", h.CreateRuntimeSpec)
-		runtimeSpecs.GET("", h.ListRuntimeSpecs)
-		runtimeSpecs.DELETE("", h.DeleteRuntimeSpec)
-		runtimeSpecs.GET("/:id", h.GetRuntimeSpec)
-		runtimeSpecs.POST("/:id/revisions", h.CreateRuntimeSpecRevision)
-		runtimeSpecs.GET("/:id/revisions", h.ListRuntimeSpecRevisions)
-		runtimeSpecs.GET("/:id/pods", h.ListObservedPods)
-		runtimeSpecs.POST("/:id/pods/:pod_name/delete", h.DeletePod)
-		runtimeSpecs.POST("/:id/deployments/:deployment_name/restart", h.RestartDeployment)
-		runtimeSpecs.GET("/:id/operations", h.ListRuntimeOperations)
-	}
-
-	rg.GET("/runtime-spec-revisions/:id", h.GetRuntimeSpecRevision)
 }
 
 func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
@@ -287,180 +239,6 @@ func (h *Handler) RolloutRuntime(c *gin.Context) {
 		return
 	}
 	httpx.WriteNoContent(c)
-}
-
-func (h *Handler) CreateRuntimeSpec(c *gin.Context) {
-	var req CreateRuntimeSpecRequest
-	if !httpx.BindJSON(c, &req) {
-		return
-	}
-	item, err := h.runtime.CreateRuntimeSpec(c.Request.Context(), runtimeservice.CreateRuntimeSpecInput{
-		ApplicationID: req.ApplicationID,
-		Environment:   req.Environment,
-	})
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteData(c, http.StatusCreated, item)
-}
-
-func (h *Handler) ListRuntimeSpecs(c *gin.Context) {
-	items, err := h.runtime.ListRuntimeSpecs(c.Request.Context())
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WritePaginatedList(c, http.StatusOK, items)
-}
-
-func (h *Handler) GetRuntimeSpec(c *gin.Context) {
-	id, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-
-	item, err := h.runtime.GetRuntimeSpec(c.Request.Context(), id)
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteData(c, http.StatusOK, item)
-}
-
-func (h *Handler) DeleteRuntimeSpec(c *gin.Context) {
-	var req DeleteRuntimeSpecRequest
-	if !httpx.BindJSON(c, &req) {
-		return
-	}
-	if err := h.runtime.DeleteRuntimeSpecByApplicationEnv(c.Request.Context(), req.ApplicationID, req.Environment); err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteNoContent(c)
-}
-
-func (h *Handler) CreateRuntimeSpecRevision(c *gin.Context) {
-	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	var req CreateRuntimeSpecRevisionRequest
-	if !httpx.BindJSON(c, &req) {
-		return
-	}
-	item, err := h.runtime.CreateRuntimeSpecRevision(c.Request.Context(), runtimeSpecID, runtimeservice.CreateRuntimeSpecRevisionInput{
-		Replicas:         req.Replicas,
-		HealthThresholds: req.HealthThresholds,
-		Resources:        req.Resources,
-		Autoscaling:      req.Autoscaling,
-		Scheduling:       req.Scheduling,
-		PodEnvs:          req.PodEnvs,
-		CreatedBy:        req.CreatedBy,
-	})
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteData(c, http.StatusCreated, item)
-}
-
-func (h *Handler) ListRuntimeSpecRevisions(c *gin.Context) {
-	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	items, err := h.runtime.ListRuntimeSpecRevisions(c.Request.Context(), runtimeSpecID)
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WritePaginatedList(c, http.StatusOK, items)
-}
-
-func (h *Handler) GetRuntimeSpecRevision(c *gin.Context) {
-	id, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	item, err := h.runtime.GetRuntimeSpecRevision(c.Request.Context(), id)
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteData(c, http.StatusOK, item)
-}
-
-func (h *Handler) ListObservedPods(c *gin.Context) {
-	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	items, err := h.runtime.ListObservedPods(c.Request.Context(), runtimeSpecID)
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WritePaginatedList(c, http.StatusOK, items)
-}
-
-func (h *Handler) DeletePod(c *gin.Context) {
-	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	podName := strings.TrimSpace(c.Param("pod_name"))
-	if podName == "" {
-		httpx.WriteInvalidArgument(c, "pod_name is required")
-		return
-	}
-	var req struct {
-		Operator string `json:"operator"`
-	}
-	if !httpx.BindJSON(c, &req) {
-		return
-	}
-	if err := h.runtime.DeletePod(c.Request.Context(), runtimeSpecID, podName, req.Operator); err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteNoContent(c)
-}
-
-func (h *Handler) RestartDeployment(c *gin.Context) {
-	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	deploymentName := strings.TrimSpace(c.Param("deployment_name"))
-	if deploymentName == "" {
-		httpx.WriteInvalidArgument(c, "deployment_name is required")
-		return
-	}
-	var req struct {
-		Operator string `json:"operator"`
-	}
-	if !httpx.BindJSON(c, &req) {
-		return
-	}
-	if err := h.runtime.RestartDeployment(c.Request.Context(), runtimeSpecID, deploymentName, req.Operator); err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WriteNoContent(c)
-}
-
-func (h *Handler) ListRuntimeOperations(c *gin.Context) {
-	runtimeSpecID, ok := httpx.ParseUUIDParam(c, "id")
-	if !ok {
-		return
-	}
-	items, err := h.runtime.ListRuntimeOperations(c.Request.Context(), runtimeSpecID)
-	if err != nil {
-		writeRuntimeError(c, err)
-		return
-	}
-	httpx.WritePaginatedList(c, http.StatusOK, items)
 }
 
 func (h *Handler) SyncObservedPod(c *gin.Context) {
