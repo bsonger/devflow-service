@@ -245,11 +245,14 @@ func TestBuildReleaseBundleArchiveProducesTarGz(t *testing.T) {
 		files[header.Name] = string(payload)
 	}
 
-	if files["01-service-demo-api.yaml"] != "kind: Service\nmetadata:\n  name: demo-api\n" {
-		t.Fatalf("service archive entry = %q", files["01-service-demo-api.yaml"])
+	if _, ok := files["01-service-demo-api.yaml"]; ok {
+		t.Fatalf("service archive entry must be omitted, got %#v", files)
 	}
 	if files["bundle.yaml"] != "kind: Service\n---\nkind: Deployment\n" {
 		t.Fatalf("bundle archive entry = %q", files["bundle.yaml"])
+	}
+	if len(files) != 1 {
+		t.Fatalf("archive files = %#v", files)
 	}
 }
 

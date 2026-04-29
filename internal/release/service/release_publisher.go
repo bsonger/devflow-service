@@ -131,7 +131,8 @@ func buildReleaseBundleArchive(bundle *model.ReleaseBundle) ([]byte, error) {
 	if bundle == nil {
 		return nil, fmt.Errorf("release bundle is nil")
 	}
-	if len(bundle.Files) == 0 {
+	files := releaseBundleArtifactFiles(bundle)
+	if len(files) == 0 {
 		return nil, fmt.Errorf("release bundle has no files")
 	}
 	var buffer bytes.Buffer
@@ -140,7 +141,7 @@ func buildReleaseBundleArchive(bundle *model.ReleaseBundle) ([]byte, error) {
 	gzipWriter.Header.Name = releaseBundleArchiveName
 	gzipWriter.Header.Comment = ""
 	tarWriter := tar.NewWriter(gzipWriter)
-	for _, file := range bundle.Files {
+	for _, file := range files {
 		filePath := normalizeReleaseBundleArchivePath(file.Path)
 		if filePath == "" {
 			continue
@@ -172,6 +173,28 @@ func buildReleaseBundleArchive(bundle *model.ReleaseBundle) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+func releaseBundleArtifactFiles(bundle *model.ReleaseBundle) []model.ReleaseBundleFile {
+	if bundle == nil {
+		return nil
+	}
+	for _, file := range bundle.Files {
+		if normalizeReleaseBundleArchivePath(file.Path) == "bundle.yaml" && strings.TrimSpace(file.Content) != "" {
+			return []model.ReleaseBundleFile{{
+				Path:    "bundle.yaml",
+				Content: file.Content,
+			}}
+		}
+	}
+	combined := releaseBundleCombinedContent(bundle)
+	if strings.TrimSpace(combined) == "" {
+		return nil
+	}
+	return []model.ReleaseBundleFile{{
+		Path:    "bundle.yaml",
+		Content: combined,
+	}}
 }
 
 func normalizeReleaseBundleArchivePath(filePath string) string {
