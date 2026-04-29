@@ -18,6 +18,7 @@ type Store interface {
 	GetRuntimeSpec(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
 	GetRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	EnsureRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
+	GetApplicationName(context.Context, uuid.UUID) (string, error)
 	DeleteRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) error
 	ListRuntimeSpecs(context.Context) ([]*runtimedomain.RuntimeSpec, error)
 	NextRevisionNumber(context.Context, uuid.UUID) (int, error)
@@ -114,6 +115,16 @@ func (s *postgresStore) EnsureRuntimeSpecByApplicationEnv(ctx context.Context, a
 		do update set updated_at = application_runtime_specs.updated_at
 		returning id, application_id, environment, current_revision_id, created_at, updated_at
 	`, applicationId, resolvedEnvironment))
+}
+
+func (s *postgresStore) GetApplicationName(ctx context.Context, applicationId uuid.UUID) (string, error) {
+	var name string
+	err := platformdb.Postgres().QueryRowContext(ctx, `
+		select name
+		from applications
+		where id = $1 and deleted_at is null
+	`, applicationId).Scan(&name)
+	return name, err
 }
 
 func (s *postgresStore) resolveEnvironmentName(ctx context.Context, applicationId uuid.UUID, selector string) (string, error) {

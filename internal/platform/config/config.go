@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/db"
 	platformconfigrepo "github.com/bsonger/devflow-service/internal/platform/configrepo"
+	"github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
@@ -130,6 +130,10 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		_ = conn.Close()
 		return shutdown, err
 	}
+	if err := startKubernetesRuntimeObserver(ctx, config); err != nil {
+		_ = conn.Close()
+		return shutdown, err
+	}
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)
@@ -198,5 +202,16 @@ func startTektonManifestObserver(ctx context.Context, config *Config) error {
 		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
 		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
+	})
+}
+
+func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
+	restCfg, err := rest.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+	return runtimeobserver.StartKubernetesRuntimeObserver(ctx, restCfg, runtimeobserver.KubernetesRuntimeObserverConfig{
+		Enabled:      true,
+		PollInterval: time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 	})
 }

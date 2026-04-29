@@ -210,8 +210,8 @@ As of April 29, 2026:
 
 Known remaining gap:
 
-- `resource-observer` automatic workload sync is not yet wired through this repo's committed deployment or observer source
-- current production-like proof for workload overview used a direct internal sync request against runtime-service
+- runtime-service now starts an in-process Kubernetes observer that periodically refreshes observed workload and pod index data
+- the older external `resource-observer` path may still overlap for pod index writes until it is intentionally removed or narrowed
 
 ## Resource Contracts
 

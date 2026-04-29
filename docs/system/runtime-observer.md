@@ -69,8 +69,9 @@ As of April 29, 2026:
 
 Known remaining gap:
 
-- `resource-observer` automatic workload sync has not yet been updated through this repo's committed runtime-observer integration path
-- pre-production proof currently depends on runtime-service support plus manually posted workload sync data
+- runtime-service now includes its own in-process Kubernetes observer that periodically reads Deployment and Pod state and refreshes runtime-owned index rows
+- the external `resource-observer` deployment is no longer the only path for runtime page population
+- if the external observer remains deployed, pod index writes may temporarily overlap until the old path is retired
 
 ## Operator mental model
 
