@@ -118,6 +118,33 @@ They should not be treated as the same field:
 - `bundle_digest`: digest of the rendered bundle content itself
 - `artifact_digest`: digest reported by the publisher after bundle publication
 
+## Dependency inputs
+
+`Release` is release-owned, but it composes frozen and live inputs from multiple sources.
+
+### Manifest-side frozen inputs
+
+From persisted `Manifest`:
+
+- built workload image output
+- `services_snapshot`
+- `workload_config_snapshot`
+- source/build metadata for traceability
+
+### Release-time live inputs
+
+From `config-service`:
+
+- `app_config_snapshot`
+
+From `network-service`:
+
+- `routes_snapshot`
+
+From `meta-service`:
+
+- target application, environment, cluster, and deploy-target metadata
+
 ## Common base fields
 
 | Field | Type | Required | Writable | Description |
@@ -126,6 +153,26 @@ They should not be treated as the same field:
 | `created_at` | `time.Time` | server-generated | no | 创建时间 |
 | `updated_at` | `time.Time` | server-generated | no | 更新时间 |
 | `deleted_at` | `*time.Time` | optional | system-managed | 软删除时间 |
+
+## Frozen boundary
+
+The key contract of `Release` is that it freezes deployment-time inputs for one target environment.
+
+Frozen on release:
+
+- `manifest_id`
+- `environment_id`
+- `app_config_snapshot`
+- `routes_snapshot`
+- chosen rollout `strategy`
+- execution `steps`
+
+Produced by release execution after freeze:
+
+- rendered bundle facts
+- deployment artifact metadata
+- Argo CD external reference
+- rollout status transitions
 
 ## Field table
 
@@ -161,6 +208,22 @@ These fields describe the published deployment artifact associated with the rend
 |---|---|---|---|---|
 | `trace_id` | `string` | system-managed | no | 贯穿渲染、上传、Argo 创建、runtime 跟踪的 trace id |
 | `span_id` | `string` | system-managed | no | 创建外部部署对象时的关键 parent span id |
+
+## Output boundary
+
+`Release` owns deploy-side outputs.
+
+Primary outputs:
+
+- rendered deployment bundle
+- `artifact_repository`
+- `artifact_tag`
+- `artifact_digest`
+- `artifact_ref`
+- `external_ref`
+- release `status` and step progress
+
+It consumes `manifest.image_ref`, but it does not replace or duplicate `Manifest` as the build record.
 
 ## Action semantics field
 
@@ -255,6 +318,19 @@ Design rule:
 - `name` is for humans and may change over time
 - runtime-service and release-service should update steps by `code`, not by display name
 - writeback payloads should prefer `step_code`; `step_name` is migration-only compatibility input
+
+## Read surfaces
+
+Main operator read surfaces:
+
+- release list/detail
+- bundle preview for rendered deployment output
+- step/status tracking during rollout
+
+The important read split is:
+
+- `Manifest` answers build-side questions
+- `Release` answers deploy-side questions
 
 ## API surface
 

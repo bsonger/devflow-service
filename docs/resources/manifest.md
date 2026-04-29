@@ -48,6 +48,38 @@ It freezes service and workload snapshots, triggers the Tekton image build, reco
 - `Succeeded`
 - `Failed`
 
+## Dependency inputs
+
+`Manifest` is release-owned, but it freezes inputs from multiple upstream sources.
+
+### Metadata inputs
+
+From `meta-service`:
+
+- application identity
+- application name
+- repository address
+
+### Config inputs
+
+From `config-service`:
+
+- `workload_config_snapshot`
+
+### Network inputs
+
+From `network-service`:
+
+- `services_snapshot`
+
+### Build-system inputs
+
+From Tekton and registry configuration:
+
+- pipeline topology used to derive `steps`
+- image target naming
+- build execution status and final image result
+
 ## API surface
 
 Service-internal route surface:
@@ -151,6 +183,27 @@ The active manifest persistence model also does **not** retain legacy release-er
 - `artifact_digest`
 - `artifact_ref`
 
+## Frozen boundary
+
+The key contract of `Manifest` is that it freezes build-time inputs before release happens.
+
+Frozen on manifest:
+
+- application-scoped service topology via `services_snapshot`
+- application-scoped workload runtime shape via `workload_config_snapshot`
+- requested source selector via `git_revision`
+- resolved immutable source identity via `commit_hash`
+
+Not frozen on manifest:
+
+- `environment_id`
+- `app_config_snapshot`
+- `routes_snapshot`
+- release deployment artifact metadata
+- rendered deployment YAML for one environment
+
+Those later deployment facts belong to `Release`.
+
 ## Create-time resolved fields
 
 The service is expected to resolve or fill these after request acceptance:
@@ -194,6 +247,21 @@ Allowing caller-supplied snapshots would break trust in manifest as a durable sy
 ### `steps`
 
 Not accepted from the client because steps are derived from Tekton pipeline topology.
+
+## Output boundary
+
+`Manifest` produces build-side outputs that later deployment flows consume.
+
+Primary outputs:
+
+- `image_ref`
+- `image_tag`
+- `image_digest`
+- `steps`
+- `status`
+
+It does not produce the release deployment artifact.
+That OCI deployment bundle is a `Release` output, not a `Manifest` output.
 
 ## Future-compatible optional parameters
 
