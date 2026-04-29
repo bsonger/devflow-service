@@ -130,11 +130,29 @@ func (s *AppConfigService) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *AppConfigService) List(ctx context.Context, filter AppConfigListFilter) ([]domain.AppConfig, error) {
-	return s.store.List(ctx, appconfigrepo.AppConfigListFilter{
+	items, err := s.store.List(ctx, appconfigrepo.AppConfigListFilter{
 		ApplicationID:  filter.ApplicationID,
 		EnvironmentID:  filter.EnvironmentID,
 		IncludeDeleted: filter.IncludeDeleted,
 	})
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if items[i].LatestRevisionID == nil || *items[i].LatestRevisionID == uuid.Nil {
+			continue
+		}
+		revision, err := s.getRevision(ctx, *items[i].LatestRevisionID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, err
+		}
+		items[i].Files = revision.Files
+		items[i].SourceCommit = revision.SourceCommit
+	}
+	return items, nil
 }
 
 func (s *AppConfigService) Sync(ctx context.Context, id uuid.UUID) (*AppConfigSyncResult, error) {
