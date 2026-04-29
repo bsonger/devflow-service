@@ -73,6 +73,16 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if got := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["serviceAccount"]; got != "demo-api" {
 		t.Fatalf("serviceAccount = %#v", got)
 	}
+	podSpec := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	if got := podSpec["dnsPolicy"]; got != "ClusterFirst" {
+		t.Fatalf("dnsPolicy = %#v", got)
+	}
+	if got := podSpec["restartPolicy"]; got != "Always" {
+		t.Fatalf("restartPolicy = %#v", got)
+	}
+	if got := podSpec["terminationGracePeriodSeconds"]; got != 30 {
+		t.Fatalf("terminationGracePeriodSeconds = %#v", got)
+	}
 	ports, ok := containerSpec[0]["ports"].([]map[string]any)
 	if !ok || len(ports) != 1 {
 		t.Fatalf("deployment ports missing: %#v", containerSpec[0])

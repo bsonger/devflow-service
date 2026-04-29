@@ -285,10 +285,13 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		env = append(env, map[string]any{"name": entry.Name, "value": entry.Value})
 	}
 	container := map[string]any{
-		"name":      applicationName,
-		"image":     manifest.ImageRef,
-		"env":       env,
-		"resources": workload.Resources,
+		"name":                   applicationName,
+		"image":                  manifest.ImageRef,
+		"imagePullPolicy":        "IfNotPresent",
+		"env":                    env,
+		"resources":              workload.Resources,
+		"terminationMessagePath": "/dev/termination-log",
+		"terminationMessagePolicy": "File",
 	}
 	if ports := buildReleaseContainerPorts(manifest.ServicesSnapshot); len(ports) > 0 {
 		container["ports"] = ports
@@ -307,8 +310,13 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		}}
 	}
 	podSpec := map[string]any{
-		"imagePullSecrets": []map[string]any{{"name": "aliyun-docker-config"}},
-		"containers":       []map[string]any{container},
+		"dnsPolicy":                 "ClusterFirst",
+		"restartPolicy":             "Always",
+		"schedulerName":             "default-scheduler",
+		"securityContext":           map[string]any{},
+		"terminationGracePeriodSeconds": 30,
+		"imagePullSecrets":          []map[string]any{{"name": "aliyun-docker-config"}},
+		"containers":                []map[string]any{container},
 	}
 	if strings.TrimSpace(workload.ServiceAccountName) != "" {
 		podSpec["serviceAccount"] = workload.ServiceAccountName
@@ -318,12 +326,22 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		podSpec["volumes"] = []map[string]any{{
 			"name": "app-config",
 			"configMap": map[string]any{
-				"name": applicationName,
+				"name":        applicationName,
+				"defaultMode": 420,
 			},
 		}}
 	}
 	spec := map[string]any{
-		"replicas": workload.Replicas,
+		"progressDeadlineSeconds": 600,
+		"revisionHistoryLimit":   10,
+		"replicas":               workload.Replicas,
+		"strategy": map[string]any{
+			"type": "RollingUpdate",
+			"rollingUpdate": map[string]any{
+				"maxSurge":       "25%",
+				"maxUnavailable": "25%",
+			},
+		},
 		"selector": map[string]any{
 			"matchLabels": map[string]any{"app.kubernetes.io/name": selectorName},
 		},
