@@ -97,7 +97,7 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.W
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var items []domain.WorkloadConfig
 	for rows.Next() {
 		item, err := scanWorkloadConfig(rows)

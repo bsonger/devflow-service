@@ -211,7 +211,7 @@ func (o *TektonManifestObserver) postJSON(ctx context.Context, path string, payl
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
@@ -229,10 +229,10 @@ func mapPipelineRunStatus(pr *tknv1.PipelineRun) model.ManifestStatus {
 		}
 		return model.ManifestPending
 	}
-	switch {
-	case cond.Status == "True":
+	switch cond.Status {
+	case "True":
 		return model.ManifestReady
-	case cond.Status == "False":
+	case "False":
 		return model.ManifestFailed
 	default:
 		if pr.Status.StartTime != nil {
@@ -253,10 +253,10 @@ func mapTaskRunStatus(tr *tknv1.TaskRun) model.StepStatus {
 		}
 		return model.StepPending
 	}
-	switch {
-	case cond.Status == "True":
+	switch cond.Status {
+	case "True":
 		return model.StepSucceeded
-	case cond.Status == "False":
+	case "False":
 		return model.StepFailed
 	default:
 		if tr.Status.StartTime != nil {

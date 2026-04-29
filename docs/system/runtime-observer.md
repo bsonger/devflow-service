@@ -69,16 +69,15 @@ Authentication note:
 - these routes use `X-Devflow-Observer-Token` when `observer.shared_token` is configured
 - if `observer.shared_token` is empty, the middleware allows the request through
 
-## Current pre-production status
-
-As of April 30, 2026:
+## Current implementation status
 
 - runtime-service supports workload overview reads
 - runtime-service supports internal workload summary sync
-- shared ingress has been verified for public `GET /api/v1/runtime/workload`
 - pre-production runtime observation is now owned by the in-process Kubernetes observer inside `runtime-service`
-- runtime-service no longer requires PostgreSQL for startup or request handling
-- runtime observation should be understood as observer-rebuilt in-memory state in the active contract
+- the default runtime HTTP path is memory-backed and rebuilt by observer sync
+- PostgreSQL-backed runtime repository and release-rollout observer support code still exist
+
+For the storage boundary, see `docs/system/runtime-storage-model.md`.
 
 ## Operator mental model
 

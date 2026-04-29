@@ -42,14 +42,6 @@ var (
 
 var ManifestService = NewManifestService()
 
-type manifestNetworkReader interface {
-	ListServices(context.Context, string) ([]servicedownstream.Service, error)
-}
-
-type manifestConfigReader interface {
-	FindWorkloadConfig(context.Context, string) (*appconfigdownstream.WorkloadConfig, error)
-}
-
 type manifestService struct {
 	apps interface {
 		Get(context.Context, uuid.UUID) (*releasesupport.ApplicationProjection, error)

@@ -92,7 +92,7 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]*intentd
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]*intentdomain.Intent, 0)
 	for rows.Next() {
 		intent, err := scanIntent(rows)
@@ -123,7 +123,7 @@ func (s *PostgresStore) ListPending(ctx context.Context, limit int) ([]intentdom
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]intentdomain.Intent, 0)
 	for rows.Next() {
 		intent, err := scanIntent(rows)

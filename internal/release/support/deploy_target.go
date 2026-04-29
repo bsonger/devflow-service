@@ -117,10 +117,6 @@ func ResolveDeployTarget(ctx context.Context, applicationId, environmentId strin
 	return resolver.Resolve(ctx, applicationId, environmentId)
 }
 
-func resolveDeployTarget(ctx context.Context, applicationId, environmentId string) (*DeployTarget, error) {
-	return ResolveDeployTarget(ctx, applicationId, environmentId)
-}
-
 func (r *deployTargetResolver) Resolve(ctx context.Context, applicationId, environmentId string) (*DeployTarget, error) {
 	applicationId = strings.TrimSpace(applicationId)
 	environmentId = strings.TrimSpace(environmentId)

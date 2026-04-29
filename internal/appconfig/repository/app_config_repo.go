@@ -124,7 +124,7 @@ func (s *appConfigPostgresStore) List(ctx context.Context, filter AppConfigListF
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := make([]domain.AppConfig, 0)
 	for rows.Next() {
 		item, err := scanAppConfig(rows)

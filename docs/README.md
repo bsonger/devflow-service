@@ -64,14 +64,30 @@ For resource CRUD behavior, list/filter/pagination rules, and resource-doc contr
 
 - `docs/policies/resource-api.md`
 
+For generated OpenAPI artifacts and their relationship to handler annotations and resource docs, start with:
+
+- `api/openapi/README.md`
+
+For current service extraction reality, including which boundaries still use same-repo implementation paths, start with:
+
+- `docs/system/current-service-extraction-reality.md`
+
 For architecture and service/resource flow diagrams, start with:
 
 - `docs/system/diagrams.md`
 - `docs/system/flow-overview.md`
 
+For shared ingress routing, backend-local route paths, and Istio rewrite behavior, start with:
+
+- `docs/system/ingress-routing.md`
+
 For runtime workload / pod display model, observer writeback, and the read-vs-action split, start with:
 
 - `docs/system/runtime-observer.md`
+
+For runtime-service memory, observer, action, and remaining PostgreSQL-backed support boundaries, start with:
+
+- `docs/system/runtime-storage-model.md`
 
 For the shortest frontend runtime integration checklist, start with:
 

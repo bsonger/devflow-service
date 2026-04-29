@@ -126,7 +126,7 @@ func listActiveRollingReleases(ctx context.Context) ([]activeReleaseSnapshot, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]activeReleaseSnapshot, 0)
 	for rows.Next() {
@@ -294,7 +294,7 @@ func (o *ReleaseRolloutObserver) postJSON(ctx context.Context, path string, payl
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}

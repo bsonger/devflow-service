@@ -337,7 +337,7 @@ func deploymentConditions(conditions []appsv1.DeploymentCondition) []runtimeserv
 	}
 	out := make([]runtimeservice.ObservedWorkloadConditionInput, 0, len(conditions))
 	for _, cond := range conditions {
-		ts := cond.LastTransitionTime.Time.UTC()
+		ts := cond.LastTransitionTime.UTC()
 		out = append(out, runtimeservice.ObservedWorkloadConditionInput{
 			Type:               string(cond.Type),
 			Status:             string(cond.Status),

@@ -39,6 +39,16 @@ build:
 	mkdir -p $(GOCACHE)
 	$(GO_RUN_ENV) go build -o bin/$(APP) ./cmd/$(APP)
 
+.PHONY: build-all
+build-all:
+	mkdir -p bin
+	mkdir -p $(GOCACHE)
+	$(GO_RUN_ENV) go build -o bin/meta-service ./cmd/meta-service
+	$(GO_RUN_ENV) go build -o bin/config-service ./cmd/config-service
+	$(GO_RUN_ENV) go build -o bin/network-service ./cmd/network-service
+	$(GO_RUN_ENV) go build -o bin/release-service ./cmd/release-service
+	$(GO_RUN_ENV) go build -o bin/runtime-service ./cmd/runtime-service
+
 .PHONY: package
 package:
 	mkdir -p bin
@@ -54,7 +64,7 @@ verify:
 	bash scripts/verify.sh
 
 .PHONY: ci
-ci: fmt-check vet lint test build docker-build verify
+ci: fmt-check vet lint test build-all verify
 
 .PHONY: run
 run:

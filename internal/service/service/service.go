@@ -155,12 +155,7 @@ func fromNetwork(item *domain.Network) *domain.Service {
 func toNetworkPorts(ports []domain.ServicePort) []domain.NetworkPort {
 	out := make([]domain.NetworkPort, 0, len(ports))
 	for _, port := range ports {
-		out = append(out, domain.NetworkPort{
-			Name:        port.Name,
-			ServicePort: port.ServicePort,
-			TargetPort:  port.TargetPort,
-			Protocol:    port.Protocol,
-		})
+		out = append(out, domain.NetworkPort(port))
 	}
 	return out
 }
@@ -168,12 +163,7 @@ func toNetworkPorts(ports []domain.ServicePort) []domain.NetworkPort {
 func fromNetworkPorts(ports []domain.NetworkPort) []domain.ServicePort {
 	out := make([]domain.ServicePort, 0, len(ports))
 	for _, port := range ports {
-		out = append(out, domain.ServicePort{
-			Name:        port.Name,
-			ServicePort: port.ServicePort,
-			TargetPort:  port.TargetPort,
-			Protocol:    port.Protocol,
-		})
+		out = append(out, domain.ServicePort(port))
 	}
 	return out
 }

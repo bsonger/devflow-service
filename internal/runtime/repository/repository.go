@@ -197,7 +197,7 @@ func (s *postgresStore) ListRuntimeSpecs(ctx context.Context) ([]*runtimedomain.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]*runtimedomain.RuntimeSpec, 0)
 	for rows.Next() {
@@ -282,7 +282,7 @@ func (s *postgresStore) ListRuntimeSpecRevisions(ctx context.Context, runtimeSpe
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]*runtimedomain.RuntimeSpecRevision, 0)
 	for rows.Next() {
@@ -462,7 +462,7 @@ func (s *postgresStore) ListObservedPods(ctx context.Context, runtimeSpecID uuid
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]*runtimedomain.RuntimeObservedPod, 0)
 	for rows.Next() {
@@ -494,7 +494,7 @@ func (s *postgresStore) ListRuntimeOperations(ctx context.Context, runtimeSpecID
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]*runtimedomain.RuntimeOperation, 0)
 	for rows.Next() {

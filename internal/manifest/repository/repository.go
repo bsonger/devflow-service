@@ -81,7 +81,7 @@ func (s *PostgresStore) List(ctx context.Context, filter manifestdomain.Manifest
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]manifestdomain.Manifest, 0)
 	for rows.Next() {
 		item, err := scanManifest(rows)

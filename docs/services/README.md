@@ -14,13 +14,14 @@ Most service docs now use this core structure:
 3. `## Owns`
 4. `## Does Not Own`
 5. `## Dependency model`
-6. `## Downstream Consumers` when that section is separate
-7. `## Entrypoint`
-8. `## Registered Domains`
-9. `## Pre-production Shared Ingress`
-10. `## Resource Contracts`
-11. `## Diagnostics`
-12. `## Verification`
+6. `## Current implementation reality` when the service boundary differs from the target architecture or still uses same-repo implementation access
+7. `## Downstream Consumers` when that section is separate
+8. `## Entrypoint`
+9. `## Registered Domains`
+10. `## Pre-production Shared Ingress`
+11. `## Resource Contracts`
+12. `## Diagnostics`
+13. `## Verification`
 
 Some services also add service-specific sections such as:
 
@@ -30,6 +31,22 @@ Some services also add service-specific sections such as:
 - pre-production delivery-path notes
 
 The important rule is that dependency information should now live under `## Dependency model` rather than the older `## Upstream Dependencies` heading.
+
+## Current fact requirements
+
+Each service doc must make these distinctions explicit when they matter:
+
+- target service boundary: the ownership model the repo is moving toward
+- current implementation reality: what the code in this repo actually does today
+- backend-local route surface: paths registered by the service router
+- pre-production shared ingress surface: edge-facing paths exposed through `deployments/pre-production/istio/shared-ingress.yaml`
+- not yet implemented behavior: planned or desired behavior that should not be read as current capability
+
+Do not describe downstream HTTP validation, isolated storage, or runtime dependencies as current behavior unless the code path exists in this repo.
+
+For shared ingress rewrite rules, use:
+
+- `docs/system/ingress-routing.md`
 
 ## Current service docs
 

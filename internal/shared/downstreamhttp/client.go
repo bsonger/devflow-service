@@ -120,7 +120,7 @@ func (c *Client) GetEnvelopeData(ctx context.Context, path string, out any) erro
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return &StatusError{
 			Method:     req.Method,

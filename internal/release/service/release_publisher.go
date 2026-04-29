@@ -137,9 +137,9 @@ func buildReleaseBundleArchive(bundle *model.ReleaseBundle) ([]byte, error) {
 	}
 	var buffer bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buffer)
-	gzipWriter.Header.ModTime = time.Unix(0, 0).UTC()
-	gzipWriter.Header.Name = releaseBundleArchiveName
-	gzipWriter.Header.Comment = ""
+	gzipWriter.ModTime = time.Unix(0, 0).UTC()
+	gzipWriter.Name = releaseBundleArchiveName
+	gzipWriter.Comment = ""
 	tarWriter := tar.NewWriter(gzipWriter)
 	for _, file := range files {
 		filePath := normalizeReleaseBundleArchivePath(file.Path)

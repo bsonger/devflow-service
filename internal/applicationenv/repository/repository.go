@@ -64,7 +64,7 @@ func (s *postgresStore) ListByApplication(ctx context.Context, applicationId uui
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]domain.Binding, 0)
 	for rows.Next() {

@@ -26,8 +26,9 @@ Use the split docs below instead of one oversized page.
 ## Current contract note
 
 - `runtime-service` should be understood as Kubernetes-first
-- `runtime-service` no longer depends on PostgreSQL for startup or request handling in the active contract
-- runtime observer state is rebuilt in-process after restart from Kubernetes / Tekton observation
+- the default runtime HTTP path is memory-backed and rebuilt by observer sync
+- PostgreSQL-backed runtime repository and release-rollout observer support code still exist
+- runtime observer state is rebuilt in-process after restart from Kubernetes observation
 - runtime reads come from runtime-owned observed state
 - runtime actions call Kubernetes for explicit operator-triggered mutations
 
@@ -36,3 +37,4 @@ For narrative context, also see:
 - `docs/system/architecture.md`
 - `docs/system/flow-overview.md`
 - `docs/services/runtime-service.md`
+- `docs/system/runtime-storage-model.md`

@@ -73,11 +73,6 @@ func applyApplication(ctx context.Context, applications applicationAPI, app *app
 	return err
 }
 
-type appProjectAPI interface {
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*appv1.AppProject, error)
-	Update(ctx context.Context, project *appv1.AppProject, opts metav1.UpdateOptions) (*appv1.AppProject, error)
-}
-
 func GetAppProject(ctx context.Context, name string) (*appv1.AppProject, error) {
 	return Client.ArgoprojV1alpha1().AppProjects(namespace).Get(ctx, name, metav1.GetOptions{})
 }

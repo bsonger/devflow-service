@@ -15,22 +15,22 @@ import (
 type memoryStore struct {
 	mu sync.RWMutex
 
-	runtimeSpecs           map[uuid.UUID]*runtimedomain.RuntimeSpec
-	runtimeSpecByAppEnv    map[string]uuid.UUID
-	runtimeSpecRevisions   map[uuid.UUID][]*runtimedomain.RuntimeSpecRevision
-	observedWorkloads      map[uuid.UUID]*runtimedomain.RuntimeObservedWorkload
-	observedPods           map[uuid.UUID]map[string]*runtimedomain.RuntimeObservedPod
-	runtimeOperations      map[uuid.UUID][]*runtimedomain.RuntimeOperation
+	runtimeSpecs         map[uuid.UUID]*runtimedomain.RuntimeSpec
+	runtimeSpecByAppEnv  map[string]uuid.UUID
+	runtimeSpecRevisions map[uuid.UUID][]*runtimedomain.RuntimeSpecRevision
+	observedWorkloads    map[uuid.UUID]*runtimedomain.RuntimeObservedWorkload
+	observedPods         map[uuid.UUID]map[string]*runtimedomain.RuntimeObservedPod
+	runtimeOperations    map[uuid.UUID][]*runtimedomain.RuntimeOperation
 }
 
 func NewMemoryStore() Store {
 	return &memoryStore{
-		runtimeSpecs:        map[uuid.UUID]*runtimedomain.RuntimeSpec{},
-		runtimeSpecByAppEnv: map[string]uuid.UUID{},
+		runtimeSpecs:         map[uuid.UUID]*runtimedomain.RuntimeSpec{},
+		runtimeSpecByAppEnv:  map[string]uuid.UUID{},
 		runtimeSpecRevisions: map[uuid.UUID][]*runtimedomain.RuntimeSpecRevision{},
-		observedWorkloads:   map[uuid.UUID]*runtimedomain.RuntimeObservedWorkload{},
-		observedPods:        map[uuid.UUID]map[string]*runtimedomain.RuntimeObservedPod{},
-		runtimeOperations:   map[uuid.UUID][]*runtimedomain.RuntimeOperation{},
+		observedWorkloads:    map[uuid.UUID]*runtimedomain.RuntimeObservedWorkload{},
+		observedPods:         map[uuid.UUID]map[string]*runtimedomain.RuntimeObservedPod{},
+		runtimeOperations:    map[uuid.UUID][]*runtimedomain.RuntimeOperation{},
 	}
 }
 

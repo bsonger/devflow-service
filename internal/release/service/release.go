@@ -756,7 +756,10 @@ func deriveReleaseArtifactMetadata(release *model.Release, app *releasesupport.A
 		applicationName = app.Name
 	}
 	repository = cfg.RepositoryFor(applicationName, releaseTargetEnvironment(release))
-	tag = release.ID.String()
+	tag = "latest"
+	if release != nil && release.ID != uuid.Nil {
+		tag = release.ID.String()
+	}
 	if release != nil && release.ID == uuid.Nil {
 		tag = "latest"
 	}
@@ -772,7 +775,10 @@ func deriveReleaseArtifactMetadataFromBundle(release *model.Release, app *releas
 		applicationName = app.Name
 	}
 	repository = cfg.RepositoryFor(applicationName, releaseTargetEnvironment(release))
-	tag = release.ID.String()
+	tag = "latest"
+	if release != nil && release.ID != uuid.Nil {
+		tag = release.ID.String()
+	}
 	if release != nil && release.ID == uuid.Nil {
 		tag = "latest"
 	}

@@ -34,18 +34,30 @@
 
 - PostgreSQL
 - centralized config repo
-- `meta-service` for application and environment metadata resolution
 - shared backend primitives
+
+### Current implementation reality
+
+`config-service` should be understood as owning config-domain resources, but it is **not** currently a fully isolated downstream-HTTP consumer of `meta-service`.
+
+Current code reality:
+
+- `AppConfig` logic resolves application context through in-repo support/service code
+- `AppConfig` environment-name resolution currently uses local service/database access inside this repo
+- `WorkloadConfig` CRUD is currently repository-backed and does **not** call `meta-service` over HTTP
+- this means the service boundary is documented and routed separately, but some ownership checks still rely on same-repo implementation access rather than extracted inter-service calls
+
+Do not read this doc as proof that all config flows already validate ownership through runtime HTTP calls to `meta-service`.
 
 ### What config-service depends on by workflow
 
 - app config CRUD and sync:
-  - `meta-service` validates application and environment context
+  - application projection and environment naming are resolved through current same-repo implementation paths
   - GitHub config repo provides file source-of-truth
   - PostgreSQL persists config state and revision history
 - workload config CRUD:
-  - `meta-service` validates application ownership context
   - PostgreSQL persists workload runtime shape
+  - current implementation validates workload payload shape and uniqueness, but does **not** currently prove application existence through a downstream `meta-service` HTTP call
 
 ## Downstream Consumers
 

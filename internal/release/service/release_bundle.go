@@ -254,7 +254,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		selectorName = strings.TrimSpace(manifest.ServicesSnapshot[0].Name)
 	}
 	labels := map[string]any{
-		"app.kubernetes.io/name": selectorName,
+		"app.kubernetes.io/name":      selectorName,
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
 	}
@@ -286,12 +286,12 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		env = append(env, map[string]any{"name": entry.Name, "value": entry.Value})
 	}
 	container := map[string]any{
-		"name":                   applicationName,
-		"image":                  manifest.ImageRef,
-		"imagePullPolicy":        "IfNotPresent",
-		"env":                    env,
-		"resources":              workload.Resources,
-		"terminationMessagePath": "/dev/termination-log",
+		"name":                     applicationName,
+		"image":                    manifest.ImageRef,
+		"imagePullPolicy":          "IfNotPresent",
+		"env":                      env,
+		"resources":                workload.Resources,
+		"terminationMessagePath":   "/dev/termination-log",
 		"terminationMessagePolicy": "File",
 	}
 	if ports := buildReleaseContainerPorts(manifest.ServicesSnapshot); len(ports) > 0 {
@@ -311,13 +311,13 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		}}
 	}
 	podSpec := map[string]any{
-		"dnsPolicy":                 "ClusterFirst",
-		"restartPolicy":             "Always",
-		"schedulerName":             "default-scheduler",
-		"securityContext":           map[string]any{},
+		"dnsPolicy":                     "ClusterFirst",
+		"restartPolicy":                 "Always",
+		"schedulerName":                 "default-scheduler",
+		"securityContext":               map[string]any{},
 		"terminationGracePeriodSeconds": 30,
-		"imagePullSecrets":          []map[string]any{{"name": "aliyun-docker-config"}},
-		"containers":                []map[string]any{container},
+		"imagePullSecrets":              []map[string]any{{"name": "aliyun-docker-config"}},
+		"containers":                    []map[string]any{container},
 	}
 	if strings.TrimSpace(workload.ServiceAccountName) != "" {
 		podSpec["serviceAccount"] = workload.ServiceAccountName
@@ -334,8 +334,8 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	}
 	spec := map[string]any{
 		"progressDeadlineSeconds": 600,
-		"revisionHistoryLimit":   10,
-		"replicas":               workload.Replicas,
+		"revisionHistoryLimit":    10,
+		"replicas":                workload.Replicas,
 		"strategy": map[string]any{
 			"type": "RollingUpdate",
 			"rollingUpdate": map[string]any{

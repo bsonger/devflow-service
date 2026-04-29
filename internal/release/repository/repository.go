@@ -118,7 +118,7 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]*model.R
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]*model.Release, 0)
 	for rows.Next() {
 		item, err := scanRelease(rows)

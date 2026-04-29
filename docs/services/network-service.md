@@ -33,18 +33,29 @@
 ### Upstream dependencies
 
 - PostgreSQL
-- `meta-service` for application and environment metadata resolution
 - shared backend primitives
+
+### Current implementation reality
+
+`network-service` should be understood as the owner of network-domain resources, but the current implementation does **not** yet enforce all of that boundary through downstream calls to `meta-service`.
+
+Current code reality:
+
+- `Service` CRUD currently validates payload shape, port structure, and protocol values
+- `Service` CRUD does **not** currently prove `application_id` existence through a downstream `meta-service` HTTP call
+- `Route` CRUD and `/routes:validate` currently validate route payload shape plus target `service_name` / `service_port` consistency against network-owned `Service` records
+- `Route` flows do **not** currently prove `application_id` / `environment_id` existence through downstream `meta-service` HTTP calls
+
+Do not read this doc as proof that metadata ownership validation has already been extracted into runtime inter-service calls.
 
 ### What network-service depends on by workflow
 
 - service CRUD:
-  - `meta-service` validates application ownership context
   - PostgreSQL persists service definitions
+  - current implementation validates network payload shape and port semantics locally
 - route CRUD and validation:
-  - `meta-service` validates application and environment context
   - PostgreSQL persists route definitions
-  - route validation reads release-facing service topology from network-owned `Service` records
+  - route validation reads network-owned `Service` records to confirm target `service_name` / `service_port`
 
 ## Downstream Consumers
 

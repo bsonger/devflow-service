@@ -107,7 +107,7 @@ func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.R
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var items []domain.Route
 	for rows.Next() {
 		item, err := scanRoute(rows)

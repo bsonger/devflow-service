@@ -175,7 +175,7 @@ func TestBuildReleaseBundleArchiveProducesTarGz(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gzip.NewReader failed: %v", err)
 	}
-	defer gzipReader.Close()
+	defer func() { _ = gzipReader.Close() }()
 
 	tarReader := tar.NewReader(gzipReader)
 	files := map[string]string{}

@@ -54,10 +54,13 @@ The current observed index now includes:
 
 Current implementation note:
 
-- runtime-service no longer requires PostgreSQL for startup or request handling
+- the default runtime HTTP service uses an in-memory `RuntimeStore`
 - the active runtime index is kept in-process
 - observer sync rebuilds that in-process state after restart
+- PostgreSQL-backed runtime repository and rollout-observer support code still exist
 - release-generated workloads should carry labels such as `devflow.application/id` and `devflow.environment/id` so runtime-service can recover `application + environment` ownership from live Kubernetes resources
+
+For the full storage boundary, see `docs/system/runtime-storage-model.md`.
 
 ## Boundary summary
 
@@ -439,17 +442,14 @@ The matching read model now includes a workload-level observed summary alongside
 
 Those model names are still useful for code navigation, but the active runtime contract should be understood as observer-rebuilt in-memory state rather than PostgreSQL-backed runtime CRUD.
 
-## Current pre-production status
+## Current storage and observer status
 
-As of April 30, 2026:
+Current runtime behavior should be read through the storage model in `docs/system/runtime-storage-model.md`:
 
-- `GET /api/v1/runtime/workload` is deployed on pre-production and returns workload overview data
-- runtime-service code can accept internal workload sync callbacks
-- runtime-service should be treated as PostgreSQL-independent for startup and request handling in the active contract
-
-Remaining operational gap:
-
-- runtime-service now contains in-process observers that rebuild workload and pod index state from live cluster signals
+- the default runtime HTTP path is memory-backed
+- runtime-service can accept internal workload and pod sync callbacks
+- in-process observers rebuild workload and pod index state from live cluster signals
+- PostgreSQL-backed runtime repository and release-rollout observer support code still exist
 
 That internal observer detail should not dominate the external API contract if the main user value is:
 

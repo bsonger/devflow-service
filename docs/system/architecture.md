@@ -74,6 +74,18 @@ For a visual companion to this document, use:
 - `docs/system/diagrams/resource-ownership.md`
 - `docs/system/flow-overview.md`
 
+For shared ingress routing and backend-local path rewriting, use:
+
+- `docs/system/ingress-routing.md`
+
+For the current extraction state and remaining same-repo implementation realities, use:
+
+- `docs/system/current-service-extraction-reality.md`
+
+For runtime-service memory, observer, and remaining PostgreSQL-backed support boundaries, use:
+
+- `docs/system/runtime-storage-model.md`
+
 ## Non-goals
 
 This migration does not currently aim to:

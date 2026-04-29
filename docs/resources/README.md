@@ -23,9 +23,10 @@ Use this shape when the resource is a normal persisted contract:
 4. `## Common base fields` when the resource persists the shared CRUD columns
 5. `## Field table`
 6. `## API surface`
-7. `## Create / update rules`
-8. `## Validation notes`
-9. `## Source pointers`
+7. `## Current implementation reality` when the current code differs from the target model or still has transitional behavior
+8. `## Create / update rules`
+9. `## Validation notes`
+10. `## Source pointers`
 
 ### 2. Operation-oriented resource docs
 
@@ -36,9 +37,10 @@ Use this shape when the external contract is primarily action/read-model oriente
 3. `## Purpose`
 4. `## Main operator flows` or equivalent execution-oriented overview
 5. `## API surface`
-6. `## Request contracts` / response focus as needed
-7. `## Validation notes`
-8. `## Source pointers`
+6. `## Current implementation reality` when storage, observer, or runtime behavior is transitional
+7. `## Request contracts` / response focus as needed
+8. `## Validation notes`
+9. `## Source pointers`
 
 ### 3. Derived or read-only contract docs
 
@@ -49,11 +51,34 @@ Use this shape when the contract is derived from another persisted resource and 
 3. `## Purpose`
 4. `## Field table` or source-field mapping
 5. `## API surface`
-6. `## Create / update rules`
-7. `## Validation notes`
-8. `## Source pointers`
+6. `## Current implementation reality` when the derived contract is not backed by a standalone route or table
+7. `## Create / update rules`
+8. `## Validation notes`
+9. `## Source pointers`
 
 Some resources add extra sections such as nested types, lifecycle, sync behavior, relationship notes, or UI guidance, but the owning headings above should stay stable for that document type.
+
+## Current fact requirements
+
+Each resource doc must separate current facts from target or planned behavior.
+
+The `## API surface` section should distinguish:
+
+- service-internal route surface: the backend-local `/api/v1/...` route registered in code
+- pre-production shared ingress external surface: the service-prefixed edge path, when exposed through shared ingress
+
+The `## Current implementation reality` section should be added when any of these are true:
+
+- the code still uses same-repo access where the target model says downstream service calls
+- the resource is derived and has no standalone table or CRUD route
+- the default runtime storage differs from older persistence-oriented docs
+- a field, route, validation rule, or dependency is planned but not implemented
+
+Planned or desired behavior must be labeled as not yet implemented instead of being written into create/update rules or validation notes as current capability.
+
+For shared ingress rewrite rules, use:
+
+- `docs/system/ingress-routing.md`
 
 Runtime-specific note:
 

@@ -69,7 +69,7 @@ CREATE TABLE release_bundles (
 	}
 	store.InitPostgres(db)
 	t.Cleanup(func() {
-		db.Close()
+		_ = db.Close()
 		store.InitPostgres(nil)
 	})
 }
@@ -1005,19 +1005,5 @@ func TestReleaseStatusConvergenceDuplicateLateEventsAfterTerminal(t *testing.T) 
 	}
 	if release.Status != model.ReleaseSucceeded {
 		t.Fatalf("terminal Succeeded was overwritten by late events: got %q", release.Status)
-	}
-	// Late events for existing terminal steps should be ignored (step status preserved)
-	for _, s := range release.Steps {
-		if s.Name == "deploy ready" {
-			if s.Status != model.StepPending {
-				// The step was originally pending in the default steps; UpdateStep should
-				// have been blocked by terminal guard in updateStatus, but let's verify
-				// the step itself wasn't modified either.
-				// Actually, UpdateStep calls updateSteps BEFORE updateStatusFromSteps,
-				// so the step update IS written. But then updateStatus is called which
-				// preserves terminal status. The step data changes but status doesn't.
-				// This is acceptable — the step message may be updated but release stays terminal.
-			}
-		}
 	}
 }

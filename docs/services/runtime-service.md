@@ -63,17 +63,19 @@ The active contract is Kubernetes-first:
 
 - runtime reads come from runtime-owned observed state
 - runtime actions mutate Kubernetes directly
-- runtime-service no longer depends on PostgreSQL for startup or request handling
-- runtime-service keeps its active runtime index in-process
-- runtime-service rebuilds that in-process index through observer sync rather than by loading rows from PostgreSQL at boot
+- the default runtime HTTP service uses `internal/runtime/repository.RuntimeStore`, which currently defaults to the in-memory store
+- the default runtime read path is rebuilt through observer sync rather than by loading runtime rows from PostgreSQL at boot
 
 Important current nuance:
 
 - the runtime index is not durable local storage inside `runtime-service`
 - after restart, runtime state is expected to be rebuilt by the in-process observers
 - release bundles now need runtime-relevant Kubernetes labels such as `devflow.application/id` and `devflow.environment/id` so the observer can reconstruct `application + environment` ownership from live workloads
+- Postgres-backed runtime repository code still exists under `internal/runtime/repository/repository.go`
+- release rollout observation still has Postgres-backed support code under `internal/runtime/observer/release_rollout.go`
 
-Any older PostgreSQL-oriented description should be treated as historical and non-owning.
+Do not read the current runtime contract as a complete removal of all Postgres-related runtime code.
+For operator-facing workload and pod reads, the active path should be treated as observer/index-backed and memory-backed by default.
 
 ## Read and action split
 
@@ -229,15 +231,14 @@ Authentication note:
 - these internal routes are protected by `X-Devflow-Observer-Token` when `observer.shared_token` is configured
 - when `observer.shared_token` is empty, the middleware allows the request through
 
-## Pre-production status
+## Current storage reality
 
-As of April 29, 2026:
+Current code should be read in two layers:
 
-- pre-production runtime-service has been updated to serve `GET /api/v1/runtime/workload`
-- public workload overview reads are working through shared ingress
-- pre-production runtime observation is owned by the in-process Kubernetes observer inside runtime-service
-- pre-production runtime-service rebuilds runtime workload/pod state from observer sync instead of PostgreSQL-backed startup state
-- runtime-service should be treated as PostgreSQL-independent in the active contract for startup and request handling
+- operator-facing runtime read/action endpoints use the runtime service default store, which currently points at the in-memory `RuntimeStore`
+- Postgres-backed runtime repository and release-rollout observer support code still exist in the repo and should not be described as removed
+
+For the detailed storage model, see `docs/system/runtime-storage-model.md`.
 
 ## Resource Contracts
 

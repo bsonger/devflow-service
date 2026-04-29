@@ -47,4 +47,5 @@ flowchart LR
 - `release-service` owns `Manifest`, `Release`, `Image`, and `Intent`
 - `runtime-service` owns runtime inspection, runtime observation, and runtime operations
 - `release-service` is the main cross-service composer
-- `runtime-service` is Kubernetes-first and no longer depends on PostgreSQL in the active contract
+- `runtime-service` is Kubernetes-first for operator-facing reads/actions, with a memory-backed default HTTP path
+- PostgreSQL-backed runtime repository and release-rollout observer support code still exist

@@ -64,8 +64,14 @@ then the owning resource is `Release`, not `Manifest`.
 
 - `Pending`
 - `Running`
+- `Ready`
 - `Succeeded`
 - `Failed`
+
+Current code uses `Ready` as an active top-level manifest status:
+
+- `Ready` means manifest steps have completed and the build result is in a deployable state
+- `release-service` currently accepts both `ManifestReady` and `ManifestSucceeded` as deployable manifest states
 
 ## Boundary summary
 

@@ -126,7 +126,7 @@ func (s *postgresStore) List(ctx context.Context, filter NetworkListFilter) ([]d
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []domain.Network
 	for rows.Next() {

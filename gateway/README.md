@@ -8,6 +8,9 @@ Use it as the stable home for declarative gateway configuration, shared ingress 
 Current repo-local edge artifact:
 - `deployments/pre-production/istio/shared-ingress.yaml`
 
+The owning routing explanation is:
+- `docs/system/ingress-routing.md`
+
 That manifest currently exposes one shared host, `devflow-pre-production.bei.com`, and routes shared API prefixes through Istio:
 - `/api/v1/meta/...` -> `meta-service`
 - `/api/v1/config/...` -> `config-service`

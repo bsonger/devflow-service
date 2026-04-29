@@ -50,7 +50,7 @@ CREATE TABLE manifests (
 	}
 	store.InitPostgres(db)
 	t.Cleanup(func() {
-		db.Close()
+		_ = db.Close()
 		store.InitPostgres(nil)
 	})
 }

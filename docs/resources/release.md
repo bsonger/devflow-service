@@ -229,6 +229,7 @@ Produced by release execution after freeze:
 | `strategy` | `string` | required | user | 本次发布选择的 rollout 策略 |
 | `steps` | `[]ReleaseStep` | system-managed | no | 发布步骤，使用稳定 `code` 标识每个步骤 |
 | `status` | `ReleaseStatus` | system-managed | no | 发布状态 |
+| `argocd_application_name` | `string` | system-managed | no | Argo CD `Application` 名称 |
 | `external_ref` | `string` | system-managed | no | 外部系统引用，例如 ArgoCD Application 名称 |
 
 ### Deployment artifact fields recommended for release ownership
@@ -242,13 +243,6 @@ These fields describe the published deployment artifact associated with the rend
 | `artifact_digest` | `string` | system-managed | no | 发布 bundle digest |
 | `artifact_ref` | `string` | system-managed | no | 完整 OCI 引用 |
 
-### Observability fields recommended for release ownership
-
-| Field | Type | Required | Writable | Description |
-|---|---|---|---|---|
-| `trace_id` | `string` | system-managed | no | 贯穿渲染、上传、Argo 创建、runtime 跟踪的 trace id |
-| `span_id` | `string` | system-managed | no | 创建外部部署对象时的关键 parent span id |
-
 ## Output boundary
 
 `Release` owns deploy-side outputs.
@@ -260,8 +254,10 @@ Primary outputs:
 - `artifact_tag`
 - `artifact_digest`
 - `artifact_ref`
+- `argocd_application_name`
 - `external_ref`
 - release `status` and step progress
+- derived `bundle_summary`
 
 It consumes `manifest.image_ref`, but it does not replace or duplicate `Manifest` as the build record.
 
@@ -314,8 +310,10 @@ Current/target top-level status values:
 - `Failed`
 - `RollingBack`
 - `RolledBack`
+- `Syncing`
+- `SyncFailed`
 
-`Syncing` / `SyncFailed` can be treated as step-level or transitional semantics if the system later wants to simplify the top-level state model.
+Current code still exposes `Syncing` / `SyncFailed` as top-level release statuses, so docs should treat them as part of the active contract.
 
 ## Step status values
 

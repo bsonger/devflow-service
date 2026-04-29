@@ -35,5 +35,6 @@ sequenceDiagram
 - runtime reads should prefer observer/index-backed state
 - runtime actions should call Kubernetes only for explicit user-triggered mutations
 - after an action succeeds, the UI should refresh workload + pod reads from the runtime index
-- runtime-service no longer depends on PostgreSQL for startup or request handling in the active contract
-- observer state is rebuilt in-process after restart from Kubernetes and Tekton observations
+- the default runtime HTTP path is memory-backed and does not load runtime rows from PostgreSQL at startup
+- PostgreSQL-backed runtime repository and release-rollout observer support code still exist; see `docs/system/runtime-storage-model.md`
+- observer state is rebuilt in-process after restart from Kubernetes observations
