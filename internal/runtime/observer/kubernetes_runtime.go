@@ -233,13 +233,7 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 				continue
 			}
 		}
-		if err := o.runtime.DeleteObservedPod(ctx, runtimeservice.DeleteObservedPodInput{
-			ApplicationID: spec.ApplicationID,
-			Environment:   spec.Environment,
-			Namespace:     item.Namespace,
-			PodName:       podName,
-			ObservedAt:    now,
-		}); err != nil {
+		if err := o.store.DeleteObservedPod(ctx, spec.ID, item.Namespace, podName, now); err != nil {
 			return err
 		}
 	}
