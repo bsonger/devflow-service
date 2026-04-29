@@ -72,7 +72,7 @@ Known remaining gap:
 
 - runtime-service now includes its own in-process Kubernetes observer that periodically reads Deployment and Pod state and refreshes runtime-owned index rows
 - the external `resource-observer` deployment is no longer the only path for runtime page population
-- if the external observer remains deployed, pod index writes may temporarily overlap until the old path is retired
+- in pre-production, the external `resource-observer` runtime writeback path should stay disabled so runtime page data has one authoritative writer
 
 ## Operator mental model
 

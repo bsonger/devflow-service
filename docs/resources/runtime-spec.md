@@ -21,6 +21,24 @@ Its core jobs are:
 - delete a specific pod for that application runtime
 - trigger a rollout-style restart for that application workload
 
+## Quick reader guide
+
+Use this document when you need to answer runtime-side questions such as:
+
+- what workload is currently running for one `application + environment`
+- what pods are currently observed
+- which runtime actions are supported
+- which routes read observer/index data versus which routes mutate Kubernetes
+
+If your question is instead about:
+
+- which image was built
+- which build pipeline ran
+- which deployment bundle was published
+- how Argo CD rollout progressed
+
+then the owning resource is `Manifest` or `Release`, not the runtime surface.
+
 From the external API point of view, this service should be understood as a runtime operations surface first.
 The internal storage model may still use `RuntimeSpec`, `RuntimeSpecRevision`, `RuntimeObservedPod`, and `RuntimeOperation`, but those are supporting implementation details rather than the primary API story.
 For operator understanding, the preferred model is:
@@ -35,6 +53,25 @@ The current observed index now includes:
 - `RuntimeOperation`
 
 Current code still contains PostgreSQL-backed runtime persistence, but that should be treated as an implementation detail or migration residue rather than the main API contract.
+
+## Boundary summary
+
+`Runtime API` is the runtime-side read/action boundary.
+
+It owns:
+
+- workload overview read model
+- pod list read model
+- pod delete action
+- rollout / restart action
+- observer/index-backed runtime state
+
+It does not own:
+
+- source/build records
+- deployment bundle publication
+- Argo CD application orchestration
+- build-time or deploy-time freeze records
 
 ## Main operator flows
 
@@ -84,6 +121,28 @@ Current implementation note:
 
 - the runtime action is implemented as a Deployment restart
 - in product language, this can be described as triggering a rollout or restart for the application workload
+
+## Question routing
+
+Use the runtime surface when the question starts with:
+
+- what is running now
+- what pods are unhealthy now
+- restart this workload
+- delete this pod
+
+Use `Release` when the question starts with:
+
+- what was deployed
+- what config was frozen for deployment
+- what deployment artifact was published
+- what happened during rollout
+
+Use `Manifest` when the question starts with:
+
+- what was built
+- which commit was built
+- what image came out of build
 
 ## API surface
 

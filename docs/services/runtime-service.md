@@ -69,6 +69,24 @@ The current codebase still contains PostgreSQL-backed runtime persistence for:
 So the present implementation is not yet fully aligned with the simpler Kubernetes-first dependency model.
 Documenting that gap explicitly is important so readers do not confuse target API semantics with current storage internals.
 
+## Read and action split
+
+Runtime-service should be read as two related surfaces:
+
+### Read surface
+
+- workload overview
+- pod list
+- backed by runtime-owned observer/index state
+
+### Action surface
+
+- delete pod
+- rollout / restart workload
+- calls Kubernetes only when an operator explicitly requests a mutation
+
+This split is the main runtime-service contract and is more important than the internal storage model names.
+
 ## Downstream Consumers
 
 - platform orchestration layers
@@ -212,7 +230,7 @@ As of April 29, 2026:
 Known remaining gap:
 
 - runtime-service now starts an in-process Kubernetes observer that periodically refreshes observed workload and pod index data
-- the older external `resource-observer` path may still overlap for pod index writes until it is intentionally removed or narrowed
+- in pre-production, the external `resource-observer` runtime writeback path should remain disabled to avoid duplicate pod/workload index writes
 
 ## Resource Contracts
 
