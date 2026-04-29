@@ -775,9 +775,7 @@ func normalizeReleaseSteps(release *model.Release) []model.ReleaseStep {
 	for _, expected := range canonical {
 		if actual, ok := byCode[expected.Code]; ok {
 			actual.Code = expected.Code
-			if strings.TrimSpace(actual.Name) == "" {
-				actual.Name = expected.Name
-			}
+			actual.Name = expected.Name
 			out = append(out, actual)
 			continue
 		}
