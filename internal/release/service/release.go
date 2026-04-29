@@ -1060,9 +1060,22 @@ func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manif
 		TypeMeta:   metav1.TypeMeta{Kind: "Application", APIVersion: "argoproj.io/v1alpha1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: appv1.ApplicationSpec{
-			Project:     "app",
-			Source:      buildOCIApplicationSource(release),
-			Destination: appv1.ApplicationDestination{Server: target.DestinationServer, Namespace: target.Namespace},
+			Project:           "app",
+			Source:            buildOCIApplicationSource(release),
+			Destination:       appv1.ApplicationDestination{Server: target.DestinationServer, Namespace: target.Namespace},
+			IgnoreDifferences: releaseApplicationIgnoreDifferences(),
+		},
+	}
+}
+
+func releaseApplicationIgnoreDifferences() appv1.IgnoreDifferences {
+	return appv1.IgnoreDifferences{
+		{
+			Group: "apps",
+			Kind:  "Deployment",
+			JSONPointers: []string{
+				"/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
+			},
 		},
 	}
 }

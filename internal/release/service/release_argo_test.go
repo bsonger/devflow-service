@@ -61,6 +61,15 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	if app.Spec.Destination.Server != target.DestinationServer {
 		t.Fatalf("server = %q", app.Spec.Destination.Server)
 	}
+	if len(app.Spec.IgnoreDifferences) != 1 {
+		t.Fatalf("ignoreDifferences = %#v", app.Spec.IgnoreDifferences)
+	}
+	if app.Spec.IgnoreDifferences[0].Group != "apps" || app.Spec.IgnoreDifferences[0].Kind != "Deployment" {
+		t.Fatalf("ignoreDifference target = %#v", app.Spec.IgnoreDifferences[0])
+	}
+	if len(app.Spec.IgnoreDifferences[0].JSONPointers) != 1 || app.Spec.IgnoreDifferences[0].JSONPointers[0] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
+		t.Fatalf("ignoreDifference pointers = %#v", app.Spec.IgnoreDifferences[0].JSONPointers)
+	}
 }
 
 func TestReconcileReleaseFromArgoApplicationMarksSucceeded(t *testing.T) {
