@@ -535,7 +535,11 @@ func (s *runtimeService) listLivePodsByApplicationEnv(ctx context.Context, spec 
 	}
 	items := make([]*domain.RuntimeObservedPod, 0, len(pods))
 	for i := range pods {
-		items = append(items, mapLivePodToObserved(spec, &pods[i]))
+		item := mapLivePodToObserved(spec, &pods[i])
+		if err := s.repoStore().UpsertObservedPod(ctx, item); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
 	}
 	return items, nil
 }
