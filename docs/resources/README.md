@@ -72,7 +72,7 @@ For pre-production shared ingress, use the service-prefixed external paths docum
 - `workloadconfig.md`: `WorkloadConfig`
 - `service.md`: application-owned network `Service`
 - `route.md`: application-owned `Route`
-- `runtime-spec.md`: `RuntimeSpec`, `RuntimeSpecRevision`, `RuntimeObservedPod`, `RuntimeOperation`
+- `runtime-spec.md`: `RuntimeSpec`, `RuntimeSpecRevision`, `RuntimeObservedWorkload`, `RuntimeObservedPod`, `RuntimeOperation`
 - `manifest.md`: `Manifest`
 - `intent.md`: `Intent`
 - `release.md`: `Release`

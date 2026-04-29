@@ -59,6 +59,38 @@ type RuntimeObservedPodContainer struct {
 	State        string `json:"state,omitempty"`
 }
 
+type RuntimeObservedWorkload struct {
+	ID                  uuid.UUID                          `json:"id" db:"id"`
+	RuntimeSpecID       uuid.UUID                          `json:"runtime_spec_id" db:"runtime_spec_id"`
+	ApplicationID       uuid.UUID                          `json:"application_id" db:"application_id"`
+	Environment         string                             `json:"environment" db:"environment"`
+	Namespace           string                             `json:"namespace" db:"namespace"`
+	WorkloadKind        string                             `json:"workload_kind" db:"workload_kind"`
+	WorkloadName        string                             `json:"workload_name" db:"workload_name"`
+	DesiredReplicas     int                                `json:"desired_replicas" db:"desired_replicas"`
+	ReadyReplicas       int                                `json:"ready_replicas" db:"ready_replicas"`
+	UpdatedReplicas     int                                `json:"updated_replicas" db:"updated_replicas"`
+	AvailableReplicas   int                                `json:"available_replicas" db:"available_replicas"`
+	UnavailableReplicas int                                `json:"unavailable_replicas" db:"unavailable_replicas"`
+	ObservedGeneration  int64                              `json:"observed_generation" db:"observed_generation"`
+	SummaryStatus       string                             `json:"summary_status" db:"summary_status"`
+	Images              []string                           `json:"images,omitempty" db:"images_jsonb"`
+	Conditions          []RuntimeObservedWorkloadCondition `json:"conditions,omitempty" db:"conditions_jsonb"`
+	Labels              map[string]string                  `json:"labels,omitempty" db:"labels_jsonb"`
+	Annotations         map[string]string                  `json:"annotations,omitempty" db:"annotations_jsonb"`
+	ObservedAt          time.Time                          `json:"observed_at" db:"observed_at"`
+	RestartAt           *time.Time                         `json:"restart_at,omitempty" db:"restart_at"`
+	DeletedAt           *time.Time                         `json:"deleted_at,omitempty" db:"deleted_at"`
+}
+
+type RuntimeObservedWorkloadCondition struct {
+	Type               string     `json:"type"`
+	Status             string     `json:"status"`
+	Reason             string     `json:"reason,omitempty"`
+	Message            string     `json:"message,omitempty"`
+	LastTransitionTime *time.Time `json:"last_transition_time,omitempty"`
+}
+
 type RuntimeOperation struct {
 	ID            uuid.UUID `json:"id" db:"id"`
 	RuntimeSpecID uuid.UUID `json:"runtime_spec_id" db:"runtime_spec_id"`

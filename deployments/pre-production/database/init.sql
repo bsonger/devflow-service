@@ -382,6 +382,26 @@ CREATE TABLE public.releases (
 ALTER TABLE public.releases OWNER TO app;
 
 --
+-- Name: release_bundles; Type: TABLE; Schema: public; Owner: app
+--
+
+CREATE TABLE public.release_bundles (
+    id uuid NOT NULL,
+    release_id uuid NOT NULL,
+    namespace text NOT NULL,
+    artifact_name text NOT NULL,
+    bundle_digest text NOT NULL,
+    rendered_objects jsonb DEFAULT '[]'::jsonb NOT NULL,
+    bundle_yaml text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    deleted_at timestamp with time zone
+);
+
+
+ALTER TABLE public.release_bundles OWNER TO app;
+
+--
 -- Name: routes; Type: TABLE; Schema: public; Owner: app
 --
 
@@ -429,6 +449,37 @@ CREATE TABLE public.runtime_observed_pods (
 
 
 ALTER TABLE public.runtime_observed_pods OWNER TO app;
+
+--
+-- Name: runtime_observed_workloads; Type: TABLE; Schema: public; Owner: app
+--
+
+CREATE TABLE public.runtime_observed_workloads (
+    id uuid NOT NULL,
+    runtime_spec_id uuid NOT NULL,
+    application_id uuid NOT NULL,
+    environment text NOT NULL,
+    namespace text NOT NULL,
+    workload_kind text NOT NULL,
+    workload_name text NOT NULL,
+    desired_replicas integer DEFAULT 0 NOT NULL,
+    ready_replicas integer DEFAULT 0 NOT NULL,
+    updated_replicas integer DEFAULT 0 NOT NULL,
+    available_replicas integer DEFAULT 0 NOT NULL,
+    unavailable_replicas integer DEFAULT 0 NOT NULL,
+    observed_generation bigint DEFAULT 0 NOT NULL,
+    summary_status text DEFAULT ''::text NOT NULL,
+    images_jsonb jsonb DEFAULT '[]'::jsonb NOT NULL,
+    conditions_jsonb jsonb DEFAULT '[]'::jsonb NOT NULL,
+    labels_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    annotations_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    observed_at timestamp with time zone NOT NULL,
+    restart_at timestamp with time zone,
+    deleted_at timestamp with time zone
+);
+
+
+ALTER TABLE public.runtime_observed_workloads OWNER TO app;
 
 --
 -- Name: services; Type: TABLE; Schema: public; Owner: app
@@ -615,6 +666,14 @@ ALTER TABLE ONLY public.release_verifications
 
 
 --
+-- Name: release_bundles release_bundles_pkey; Type: CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.release_bundles
+    ADD CONSTRAINT release_bundles_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: releases releases_pkey; Type: CONSTRAINT; Schema: public; Owner: app
 --
 
@@ -644,6 +703,22 @@ ALTER TABLE ONLY public.runtime_observed_pods
 
 ALTER TABLE ONLY public.runtime_observed_pods
     ADD CONSTRAINT runtime_observed_pods_runtime_spec_id_namespace_pod_name_key UNIQUE (runtime_spec_id, namespace, pod_name);
+
+
+--
+-- Name: runtime_observed_workloads runtime_observed_workloads_pkey; Type: CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.runtime_observed_workloads
+    ADD CONSTRAINT runtime_observed_workloads_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: runtime_observed_workloads runtime_observed_workloads_runtime_spec_id_key; Type: CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.runtime_observed_workloads
+    ADD CONSTRAINT runtime_observed_workloads_runtime_spec_id_key UNIQUE (runtime_spec_id);
 
 
 --
@@ -748,6 +823,13 @@ CREATE INDEX idx_networks_application_id ON public.networks USING btree (applica
 --
 
 CREATE INDEX idx_release_verifications_intent_id ON public.release_verifications USING btree (intent_id);
+
+
+--
+-- Name: idx_release_bundles_release_id; Type: INDEX; Schema: public; Owner: app
+--
+
+CREATE INDEX idx_release_bundles_release_id ON public.release_bundles USING btree (release_id);
 
 
 --
@@ -865,6 +947,13 @@ CREATE UNIQUE INDEX uq_release_verifications_release_id ON public.release_verifi
 
 
 --
+-- Name: uq_release_bundles_release_id_active; Type: INDEX; Schema: public; Owner: app
+--
+
+CREATE UNIQUE INDEX uq_release_bundles_release_id_active ON public.release_bundles USING btree (release_id) WHERE (deleted_at IS NULL);
+
+
+--
 -- Name: uq_routes_application_name_active; Type: INDEX; Schema: public; Owner: app
 --
 
@@ -904,11 +993,27 @@ ALTER TABLE ONLY public.environment_workload_config_bindings
 
 
 --
+-- Name: release_bundles release_bundles_release_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.release_bundles
+    ADD CONSTRAINT release_bundles_release_id_fkey FOREIGN KEY (release_id) REFERENCES public.releases(id) ON DELETE CASCADE;
+
+
+--
 -- Name: runtime_observed_pods runtime_observed_pods_runtime_spec_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: app
 --
 
 ALTER TABLE ONLY public.runtime_observed_pods
     ADD CONSTRAINT runtime_observed_pods_runtime_spec_id_fkey FOREIGN KEY (runtime_spec_id) REFERENCES public.application_runtime_specs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: runtime_observed_workloads runtime_observed_workloads_runtime_spec_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: app
+--
+
+ALTER TABLE ONLY public.runtime_observed_workloads
+    ADD CONSTRAINT runtime_observed_workloads_runtime_spec_id_fkey FOREIGN KEY (runtime_spec_id) REFERENCES public.application_runtime_specs(id) ON DELETE CASCADE;
 
 
 --

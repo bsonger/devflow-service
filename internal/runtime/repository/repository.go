@@ -25,6 +25,9 @@ type Store interface {
 	UpdateCurrentRevision(context.Context, uuid.UUID, uuid.UUID) error
 	ListRuntimeSpecRevisions(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
 	GetRuntimeSpecRevision(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
+	UpsertObservedWorkload(context.Context, *runtimedomain.RuntimeObservedWorkload) error
+	DeleteObservedWorkload(context.Context, uuid.UUID, string, string, string, time.Time) error
+	GetObservedWorkload(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error)
 	UpsertObservedPod(context.Context, *runtimedomain.RuntimeObservedPod) error
 	DeleteObservedPod(context.Context, uuid.UUID, string, string, time.Time) error
 	ListObservedPods(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
@@ -257,6 +260,97 @@ func (s *postgresStore) GetRuntimeSpecRevision(ctx context.Context, id uuid.UUID
 	`, id))
 }
 
+func (s *postgresStore) UpsertObservedWorkload(ctx context.Context, workload *runtimedomain.RuntimeObservedWorkload) error {
+	images, err := marshalJSONText(workload.Images, "[]")
+	if err != nil {
+		return err
+	}
+	conditions, err := marshalJSONText(workload.Conditions, "[]")
+	if err != nil {
+		return err
+	}
+	labels, err := marshalJSONText(workload.Labels, "{}")
+	if err != nil {
+		return err
+	}
+	annotations, err := marshalJSONText(workload.Annotations, "{}")
+	if err != nil {
+		return err
+	}
+
+	_, err = platformdb.Postgres().ExecContext(ctx, `
+		insert into runtime_observed_workloads (
+			id, runtime_spec_id, application_id, environment, namespace,
+			workload_kind, workload_name, desired_replicas, ready_replicas, updated_replicas,
+			available_replicas, unavailable_replicas, observed_generation, summary_status,
+			images_jsonb, conditions_jsonb, labels_jsonb, annotations_jsonb,
+			observed_at, restart_at, deleted_at
+		) values (
+			$1, $2, $3, $4, $5,
+			$6, $7, $8, $9, $10,
+			$11, $12, $13, $14,
+			$15::jsonb, $16::jsonb, $17::jsonb, $18::jsonb,
+			$19, $20, $21
+		)
+		on conflict (runtime_spec_id) do update set
+			id = excluded.id,
+			application_id = excluded.application_id,
+			environment = excluded.environment,
+			namespace = excluded.namespace,
+			workload_kind = excluded.workload_kind,
+			workload_name = excluded.workload_name,
+			desired_replicas = excluded.desired_replicas,
+			ready_replicas = excluded.ready_replicas,
+			updated_replicas = excluded.updated_replicas,
+			available_replicas = excluded.available_replicas,
+			unavailable_replicas = excluded.unavailable_replicas,
+			observed_generation = excluded.observed_generation,
+			summary_status = excluded.summary_status,
+			images_jsonb = excluded.images_jsonb,
+			conditions_jsonb = excluded.conditions_jsonb,
+			labels_jsonb = excluded.labels_jsonb,
+			annotations_jsonb = excluded.annotations_jsonb,
+			observed_at = excluded.observed_at,
+			restart_at = excluded.restart_at,
+			deleted_at = excluded.deleted_at
+	`, workload.ID, workload.RuntimeSpecID, workload.ApplicationID, workload.Environment, workload.Namespace,
+		workload.WorkloadKind, workload.WorkloadName, workload.DesiredReplicas, workload.ReadyReplicas, workload.UpdatedReplicas,
+		workload.AvailableReplicas, workload.UnavailableReplicas, workload.ObservedGeneration, workload.SummaryStatus,
+		images, conditions, labels, annotations, workload.ObservedAt,
+		dbsql.NullableTimePtr(workload.RestartAt), dbsql.NullableTimePtr(workload.DeletedAt))
+	return err
+}
+
+func (s *postgresStore) DeleteObservedWorkload(ctx context.Context, runtimeSpecID uuid.UUID, namespace, workloadKind, workloadName string, observedAt time.Time) error {
+	result, err := platformdb.Postgres().ExecContext(ctx, `
+		update runtime_observed_workloads
+		set deleted_at = $5, observed_at = $5
+		where runtime_spec_id = $1
+		  and namespace = $2
+		  and workload_kind = $3
+		  and workload_name = $4
+		  and deleted_at is null
+	`, runtimeSpecID, namespace, workloadKind, workloadName, observedAt)
+	if err != nil {
+		return err
+	}
+	return dbsql.EnsureRowsAffected(result)
+}
+
+func (s *postgresStore) GetObservedWorkload(ctx context.Context, runtimeSpecID uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
+	return scanObservedWorkload(platformdb.Postgres().QueryRowContext(ctx, `
+		select id, runtime_spec_id, application_id, environment, namespace,
+			workload_kind, workload_name, desired_replicas, ready_replicas, updated_replicas,
+			available_replicas, unavailable_replicas, observed_generation, summary_status,
+			images_jsonb, conditions_jsonb, labels_jsonb, annotations_jsonb,
+			observed_at, restart_at, deleted_at
+		from runtime_observed_workloads
+		where runtime_spec_id = $1 and deleted_at is null
+		order by observed_at desc
+		limit 1
+	`, runtimeSpecID))
+}
+
 func (s *postgresStore) UpsertObservedPod(ctx context.Context, pod *runtimedomain.RuntimeObservedPod) error {
 	labels, err := marshalJSONText(pod.Labels, "{}")
 	if err != nil {
@@ -473,6 +567,58 @@ func scanObservedPod(scanner interface{ Scan(dest ...any) error }) (*runtimedoma
 	if err := json.Unmarshal(defaultJSONBytes(containers, `[]`), &item.Containers); err != nil {
 		return nil, err
 	}
+	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
+	return &item, nil
+}
+
+func scanObservedWorkload(scanner interface{ Scan(dest ...any) error }) (*runtimedomain.RuntimeObservedWorkload, error) {
+	var (
+		item        runtimedomain.RuntimeObservedWorkload
+		images      []byte
+		conditions  []byte
+		labels      []byte
+		annotations []byte
+		restartAt   sql.NullTime
+		deletedAt   sql.NullTime
+	)
+	if err := scanner.Scan(
+		&item.ID,
+		&item.RuntimeSpecID,
+		&item.ApplicationID,
+		&item.Environment,
+		&item.Namespace,
+		&item.WorkloadKind,
+		&item.WorkloadName,
+		&item.DesiredReplicas,
+		&item.ReadyReplicas,
+		&item.UpdatedReplicas,
+		&item.AvailableReplicas,
+		&item.UnavailableReplicas,
+		&item.ObservedGeneration,
+		&item.SummaryStatus,
+		&images,
+		&conditions,
+		&labels,
+		&annotations,
+		&item.ObservedAt,
+		&restartAt,
+		&deletedAt,
+	); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(defaultJSONBytes(images, `[]`), &item.Images); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(defaultJSONBytes(conditions, `[]`), &item.Conditions); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(defaultJSONBytes(labels, `{}`), &item.Labels); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(defaultJSONBytes(annotations, `{}`), &item.Annotations); err != nil {
+		return nil, err
+	}
+	item.RestartAt = dbsql.TimePtrFromNull(restartAt)
 	item.DeletedAt = dbsql.TimePtrFromNull(deletedAt)
 	return &item, nil
 }

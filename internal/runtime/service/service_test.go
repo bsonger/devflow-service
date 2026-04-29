@@ -24,6 +24,9 @@ type stubStore struct {
 	updateCurrentRevisionFunc             func(context.Context, uuid.UUID, uuid.UUID) error
 	listRuntimeSpecRevisionsFunc          func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
 	getRuntimeSpecRevisionFunc            func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
+	upsertObservedWorkloadFunc            func(context.Context, *runtimedomain.RuntimeObservedWorkload) error
+	deleteObservedWorkloadFunc            func(context.Context, uuid.UUID, string, string, string, time.Time) error
+	getObservedWorkloadFunc               func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error)
 	upsertObservedPodFunc                 func(context.Context, *runtimedomain.RuntimeObservedPod) error
 	deleteObservedPodFunc                 func(context.Context, uuid.UUID, string, string, time.Time) error
 	listObservedPodsFunc                  func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
@@ -111,6 +114,27 @@ func (s stubStore) ListRuntimeSpecRevisions(ctx context.Context, runtimeSpecID u
 func (s stubStore) GetRuntimeSpecRevision(ctx context.Context, id uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error) {
 	if s.getRuntimeSpecRevisionFunc != nil {
 		return s.getRuntimeSpecRevisionFunc(ctx, id)
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (s stubStore) UpsertObservedWorkload(ctx context.Context, item *runtimedomain.RuntimeObservedWorkload) error {
+	if s.upsertObservedWorkloadFunc != nil {
+		return s.upsertObservedWorkloadFunc(ctx, item)
+	}
+	return nil
+}
+
+func (s stubStore) DeleteObservedWorkload(ctx context.Context, runtimeSpecID uuid.UUID, namespace, workloadKind, workloadName string, observedAt time.Time) error {
+	if s.deleteObservedWorkloadFunc != nil {
+		return s.deleteObservedWorkloadFunc(ctx, runtimeSpecID, namespace, workloadKind, workloadName, observedAt)
+	}
+	return nil
+}
+
+func (s stubStore) GetObservedWorkload(ctx context.Context, runtimeSpecID uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
+	if s.getObservedWorkloadFunc != nil {
+		return s.getObservedWorkloadFunc(ctx, runtimeSpecID)
 	}
 	return nil, sql.ErrNoRows
 }
@@ -226,5 +250,41 @@ func TestSyncObservedPodRejectsNamespaceMismatch(t *testing.T) {
 	})
 	if !sharederrs.HasCode(err, sharederrs.CodeInvalidArgument) {
 		t.Fatalf("expected invalid_argument error, got %v", err)
+	}
+}
+
+func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	var captured *runtimedomain.RuntimeObservedWorkload
+	svc := New(stubStore{
+		ensureRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		upsertObservedWorkloadFunc: func(_ context.Context, item *runtimedomain.RuntimeObservedWorkload) error {
+			captured = item
+			return nil
+		},
+	}, nil)
+
+	item, err := svc.SyncObservedWorkload(context.Background(), SyncObservedWorkloadInput{
+		ApplicationID:   applicationID,
+		Environment:     "production",
+		WorkloadKind:    "Deployment",
+		WorkloadName:    "meta-service",
+		DesiredReplicas: 2,
+		ReadyReplicas:   2,
+		SummaryStatus:   "Healthy",
+		Images:          []string{"repo/meta-service:latest"},
+		Conditions:      []ObservedWorkloadConditionInput{{Type: "Available", Status: "True"}},
+	})
+	if err != nil {
+		t.Fatalf("SyncObservedWorkload() error = %v", err)
+	}
+	if item.RuntimeSpecID != runtimeSpecID {
+		t.Fatalf("runtimeSpecID = %s, want %s", item.RuntimeSpecID, runtimeSpecID)
+	}
+	if captured == nil || captured.WorkloadName != "meta-service" {
+		t.Fatalf("captured workload = %#v", captured)
 	}
 }

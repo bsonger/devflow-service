@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`runtime-service` owns runtime desired state, runtime revisions, live observed pod state, and direct runtime operations.
+`runtime-service` owns runtime desired state, runtime revisions, runtime observed index state, and direct runtime operations.
 
 The primary external value of this service is not database CRUD.
 It is runtime inspection and runtime control against live Kubernetes workloads for one `application + environment`.
@@ -12,6 +12,7 @@ It is runtime inspection and runtime control against live Kubernetes workloads f
 - `RuntimeSpec`
 - `RuntimeSpecRevision`
 - `RuntimeObservedPod`
+- `RuntimeObservedWorkload`
 - `RuntimeOperation`
 - runtime desired state for `application + environment`
 - immutable runtime revisions
@@ -40,14 +41,20 @@ It is runtime inspection and runtime control against live Kubernetes workloads f
 
 For the operator-facing runtime API, `runtime-service` should be understood as depending on:
 
-- Kubernetes API
+- runtime observer / index
 - shared backend primitives
 
 That is the important mental model for these flows:
 
+- show one application workload overview
 - list application pod status
 - delete one pod
 - trigger one rollout / restart
+
+Read vs write split:
+
+- read surfaces should prefer runtime-owned observed index data
+- action surfaces should call Kubernetes only when an operator explicitly performs an action
 
 ### Current implementation note
 
@@ -91,7 +98,7 @@ Internal observer callbacks are service-internal only and are not part of the sh
 
 ## Primary operator flows
 
-### 1. List pod status
+### 1. Show workload overview
 
 Runtime service receives:
 
@@ -100,11 +107,28 @@ Runtime service receives:
 
 Then it should:
 
-1. resolve the target workload in Kubernetes
-2. read the live pod list
+1. resolve the target runtime binding
+2. read the latest observed workload summary from runtime-owned index storage
+3. return one workload overview for that `application + environment`
+
+This is the controller-level read surface.
+
+### 2. List pod status
+
+Runtime service receives:
+
+- `application_id`
+- `environment_id`
+
+Then it should:
+
+1. resolve the target runtime binding
+2. read the latest observed pod list from runtime-owned index storage
 3. return current pod status for that application runtime
 
-### 2. Delete one pod
+This is the instance-level read surface.
+
+### 3. Delete one pod
 
 Runtime service receives:
 
@@ -118,7 +142,7 @@ Then it should:
 2. delete that pod
 3. let the owning controller recreate or rebalance it
 
-### 3. Trigger rollout / restart
+### 4. Trigger rollout / restart
 
 Runtime service receives:
 
@@ -130,6 +154,37 @@ Then it should:
 1. resolve the target Deployment in Kubernetes
 2. patch `kubectl.kubernetes.io/restartedAt`
 3. let Kubernetes perform the rolling restart
+
+## External surface status
+
+### Current external surface
+
+- `GET /api/v1/runtime/pods`
+- `DELETE /api/v1/runtime/pods/{pod_name}`
+- `POST /api/v1/runtime/rollouts`
+
+### Current read-model surface
+
+Runtime workload overview now uses:
+
+- `GET /api/v1/runtime/workload?application_id=...&environment_id=...`
+
+This endpoint should return one workload overview from the same observer/index model already used for runtime pod display.
+It should not directly query Kubernetes on every page load.
+
+Suggested response emphasis:
+
+- workload identity: `workload_kind`, `workload_name`, `namespace`
+- replica status: `desired_replicas`, `ready_replicas`, `updated_replicas`, `available_replicas`, `unavailable_replicas`
+- rollout health: `summary_status`, `conditions[]`, `observed_generation`
+- deployment content summary: `images[]`
+- timestamps: `observed_at`, optional `restart_at`
+
+The intended UI split is:
+
+- `runtime/workload` for controller-level summary
+- `runtime/pods` for pod-level details
+- runtime actions for explicit Kubernetes mutations
 
 ## Resource Contracts
 

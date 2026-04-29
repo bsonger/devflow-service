@@ -39,6 +39,10 @@ type Service interface {
 	CreateRuntimeSpecRevision(context.Context, uuid.UUID, CreateRuntimeSpecRevisionInput) (*domain.RuntimeSpecRevision, error)
 	ListRuntimeSpecRevisions(context.Context, uuid.UUID) ([]*domain.RuntimeSpecRevision, error)
 	GetRuntimeSpecRevision(context.Context, uuid.UUID) (*domain.RuntimeSpecRevision, error)
+	GetObservedWorkload(context.Context, uuid.UUID) (*domain.RuntimeObservedWorkload, error)
+	GetObservedWorkloadByApplicationEnv(context.Context, uuid.UUID, string) (*domain.RuntimeObservedWorkload, error)
+	SyncObservedWorkload(context.Context, SyncObservedWorkloadInput) (*domain.RuntimeObservedWorkload, error)
+	DeleteObservedWorkload(context.Context, DeleteObservedWorkloadInput) error
 	ListObservedPods(context.Context, uuid.UUID) ([]*domain.RuntimeObservedPod, error)
 	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*domain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, SyncObservedPodInput) (*domain.RuntimeObservedPod, error)
@@ -74,6 +78,44 @@ type CreateRuntimeSpecRevisionInput struct {
 	Scheduling       string `json:"scheduling"`
 	PodEnvs          string `json:"pod_envs"`
 	CreatedBy        string `json:"created_by"`
+}
+
+type ObservedWorkloadConditionInput struct {
+	Type               string     `json:"type"`
+	Status             string     `json:"status"`
+	Reason             string     `json:"reason,omitempty"`
+	Message            string     `json:"message,omitempty"`
+	LastTransitionTime *time.Time `json:"last_transition_time,omitempty"`
+}
+
+type SyncObservedWorkloadInput struct {
+	ApplicationID       uuid.UUID                        `json:"application_id"`
+	Environment         string                           `json:"environment"`
+	Namespace           string                           `json:"namespace"`
+	WorkloadKind        string                           `json:"workload_kind"`
+	WorkloadName        string                           `json:"workload_name"`
+	DesiredReplicas     int                              `json:"desired_replicas"`
+	ReadyReplicas       int                              `json:"ready_replicas"`
+	UpdatedReplicas     int                              `json:"updated_replicas"`
+	AvailableReplicas   int                              `json:"available_replicas"`
+	UnavailableReplicas int                              `json:"unavailable_replicas"`
+	ObservedGeneration  int64                            `json:"observed_generation"`
+	SummaryStatus       string                           `json:"summary_status"`
+	Images              []string                         `json:"images,omitempty"`
+	Conditions          []ObservedWorkloadConditionInput `json:"conditions,omitempty"`
+	Labels              map[string]string                `json:"labels,omitempty"`
+	Annotations         map[string]string                `json:"annotations,omitempty"`
+	ObservedAt          time.Time                        `json:"observed_at"`
+	RestartAt           *time.Time                       `json:"restart_at,omitempty"`
+}
+
+type DeleteObservedWorkloadInput struct {
+	ApplicationID uuid.UUID `json:"application_id"`
+	Environment   string    `json:"environment"`
+	Namespace     string    `json:"namespace"`
+	WorkloadKind  string    `json:"workload_kind"`
+	WorkloadName  string    `json:"workload_name"`
+	ObservedAt    time.Time `json:"observed_at"`
 }
 
 type ObservedPodContainerInput struct {
@@ -259,6 +301,119 @@ func (s *runtimeService) GetRuntimeSpecRevision(ctx context.Context, id uuid.UUI
 		return nil, sharederrs.Required("id")
 	}
 	return s.repoStore().GetRuntimeSpecRevision(ctx, id)
+}
+
+func (s *runtimeService) GetObservedWorkload(ctx context.Context, runtimeSpecID uuid.UUID) (*domain.RuntimeObservedWorkload, error) {
+	if runtimeSpecID == uuid.Nil {
+		return nil, sharederrs.Required("runtime_spec_id")
+	}
+	item, err := s.repoStore().GetObservedWorkload(ctx, runtimeSpecID)
+	if err == sql.ErrNoRows {
+		return nil, ErrRuntimeSpecNotFound
+	}
+	return item, err
+}
+
+func (s *runtimeService) GetObservedWorkloadByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) (*domain.RuntimeObservedWorkload, error) {
+	environment = strings.TrimSpace(environment)
+	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
+		return nil, err
+	}
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	if err != nil {
+		return nil, err
+	}
+	if spec == nil {
+		return nil, ErrRuntimeSpecNotFound
+	}
+	item, err := s.repoStore().GetObservedWorkload(ctx, spec.ID)
+	if err == sql.ErrNoRows {
+		return nil, ErrRuntimeSpecNotFound
+	}
+	return item, err
+}
+
+func (s *runtimeService) SyncObservedWorkload(ctx context.Context, in SyncObservedWorkloadInput) (*domain.RuntimeObservedWorkload, error) {
+	in.Environment = strings.TrimSpace(in.Environment)
+	in.Namespace = strings.TrimSpace(in.Namespace)
+	in.WorkloadKind = strings.TrimSpace(in.WorkloadKind)
+	in.WorkloadName = strings.TrimSpace(in.WorkloadName)
+	in.SummaryStatus = strings.TrimSpace(in.SummaryStatus)
+	if err := validateObservedWorkloadInput(in.ApplicationID, in.Environment, in.WorkloadKind, in.WorkloadName); err != nil {
+		return nil, err
+	}
+
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, in.ApplicationID, in.Environment)
+	if err != nil {
+		return nil, err
+	}
+	if spec == nil {
+		return nil, ErrRuntimeSpecNotFound
+	}
+
+	observedAt := in.ObservedAt
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
+	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	if in.Namespace != "" && in.Namespace != resolvedNamespace {
+		return nil, ErrNamespaceMismatch
+	}
+
+	item := &domain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		RuntimeSpecID:       spec.ID,
+		ApplicationID:       spec.ApplicationID,
+		Environment:         spec.Environment,
+		Namespace:           resolvedNamespace,
+		WorkloadKind:        in.WorkloadKind,
+		WorkloadName:        in.WorkloadName,
+		DesiredReplicas:     in.DesiredReplicas,
+		ReadyReplicas:       in.ReadyReplicas,
+		UpdatedReplicas:     in.UpdatedReplicas,
+		AvailableReplicas:   in.AvailableReplicas,
+		UnavailableReplicas: in.UnavailableReplicas,
+		ObservedGeneration:  in.ObservedGeneration,
+		SummaryStatus:       in.SummaryStatus,
+		Images:              trimStringSlice(in.Images),
+		Conditions:          mapObservedWorkloadConditions(in.Conditions),
+		Labels:              copyLabels(in.Labels),
+		Annotations:         copyLabels(in.Annotations),
+		ObservedAt:          observedAt,
+		RestartAt:           in.RestartAt,
+	}
+	if err := s.repoStore().UpsertObservedWorkload(ctx, item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (s *runtimeService) DeleteObservedWorkload(ctx context.Context, in DeleteObservedWorkloadInput) error {
+	in.Environment = strings.TrimSpace(in.Environment)
+	in.Namespace = strings.TrimSpace(in.Namespace)
+	in.WorkloadKind = strings.TrimSpace(in.WorkloadKind)
+	in.WorkloadName = strings.TrimSpace(in.WorkloadName)
+	if err := validateObservedWorkloadDeleteInput(in.ApplicationID, in.Environment, in.WorkloadKind, in.WorkloadName); err != nil {
+		return err
+	}
+
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, in.ApplicationID, in.Environment)
+	if err != nil {
+		return err
+	}
+	if spec == nil {
+		return ErrRuntimeSpecNotFound
+	}
+
+	observedAt := in.ObservedAt
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
+	resolvedNamespace := resolveRuntimeNamespace(spec.ApplicationID, spec.Environment)
+	if in.Namespace != "" && in.Namespace != resolvedNamespace {
+		return ErrNamespaceMismatch
+	}
+	return s.repoStore().DeleteObservedWorkload(ctx, spec.ID, resolvedNamespace, in.WorkloadKind, in.WorkloadName, observedAt)
 }
 
 func (s *runtimeService) ListObservedPods(ctx context.Context, runtimeSpecID uuid.UUID) ([]*domain.RuntimeObservedPod, error) {
@@ -532,6 +687,27 @@ func validateObservedPodDeleteInput(applicationId uuid.UUID, environment, podNam
 	return sharederrs.JoinInvalid(messages)
 }
 
+func validateObservedWorkloadInput(applicationId uuid.UUID, environment, workloadKind, workloadName string) error {
+	messages := make([]string, 0, 4)
+	if applicationId == uuid.Nil {
+		messages = append(messages, "application_id is required")
+	}
+	if environment == "" {
+		messages = append(messages, "environment is required")
+	}
+	if workloadKind == "" {
+		messages = append(messages, "workload_kind is required")
+	}
+	if workloadName == "" {
+		messages = append(messages, "workload_name is required")
+	}
+	return sharederrs.JoinInvalid(messages)
+}
+
+func validateObservedWorkloadDeleteInput(applicationId uuid.UUID, environment, workloadKind, workloadName string) error {
+	return validateObservedWorkloadInput(applicationId, environment, workloadKind, workloadName)
+}
+
 func mapObservedPodContainers(in []ObservedPodContainerInput) []domain.RuntimeObservedPodContainer {
 	if len(in) == 0 {
 		return nil
@@ -550,6 +726,23 @@ func mapObservedPodContainers(in []ObservedPodContainerInput) []domain.RuntimeOb
 	return out
 }
 
+func mapObservedWorkloadConditions(in []ObservedWorkloadConditionInput) []domain.RuntimeObservedWorkloadCondition {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]domain.RuntimeObservedWorkloadCondition, 0, len(in))
+	for _, item := range in {
+		out = append(out, domain.RuntimeObservedWorkloadCondition{
+			Type:               strings.TrimSpace(item.Type),
+			Status:             strings.TrimSpace(item.Status),
+			Reason:             strings.TrimSpace(item.Reason),
+			Message:            strings.TrimSpace(item.Message),
+			LastTransitionTime: item.LastTransitionTime,
+		})
+	}
+	return out
+}
+
 func copyLabels(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
@@ -557,6 +750,24 @@ func copyLabels(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
 	for key, value := range in {
 		out[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+	return out
+}
+
+func trimStringSlice(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	for _, item := range in {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

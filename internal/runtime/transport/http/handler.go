@@ -24,6 +24,10 @@ type runtimeService interface {
 	CreateRuntimeSpecRevision(context.Context, uuid.UUID, runtimeservice.CreateRuntimeSpecRevisionInput) (*runtimedomain.RuntimeSpecRevision, error)
 	ListRuntimeSpecRevisions(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeSpecRevision, error)
 	GetRuntimeSpecRevision(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpecRevision, error)
+	GetObservedWorkload(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error)
+	GetObservedWorkloadByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeObservedWorkload, error)
+	SyncObservedWorkload(context.Context, runtimeservice.SyncObservedWorkloadInput) (*runtimedomain.RuntimeObservedWorkload, error)
+	DeleteObservedWorkload(context.Context, runtimeservice.DeleteObservedWorkloadInput) error
 	ListObservedPods(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error)
 	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
@@ -54,6 +58,11 @@ type RuntimePodsQuery struct {
 	EnvironmentID string
 }
 
+type RuntimeWorkloadQuery struct {
+	ApplicationID uuid.UUID
+	EnvironmentID string
+}
+
 type DeleteRuntimePodRequest struct {
 	ApplicationID uuid.UUID `json:"application_id"`
 	EnvironmentID string    `json:"environment_id"`
@@ -75,6 +84,36 @@ type CreateRuntimeSpecRevisionRequest struct {
 	Scheduling       string `json:"scheduling"`
 	PodEnvs          string `json:"pod_envs"`
 	CreatedBy        string `json:"created_by"`
+}
+
+type SyncObservedWorkloadRequest struct {
+	ApplicationID       uuid.UUID                          `json:"application_id"`
+	Environment         string                             `json:"environment"`
+	Namespace           string                             `json:"namespace"`
+	WorkloadKind        string                             `json:"workload_kind"`
+	WorkloadName        string                             `json:"workload_name"`
+	DesiredReplicas     int                                `json:"desired_replicas"`
+	ReadyReplicas       int                                `json:"ready_replicas"`
+	UpdatedReplicas     int                                `json:"updated_replicas"`
+	AvailableReplicas   int                                `json:"available_replicas"`
+	UnavailableReplicas int                                `json:"unavailable_replicas"`
+	ObservedGeneration  int64                              `json:"observed_generation"`
+	SummaryStatus       string                             `json:"summary_status"`
+	Images              []string                           `json:"images,omitempty"`
+	Conditions          []ObservedWorkloadConditionRequest `json:"conditions,omitempty"`
+	Labels              map[string]string                  `json:"labels,omitempty"`
+	Annotations         map[string]string                  `json:"annotations,omitempty"`
+	ObservedAt          time.Time                          `json:"observed_at"`
+	RestartAt           *time.Time                         `json:"restart_at,omitempty"`
+}
+
+type DeleteObservedWorkloadRequest struct {
+	ApplicationID uuid.UUID `json:"application_id"`
+	Environment   string    `json:"environment"`
+	Namespace     string    `json:"namespace"`
+	WorkloadKind  string    `json:"workload_kind"`
+	WorkloadName  string    `json:"workload_name"`
+	ObservedAt    time.Time `json:"observed_at"`
 }
 
 type SyncObservedPodRequest struct {
@@ -112,6 +151,14 @@ type ObservedPodContainerRequest struct {
 	State        string `json:"state,omitempty"`
 }
 
+type ObservedWorkloadConditionRequest struct {
+	Type               string     `json:"type"`
+	Status             string     `json:"status"`
+	Reason             string     `json:"reason,omitempty"`
+	Message            string     `json:"message,omitempty"`
+	LastTransitionTime *time.Time `json:"last_transition_time,omitempty"`
+}
+
 func NewHandler(runtime runtimeService) *Handler {
 	return &Handler{runtime: runtime}
 }
@@ -119,6 +166,7 @@ func NewHandler(runtime runtimeService) *Handler {
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	runtimeAPI := rg.Group("/runtime")
 	{
+		runtimeAPI.GET("/workload", h.GetRuntimeWorkload)
 		runtimeAPI.GET("/pods", h.ListRuntimePods)
 		runtimeAPI.DELETE("/pods/:pod_name", h.DeleteRuntimePod)
 		runtimeAPI.POST("/rollouts", h.RolloutRuntime)
@@ -147,6 +195,11 @@ func (h *Handler) RegisterInternalRoutes(rg *gin.RouterGroup) {
 		observer.POST("/sync", h.SyncObservedPod)
 		observer.POST("/delete", h.DeleteObservedPod)
 	}
+	workloads := rg.Group("/internal/runtime-spec-workloads")
+	{
+		workloads.POST("/sync", h.SyncObservedWorkload)
+		workloads.POST("/delete", h.DeleteObservedWorkload)
+	}
 }
 
 func parseRuntimePodsQuery(c *gin.Context) (*RuntimePodsQuery, bool) {
@@ -163,6 +216,35 @@ func parseRuntimePodsQuery(c *gin.Context) (*RuntimePodsQuery, bool) {
 		return nil, false
 	}
 	return &RuntimePodsQuery{ApplicationID: *applicationID, EnvironmentID: environmentID}, true
+}
+
+func parseRuntimeWorkloadQuery(c *gin.Context) (*RuntimeWorkloadQuery, bool) {
+	applicationID, ok := httpx.ParseUUIDQuery(c, "application_id")
+	if !ok || applicationID == nil {
+		if ok {
+			httpx.WriteInvalidArgument(c, "application_id is required")
+		}
+		return nil, false
+	}
+	environmentID := strings.TrimSpace(c.Query("environment_id"))
+	if environmentID == "" {
+		httpx.WriteInvalidArgument(c, "environment_id is required")
+		return nil, false
+	}
+	return &RuntimeWorkloadQuery{ApplicationID: *applicationID, EnvironmentID: environmentID}, true
+}
+
+func (h *Handler) GetRuntimeWorkload(c *gin.Context) {
+	query, ok := parseRuntimeWorkloadQuery(c)
+	if !ok {
+		return
+	}
+	item, err := h.runtime.GetObservedWorkloadByApplicationEnv(c.Request.Context(), query.ApplicationID, query.EnvironmentID)
+	if err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteData(c, http.StatusOK, item)
 }
 
 func (h *Handler) ListRuntimePods(c *gin.Context) {
@@ -448,6 +530,74 @@ func mapObservedPodContainerRequests(in []ObservedPodContainerRequest) []runtime
 		})
 	}
 	return out
+}
+
+func mapObservedWorkloadConditionRequests(in []ObservedWorkloadConditionRequest) []runtimeservice.ObservedWorkloadConditionInput {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]runtimeservice.ObservedWorkloadConditionInput, 0, len(in))
+	for _, item := range in {
+		out = append(out, runtimeservice.ObservedWorkloadConditionInput{
+			Type:               item.Type,
+			Status:             item.Status,
+			Reason:             item.Reason,
+			Message:            item.Message,
+			LastTransitionTime: item.LastTransitionTime,
+		})
+	}
+	return out
+}
+
+func (h *Handler) SyncObservedWorkload(c *gin.Context) {
+	var req SyncObservedWorkloadRequest
+	if !httpx.BindJSON(c, &req) {
+		return
+	}
+	_, err := h.runtime.SyncObservedWorkload(c.Request.Context(), runtimeservice.SyncObservedWorkloadInput{
+		ApplicationID:       req.ApplicationID,
+		Environment:         req.Environment,
+		Namespace:           req.Namespace,
+		WorkloadKind:        req.WorkloadKind,
+		WorkloadName:        req.WorkloadName,
+		DesiredReplicas:     req.DesiredReplicas,
+		ReadyReplicas:       req.ReadyReplicas,
+		UpdatedReplicas:     req.UpdatedReplicas,
+		AvailableReplicas:   req.AvailableReplicas,
+		UnavailableReplicas: req.UnavailableReplicas,
+		ObservedGeneration:  req.ObservedGeneration,
+		SummaryStatus:       req.SummaryStatus,
+		Images:              req.Images,
+		Conditions:          mapObservedWorkloadConditionRequests(req.Conditions),
+		Labels:              req.Labels,
+		Annotations:         req.Annotations,
+		ObservedAt:          req.ObservedAt,
+		RestartAt:           req.RestartAt,
+	})
+	if err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
+}
+
+func (h *Handler) DeleteObservedWorkload(c *gin.Context) {
+	var req DeleteObservedWorkloadRequest
+	if !httpx.BindJSON(c, &req) {
+		return
+	}
+	if err := h.runtime.DeleteObservedWorkload(c.Request.Context(), runtimeservice.DeleteObservedWorkloadInput{
+		ApplicationID: req.ApplicationID,
+		Environment:   req.Environment,
+		Namespace:     req.Namespace,
+		WorkloadKind:  req.WorkloadKind,
+		WorkloadName:  req.WorkloadName,
+		ObservedAt:    req.ObservedAt,
+	}); err != nil {
+		writeRuntimeError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
 }
 
 func writeRuntimeError(c *gin.Context, err error) {

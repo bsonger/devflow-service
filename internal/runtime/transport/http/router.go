@@ -15,9 +15,10 @@ import (
 type Module string
 
 const (
-	ModuleRuntimeSpec         Module = "runtime-spec"
-	ModuleRuntimeSpecRevision Module = "runtime-spec-revision"
-	ModuleRuntimeObservedPod  Module = "runtime-observed-pod"
+	ModuleRuntimeSpec             Module = "runtime-spec"
+	ModuleRuntimeSpecRevision     Module = "runtime-spec-revision"
+	ModuleRuntimeObservedWorkload Module = "runtime-observed-workload"
+	ModuleRuntimeObservedPod      Module = "runtime-observed-pod"
 )
 
 type Options struct {
@@ -34,6 +35,7 @@ func NewRouter() *gin.Engine {
 		Modules: []Module{
 			ModuleRuntimeSpec,
 			ModuleRuntimeSpecRevision,
+			ModuleRuntimeObservedWorkload,
 			ModuleRuntimeObservedPod,
 		},
 	})
@@ -96,6 +98,7 @@ func toStatusModules(modules []Module) []string {
 		modules = []Module{
 			ModuleRuntimeSpec,
 			ModuleRuntimeSpecRevision,
+			ModuleRuntimeObservedWorkload,
 			ModuleRuntimeObservedPod,
 		}
 	}
