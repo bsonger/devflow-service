@@ -24,7 +24,7 @@ Use these surfaces in roughly this order when navigating the doc set:
 - `docs/policies/` — durable repo rules such as layout, Docker, and verification
 - `docs/generated/` — generated artifacts only
 - `docs/archive/` — historical material only
-- `docs/superpowers/` — historical specs and plans
+- `docs/superpowers/README.md` — design specs, plans, and other pre-implementation artifacts
 
 ## Common starting points by topic
 
@@ -63,6 +63,10 @@ For background execution, lease-driven worker semantics, and runtime helper boun
 For resource CRUD behavior, list/filter/pagination rules, and resource-doc contract shape, start with:
 
 - `docs/policies/resource-api.md`
+
+For architecture and service/resource flow diagrams, start with:
+
+- `docs/system/diagrams.md`
 
 ## Notes
 

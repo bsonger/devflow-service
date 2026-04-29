@@ -7,11 +7,12 @@ Recommended reading order:
 2. `docs/system/recovery.md`
 3. `README.md`
 4. `docs/system/architecture.md`
-5. `docs/services/meta-service.md`
-6. `docs/resources/` only if the task needs current resource contracts
-7. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
-8. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
-9. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are no longer enough for a migration-boundary question
+5. `docs/system/diagrams.md` if you need a quick visual overview of service dependencies or release flow
+6. `docs/services/meta-service.md`
+7. `docs/resources/` only if the task needs current resource contracts
+8. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
+9. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
+10. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are no longer enough for a migration-boundary question
 
 Use `docs/system/` for current repo-local truth.
 Use `docs/services/` for service-specific behavior.

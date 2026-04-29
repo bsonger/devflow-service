@@ -64,6 +64,10 @@ Repo-local docs are layered by purpose:
 
 `AGENTS.md` remains the startup contract, not the place where all durable repo rules are copied.
 
+For a visual companion to this document, use:
+
+- `docs/system/diagrams.md`
+
 ## Non-goals
 
 This migration does not currently aim to:
