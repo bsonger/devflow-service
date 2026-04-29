@@ -85,6 +85,20 @@ When creating a release, `release-service` composes these upstream facts:
 
 This means `Release` is also release-owned, but it is intentionally assembled from cross-service inputs at freeze time.
 
+## Rollout observation boundary
+
+`release-service` should be understood as the deployment initiator, not the rollout observer.
+
+Target boundary:
+
+1. `release-service` creates or updates the Argo CD `Application`
+2. Argo CD syncs the release-owned OCI bundle into Kubernetes
+3. `runtime-service` observes Application / Rollout / Deployment / Pod state
+4. `runtime-service` writes rollout progress back through release writeback routes
+
+Current implementation still contains a release-side Argo CD read path during release detail reads.
+That behavior is implementation residue and should not be treated as the intended long-term service boundary.
+
 ## Downstream Consumers
 
 - platform orchestration layers

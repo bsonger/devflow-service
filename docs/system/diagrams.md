@@ -104,6 +104,7 @@ sequenceDiagram
     participant PG as PostgreSQL
     participant ZOT as zot
     participant ARGO as Argo CD
+    participant RTS as runtime-service
     participant K8S as Kubernetes
 
     U->>RS: POST /api/v1/release/releases
@@ -118,8 +119,11 @@ sequenceDiagram
     RS->>ARGO: request sync
     ARGO->>ZOT: pull OCI bundle
     ARGO->>K8S: apply ServiceAccount / ConfigMap / Service / Deployment / VirtualService
-    RS->>ARGO: read Application status
-    RS->>PG: reconcile release steps + final status
+    RTS->>ARGO: observe Application sync / health
+    RTS->>K8S: observe Rollout / Deployment / Pod state
+    RTS->>RS: POST /api/v1/release/verify/argo/events
+    RTS->>RS: POST /api/v1/release/verify/release/steps
+    RS->>PG: persist release step updates + final status
 ```
 
 ### Current release stages
@@ -138,6 +142,16 @@ See also:
 
 - `docs/system/release-steps.md`
 - `docs/system/release-writeback.md`
+
+### Current implementation gap
+
+The desired boundary is:
+
+- `release-service` starts deployment by creating/updating the Argo CD `Application`
+- `runtime-service` observes rollout state and writes release progress back through release writeback routes
+
+Current code still contains a release-side Argo CD read path during release detail reads.
+That direct read path is implementation residue and should not be treated as the long-term ownership model.
 
 ## 4. Runtime read / action sequence diagram
 

@@ -87,6 +87,7 @@ Current status mapping:
 - `failed` -> `Failed`
 - `error` -> `SyncFailed`
 - `running` -> `Running`
+- these callbacks are expected to come from `runtime-service` or another rollout observer, not from normal end-user traffic
 - these callbacks should also advance `observe_rollout` step state with normalized messages such as:
   - `rollout is running in argocd`
   - `rollout observed as succeeded by argocd`

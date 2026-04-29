@@ -194,7 +194,8 @@ What happens:
 - `release-service` creates or updates an Argo CD `Application`
 - Argo CD pulls the release-owned OCI artifact
 - Argo CD syncs the rendered bundle into Kubernetes
-- release status and steps are reconciled from deployment progress
+- `release-service` does not own long-running rollout observation
+- rollout progress should be observed by `runtime-service` and written back onto the release record
 
 Key boundary rule:
 
