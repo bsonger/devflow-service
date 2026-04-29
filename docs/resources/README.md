@@ -11,7 +11,11 @@ Use these docs to answer three questions quickly:
 
 ## Standard resource doc format
 
-Unless a resource is intentionally read-only or derived-only, each file in this directory should follow this shape:
+Most resource docs in this directory fall into one of three shapes.
+
+### 1. CRUD-backed resource docs
+
+Use this shape when the resource is a normal persisted contract:
 
 1. `# <Resource>`
 2. `## Ownership`
@@ -23,7 +27,33 @@ Unless a resource is intentionally read-only or derived-only, each file in this 
 8. `## Validation notes`
 9. `## Source pointers`
 
-Some resources add extra sections such as nested types, lifecycle, sync behavior, or UI guidance, but the core headings above should stay stable.
+### 2. Operation-oriented resource docs
+
+Use this shape when the external contract is primarily action/read-model oriented rather than simple CRUD, for example runtime operations:
+
+1. `# <Resource>`
+2. `## Ownership`
+3. `## Purpose`
+4. `## Main operator flows` or equivalent execution-oriented overview
+5. `## API surface`
+6. `## Request contracts` / response focus as needed
+7. `## Validation notes`
+8. `## Source pointers`
+
+### 3. Derived or read-only contract docs
+
+Use this shape when the contract is derived from another persisted resource and has no standalone CRUD surface, for example `Image`:
+
+1. `# <Resource>`
+2. `## Ownership`
+3. `## Purpose`
+4. `## Field table` or source-field mapping
+5. `## API surface`
+6. `## Create / update rules`
+7. `## Validation notes`
+8. `## Source pointers`
+
+Some resources add extra sections such as nested types, lifecycle, sync behavior, relationship notes, or UI guidance, but the owning headings above should stay stable for that document type.
 
 ## Resource ownership map
 

@@ -108,6 +108,16 @@ They are not duplicates because they point to different things:
 - `image_ref`: workload image produced by build
 - `artifact_ref`: deployment bundle OCI artifact produced by release execution
 
+### `bundle_digest` vs `artifact_digest`
+
+- `bundle_digest` belongs to the rendered release bundle fact
+- `artifact_digest` belongs to the published OCI artifact result
+
+They should not be treated as the same field:
+
+- `bundle_digest`: digest of the rendered bundle content itself
+- `artifact_digest`: digest reported by the publisher after bundle publication
+
 ## Common base fields
 
 | Field | Type | Required | Writable | Description |
@@ -136,7 +146,7 @@ They are not duplicates because they point to different things:
 
 ### Deployment artifact fields recommended for release ownership
 
-These fields describe the rendered deployment bundle produced by release-service and should belong to `Release`, not `Manifest`.
+These fields describe the published deployment artifact associated with the rendered release bundle and should belong to `Release`, not `Manifest`.
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
@@ -293,6 +303,22 @@ Recommended stable read fields:
 - `created_at`
 - `updated_at`
 
+Recommended detail-read extension when bundle preview is available:
+
+- `bundle_summary`
+
+Recommended `bundle_summary` shape:
+
+- `available`
+- `namespace`
+- `artifact_name`
+- `bundle_digest`
+- `primary_workload_kind`
+- `resource_counts`
+- `artifact_ref`
+- `rendered_at`
+- optional `published_at`
+
 Recommended list filters:
 
 - `application_id`
@@ -306,6 +332,131 @@ Validation note:
 
 - `GET /api/v1/releases` requires both `application_id` and `environment_id`
 - `environment_id` is documented as a string because it is an identifier field, but the current implementation requires a valid environment UUID string
+
+## Bundle preview contract
+
+`GET /api/v1/releases/{id}/bundle-preview` is the operator-facing read surface for one release's rendered deployment content.
+
+Current behavior:
+
+- the preview reads from:
+  - persisted `Release`
+  - persisted `Manifest`
+  - persisted `release_bundle`
+- the active implementation now persists one canonical `release_bundle` row per release after `render_deployment_bundle` succeeds
+
+Target contract:
+
+- one `Release` should map to one canonical rendered bundle fact
+- the preview should answer both:
+  - which frozen inputs were used
+  - what YAML was finally rendered
+
+Recommended status semantics:
+
+- `200` when rendered bundle content is available
+- `404` when the release does not exist
+- `409` with error code `failed_precondition` and message `bundle not ready` when `render_deployment_bundle` has not succeeded yet
+
+Recommended response sections:
+
+- `release_id`
+- `manifest_id`
+- `application_id`
+- `environment_id`
+- `strategy`
+- `namespace`
+- `bundle_digest`
+- optional published `artifact`
+- `frozen_inputs`
+- `rendered_bundle`
+- `rendered_at`
+- optional `published_at`
+
+Recommended `bundle_summary` example on `GET /api/v1/releases/{id}`:
+
+```json
+{
+  "bundle_summary": {
+    "available": true,
+    "namespace": "checkout",
+    "artifact_name": "demo-api",
+    "bundle_digest": "sha256:bundle",
+    "primary_workload_kind": "Rollout",
+    "resource_counts": {
+      "configmaps": 1,
+      "services": 2,
+      "rollouts": 1,
+      "virtualservices": 1,
+      "total": 5
+    },
+    "artifact": {
+      "repository": "zot.zot.svc.cluster.local:5000/devflow/releases/demo-api",
+      "tag": "95cccbf1-2e15-4a08-ad39-94019f59edea",
+      "digest": "sha256:artifact",
+      "ref": "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api@sha256:artifact"
+    },
+    "rendered_at": "2026-04-29T10:00:00Z",
+    "published_at": "2026-04-29T10:00:12Z"
+  }
+}
+```
+
+### `frozen_inputs`
+
+This section should expose the input-side facts for the release, not the rendered Kubernetes objects.
+
+Recommended contents:
+
+- `manifest_summary`
+- `services`
+- `workload`
+- `app_config`
+- `routes`
+
+Rules:
+
+- `services` and `workload` come from frozen manifest snapshots
+- `app_config` and `routes` come from release-owned frozen inputs
+- this section should not contain derived rendered fields such as selectors, rollout strategy blocks, or namespace-injected metadata
+
+### `rendered_bundle`
+
+This section should expose the final rendered output for the same release.
+
+Recommended contents:
+
+- `resource_groups`
+- `rendered_resources`
+- `files`
+
+Rules:
+
+- `resource_groups` should only list kinds that actually exist in the rendered bundle
+- `rendered_resources` should carry one final YAML string per rendered object
+- `rendered_resources[].summary` should vary by `kind`
+- `files` should include the combined `bundle.yaml`
+
+### Recommended `release_bundle` persistence model
+
+If bundle preview becomes a persisted release-owned fact, the resource should stay one-to-one with `Release`.
+
+Recommended persisted facts:
+
+- `release_id`
+- `namespace`
+- `artifact_name`
+- `bundle_digest`
+- `rendered_objects`
+- `bundle_yaml`
+- `created_at`
+
+Recommended non-goals for this resource:
+
+- do not duplicate `app_config_snapshot`
+- do not duplicate `routes_snapshot`
+- do not duplicate manifest-side `services` or `workload`
+- do not move `artifact_repository`, `artifact_tag`, `artifact_digest`, or `artifact_ref` off `Release`
 
 ## Execution model
 
@@ -435,6 +586,23 @@ After rendering the deployment bundle:
 
 This deployment bundle is the release artifact.
 
+Current implementation target:
+
+- in `oras` mode, the rendered bundle is packaged as one OCI artifact with a **single tar.gz layer**
+- that layer contains the rendered bundle files, including `bundle.yaml`
+- the preferred pre-production registry endpoint is the in-cluster `zot` service address, not an individual pod DNS name
+- the bundle publication location is represented by:
+  - `artifact_repository`
+  - `artifact_tag`
+  - `artifact_digest`
+  - `artifact_ref`
+
+Why single-layer packaging matters:
+
+- ArgoCD OCI source is expected to consume one OCI artifact payload as the deployment source
+- release execution should not publish one OCI layer per YAML file and then hope ArgoCD reassembles them
+- the deployment bundle must be a stable artifact that ArgoCD can pull as-is
+
 ## 6. Executor creates ArgoCD Application
 
 The asynchronous execution flow creates an ArgoCD Application that points to the OCI bundle.
@@ -444,6 +612,14 @@ ArgoCD should pull:
 - deployment bundle YAML from OCI
 
 not regenerate manifests from scratch, and not depend on manifest-era artifact ownership.
+
+Operational rule:
+
+- ArgoCD source should point to the release-owned OCI artifact by `repoURL + targetRevision`
+- `repoURL` should be `oci://<registry>/<namespace>/<repository-prefix>/<application>`
+- `targetRevision` should prefer the published digest when available
+
+When the OCI registry is exposed only through in-cluster HTTP, ArgoCD repository configuration must enable OCI force-http semantics for that registry prefix.
 
 ## 7. ArgoCD starts deployment
 
@@ -581,16 +757,28 @@ Current implementation direction:
   - `manifest.image_ref`
   - `release.app_config_snapshot`
   - optional/deferred `release.routes_snapshot`
+- render phase should become the point where one canonical release-owned bundle fact is fixed for that release
 - publish phase now flows through a bundle publisher abstraction
+- publish phase should consume the already-rendered bundle fact instead of introducing a different rendering source of truth
 - current default publisher records artifact metadata from rendered bundle content and digest
 - publisher modes:
   - `metadata`: metadata-only
-  - `oras`: package bundle as OCI artifact and push/tag to remote registry when manifest registry is enabled
+  - `oras`: package the rendered bundle as a single OCI tar.gz layer and push/tag it to the remote registry when manifest registry is enabled
 - `publish_bundle` step message should prefer carrying both publisher mode and final artifact ref for operator diagnostics
 - `create_argocd_application` step message should prefer carrying application name, target environment, and final artifact ref when available
 - intent is then marked as `Running` after dispatch is accepted
 - later runtime / writeback callbacks continue updating release status and steps
 - when release-service runs in intent mode and worker config is enabled, it starts a background release intent worker loop
+
+### Pre-production OCI wiring note
+
+Committed pre-production release deployment currently expects:
+
+- `release-service` publishes bundle artifacts to `zot.zot.svc.cluster.local:5000`
+- `manifest_registry.mode = oras`
+- Argo CD uses a repo-creds prefix secret for `oci://zot.zot.svc.cluster.local:5000/devflow/releases`
+
+This prefix-based ArgoCD credential contract is required because release artifact repositories are application-scoped beneath the `releases/` prefix.
 
 ### runtime-service observer phase
 
@@ -601,6 +789,10 @@ Current implementation direction:
 - finalize release outcome
 
 ## Step naming guidance
+
+Detailed operator-facing step semantics now live in:
+
+- `docs/system/release-steps.md`
 
 To avoid confusion with the `Manifest` resource, release steps should avoid names like:
 

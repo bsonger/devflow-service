@@ -14,6 +14,15 @@
 `Image` is a derived contract, not a standalone database-backed resource in the current repo-local design.
 The current system records build output on `Manifest`, then consumes that immutable image reference during release-time rendering and rollout.
 
+## Resource shape
+
+This is a derived/read-only contract doc:
+
+- there is no standalone `images` table
+- there is no standalone `Image` CRUD route
+- the authoritative build output lives on `Manifest`
+- `Release` consumes that frozen image output during deployment rendering
+
 ## Field table
 
 There is no standalone `Image` table or public CRUD payload today.

@@ -1,4 +1,4 @@
-# Runtime Runtime API
+# Runtime API
 
 ## Ownership
 
@@ -79,7 +79,7 @@ Current implementation note:
 - the runtime action is implemented as a Deployment restart
 - in product language, this can be described as triggering a rollout or restart for the application workload
 
-## Target API surface
+## API surface
 
 Current service-internal route surface:
 
