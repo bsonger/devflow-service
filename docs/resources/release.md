@@ -24,6 +24,46 @@ Its job is not to build an image. Its job is to:
 - create the Argo CD `Application`
 - track deployment progress until completion
 
+## Quick reader guide
+
+Use this document when you need to answer deploy-side questions such as:
+
+- which manifest was deployed
+- which environment was targeted
+- which app config and routes were frozen
+- what deployment artifact was published
+- what Argo CD external reference was created
+- how rollout steps and status progressed
+
+If your question is instead about:
+
+- which source revision was built
+- what image was produced
+- what Tekton pipeline ran
+- which workload and service snapshots were frozen for build
+
+then the owning resource is `Manifest`, not `Release`.
+
+## Boundary summary
+
+`Release` is the deploy-side freeze point.
+
+It owns:
+
+- target environment binding
+- deployment-time config freeze
+- rollout strategy
+- rendered deployment bundle
+- deployment artifact publication metadata
+- rollout execution progress and final deployment state
+
+It does not own:
+
+- source/build selection as the primary record
+- image build execution history
+- Tekton build topology
+- the canonical build-side snapshots owned by `Manifest`
+
 ## Relationship with Manifest
 
 `Manifest` and `Release` have different responsibilities and should stay separate.
@@ -318,6 +358,23 @@ Design rule:
 - `name` is for humans and may change over time
 - runtime-service and release-service should update steps by `code`, not by display name
 - writeback payloads should prefer `step_code`; `step_name` is migration-only compatibility input
+
+## Question routing
+
+Use `Manifest` when the question starts with:
+
+- what was built
+- which commit was built
+- which image came out of build
+- what build-time service/workload shape was frozen
+
+Use `Release` when the question starts with:
+
+- what was deployed
+- where it was deployed
+- which config was used for deployment
+- what OCI deployment artifact was published
+- what happened during rollout
 
 ## Read surfaces
 

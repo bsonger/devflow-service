@@ -13,6 +13,25 @@
 `Manifest` is the build-time snapshot and image-delivery record for one application revision.
 It freezes service and workload snapshots, triggers the Tekton image build, records the image result, and remains the durable traceable record after `PipelineRun` / `TaskRun` resources are garbage-collected.
 
+## Quick reader guide
+
+Use this document when you need to answer build-side questions such as:
+
+- what exactly was frozen before image build started
+- which source revision was actually built
+- what image was produced
+- how Tekton progress maps back to one durable system record
+
+If your question is instead about:
+
+- target environment
+- app config used for deployment
+- rendered deployment YAML
+- Argo CD deployment state
+- published OCI deployment bundle
+
+then the owning resource is `Release`, not `Manifest`.
+
 ## Common base fields
 
 | Field | Type | Required | Writable | Description |
@@ -47,6 +66,24 @@ It freezes service and workload snapshots, triggers the Tekton image build, reco
 - `Running`
 - `Succeeded`
 - `Failed`
+
+## Boundary summary
+
+`Manifest` is the build-side freeze point.
+
+It owns:
+
+- build identity
+- build execution state
+- image result
+- frozen service and workload snapshots
+
+It does not own:
+
+- environment-specific deployment inputs
+- rendered deployment bundle output
+- Argo CD application state
+- rollout progression
 
 ## Dependency inputs
 
