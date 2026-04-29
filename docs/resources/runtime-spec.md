@@ -439,7 +439,6 @@ As of April 29, 2026:
 Remaining operational gap:
 
 - runtime-service now contains an in-process Kubernetes observer that refreshes workload and pod index rows directly
-- if the external `resource-observer` deployment continues to run, pod-level writes may overlap until the old path is retired
 
 Those records may continue to exist for implementation, history, or observer-sync purposes.
 But they should not dominate the external API contract if the main user value is:

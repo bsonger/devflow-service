@@ -8,7 +8,7 @@ Use it to answer:
 
 - where runtime page data should come from
 - which parts call Kubernetes directly
-- what the current pre-production gap still is
+- what the active runtime read path is in pre-production
 
 ## Core rule
 
@@ -67,12 +67,7 @@ As of April 29, 2026:
 - the pre-production database contains `runtime_observed_workloads`
 - shared ingress has been verified for public `GET /api/v1/runtime/workload`
 - pre-production runtime-service has been verified to repopulate both workload and pod index rows automatically after those rows are deleted from PostgreSQL
-
-Known remaining gap:
-
-- runtime-service now includes its own in-process Kubernetes observer that periodically reads Deployment and Pod state and refreshes runtime-owned index rows
-- the external `resource-observer` deployment is no longer the only path for runtime page population
-- in pre-production, the external `resource-observer` runtime writeback path should stay disabled so runtime page data has one authoritative writer
+- pre-production runtime observation is now owned by the in-process Kubernetes observer inside `runtime-service`
 
 ## Operator mental model
 

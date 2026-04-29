@@ -16,7 +16,7 @@ It is runtime inspection and runtime control against live Kubernetes workloads f
 - `RuntimeOperation`
 - runtime desired state for `application + environment`
 - immutable runtime revisions
-- live runtime observation responsibilities previously modeled as `resource-observer`
+- live runtime observation responsibilities
 - direct K8s pod lifecycle operations
 
 ## Does Not Own
@@ -226,11 +226,7 @@ As of April 29, 2026:
 - pre-production database includes `runtime_observed_workloads`
 - public workload overview reads are working through shared ingress
 - pre-production runtime-service has been verified to restore deleted workload and pod observed rows automatically on the next observer poll cycle
-
-Known remaining gap:
-
-- runtime-service now starts an in-process Kubernetes observer that periodically refreshes observed workload and pod index data
-- in pre-production, the external `resource-observer` runtime writeback path should remain disabled to avoid duplicate pod/workload index writes
+- pre-production runtime observation is owned by the in-process Kubernetes observer inside runtime-service
 
 ## Resource Contracts
 
