@@ -73,6 +73,10 @@ For runtime workload / pod display model, observer writeback, and the read-vs-ac
 
 - `docs/system/runtime-observer.md`
 
+For the shortest frontend runtime integration checklist, start with:
+
+- `docs/resources/runtime-frontend-checklist.md`
+
 ## Notes
 
 - directory `README.md` files under `docs/index/`, `docs/services/`, `docs/resources/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only

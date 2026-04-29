@@ -95,6 +95,7 @@ For pre-production shared ingress, use the service-prefixed external paths docum
 - `application.md`: `Application`
 - `application-environment.md`: `ApplicationEnvironmentBinding`
 - `frontend-ui.md`: frontend information architecture and field-level UI contract
+- `runtime-frontend-checklist.md`: short frontend integration checklist for runtime page reads/actions
 - `project.md`: `Project`
 - `cluster.md`: `Cluster`
 - `environment.md`: `Environment`

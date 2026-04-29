@@ -398,7 +398,7 @@ Read-model rule:
 - runtime overview and pod display should read from observer/index-backed runtime records
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
 
-## Implementation gap
+## Legacy implementation note
 
 The current codebase still contains an older `runtime-spec`-shaped surface, including routes such as:
 
@@ -406,8 +406,15 @@ The current codebase still contains an older `runtime-spec`-shaped surface, incl
 - `/api/v1/runtime-specs/{id}/pods`
 - `/api/v1/runtime-specs/{id}/deployments/{deployment_name}/restart`
 
-That shape reflects the current implementation model, but it is not the preferred long-term external runtime API.
-The preferred external contract is the simpler runtime operations surface documented above.
+That shape reflects repository-internal or compatibility-oriented implementation history.
+It is not the preferred frontend or operator-facing runtime API.
+
+Frontend and operator docs should treat the active runtime contract as:
+
+- `GET /api/v1/runtime/workload`
+- `GET /api/v1/runtime/pods`
+- `DELETE /api/v1/runtime/pods/{pod_name}`
+- `POST /api/v1/runtime/rollouts`
 
 The `runtime/workload` overview endpoint now belongs to the active preferred external contract.
 
