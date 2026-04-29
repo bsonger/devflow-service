@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
+	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
@@ -46,7 +49,20 @@ CREATE TABLE releases (
   updated_at DATETIME NOT NULL,
   deleted_at DATETIME NULL
 );
-`
+
+CREATE TABLE release_bundles (
+  id TEXT PRIMARY KEY,
+  release_id TEXT NOT NULL,
+  namespace TEXT NOT NULL,
+  artifact_name TEXT NOT NULL,
+  bundle_digest TEXT NOT NULL,
+  rendered_objects TEXT NOT NULL DEFAULT '[]',
+  bundle_yaml TEXT NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  deleted_at DATETIME NULL
+);
+	`
 	if _, err := db.Exec(createTable); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
@@ -254,6 +270,346 @@ func TestUpdateArtifactPersistsFieldsAndMarksPublishBundle(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("publish_bundle step not found")
+	}
+}
+
+func TestRenderDeploymentBundlePersistsBundleRecord(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	appConfigJSON, _ := marshalJSON(model.ReleaseAppConfig{
+		MountPath: "/etc/config",
+		Data: map[string]string{
+			"LOG_LEVEL": "info",
+		},
+	}, "{}")
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, strategy, app_config_snapshot, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','rolling',$4,'Upgrade',$5,'Running',$6,$7,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), appConfigJSON, stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID},
+		ApplicationID: appID,
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{
+			{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"}}},
+		},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
+	}
+	if err := svc.renderDeploymentBundle(context.Background(), release, manifest, &releasesupport.ApplicationProjection{Name: "demo-api"}, releasesupport.DeployTarget{Namespace: "checkout"}); err != nil {
+		t.Fatalf("renderDeploymentBundle failed: %v", err)
+	}
+
+	bundle, err := svc.repoBundleStore().GetByReleaseID(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get bundle failed: %v", err)
+	}
+	if bundle.Namespace != "checkout" {
+		t.Fatalf("bundle namespace = %q", bundle.Namespace)
+	}
+	if bundle.ArtifactName != "demo-api" {
+		t.Fatalf("bundle artifact_name = %q", bundle.ArtifactName)
+	}
+	if bundle.BundleDigest == "" {
+		t.Fatal("expected bundle digest to be set")
+	}
+	if !strings.Contains(bundle.BundleYAML, "kind: Deployment") {
+		t.Fatalf("bundle_yaml = %q", bundle.BundleYAML)
+	}
+
+	updated, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get updated failed: %v", err)
+	}
+	found := false
+	for _, step := range updated.Steps {
+		if step.Code == "render_deployment_bundle" {
+			found = true
+			if step.Status != model.StepSucceeded {
+				t.Fatalf("render_deployment_bundle status = %q", step.Status)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("render_deployment_bundle step not found")
+	}
+}
+
+func TestGetBundlePreviewReadsPersistedBundleRecord(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "render_deployment_bundle":
+			steps[i].Status = model.StepSucceeded
+			steps[i].EndTime = &now
+		case "publish_bundle":
+			steps[i].Status = model.StepSucceeded
+			steps[i].EndTime = &now
+		}
+	}
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	appConfigJSON, _ := marshalJSON(model.ReleaseAppConfig{
+		MountPath: "/etc/config",
+		Data: map[string]string{
+			"LOG_LEVEL": "info",
+		},
+		Files: []model.ReleaseFile{{Name: "app.yaml", Content: "log_level: info"}},
+	}, "{}")
+	routesJSON, _ := marshalJSON([]model.ReleaseRoute{{
+		Name:        "api",
+		Host:        "demo.example.com",
+		Path:        "/",
+		ServiceName: "demo-api",
+		ServicePort: 80,
+	}}, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (
+			id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot,
+			artifact_repository, artifact_tag, artifact_digest, artifact_ref,
+			type, steps, status, created_at, updated_at, deleted_at
+		)
+		values ($1,$2,$3,'staging','canary',$4,$5,$6,$7,$8,$9,'Upgrade',$10,'Running',$11,$12,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), routesJSON, appConfigJSON,
+		"registry.example.com/devflow/releases/demo-api",
+		releaseID.String(),
+		"sha256:artifact",
+		"oci://registry.example.com/devflow/releases/demo-api@sha256:artifact",
+		stepsJSON, now, now)
+	if err != nil {
+		t.Fatalf("insert release failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	bundle := newReleaseBundleRecord(&model.ReleaseBundle{
+		ReleaseID:     releaseID,
+		ApplicationID: appID,
+		EnvironmentID: "staging",
+		Namespace:     "persisted-checkout",
+		ArtifactName:  "demo-api",
+		RenderedObjects: []model.ReleaseRenderedResource{
+			{
+				Kind:      "Service",
+				Name:      "demo-api",
+				Namespace: "persisted-checkout",
+				YAML:      "apiVersion: v1\nkind: Service\nmetadata:\n  name: demo-api\n",
+				Object: map[string]any{
+					"spec": map[string]any{
+						"selector": map[string]any{"app.kubernetes.io/name": "demo-api"},
+						"ports": []map[string]any{{
+							"name":       "http",
+							"port":       80,
+							"targetPort": 8080,
+							"protocol":   "TCP",
+						}},
+					},
+				},
+			},
+			{
+				Kind:      "Rollout",
+				Name:      "demo-api",
+				Namespace: "persisted-checkout",
+				YAML:      "apiVersion: argoproj.io/v1alpha1\nkind: Rollout\nmetadata:\n  name: demo-api\n",
+				Object: map[string]any{
+					"spec": map[string]any{
+						"replicas": 2,
+						"strategy": map[string]any{
+							"canary": map[string]any{
+								"stableService": "demo-api",
+								"canaryService": "demo-api-canary",
+								"steps": []map[string]any{
+									{"setWeight": 10},
+									{"setWeight": 30},
+								},
+							},
+						},
+						"template": map[string]any{
+							"spec": map[string]any{
+								"serviceAccountName": "demo-api",
+								"containers": []map[string]any{{
+									"image": "registry.example.com/demo-api:abc",
+									"env": []map[string]any{
+										{"name": "LOG_LEVEL", "value": "info"},
+									},
+									"resources":      map[string]any{"limits": map[string]any{"cpu": "500m"}},
+									"readinessProbe": map[string]any{"httpGet": map[string]any{"path": "/healthz"}},
+									"volumeMounts": []map[string]any{{
+										"name":      "app-config",
+										"mountPath": "/etc/config",
+									}},
+								}},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err := svc.repoBundleStore().Insert(context.Background(), bundle); err != nil {
+		t.Fatalf("insert bundle failed: %v", err)
+	}
+
+	originalManifestSource := releaseManifestSource
+	releaseManifestSource = stubReleaseManifestReader{
+		getFn: func(_ context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
+			if id != manifestID {
+				t.Fatalf("manifest id = %s want %s", id, manifestID)
+			}
+			return &manifestdomain.Manifest{
+				BaseModel:     model.BaseModel{ID: manifestID},
+				ApplicationID: appID,
+				CommitHash:    "abc123",
+				ImageRef:      "registry.example.com/demo-api:abc123",
+				ImageDigest:   "sha256:image",
+				ServicesSnapshot: []manifestdomain.ManifestService{
+					{Name: "demo-api", Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"}}},
+				},
+				WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+					Replicas: 2,
+					Env:      []model.EnvVar{{Name: "LOG_LEVEL", Value: "info"}},
+				},
+			}, nil
+		},
+	}
+	defer func() { releaseManifestSource = originalManifestSource }()
+
+	preview, err := svc.GetBundlePreview(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("GetBundlePreview failed: %v", err)
+	}
+	if preview.Namespace != "persisted-checkout" {
+		t.Fatalf("preview namespace = %q", preview.Namespace)
+	}
+	if preview.BundleDigest != bundle.BundleDigest {
+		t.Fatalf("preview bundle_digest = %q want %q", preview.BundleDigest, bundle.BundleDigest)
+	}
+	if preview.FrozenInputs.AppConfig.MountPath != "/etc/config" {
+		t.Fatalf("app_config mount_path = %q", preview.FrozenInputs.AppConfig.MountPath)
+	}
+	if len(preview.FrozenInputs.Services) != 1 {
+		t.Fatalf("services = %#v", preview.FrozenInputs.Services)
+	}
+	if preview.Artifact == nil || preview.Artifact.Ref == "" {
+		t.Fatalf("artifact = %#v", preview.Artifact)
+	}
+	if preview.PublishedAt == nil {
+		t.Fatal("expected published_at to be derived from steps")
+	}
+	if len(preview.RenderedBundle.ResourceGroups) != 2 {
+		t.Fatalf("resource_groups = %#v", preview.RenderedBundle.ResourceGroups)
+	}
+	if len(preview.RenderedBundle.RenderedResources) != 2 {
+		t.Fatalf("rendered_resources = %#v", preview.RenderedBundle.RenderedResources)
+	}
+	if len(preview.RenderedBundle.Files) != 3 {
+		t.Fatalf("files = %#v", preview.RenderedBundle.Files)
+	}
+}
+
+func TestGetReleaseAttachesBundleSummary(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "render_deployment_bundle":
+			steps[i].Status = model.StepSucceeded
+			steps[i].EndTime = &now
+		case "publish_bundle":
+			steps[i].Status = model.StepSucceeded
+			steps[i].EndTime = &now
+		}
+	}
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (
+			id, application_id, manifest_id, env, strategy,
+			artifact_repository, artifact_tag, artifact_digest, artifact_ref,
+			type, steps, status, created_at, updated_at, deleted_at
+		)
+		values ($1,$2,$3,'staging','canary',$4,$5,$6,$7,'Upgrade',$8,'Running',$9,$10,null)
+	`, releaseID.String(), appID.String(), manifestID.String(),
+		"registry.example.com/devflow/releases/demo-api",
+		releaseID.String(),
+		"sha256:artifact",
+		"oci://registry.example.com/devflow/releases/demo-api@sha256:artifact",
+		stepsJSON, now, now)
+	if err != nil {
+		t.Fatalf("insert release failed: %v", err)
+	}
+
+	bundle := newReleaseBundleRecord(&model.ReleaseBundle{
+		ReleaseID:     releaseID,
+		ApplicationID: appID,
+		EnvironmentID: "staging",
+		Namespace:     "checkout",
+		ArtifactName:  "demo-api",
+		RenderedObjects: []model.ReleaseRenderedResource{
+			{Kind: "ConfigMap", Name: "demo-api", Namespace: "checkout", YAML: "kind: ConfigMap\n"},
+			{Kind: "Service", Name: "demo-api", Namespace: "checkout", YAML: "kind: Service\n"},
+			{Kind: "Service", Name: "demo-api-canary", Namespace: "checkout", YAML: "kind: Service\n"},
+			{Kind: "Rollout", Name: "demo-api", Namespace: "checkout", YAML: "kind: Rollout\n"},
+			{Kind: "VirtualService", Name: "demo-api", Namespace: "checkout", YAML: "kind: VirtualService\n"},
+		},
+	})
+
+	svc := &releaseService{}
+	if err := svc.repoBundleStore().Insert(context.Background(), bundle); err != nil {
+		t.Fatalf("insert bundle failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if release.BundleSummary == nil {
+		t.Fatal("expected bundle_summary")
+	}
+	if !release.BundleSummary.Available {
+		t.Fatal("expected bundle_summary.available to be true")
+	}
+	if release.BundleSummary.Namespace != "checkout" {
+		t.Fatalf("bundle_summary.namespace = %q", release.BundleSummary.Namespace)
+	}
+	if release.BundleSummary.BundleDigest != bundle.BundleDigest {
+		t.Fatalf("bundle_summary.bundle_digest = %q want %q", release.BundleSummary.BundleDigest, bundle.BundleDigest)
+	}
+	if release.BundleSummary.PrimaryWorkloadKind != "Rollout" {
+		t.Fatalf("bundle_summary.primary_workload_kind = %q", release.BundleSummary.PrimaryWorkloadKind)
+	}
+	if release.BundleSummary.ResourceCounts.Total != 5 {
+		t.Fatalf("resource_counts.total = %d", release.BundleSummary.ResourceCounts.Total)
+	}
+	if release.BundleSummary.ResourceCounts.Services != 2 {
+		t.Fatalf("resource_counts.services = %d", release.BundleSummary.ResourceCounts.Services)
+	}
+	if release.BundleSummary.Artifact == nil || release.BundleSummary.Artifact.Ref == "" {
+		t.Fatalf("bundle_summary.artifact = %#v", release.BundleSummary.Artifact)
+	}
+	if release.BundleSummary.RenderedAt == nil {
+		t.Fatal("expected bundle_summary.rendered_at")
+	}
+	if release.BundleSummary.PublishedAt == nil {
+		t.Fatal("expected bundle_summary.published_at")
 	}
 }
 

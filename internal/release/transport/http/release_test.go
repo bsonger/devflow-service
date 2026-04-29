@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/service"
@@ -19,7 +20,7 @@ import (
 type stubReleaseService struct {
 	createFn    func(context.Context, *model.Release) (uuid.UUID, error)
 	getFn       func(context.Context, uuid.UUID) (*model.Release, error)
-	getBundleFn func(context.Context, uuid.UUID) (*model.ReleaseBundle, error)
+	getBundleFn func(context.Context, uuid.UUID) (*model.ReleaseBundlePreview, error)
 	listFn      func(context.Context, service.ReleaseListFilter) ([]*model.Release, error)
 	deleteFn    func(context.Context, uuid.UUID) error
 }
@@ -32,7 +33,7 @@ func (s stubReleaseService) Get(ctx context.Context, id uuid.UUID) (*model.Relea
 	return s.getFn(ctx, id)
 }
 
-func (s stubReleaseService) GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundle, error) {
+func (s stubReleaseService) GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundlePreview, error) {
 	return s.getBundleFn(ctx, id)
 }
 
@@ -206,6 +207,100 @@ func TestCreateReleaseClusterNotReadyDoesNotReturnInternal500(t *testing.T) {
 	}
 }
 
+func TestGetReleaseReturnsBundleSummary(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	handler := &ReleaseHandler{
+		svc: stubReleaseService{
+			getFn: func(_ context.Context, id uuid.UUID) (*model.Release, error) {
+				if id != releaseID {
+					t.Fatalf("id = %s want %s", id, releaseID)
+				}
+				renderedAt := time.Now().UTC()
+				publishedAt := renderedAt
+				return &model.Release{
+					BaseModel:     model.BaseModel{ID: releaseID},
+					ApplicationID: uuid.New(),
+					ManifestID:    uuid.New(),
+					EnvironmentID: "staging",
+					Strategy:      "canary",
+					Type:          "Upgrade",
+					Status:        model.ReleaseRunning,
+					BundleSummary: &model.ReleaseBundleSummary{
+						Available:           true,
+						Namespace:           "checkout",
+						ArtifactName:        "demo-api",
+						BundleDigest:        "sha256:bundle",
+						PrimaryWorkloadKind: "Rollout",
+						ResourceCounts: model.ReleaseBundleResourceCounts{
+							Services: 2,
+							Rollouts: 1,
+							Total:    3,
+						},
+						Artifact: &model.ReleaseBundleArtifact{
+							Repository: "registry.example.com/devflow/releases/demo-api",
+							Digest:     "sha256:artifact",
+							Ref:        "oci://registry.example.com/devflow/releases/demo-api@sha256:artifact",
+						},
+						RenderedAt:  &renderedAt,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+		},
+	}
+
+	r := gin.New()
+	r.GET("/api/v1/releases/:id", handler.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases/"+releaseID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusOK)
+	}
+
+	var payload struct {
+		Data struct {
+			ID            string `json:"id"`
+			BundleSummary struct {
+				Available           bool   `json:"available"`
+				Namespace           string `json:"namespace"`
+				ArtifactName        string `json:"artifact_name"`
+				BundleDigest        string `json:"bundle_digest"`
+				PrimaryWorkloadKind string `json:"primary_workload_kind"`
+				ResourceCounts      struct {
+					Services int `json:"services"`
+					Rollouts int `json:"rollouts"`
+					Total    int `json:"total"`
+				} `json:"resource_counts"`
+				Artifact struct {
+					Ref string `json:"ref"`
+				} `json:"artifact"`
+			} `json:"bundle_summary"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if payload.Data.BundleSummary.Namespace != "checkout" {
+		t.Fatalf("bundle_summary.namespace = %q", payload.Data.BundleSummary.Namespace)
+	}
+	if payload.Data.BundleSummary.BundleDigest != "sha256:bundle" {
+		t.Fatalf("bundle_summary.bundle_digest = %q", payload.Data.BundleSummary.BundleDigest)
+	}
+	if payload.Data.BundleSummary.PrimaryWorkloadKind != "Rollout" {
+		t.Fatalf("bundle_summary.primary_workload_kind = %q", payload.Data.BundleSummary.PrimaryWorkloadKind)
+	}
+	if payload.Data.BundleSummary.ResourceCounts.Total != 3 {
+		t.Fatalf("bundle_summary.resource_counts.total = %d", payload.Data.BundleSummary.ResourceCounts.Total)
+	}
+	if payload.Data.BundleSummary.Artifact.Ref == "" {
+		t.Fatal("expected bundle_summary.artifact.ref")
+	}
+}
+
 func TestListReleasesRequiresEnvironmentID(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ReleaseHandler{svc: stubReleaseService{}}
@@ -254,18 +349,19 @@ func TestGetReleaseBundlePreviewReturnsEnvelope(t *testing.T) {
 	releaseID := uuid.New()
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
-			getBundleFn: func(_ context.Context, id uuid.UUID) (*model.ReleaseBundle, error) {
+			getBundleFn: func(_ context.Context, id uuid.UUID) (*model.ReleaseBundlePreview, error) {
 				if id != releaseID {
 					t.Fatalf("id = %s want %s", id, releaseID)
 				}
-				return &model.ReleaseBundle{
+				return &model.ReleaseBundlePreview{
 					ReleaseID:     releaseID,
 					ApplicationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 					EnvironmentID: "production",
 					Namespace:     "checkout",
-					Resources:     model.ReleaseBundleResources{},
-					Files: []model.ReleaseBundleFile{
-						{Path: "bundle.yaml", Content: "kind: Deployment\n"},
+					RenderedBundle: model.ReleaseRenderedBundleView{
+						Files: []model.ReleaseBundleFileView{
+							{Path: "bundle.yaml", Content: "kind: Deployment\n"},
+						},
 					},
 				}, nil
 			},
@@ -282,12 +378,12 @@ func TestGetReleaseBundlePreviewReturnsEnvelope(t *testing.T) {
 		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 	var payload struct {
-		Data model.ReleaseBundle `json:"data"`
+		Data model.ReleaseBundlePreview `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
-	if payload.Data.ReleaseID != releaseID || payload.Data.Namespace != "checkout" || len(payload.Data.Files) != 1 {
+	if payload.Data.ReleaseID != releaseID || payload.Data.Namespace != "checkout" || len(payload.Data.RenderedBundle.Files) != 1 {
 		t.Fatalf("unexpected payload: %#v", payload.Data)
 	}
 }
@@ -296,7 +392,7 @@ func TestGetReleaseBundlePreviewReturns404(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
-			getBundleFn: func(_ context.Context, _ uuid.UUID) (*model.ReleaseBundle, error) {
+			getBundleFn: func(_ context.Context, _ uuid.UUID) (*model.ReleaseBundlePreview, error) {
 				return nil, sql.ErrNoRows
 			},
 		},
@@ -310,6 +406,38 @@ func TestGetReleaseBundlePreviewReturns404(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestGetReleaseBundlePreviewReturns409WhenBundleNotReady(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	handler := &ReleaseHandler{
+		svc: stubReleaseService{
+			getBundleFn: func(_ context.Context, _ uuid.UUID) (*model.ReleaseBundlePreview, error) {
+				return nil, service.ErrReleaseBundleNotReady
+			},
+		},
+	}
+
+	r := gin.New()
+	r.GET("/api/v1/releases/:id/bundle-preview", handler.GetBundlePreview)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/releases/"+uuid.New().String()+"/bundle-preview", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusConflict, rec.Body.String())
+	}
+	var payload struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if payload.Error.Code != "failed_precondition" {
+		t.Fatalf("error code = %q, want failed_precondition", payload.Error.Code)
 	}
 }
 

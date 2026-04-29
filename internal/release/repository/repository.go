@@ -29,6 +29,7 @@ type Store interface {
 	List(ctx context.Context, filter ListFilter) ([]*model.Release, error)
 	UpdateRow(ctx context.Context, release *model.Release) error
 	UpdateSteps(ctx context.Context, release *model.Release) error
+	UpdateArgoMetadata(ctx context.Context, releaseID uuid.UUID, appName, externalRef string, updatedAt time.Time) error
 }
 
 type PostgresStore struct{}
@@ -166,6 +167,18 @@ func (s *PostgresStore) UpdateSteps(ctx context.Context, release *model.Release)
 		set steps = $2, updated_at = $3
 		where id = $1 and deleted_at is null
 	`, release.ID, stepsJSON, release.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	return dbsql.EnsureRowsAffected(result)
+}
+
+func (s *PostgresStore) UpdateArgoMetadata(ctx context.Context, releaseID uuid.UUID, appName, externalRef string, updatedAt time.Time) error {
+	result, err := db.DB().ExecContext(ctx, `
+		update releases
+		set argocd_application_name = $2, external_ref = $3, updated_at = $4
+		where id = $1 and deleted_at is null
+	`, releaseID, strings.TrimSpace(appName), strings.TrimSpace(externalRef), updatedAt)
 	if err != nil {
 		return err
 	}

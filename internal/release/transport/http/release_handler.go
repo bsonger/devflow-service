@@ -18,7 +18,7 @@ import (
 type releaseService interface {
 	Create(ctx context.Context, release *model.Release) (uuid.UUID, error)
 	Get(ctx context.Context, id uuid.UUID) (*model.Release, error)
-	GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundle, error)
+	GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundlePreview, error)
 	List(ctx context.Context, filter service.ReleaseListFilter) ([]*model.Release, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -120,6 +120,7 @@ func (h *ReleaseHandler) Get(c *gin.Context) {
 // @Tags Release
 // @Param id path string true "Release ID"
 // @Success 200 {object} ReleaseBundleDoc
+// @Failure 409 {object} httpx.ErrorResponse
 // @Router /api/v1/releases/{id}/bundle-preview [get]
 func (h *ReleaseHandler) GetBundlePreview(c *gin.Context) {
 	id, ok := httpx.ParseUUIDParam(c, "id")
@@ -131,6 +132,10 @@ func (h *ReleaseHandler) GetBundlePreview(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteNotFound(c, "not found")
+			return
+		}
+		if errors.Is(err, service.ErrReleaseBundleNotReady) {
+			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 			return
 		}
 		httpx.WriteInternalError(c, err)

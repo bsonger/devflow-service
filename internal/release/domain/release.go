@@ -5,22 +5,23 @@ import "github.com/google/uuid"
 type Release struct {
 	BaseModel
 
-	ExecutionIntentID     *uuid.UUID       `json:"execution_intent_id,omitempty" db:"execution_intent_id"`
-	ApplicationID         uuid.UUID        `json:"application_id" db:"application_id"`
-	ManifestID            uuid.UUID        `json:"manifest_id" db:"manifest_id"`
-	EnvironmentID         string           `json:"environment_id" db:"env"`
-	Strategy              string           `json:"strategy" db:"strategy"`
-	RoutesSnapshot        []ReleaseRoute   `json:"routes_snapshot,omitempty" db:"routes_snapshot"`
-	AppConfigSnapshot     ReleaseAppConfig `json:"app_config_snapshot" db:"app_config_snapshot"`
-	ArtifactRepository    string           `json:"artifact_repository,omitempty" db:"artifact_repository"`
-	ArtifactTag           string           `json:"artifact_tag,omitempty" db:"artifact_tag"`
-	ArtifactDigest        string           `json:"artifact_digest,omitempty" db:"artifact_digest"`
-	ArtifactRef           string           `json:"artifact_ref,omitempty" db:"artifact_ref"`
-	Type                  string           `json:"type" db:"type"`
-	Steps                 []ReleaseStep    `json:"steps,omitempty" db:"steps"`
-	Status                ReleaseStatus    `json:"status" db:"status"`
-	ArgoCDApplicationName string           `json:"argocd_application_name,omitempty" db:"argocd_application_name"`
-	ExternalRef           string           `json:"external_ref,omitempty" db:"external_ref"`
+	ExecutionIntentID     *uuid.UUID            `json:"execution_intent_id,omitempty" db:"execution_intent_id"`
+	ApplicationID         uuid.UUID             `json:"application_id" db:"application_id"`
+	ManifestID            uuid.UUID             `json:"manifest_id" db:"manifest_id"`
+	EnvironmentID         string                `json:"environment_id" db:"env"`
+	Strategy              string                `json:"strategy" db:"strategy"`
+	RoutesSnapshot        []ReleaseRoute        `json:"routes_snapshot,omitempty" db:"routes_snapshot"`
+	AppConfigSnapshot     ReleaseAppConfig      `json:"app_config_snapshot" db:"app_config_snapshot"`
+	ArtifactRepository    string                `json:"artifact_repository,omitempty" db:"artifact_repository"`
+	ArtifactTag           string                `json:"artifact_tag,omitempty" db:"artifact_tag"`
+	ArtifactDigest        string                `json:"artifact_digest,omitempty" db:"artifact_digest"`
+	ArtifactRef           string                `json:"artifact_ref,omitempty" db:"artifact_ref"`
+	BundleSummary         *ReleaseBundleSummary `json:"bundle_summary,omitempty" db:"-"`
+	Type                  string                `json:"type" db:"type"`
+	Steps                 []ReleaseStep         `json:"steps,omitempty" db:"steps"`
+	Status                ReleaseStatus         `json:"status" db:"status"`
+	ArgoCDApplicationName string                `json:"argocd_application_name,omitempty" db:"argocd_application_name"`
+	ExternalRef           string                `json:"external_ref,omitempty" db:"external_ref"`
 }
 
 type ReleaseRoute struct {

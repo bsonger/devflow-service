@@ -30,25 +30,54 @@ type IntentDoc struct {
 }
 
 type ReleaseDoc struct {
-	ID                    uuid.UUID           `json:"id"`
-	ExecutionIntentID     *uuid.UUID          `json:"execution_intent_id,omitempty"`
-	ApplicationID         uuid.UUID           `json:"application_id"`
-	ManifestID            uuid.UUID           `json:"manifest_id"`
-	EnvironmentID         string              `json:"environment_id"`
-	Strategy              string              `json:"strategy"`
-	RoutesSnapshot        []ReleaseRouteDoc   `json:"routes_snapshot,omitempty"`
-	AppConfigSnapshot     ReleaseAppConfigDoc `json:"app_config_snapshot"`
-	ArtifactRepository    string              `json:"artifact_repository,omitempty"`
-	ArtifactTag           string              `json:"artifact_tag,omitempty"`
-	ArtifactDigest        string              `json:"artifact_digest,omitempty"`
-	ArtifactRef           string              `json:"artifact_ref,omitempty"`
-	Type                  string              `json:"type"`
-	Steps                 []ReleaseStepDoc    `json:"steps,omitempty"`
-	Status                string              `json:"status"`
-	ArgoCDApplicationName string              `json:"argocd_application_name,omitempty"`
-	ExternalRef           string              `json:"external_ref,omitempty"`
-	CreatedAt             string              `json:"created_at,omitempty"`
-	UpdatedAt             string              `json:"updated_at,omitempty"`
+	ID                    uuid.UUID                `json:"id"`
+	ExecutionIntentID     *uuid.UUID               `json:"execution_intent_id,omitempty"`
+	ApplicationID         uuid.UUID                `json:"application_id"`
+	ManifestID            uuid.UUID                `json:"manifest_id"`
+	EnvironmentID         string                   `json:"environment_id"`
+	Strategy              string                   `json:"strategy"`
+	RoutesSnapshot        []ReleaseRouteDoc        `json:"routes_snapshot,omitempty"`
+	AppConfigSnapshot     ReleaseAppConfigDoc      `json:"app_config_snapshot"`
+	ArtifactRepository    string                   `json:"artifact_repository,omitempty"`
+	ArtifactTag           string                   `json:"artifact_tag,omitempty"`
+	ArtifactDigest        string                   `json:"artifact_digest,omitempty"`
+	ArtifactRef           string                   `json:"artifact_ref,omitempty"`
+	BundleSummary         *ReleaseBundleSummaryDoc `json:"bundle_summary,omitempty"`
+	Type                  string                   `json:"type"`
+	Steps                 []ReleaseStepDoc         `json:"steps,omitempty"`
+	Status                string                   `json:"status"`
+	ArgoCDApplicationName string                   `json:"argocd_application_name,omitempty"`
+	ExternalRef           string                   `json:"external_ref,omitempty"`
+	CreatedAt             string                   `json:"created_at,omitempty"`
+	UpdatedAt             string                   `json:"updated_at,omitempty"`
+}
+
+type ReleaseBundleArtifactDoc struct {
+	Repository string `json:"repository,omitempty"`
+	Tag        string `json:"tag,omitempty"`
+	Digest     string `json:"digest,omitempty"`
+	Ref        string `json:"ref,omitempty"`
+}
+
+type ReleaseBundleResourceCountsDoc struct {
+	ConfigMaps      int `json:"configmaps,omitempty"`
+	Services        int `json:"services,omitempty"`
+	Deployments     int `json:"deployments,omitempty"`
+	Rollouts        int `json:"rollouts,omitempty"`
+	VirtualServices int `json:"virtualservices,omitempty"`
+	Total           int `json:"total,omitempty"`
+}
+
+type ReleaseBundleSummaryDoc struct {
+	Available           bool                           `json:"available"`
+	Namespace           string                         `json:"namespace,omitempty"`
+	ArtifactName        string                         `json:"artifact_name,omitempty"`
+	BundleDigest        string                         `json:"bundle_digest,omitempty"`
+	PrimaryWorkloadKind string                         `json:"primary_workload_kind,omitempty"`
+	ResourceCounts      ReleaseBundleResourceCountsDoc `json:"resource_counts,omitempty"`
+	Artifact            *ReleaseBundleArtifactDoc      `json:"artifact,omitempty"`
+	RenderedAt          string                         `json:"rendered_at,omitempty"`
+	PublishedAt         string                         `json:"published_at,omitempty"`
 }
 
 type ReleaseRouteDoc struct {
@@ -75,36 +104,86 @@ type ReleaseAppConfigDoc struct {
 	SourceCommit    string            `json:"source_commit,omitempty"`
 }
 
-type ReleaseRenderedResourceDoc struct {
-	Kind      string         `json:"kind"`
-	Name      string         `json:"name"`
-	Namespace string         `json:"namespace"`
-	YAML      string         `json:"yaml"`
-	Object    map[string]any `json:"object,omitempty"`
+type ReleaseBundleManifestSummaryDoc struct {
+	ManifestID  uuid.UUID `json:"manifest_id"`
+	CommitHash  string    `json:"commit_hash,omitempty"`
+	ImageRef    string    `json:"image_ref,omitempty"`
+	ImageDigest string    `json:"image_digest,omitempty"`
 }
 
-type ReleaseBundleFileDoc struct {
+type ReleaseFrozenServicePortDoc struct {
+	Name        string `json:"name,omitempty"`
+	ServicePort int    `json:"service_port"`
+	TargetPort  int    `json:"target_port"`
+	Protocol    string `json:"protocol,omitempty"`
+}
+
+type ReleaseFrozenServiceDoc struct {
+	Name  string                        `json:"name"`
+	Ports []ReleaseFrozenServicePortDoc `json:"ports,omitempty"`
+}
+
+type ReleaseFrozenWorkloadDoc struct {
+	Replicas           int                 `json:"replicas"`
+	ServiceAccountName string              `json:"service_account_name,omitempty"`
+	Resources          map[string]any      `json:"resources,omitempty"`
+	Probes             map[string]any      `json:"probes,omitempty"`
+	Env                []ManifestEnvVarDoc `json:"env,omitempty"`
+	Labels             map[string]string   `json:"labels,omitempty"`
+	Annotations        map[string]string   `json:"annotations,omitempty"`
+}
+
+type ReleaseBundleFrozenInputsDoc struct {
+	ManifestSummary ReleaseBundleManifestSummaryDoc `json:"manifest_summary"`
+	Services        []ReleaseFrozenServiceDoc       `json:"services,omitempty"`
+	Workload        ReleaseFrozenWorkloadDoc        `json:"workload"`
+	AppConfig       ReleaseAppConfigDoc             `json:"app_config"`
+	Routes          []ReleaseRouteDoc               `json:"routes,omitempty"`
+}
+
+type ReleaseRenderedResourceRefDoc struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type ReleaseResourceGroupDoc struct {
+	Kind  string                          `json:"kind"`
+	Items []ReleaseRenderedResourceRefDoc `json:"items,omitempty"`
+}
+
+type ReleaseRenderedResourceViewDoc struct {
+	Kind      string         `json:"kind"`
+	Name      string         `json:"name"`
+	Namespace string         `json:"namespace,omitempty"`
+	Summary   map[string]any `json:"summary,omitempty"`
+	YAML      string         `json:"yaml,omitempty"`
+}
+
+type ReleaseBundleFileViewDoc struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
 }
 
-type ReleaseBundleResourcesDoc struct {
-	ConfigMap      *ReleaseRenderedResourceDoc  `json:"configmap,omitempty"`
-	Deployment     *ReleaseRenderedResourceDoc  `json:"deployment,omitempty"`
-	Rollout        *ReleaseRenderedResourceDoc  `json:"rollout,omitempty"`
-	Services       []ReleaseRenderedResourceDoc `json:"services,omitempty"`
-	VirtualService *ReleaseRenderedResourceDoc  `json:"virtualservice,omitempty"`
+type ReleaseRenderedBundleViewDoc struct {
+	ResourceGroups    []ReleaseResourceGroupDoc        `json:"resource_groups,omitempty"`
+	RenderedResources []ReleaseRenderedResourceViewDoc `json:"rendered_resources,omitempty"`
+	Files             []ReleaseBundleFileViewDoc       `json:"files,omitempty"`
 }
 
 type ReleaseBundleDoc struct {
-	ReleaseID       uuid.UUID                    `json:"release_id"`
-	ApplicationID   uuid.UUID                    `json:"application_id"`
-	EnvironmentID   string                       `json:"environment_id"`
-	Namespace       string                       `json:"namespace,omitempty"`
-	ArtifactName    string                       `json:"artifact_name,omitempty"`
-	Resources       ReleaseBundleResourcesDoc    `json:"resources"`
-	RenderedObjects []ReleaseRenderedResourceDoc `json:"rendered_objects,omitempty"`
-	Files           []ReleaseBundleFileDoc       `json:"files,omitempty"`
+	ReleaseID      uuid.UUID                    `json:"release_id"`
+	ManifestID     uuid.UUID                    `json:"manifest_id"`
+	ApplicationID  uuid.UUID                    `json:"application_id"`
+	EnvironmentID  string                       `json:"environment_id"`
+	Strategy       string                       `json:"strategy"`
+	Namespace      string                       `json:"namespace"`
+	ArtifactName   string                       `json:"artifact_name,omitempty"`
+	BundleDigest   string                       `json:"bundle_digest,omitempty"`
+	Artifact       *ReleaseBundleArtifactDoc    `json:"artifact,omitempty"`
+	FrozenInputs   ReleaseBundleFrozenInputsDoc `json:"frozen_inputs"`
+	RenderedBundle ReleaseRenderedBundleViewDoc `json:"rendered_bundle"`
+	RenderedAt     string                       `json:"rendered_at,omitempty"`
+	PublishedAt    string                       `json:"published_at,omitempty"`
 }
 
 type ManifestStepDoc struct {
