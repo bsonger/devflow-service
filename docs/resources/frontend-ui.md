@@ -16,6 +16,21 @@ Use it when:
 - deciding which create/edit forms should exist
 - removing legacy UI concepts that no longer match the backend contract
 
+## Quick reader guide
+
+Use this document when your question is:
+
+- which page should own which user task
+- which resource should be exposed as build-time versus deploy-time versus runtime-time UI
+- which backend route the frontend should call for a given user interaction
+- which backend concepts should stay hidden from product UI
+
+If you already know the owning backend contract, go directly to:
+
+- `docs/resources/manifest.md`
+- `docs/resources/release.md`
+- `docs/resources/runtime-spec.md`
+
 ## API surface
 
 This document does not define its own backend resource.
@@ -66,9 +81,11 @@ Current product direction also keeps environment selection visible while operati
 - one `manifest`
 - one target `environment_id`
 - one rollout `strategy`
+- frozen deployment-time config such as `app_config_snapshot`
 - rendered deployment bundle output
+- published OCI deployment artifact
 - ArgoCD deployment execution
-- runtime tracking and final rollout status
+- rollout status and step progression
 
 ### 4. WorkloadConfig only describes how the workload runs
 
@@ -88,6 +105,31 @@ The frontend must not ask the user to select:
 - `image_id`
 
 Manifest creation is source-driven, not image-resource-driven.
+
+### 6. Freeze point and now-state split
+
+The frontend should keep these concepts separate:
+
+- `Manifest` = build-side freeze point
+- `Release` = deploy-side freeze point
+- runtime page = current observed state plus explicit runtime actions
+
+Product rule:
+
+- do not use runtime page data to explain what was frozen at deploy time
+- do not use release detail to pretend it is the current live runtime state
+- do not use manifest detail to explain deployment-time config
+
+## Delivery chain mental model
+
+Frontend should reflect this chain clearly:
+
+1. configure metadata / workload / network
+2. create `Manifest` to build one image from source
+3. create `Release` to deploy one manifest into one environment
+4. inspect `Release` for deploy-side frozen inputs and rollout progress
+5. inspect runtime page for current observed workload and pods
+6. use runtime actions only for explicit live mutations
 
 ## Top-level navigation
 
@@ -148,7 +190,8 @@ Do not expose legacy tabs or sections for:
 - legacy `AppService`
 - image resources
 
-`Route` is intentionally out of the current frontend scope.
+`Route` is intentionally not the primary entry tab in the current application flow.
+If route management is exposed, it should still be treated as a network-owned input to release, not as a release-owned resource.
 
 ## Overview tab
 
@@ -183,7 +226,8 @@ Show:
 - `environment_id`
 - `strategy`
 - `status`
-- `created_at`
+- optional `bundle_summary.artifact_ref`
+- created / published timestamps when available
 
 ## Services tab
 
@@ -293,6 +337,28 @@ Do not show or send:
 - `description`
 - `workload_type`
 - `strategy`
+
+## Build vs deploy vs runtime routing
+
+Use `Manifests` when the user asks:
+
+- what commit did we build
+- what image came out of build
+- what happened in Tekton
+
+Use `Releases` when the user asks:
+
+- what did we deploy
+- which config was frozen for deployment
+- what bundle was published
+- what happened during rollout
+
+Use runtime page when the user asks:
+
+- what is running now
+- what pods are unhealthy now
+- restart this workload
+- delete this pod
 
 ## Manifests tab
 
