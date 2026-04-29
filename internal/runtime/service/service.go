@@ -272,7 +272,7 @@ func (s *runtimeService) ListObservedPodsByApplicationEnv(ctx context.Context, a
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return nil, err
 	}
-	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPod
 		return nil, err
 	}
 
-	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, in.ApplicationID, in.Environment)
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, in.ApplicationID, in.Environment)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func (s *runtimeService) DeleteObservedPod(ctx context.Context, in DeleteObserve
 		return err
 	}
 
-	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, in.ApplicationID, in.Environment)
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, in.ApplicationID, in.Environment)
 	if err != nil {
 		return err
 	}
@@ -404,7 +404,7 @@ func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicat
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return err
 	}
-	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
 	if err != nil {
 		return err
 	}
@@ -457,7 +457,7 @@ func (s *runtimeService) RestartDeploymentByApplicationEnv(ctx context.Context, 
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return err
 	}
-	spec, err := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
 	if err != nil {
 		return err
 	}

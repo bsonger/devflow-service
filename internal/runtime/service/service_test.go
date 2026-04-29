@@ -15,6 +15,7 @@ type stubStore struct {
 	createRuntimeSpecFunc                 func(context.Context, *runtimedomain.RuntimeSpec) error
 	getRuntimeSpecFunc                    func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
 	getRuntimeSpecByApplicationEnvFunc    func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
+	ensureRuntimeSpecByApplicationEnvFunc func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	deleteRuntimeSpecByApplicationEnvFunc func(context.Context, uuid.UUID, string) error
 	listRuntimeSpecsFunc                  func(context.Context) ([]*runtimedomain.RuntimeSpec, error)
 	nextRevisionNumberFunc                func(context.Context, uuid.UUID) (int, error)
@@ -48,6 +49,13 @@ func (s stubStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, applicati
 		return s.getRuntimeSpecByApplicationEnvFunc(ctx, applicationId, environment)
 	}
 	return nil, nil
+}
+
+func (s stubStore) EnsureRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+	if s.ensureRuntimeSpecByApplicationEnvFunc != nil {
+		return s.ensureRuntimeSpecByApplicationEnvFunc(ctx, applicationId, environment)
+	}
+	return s.GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
 }
 
 func (s stubStore) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) error {

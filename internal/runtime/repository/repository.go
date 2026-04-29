@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
@@ -16,6 +17,7 @@ type Store interface {
 	CreateRuntimeSpec(context.Context, *runtimedomain.RuntimeSpec) error
 	GetRuntimeSpec(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
 	GetRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
+	EnsureRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	DeleteRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) error
 	ListRuntimeSpecs(context.Context) ([]*runtimedomain.RuntimeSpec, error)
 	NextRevisionNumber(context.Context, uuid.UUID) (int, error)
@@ -56,6 +58,7 @@ func (s *postgresStore) GetRuntimeSpec(ctx context.Context, id uuid.UUID) (*runt
 }
 
 func (s *postgresStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+	environment = strings.TrimSpace(environment)
 	spec, err := scanRuntimeSpec(platformdb.Postgres().QueryRowContext(ctx, `
 		select id, application_id, environment, current_revision_id, created_at, updated_at
 		from application_runtime_specs
@@ -84,6 +87,46 @@ func (s *postgresStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, appl
 		return nil, nil
 	}
 	return spec, err
+}
+
+func (s *postgresStore) EnsureRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+	spec, err := s.GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
+	if err != nil || spec != nil {
+		return spec, err
+	}
+	resolvedEnvironment, err := s.resolveEnvironmentName(ctx, applicationId, strings.TrimSpace(environment))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return scanRuntimeSpec(platformdb.Postgres().QueryRowContext(ctx, `
+		insert into application_runtime_specs (
+			id, application_id, environment, current_revision_id, created_at, updated_at
+		) values (
+			gen_random_uuid(), $1, $2, null, now(), now()
+		)
+		on conflict (application_id, environment)
+		do update set updated_at = application_runtime_specs.updated_at
+		returning id, application_id, environment, current_revision_id, created_at, updated_at
+	`, applicationId, resolvedEnvironment))
+}
+
+func (s *postgresStore) resolveEnvironmentName(ctx context.Context, applicationId uuid.UUID, selector string) (string, error) {
+	var environmentName string
+	err := platformdb.Postgres().QueryRowContext(ctx, `
+		select e.name
+		from application_environment_bindings aeb
+		join environments e
+		  on e.id::text = aeb.environment_id
+		where aeb.application_id = $1::text
+		  and (aeb.environment_id = $2 or e.name = $2)
+		  and aeb.deleted_at is null
+		  and e.deleted_at is null
+		limit 1
+	`, applicationId, selector).Scan(&environmentName)
+	return environmentName, err
 }
 
 func (s *postgresStore) DeleteRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) error {
