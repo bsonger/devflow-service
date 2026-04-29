@@ -12,50 +12,50 @@
 
 `Release` is an environment-specific deployment execution record derived from one manifest plus rollout-time environment inputs.
 
-它的核心职责不是构建镜像，而是：
+Its job is not to build an image. Its job is to:
 
-- 选择一个 `manifest`
-- 选择一个目标 `environment`
-- 冻结本次发布真正使用的 `app_config`
-- 在当前主流程中，`Route` 相关输入不是前端必选项；如果后续重新纳入，应作为可选的 deferred deployment input
-- 选择发布策略
-- 根据 manifest + environment inputs 渲染 Kubernetes YAML
-- 将渲染结果上传到 OCI
-- 创建 ArgoCD Application
-- 持续跟踪部署状态直到完成
+- choose one `manifest`
+- choose one target `environment`
+- freeze the `app_config` used by this deployment
+- optionally carry deferred route inputs when route flow is part of the deployment path
+- choose the rollout strategy
+- render Kubernetes YAML from manifest inputs plus environment inputs
+- publish the rendered bundle to OCI
+- create the Argo CD `Application`
+- track deployment progress until completion
 
 ## Relationship with Manifest
 
-`Manifest` 和 `Release` 的职责应该明确分层：
+`Manifest` and `Release` have different responsibilities and should stay separate.
 
-### Manifest 负责
+### Manifest owns
 
-- build record
+- the durable build record
 - source/build metadata
 - image result
 - `services_snapshot`
 - `workload_config_snapshot`
 
-### Release 负责
+### Release owns
 
-- environment-specific deployment
+- environment-specific deployment execution
 - `app_config_snapshot`
-- optional/deferred route inputs when the route flow is re-enabled
+- optional/deferred route inputs when route flow is enabled
 - strategy selection
 - Kubernetes YAML rendering
-- OCI packaging for deployment bundle
-- ArgoCD Application creation
+- OCI packaging for the deployment bundle
+- Argo CD `Application` creation
 - rollout status tracking
 
-结论：
+Conclusion:
 
-- manifest 不应该再拥有 release artifact packaging
-- manifest 不应该再拥有 environment-specific rendered YAML contract
-- release 应该消费 manifest 中已经冻结好的 build outputs and workload snapshots
+- `Manifest` should not own release artifact packaging
+- `Manifest` should not own environment-specific rendered YAML
+- `Release` should consume the frozen build outputs and workload snapshots already stored on `Manifest`
 
-## Final create contract
+## Create request contract
 
-Current target create request:
+Current recommended create request:
 
 ```json
 {

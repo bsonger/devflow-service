@@ -336,7 +336,7 @@ Read-model rule:
 - runtime overview and pod display should read from observer/index-backed runtime records
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
 
-## Current implementation gap
+## Implementation gap
 
 The current codebase still contains an older `runtime-spec`-shaped surface, including routes such as:
 

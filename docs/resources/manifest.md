@@ -11,7 +11,7 @@
 ## Purpose
 
 `Manifest` is the build-time snapshot and image-delivery record for one application revision.
-它负责冻结服务/工作负载快照、触发 Tekton 构建镜像、记录镜像结果，并在 `PipelineRun`/`TaskRun` 被清理后继续保留可追踪状态。
+It freezes service and workload snapshots, triggers the Tekton image build, records the image result, and remains the durable traceable record after `PipelineRun` / `TaskRun` resources are garbage-collected.
 
 ## Common base fields
 
@@ -68,7 +68,7 @@ Pre-production shared ingress external surface:
 On the pre-production shared ingress, the external path is `GET /api/v1/release/manifests/{id}/resources`.
 The manifest record itself does not persist rendered output payloads.
 
-## Lifecycle
+## Execution model
 
 The intended manifest lifecycle is:
 
