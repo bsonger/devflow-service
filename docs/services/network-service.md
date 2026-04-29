@@ -28,14 +28,29 @@
 - `RuntimeObservedPod`
 - `RuntimeOperation`
 
-## Upstream Dependencies
+## Dependency model
+
+### Upstream dependencies
 
 - PostgreSQL
+- `meta-service` for application and environment metadata resolution
 - shared backend primitives
+
+### What network-service depends on by workflow
+
+- service CRUD:
+  - `meta-service` validates application ownership context
+  - PostgreSQL persists service definitions
+- route CRUD and validation:
+  - `meta-service` validates application and environment context
+  - PostgreSQL persists route definitions
+  - route validation reads release-facing service topology from network-owned `Service` records
 
 ## Downstream Consumers
 
-- release-time consumers
+- `release-service`
+  - reads services during manifest creation
+  - reads routes during release creation
 - platform orchestration layers
 
 ## Entrypoint

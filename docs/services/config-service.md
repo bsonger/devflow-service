@@ -28,15 +28,30 @@
 - `RuntimeObservedPod`
 - `RuntimeOperation`
 
-## Upstream Dependencies
+## Dependency model
+
+### Upstream dependencies
 
 - PostgreSQL
 - centralized config repo
+- `meta-service` for application and environment metadata resolution
 - shared backend primitives
+
+### What config-service depends on by workflow
+
+- app config CRUD and sync:
+  - `meta-service` validates application and environment context
+  - GitHub config repo provides file source-of-truth
+  - PostgreSQL persists config state and revision history
+- workload config CRUD:
+  - `meta-service` validates application ownership context
+  - PostgreSQL persists workload runtime shape
 
 ## Downstream Consumers
 
-- release-time consumers
+- `release-service`
+  - reads workload config during manifest creation
+  - reads app config during release creation
 - platform orchestration layers
 
 ## Entrypoint

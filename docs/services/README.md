@@ -7,20 +7,29 @@ Use these docs to answer one question first: which service owns which resource a
 
 ## Standard service doc format
 
-Each service document should keep the same core structure:
+Most service docs now use this core structure:
 
 1. `# <Service Name>`
 2. `## Purpose`
 3. `## Owns`
 4. `## Does Not Own`
-5. `## Upstream Dependencies`
-6. `## Downstream Consumers`
+5. `## Dependency model`
+6. `## Downstream Consumers` when that section is separate
 7. `## Entrypoint`
 8. `## Registered Domains`
 9. `## Pre-production Shared Ingress`
 10. `## Resource Contracts`
 11. `## Diagnostics`
 12. `## Verification`
+
+Some services also add service-specific sections such as:
+
+- dependency detail by workflow
+- dependency view diagrams
+- operator flow descriptions
+- pre-production delivery-path notes
+
+The important rule is that dependency information should now live under `## Dependency model` rather than the older `## Upstream Dependencies` heading.
 
 ## Current service docs
 

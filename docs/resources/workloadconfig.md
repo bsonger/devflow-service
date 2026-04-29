@@ -17,6 +17,7 @@ Current contract:
 - one active `WorkloadConfig` per `application_id`
 - current workload rendering target is `Deployment`
 - rollout strategy is **not** stored here; it belongs to `Release.strategy`
+- this resource describes workload runtime shape, not environment-specific release behavior
 
 ## Common base fields
 
