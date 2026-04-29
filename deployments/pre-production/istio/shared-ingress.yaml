@@ -101,8 +101,6 @@ spec:
       match:
         - uri:
             exact: /api/v1/runtime
-      rewrite:
-        uri: /api/v1
       route:
         - destination:
             host: runtime-service.devflow-pre-production.svc.cluster.local
@@ -112,8 +110,6 @@ spec:
       match:
         - uri:
             prefix: /api/v1/runtime/
-      rewrite:
-        uri: /api/v1/
       route:
         - destination:
             host: runtime-service.devflow-pre-production.svc.cluster.local

@@ -59,7 +59,26 @@ func (s *postgresStore) GetRuntimeSpecByApplicationEnv(ctx context.Context, appl
 	spec, err := scanRuntimeSpec(platformdb.Postgres().QueryRowContext(ctx, `
 		select id, application_id, environment, current_revision_id, created_at, updated_at
 		from application_runtime_specs
-		where application_id = $1 and environment = $2
+		where application_id = $1
+		  and environment = coalesce(
+			(
+				select environment
+				from application_runtime_specs
+				where application_id = $1 and environment = $2
+				limit 1
+			),
+			(
+				select e.name
+				from application_environment_bindings aeb
+				join environments e
+				  on e.id::text = aeb.environment_id
+				where aeb.application_id = $1::text
+				  and aeb.environment_id = $2
+				  and aeb.deleted_at is null
+				  and e.deleted_at is null
+				limit 1
+			)
+		  )
 	`, applicationId, environment))
 	if err == sql.ErrNoRows {
 		return nil, nil
