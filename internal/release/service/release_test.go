@@ -1169,7 +1169,7 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeplo
 	}
 }
 
-func TestReleaseStatusConvergenceRollingObserverOwnedStepsRemainRunningUntilStartDeploymentConverges(t *testing.T) {
+func TestReleaseStatusConvergenceRequiresReleaseOwnedStartDeploymentBeforeClosingRelease(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
 	appID := uuid.New()
@@ -1186,7 +1186,7 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsRemainRunningUntilStar
 	}
 
 	svc := &releaseService{}
-	completedBeforeObserver := []struct {
+	completedBeforeHandoff := []struct {
 		code    string
 		message string
 	}{
@@ -1198,13 +1198,10 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsRemainRunningUntilStar
 		{"publish_bundle", "bundle published"},
 		{"create_argocd_application", "application created"},
 	}
-	for _, step := range completedBeforeObserver {
+	for _, step := range completedBeforeHandoff {
 		if err := svc.UpdateStep(context.Background(), releaseID, step.code, model.StepSucceeded, 100, step.message, nil, nil); err != nil {
 			t.Fatalf("%s succeeded failed: %v", step.code, err)
 		}
-	}
-	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepRunning, 55, "deployment progressing", nil, nil); err != nil {
-		t.Fatalf("observe_rollout running failed: %v", err)
 	}
 	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepSucceeded, 100, "deployment healthy", nil, nil); err != nil {
 		t.Fatalf("observe_rollout succeeded failed: %v", err)
@@ -1215,25 +1212,45 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsRemainRunningUntilStar
 
 	release, err := svc.Get(context.Background(), releaseID)
 	if err != nil {
-		t.Fatalf("get failed: %v", err)
+		t.Fatalf("get before start_deployment failed: %v", err)
 	}
 	if release.Status != model.ReleaseRunning {
-		t.Fatalf("release status = %q want %q while start_deployment is still pending", release.Status, model.ReleaseRunning)
+		t.Fatalf("release status before start_deployment = %q want %q", release.Status, model.ReleaseRunning)
 	}
-	for _, step := range release.Steps {
-		switch step.Code {
+
+	if err := svc.UpdateStep(context.Background(), releaseID, "start_deployment", model.StepSucceeded, 100, "deployment sync started", nil, nil); err != nil {
+		t.Fatalf("start_deployment succeeded failed: %v", err)
+	}
+
+	release, err = svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get after start_deployment failed: %v", err)
+	}
+	if release.Status != model.ReleaseSucceeded {
+		t.Fatalf("release status after full graph converged = %q want %q", release.Status, model.ReleaseSucceeded)
+	}
+
+	var startDeployment, observeRollout, finalizeRelease *model.ReleaseStep
+	for i := range release.Steps {
+		switch release.Steps[i].Code {
 		case "start_deployment":
-			if step.Status != model.StepPending {
-				t.Fatalf("start_deployment status = %q want %q", step.Status, model.StepPending)
-			}
+			startDeployment = &release.Steps[i]
 		case "observe_rollout":
-			if step.Status != model.StepSucceeded || step.Message != "deployment healthy" {
-				t.Fatalf("observe_rollout = %+v", step)
-			}
+			observeRollout = &release.Steps[i]
 		case "finalize_release":
-			if step.Status != model.StepSucceeded || step.Message != "release finalized after deployment became healthy" {
-				t.Fatalf("finalize_release = %+v", step)
-			}
+			finalizeRelease = &release.Steps[i]
 		}
+	}
+	if startDeployment == nil || observeRollout == nil || finalizeRelease == nil {
+		t.Fatalf("missing expected steps: start=%v observe=%v finalize=%v", startDeployment != nil, observeRollout != nil, finalizeRelease != nil)
+	}
+	if startDeployment.Status != model.StepSucceeded || startDeployment.Message != "deployment sync started" {
+		t.Fatalf("start_deployment = %+v", *startDeployment)
+	}
+	if observeRollout.Status != model.StepSucceeded || observeRollout.Message != "deployment healthy" {
+		t.Fatalf("observe_rollout = %+v", *observeRollout)
+	}
+	if finalizeRelease.Status != model.StepSucceeded || finalizeRelease.Message != "release finalized after deployment became healthy" {
+		t.Fatalf("finalize_release = %+v", *finalizeRelease)
 	}
 }

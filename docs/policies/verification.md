@@ -67,13 +67,14 @@ make ci
 - focused release → Argo → runtime proof command:
 
 ```sh
-go test ./internal/release/service ./internal/runtime/observer ./internal/release/transport/http -run 'TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations|TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeploymentWriteback'
+go test ./internal/runtime/transport/http ./internal/runtime/observer ./internal/release/transport/http ./internal/release/service -run 'TestDeleteRuntimePodReturnsAcknowledgement|TestRolloutRuntimeReturnsAcknowledgement|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRequiresReleaseOwnedStartDeploymentBeforeClosingRelease'
 ```
 
 - interpret that focused proof in layers before broad reruns:
-  - `internal/release/service` proves release metadata production, bundle rendering, and writeback/status convergence acceptance
+  - `internal/runtime/transport/http` proves operator-facing runtime read/action HTTP mapping plus acknowledgement payload shape, including `convergence_state=pending_observation`
   - `internal/runtime/observer` proves runtime release-label consumption plus callback-owned `observe_rollout` / `finalize_release` emission
   - `internal/release/transport/http` proves Argo/writeback callback normalization at the release HTTP boundary
+  - `internal/release/service` proves final release status remains `Running` until the full canonical step graph converges and only closes after the release-owned `start_deployment` handoff step succeeds
   - `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun once the named proof seams pass
 - when convergence stalls after a runtime action acknowledgement, inspect signals in this order:
   1. runtime action response and persisted `RuntimeOperation` metadata prove whether the Kubernetes mutation was accepted at all

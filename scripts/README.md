@@ -83,13 +83,14 @@ When debugging release-flow contract drift, pair `bash scripts/verify.sh` with `
 The focused release → Argo → runtime proof route that should be rerun before broad repo debugging is:
 
 ```sh
-go test ./internal/release/service ./internal/runtime/observer ./internal/release/transport/http -run 'TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations|TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeploymentWriteback'
+go test ./internal/runtime/transport/http ./internal/runtime/observer ./internal/release/transport/http ./internal/release/service -run 'TestDeleteRuntimePodReturnsAcknowledgement|TestRolloutRuntimeReturnsAcknowledgement|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRequiresReleaseOwnedStartDeploymentBeforeClosingRelease'
 ```
 
 Read the proof in layers when that command fails:
-- `internal/release/service` proves release-side metadata production, bundle rendering, and writeback/status convergence acceptance
+- `internal/runtime/transport/http` proves operator-facing runtime read/action HTTP mapping plus acknowledgement payload shape, including `convergence_state=pending_observation`
 - `internal/runtime/observer` proves runtime-side release label consumption and callback-owned step emission
 - `internal/release/transport/http` proves release-side callback/writeback normalization at the HTTP boundary
+- `internal/release/service` proves final release status stays `Running` until the release-owned `start_deployment` handoff step succeeds and the full canonical graph converges
 - `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun after those named seams pass
 
 Only runnable repo entrypoints under `cmd/` may be packaged this way.

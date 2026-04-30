@@ -237,6 +237,8 @@ func TestListRuntimePods(t *testing.T) {
 
 func TestDeleteRuntimePodReturnsAcknowledgement(t *testing.T) {
 	applicationID := uuid.New()
+	operationID := uuid.New()
+	acceptedAt := time.Now().UTC().Truncate(time.Second)
 	h := NewHandler(&mockRuntimeService{
 		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
@@ -252,7 +254,7 @@ func TestDeleteRuntimePodReturnsAcknowledgement(t *testing.T) {
 				t.Fatalf("operator = %s, want tester", operator)
 			}
 			return &runtimedomain.RuntimeActionAcknowledgement{
-				OperationID:      uuid.New(),
+				OperationID:      operationID,
 				ApplicationID:    applicationID,
 				Environment:      "env-1",
 				OperationType:    runtimeservice.RuntimeOperationPodDelete,
@@ -261,7 +263,7 @@ func TestDeleteRuntimePodReturnsAcknowledgement(t *testing.T) {
 				TargetNamespace:  "devflow-staging",
 				MutationState:    runtimeservice.RuntimeMutationAccepted,
 				ConvergenceState: runtimeservice.RuntimeConvergencePending,
-				AcceptedAt:       time.Now().UTC(),
+				AcceptedAt:       acceptedAt,
 				Operator:         "tester",
 			}, nil
 		},
@@ -276,6 +278,26 @@ func TestDeleteRuntimePodReturnsAcknowledgement(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("unmarshal envelope: %v", err)
+	}
+	data, ok := envelope["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data payload missing or wrong type: %#v", envelope["data"])
+	}
+	if got := data["operation_id"]; got != operationID.String() {
+		t.Fatalf("operation_id = %#v, want %q", got, operationID.String())
+	}
+	if got := data["mutation_state"]; got != runtimeservice.RuntimeMutationAccepted {
+		t.Fatalf("mutation_state = %#v, want %q", got, runtimeservice.RuntimeMutationAccepted)
+	}
+	if got := data["convergence_state"]; got != runtimeservice.RuntimeConvergencePending {
+		t.Fatalf("convergence_state = %#v, want %q", got, runtimeservice.RuntimeConvergencePending)
+	}
+	if got := data["accepted_at"]; got != acceptedAt.Format(time.RFC3339) {
+		t.Fatalf("accepted_at = %#v, want %q", got, acceptedAt.Format(time.RFC3339))
 	}
 	var resp struct {
 		Data runtimedomain.RuntimeActionAcknowledgement `json:"data"`
@@ -359,6 +381,8 @@ func TestSyncObservedWorkloadReturnsInvalidArgument(t *testing.T) {
 
 func TestRolloutRuntimeReturnsAcknowledgement(t *testing.T) {
 	applicationID := uuid.New()
+	operationID := uuid.New()
+	acceptedAt := time.Now().UTC().Truncate(time.Second)
 	h := NewHandler(&mockRuntimeService{
 		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
@@ -374,7 +398,7 @@ func TestRolloutRuntimeReturnsAcknowledgement(t *testing.T) {
 				t.Fatalf("operator = %s, want tester", operator)
 			}
 			return &runtimedomain.RuntimeActionAcknowledgement{
-				OperationID:      uuid.New(),
+				OperationID:      operationID,
 				ApplicationID:    applicationID,
 				Environment:      "env-1",
 				OperationType:    runtimeservice.RuntimeOperationDeploymentRestart,
@@ -384,7 +408,7 @@ func TestRolloutRuntimeReturnsAcknowledgement(t *testing.T) {
 				MutationState:    runtimeservice.RuntimeMutationAccepted,
 				ConvergenceState: runtimeservice.RuntimeConvergencePending,
 				ObservedWorkload: "demo-api",
-				AcceptedAt:       time.Now().UTC(),
+				AcceptedAt:       acceptedAt,
 				Operator:         "tester",
 			}, nil
 		},
@@ -399,6 +423,29 @@ func TestRolloutRuntimeReturnsAcknowledgement(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("unmarshal envelope: %v", err)
+	}
+	data, ok := envelope["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data payload missing or wrong type: %#v", envelope["data"])
+	}
+	if got := data["operation_id"]; got != operationID.String() {
+		t.Fatalf("operation_id = %#v, want %q", got, operationID.String())
+	}
+	if got := data["target_kind"]; got != "deployment" {
+		t.Fatalf("target_kind = %#v, want %q", got, "deployment")
+	}
+	if got := data["observed_workload"]; got != "demo-api" {
+		t.Fatalf("observed_workload = %#v, want %q", got, "demo-api")
+	}
+	if got := data["convergence_state"]; got != runtimeservice.RuntimeConvergencePending {
+		t.Fatalf("convergence_state = %#v, want %q", got, runtimeservice.RuntimeConvergencePending)
+	}
+	if got := data["accepted_at"]; got != acceptedAt.Format(time.RFC3339) {
+		t.Fatalf("accepted_at = %#v, want %q", got, acceptedAt.Format(time.RFC3339))
 	}
 	var resp struct {
 		Data runtimedomain.RuntimeActionAcknowledgement `json:"data"`
