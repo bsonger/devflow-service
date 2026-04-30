@@ -327,6 +327,40 @@ func TestHandleReleaseStepGeneratesDefaultMessageWhenMissing(t *testing.T) {
 	}
 }
 
+func TestHandleReleaseStepNormalizesLegacyStepNameMessageWhenMissing(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	var gotStepName string
+	var gotMessage string
+	handler := &ReleaseWritebackHandler{svc: stubReleaseWritebackService{
+		updateStepFn: func(_ context.Context, got uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, _, _ *time.Time) error {
+			if got == releaseID && status == model.StepSucceeded {
+				gotStepName = stepName
+				gotMessage = message
+			}
+			return nil
+		},
+	}}
+	r := gin.New()
+	r.POST("/api/v1/verify/release/steps", handler.HandleReleaseStep)
+
+	body := bytes.NewBufferString(`{"release_id":"` + releaseID.String() + `","step_name":"publish_bundle","status":"Succeeded","progress":100}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/verify/release/steps", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if gotStepName != "publish_bundle" {
+		t.Fatalf("stepName = %q", gotStepName)
+	}
+	if gotMessage != "publish bundle succeeded" {
+		t.Fatalf("message = %q", gotMessage)
+	}
+}
+
 func TestHandleReleaseArtifactGeneratesDefaultMessageWhenMissing(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	releaseID := uuid.New()
@@ -352,6 +386,40 @@ func TestHandleReleaseArtifactGeneratesDefaultMessageWhenMissing(t *testing.T) {
 		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
 	}
 	if gotMessage != "deployment bundle artifact recorded: oci://registry.example.com/devflow/releases/demo-api@sha256:abc" {
+		t.Fatalf("message = %q", gotMessage)
+	}
+}
+
+func TestHandleReleaseArtifactGeneratesRunningMessageWhenMissing(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	var gotMessage string
+	var gotStatus model.StepStatus
+	handler := &ReleaseWritebackHandler{svc: stubReleaseWritebackService{
+		updateArtifactFn: func(_ context.Context, got uuid.UUID, repository, tag, digest, ref, message string, status model.StepStatus, progress int32) error {
+			if got == releaseID {
+				gotMessage = message
+				gotStatus = status
+			}
+			return nil
+		},
+	}}
+	r := gin.New()
+	r.POST("/api/v1/verify/release/artifact", handler.HandleReleaseArtifact)
+
+	body := bytes.NewBufferString(`{"release_id":"` + releaseID.String() + `","artifact_ref":"oci://registry.example.com/devflow/releases/demo-api:release-20260428","status":"running","progress":30}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/verify/release/artifact", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if gotStatus != model.StepRunning {
+		t.Fatalf("status = %q", gotStatus)
+	}
+	if gotMessage != "recording deployment bundle artifact: oci://registry.example.com/devflow/releases/demo-api:release-20260428" {
 		t.Fatalf("message = %q", gotMessage)
 	}
 }

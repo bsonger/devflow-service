@@ -90,6 +90,7 @@ Current implementation note:
 - that observer derives rollout association from runtime observer state and Kubernetes workload labels, then writes back to `release-service`
 - treat this route as part of the release-owned callback surface after stage 6 Argo handoff; callers may include Argo-facing senders and runtime-side observers, but `release-service` remains the owner of normalized release status persistence
 - docs should describe this as an active observer callback path, not as a PostgreSQL-backed runtime store path
+- for rolling releases, Argo-side step updates from this route normalize only onto callback-owned rollout confirmation steps such as `observe_rollout`; they must not reopen or advance release-owned handoff steps such as `start_deployment`
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -118,6 +119,7 @@ Current primary use:
 - external executors or observers may use this route for ongoing release step progression
 - the in-tree runtime rollout observer is one active caller when `runtime-service` starts with in-cluster config and release-service writeback configuration
 - this remains a token-gated release-owned callback surface rather than a public user-facing route or a runtime-owned API
+- the stable `step_code` set is the compatibility boundary, and each code has one advancing owner even when multiple components can report facts into release-service
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -132,6 +134,8 @@ Preferred step targeting rule:
 
 - update release steps by stable `step_code`
 - do not rely on human-facing display names as the long-term writeback key
+- `step_name` remains migration-only compatibility input and should not be used for new callback integrations
+- for rolling releases, callback senders should target `observe_rollout` and `finalize_release` only; `start_deployment` stays release-service-owned
 - if callback payload omits `message`, release-service should synthesize a default operator-facing message from `step_code`, `status`, and `progress`
 
 ### `POST /api/v1/verify/release/artifact`
@@ -164,8 +168,9 @@ Recommended payload shape:
 Notes:
 
 - this is release-owned artifact writeback, not manifest artifact writeback
-- `status` is interpreted as the state of the `publish_bundle` step
+- `status` is interpreted as the state of the release-owned `publish_bundle` step
 - artifact fields may be written before Argo application creation begins
+- artifact callbacks may refresh the same `publish_bundle` step with normalized status and metadata, but they do not transfer ownership of that step away from release-service dispatch
 - if callback payload omits `message`, release-service should synthesize a default artifact writeback message and prefer including `artifact_ref` when present
 
 Normalized step statuses:

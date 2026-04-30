@@ -38,6 +38,7 @@ Important rules:
 - `steps[*].name` is display text and may evolve over time
 - the frontend should render the returned `steps` list instead of assuming a fixed step count
 - the release create call initializes the full step list early, then release dispatch and later callback senders advance different steps over time
+- each stable `steps[*].code` has one advancing owner even when multiple systems can report facts about that step
 - release-service should keep `steps` in canonical execution order and should not append unknown ad-hoc step entries at runtime
 
 ## Execution phases
@@ -55,11 +56,12 @@ Purpose:
 - build the environment-specific deployment bundle
 - publish that bundle
 - create the external deployment object
+- hand rolling releases off to cluster execution through the release-owned `start_deployment` step
 
 3. rollout callback phase
 Purpose:
 - accept rollout-state callbacks after deployment handoff
-- progress traffic movement when callback senders are wired
+- progress only the callback-owned rollout confirmation steps for the active strategy
 - finalize the release outcome
 
 ## Step overview
@@ -169,6 +171,7 @@ Failure usually means:
 
 Owner:
 - release-service dispatch path
+- optional artifact callbacks may write artifact metadata and status back onto this same release-owned step
 
 Meaning:
 - the rendered deployment bundle is published to OCI as a release-owned artifact
@@ -187,6 +190,7 @@ What should happen:
 Success means:
 
 - the release has a usable deployment artifact reference
+- `publish_bundle` remains the release-owned execution step even when artifact metadata is written back through the token-gated artifact callback
 
 Failure usually means:
 
@@ -227,7 +231,7 @@ Strategy:
 - rolling only
 
 Meaning:
-- the standard rolling deployment has been kicked off and should now start moving in the cluster
+- the standard rolling deployment handoff has been accepted and cluster-side rollout observation should now continue through callback-owned confirmation steps
 
 What should happen:
 
@@ -237,6 +241,7 @@ What should happen:
 Success means:
 
 - rollout start has been handed over to the runtime or cluster layer
+- later runtime or Argo observations must advance `observe_rollout` and `finalize_release` rather than mutating this release-owned handoff step
 
 Failure usually means:
 
@@ -252,7 +257,7 @@ Strategy:
 - rolling only
 
 Meaning:
-- the system is waiting for the rolling deployment to converge to a healthy terminal state
+- the system is waiting for the rolling deployment to converge to a healthy terminal state after the release-owned `start_deployment` handoff
 
 What should happen:
 

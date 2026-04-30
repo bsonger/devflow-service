@@ -60,6 +60,7 @@ In particular:
 
 - stage 3 (`Release` freeze), stage 4 (deployment bundle render), stage 5 (bundle publish), and stage 6 (Argo handoff) are release-owned stages
 - stage 7 (runtime observation and release writeback) is split: `runtime-service` may observe and send callbacks, but `release-service` remains the owner of release truth and the callback surface
+- the stable release `steps[*].code` set is the compatibility boundary, and each code keeps one advancing owner even when other components send supporting writeback facts
 
 If rollout/writeback behavior looks wrong, route next to `docs/system/release-writeback.md` instead of treating this resource page as the callback owner.
 
@@ -1130,6 +1131,11 @@ Examples:
 - `canary_100`
 - `finalize_release`
 
+Rolling-specific rule:
+
+- `start_deployment` is not a callback-owned step
+- rolling callback senders should update `observe_rollout` while rollout is in progress and `finalize_release` when the rollout reaches a terminal outcome
+
 ## Step ownership table
 
 | Step code | Owner | Meaning |
@@ -1139,9 +1145,9 @@ Examples:
 | `ensure_pull_secret` | release execution path | 确保目标 namespace 已具备拉镜像 secret |
 | `ensure_appproject_destination` | release execution path | 确保 ArgoCD AppProject 放通目标集群与 namespace |
 | `render_deployment_bundle` | release-service dispatch | 渲染 deployment bundle |
-| `publish_bundle` | release-service dispatch / artifact callback | 上传 deployment bundle 到 OCI |
+| `publish_bundle` | release-service dispatch | 上传 deployment bundle 到 OCI；artifact callbacks may refresh status and metadata on this same release-owned step |
 | `create_argocd_application` | release-service dispatch | 创建 ArgoCD Application |
-| `start_deployment` | release-service dispatch / rollout callback | 触发 rolling deployment 开始 |
+| `start_deployment` | release-service dispatch | 触发 rolling deployment 开始并完成 handoff；后续 callback 仅推进 `observe_rollout` / `finalize_release` |
 | `observe_rollout` | rollout callback | 跟踪 rolling rollout |
 | `deploy_preview` | rollout callback | blueGreen preview 部署阶段 |
 | `observe_preview` | rollout callback | 观察 blueGreen preview 健康状态 |
@@ -1167,6 +1173,7 @@ Then:
 
 - release-service marks `freeze_inputs` as `Succeeded` once snapshot freeze completes
 - release-service dispatch currently advances render/publish/Argo creation steps during normal create flow
+- artifact callbacks may update release-owned `publish_bundle` metadata without changing the owner of that step
 - callback senders advance later rollout steps through release-owned writeback routes
 
 ## Strategy-specific lifecycle templates
