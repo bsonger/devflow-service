@@ -389,17 +389,23 @@ func TestDeletePodByApplicationEnvFailsWhenObserverIdentityMissing(t *testing.T)
 	}
 }
 
-func TestRestartDeploymentReturnsAmbiguousWhenObservedWorkloadIsNotDeployment(t *testing.T) {
+func TestRestartDeploymentReturnsAmbiguousWhenObservedWorkloadMissing(t *testing.T) {
 	applicationID := uuid.New()
 	runtimeSpecID := uuid.New()
+	restarted := false
 	svc := New(stubStore{
 		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
 		},
 		getObservedWorkloadFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
-			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, WorkloadKind: "StatefulSet", WorkloadName: "meta-service"}, nil
+			return nil, sql.ErrNoRows
 		},
-	}, stubK8sExecutor{})
+	}, stubK8sExecutor{
+		restartDeploymentFunc: func(context.Context, string, string) error {
+			restarted = true
+			return nil
+		},
+	})
 
 	err := svc.RestartDeployment(context.Background(), runtimeSpecID, "", "tester")
 	if !sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition) {
@@ -407,6 +413,177 @@ func TestRestartDeploymentReturnsAmbiguousWhenObservedWorkloadIsNotDeployment(t 
 	}
 	if err == nil || err.Error() != ErrRuntimeWorkloadAmbiguous.Error() {
 		t.Fatalf("error = %v, want %v", err, ErrRuntimeWorkloadAmbiguous)
+	}
+	if restarted {
+		t.Fatalf("expected restart executor not to be called")
+	}
+}
+
+func TestRestartDeploymentReturnsAmbiguousWhenObservedWorkloadIsNotDeployment(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	restarted := false
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		getObservedWorkloadFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
+			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, WorkloadKind: "StatefulSet", WorkloadName: "meta-service"}, nil
+		},
+	}, stubK8sExecutor{
+		restartDeploymentFunc: func(context.Context, string, string) error {
+			restarted = true
+			return nil
+		},
+	})
+
+	err := svc.RestartDeployment(context.Background(), runtimeSpecID, "", "tester")
+	if !sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition) {
+		t.Fatalf("expected failed_precondition error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeWorkloadAmbiguous.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeWorkloadAmbiguous)
+	}
+	if restarted {
+		t.Fatalf("expected restart executor not to be called")
+	}
+}
+
+func TestDeletePodReturnsNamespaceUnresolvedBeforeKubernetesMutation(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	deleted := false
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "staging"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "", sql.ErrNoRows
+		},
+		findRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "staging"}, nil
+		},
+	}, stubK8sExecutor{
+		deletePodFunc: func(context.Context, string, string) error {
+			deleted = true
+			return nil
+		},
+	})
+
+	err := svc.DeletePod(context.Background(), runtimeSpecID, "demo-0", "tester")
+	if !sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition) {
+		t.Fatalf("expected failed_precondition error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeNamespaceUnresolved.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeNamespaceUnresolved)
+	}
+	if deleted {
+		t.Fatalf("expected delete executor not to be called")
+	}
+}
+
+func TestDeletePodReturnsTargetMissingWhenObservedPodAbsent(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	deleted := false
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "staging"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "devflow-staging", nil
+		},
+		listObservedPodsFunc: func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error) {
+			return []*runtimedomain.RuntimeObservedPod{{RuntimeSpecID: runtimeSpecID, Namespace: "devflow-staging", PodName: "other-pod"}}, nil
+		},
+	}, stubK8sExecutor{
+		deletePodFunc: func(context.Context, string, string) error {
+			deleted = true
+			return nil
+		},
+	})
+
+	err := svc.DeletePod(context.Background(), runtimeSpecID, "demo-0", "tester")
+	if !sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition) {
+		t.Fatalf("expected failed_precondition error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimePodTargetMissing.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimePodTargetMissing)
+	}
+	if deleted {
+		t.Fatalf("expected delete executor not to be called")
+	}
+}
+
+func TestDeletePodReturnsNamespaceMismatchWhenObservedPodLeavesResolvedNamespace(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	deleted := false
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "staging"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "devflow-staging", nil
+		},
+		listObservedPodsFunc: func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error) {
+			return []*runtimedomain.RuntimeObservedPod{{RuntimeSpecID: runtimeSpecID, Namespace: "other-namespace", PodName: "demo-0"}}, nil
+		},
+	}, stubK8sExecutor{
+		deletePodFunc: func(context.Context, string, string) error {
+			deleted = true
+			return nil
+		},
+	})
+
+	err := svc.DeletePod(context.Background(), runtimeSpecID, "demo-0", "tester")
+	if !sharederrs.HasCode(err, sharederrs.CodeInvalidArgument) {
+		t.Fatalf("expected invalid_argument error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrNamespaceMismatch.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrNamespaceMismatch)
+	}
+	if deleted {
+		t.Fatalf("expected delete executor not to be called")
+	}
+}
+
+func TestDeletePodDeletesObservedPodInResolvedNamespace(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	var deletedNamespace string
+	var deletedName string
+	recorded := false
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "staging"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "devflow-staging", nil
+		},
+		listObservedPodsFunc: func(context.Context, uuid.UUID) ([]*runtimedomain.RuntimeObservedPod, error) {
+			return []*runtimedomain.RuntimeObservedPod{{RuntimeSpecID: runtimeSpecID, Namespace: "devflow-staging", PodName: "demo-0"}}, nil
+		},
+		createRuntimeOperationFunc: func(context.Context, *runtimedomain.RuntimeOperation) error {
+			recorded = true
+			return nil
+		},
+	}, stubK8sExecutor{
+		deletePodFunc: func(_ context.Context, namespace, name string) error {
+			deletedNamespace = namespace
+			deletedName = name
+			return nil
+		},
+	})
+
+	if err := svc.DeletePod(context.Background(), runtimeSpecID, "demo-0", "tester"); err != nil {
+		t.Fatalf("DeletePod() error = %v", err)
+	}
+	if deletedNamespace != "devflow-staging" || deletedName != "demo-0" {
+		t.Fatalf("delete target = %s/%s, want devflow-staging/demo-0", deletedNamespace, deletedName)
+	}
+	if !recorded {
+		t.Fatalf("expected runtime operation to be recorded")
 	}
 }
 
@@ -442,7 +619,7 @@ func TestRestartDeploymentFallsBackToObservedWorkloadName(t *testing.T) {
 			return "devflow", nil
 		},
 		getObservedWorkloadFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
-			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, WorkloadKind: "Deployment", WorkloadName: "meta-service"}, nil
+			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, Namespace: "devflow", WorkloadKind: "Deployment", WorkloadName: "meta-service"}, nil
 		},
 		createRuntimeOperationFunc: func(context.Context, *runtimedomain.RuntimeOperation) error { return nil },
 	}, stubK8sExecutor{

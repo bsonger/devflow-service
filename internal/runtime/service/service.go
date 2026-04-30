@@ -23,6 +23,12 @@ var ErrRuntimeSpecNotFound = sharederrs.NotFound("runtime spec not found")
 var ErrRuntimeIdentityMissing = sharederrs.NotFound("runtime observer identity not found for application and environment")
 var ErrRuntimeNamespaceUnresolved = sharederrs.FailedPrecondition("runtime namespace could not be resolved")
 var ErrRuntimeWorkloadAmbiguous = sharederrs.FailedPrecondition("runtime workload selection is ambiguous for application and environment")
+
+// ErrRuntimePodTargetMissing indicates the requested pod is not present in observer-backed
+// runtime state for the resolved application/environment and namespace, so the service must
+// fail before issuing a Kubernetes delete against potentially drifted identity.
+var ErrRuntimePodTargetMissing = sharederrs.FailedPrecondition("runtime pod target not found in observer state")
+
 var ErrNamespaceMismatch = sharederrs.InvalidArgument("observed pod namespace does not match derived runtime namespace")
 var ErrK8sClientInit = sharederrs.FailedPrecondition("kubernetes client initialization failed")
 var ErrK8sNotFound = sharederrs.NotFound("kubernetes resource not found")
@@ -59,6 +65,11 @@ type Service interface {
 type runtimeService struct {
 	store       repository.Store
 	k8sExecutor K8sExecutor
+}
+
+type runtimePodTarget struct {
+	name      string
+	namespace string
 }
 
 var DefaultService Service = New(repository.RuntimeStore, nil)
@@ -551,16 +562,17 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 		return ErrRuntimeSpecNotFound
 	}
 
+	target, err := s.resolvePodDeleteTarget(ctx, spec, podName)
+	if err != nil {
+		return err
+	}
+
 	k8s, err := s.k8s()
 	if err != nil {
 		return err
 	}
 
-	namespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, "")
-	if err != nil {
-		return err
-	}
-	if err := k8s.DeletePod(ctx, namespace, podName); err != nil {
+	if err := k8s.DeletePod(ctx, target.namespace, target.name); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ErrK8sNotFound
 		}
@@ -570,7 +582,7 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 		return err
 	}
 
-	return s.recordOperation(ctx, spec.ID, "pod_delete", podName, operator)
+	return s.recordOperation(ctx, spec.ID, "pod_delete", target.name, operator)
 }
 
 func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) error {
@@ -669,27 +681,54 @@ func (s *runtimeService) resolveDeploymentName(ctx context.Context, spec *domain
 		return name, nil
 	}
 	workload, err := s.repoStore().GetObservedWorkload(ctx, spec.ID)
-	if err != nil && err != sql.ErrNoRows {
-		return "", err
-	}
-	if workload != nil {
-		kind := strings.TrimSpace(workload.WorkloadKind)
-		name := strings.TrimSpace(workload.WorkloadName)
-		switch {
-		case strings.EqualFold(kind, "Deployment") && name != "":
-			return name, nil
-		case kind != "" || name != "":
+	if err != nil {
+		if err == sql.ErrNoRows {
 			return "", ErrRuntimeWorkloadAmbiguous
 		}
-	}
-	appName, err := s.repoStore().GetApplicationName(ctx, spec.ApplicationID)
-	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
-	if name := strings.TrimSpace(appName); name != "" {
+	if workload == nil {
+		return "", ErrRuntimeWorkloadAmbiguous
+	}
+	kind := strings.TrimSpace(workload.WorkloadKind)
+	name := strings.TrimSpace(workload.WorkloadName)
+	if strings.EqualFold(kind, "Deployment") && name != "" {
 		return name, nil
 	}
 	return "", ErrRuntimeWorkloadAmbiguous
+}
+
+func (s *runtimeService) resolvePodDeleteTarget(ctx context.Context, spec *domain.RuntimeSpec, requested string) (*runtimePodTarget, error) {
+	if spec == nil {
+		return nil, ErrRuntimeSpecNotFound
+	}
+	podName := strings.TrimSpace(requested)
+	if podName == "" {
+		return nil, sharederrs.Required("pod_name")
+	}
+
+	namespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, "")
+	if err != nil {
+		return nil, err
+	}
+
+	pods, err := s.repoStore().ListObservedPods(ctx, spec.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods {
+		if pod == nil {
+			continue
+		}
+		if strings.TrimSpace(pod.PodName) != podName {
+			continue
+		}
+		if strings.TrimSpace(pod.Namespace) != namespace {
+			return nil, ErrNamespaceMismatch
+		}
+		return &runtimePodTarget{name: podName, namespace: namespace}, nil
+	}
+	return nil, ErrRuntimePodTargetMissing
 }
 
 func (s *runtimeService) requireRuntimeIdentity(ctx context.Context, applicationID uuid.UUID, environment string) (*domain.RuntimeSpec, error) {
