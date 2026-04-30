@@ -496,7 +496,7 @@ Primary list actions:
 Recommended row status treatment:
 
 - `Pending`, `Running`, and `Syncing` should look active and navigable
-- `Succeeded` should look stable
+- `Available` should look stable
 - `Failed` and `SyncFailed` should surface an error state immediately
 - `RollingBack` and `RolledBack` should be visually distinct from normal failure
 
@@ -542,8 +542,8 @@ Show a manifest chooser scoped to the current application:
 Rules:
 
 - only manifests belonging to the current `application_id` should be listed
-- prefer enabling the primary CTA for manifests in `Succeeded`
-- compatibility mode may still allow `Ready`, but `Pending`, `Running`, and `Failed` should not look selectable for release creation
+- prefer enabling the primary CTA for manifests in `Available`
+- `Pending`, `Running`, and `Unavailable` should not look selectable for release creation
 - if the user entered from `Create Release` on a manifest row, prefill `manifest_id`
 
 #### 3. Frozen resource preview
@@ -620,7 +620,7 @@ On submit:
 
 Known precondition failures should be presented as user-readable blocking messages:
 
-- manifest not ready
+- manifest not available
 - effective app config missing
 - runtime service unavailable
 - deploy target cluster not ready

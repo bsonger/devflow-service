@@ -21,7 +21,7 @@ sequenceDiagram
     RS->>PG: create manifest row with frozen snapshots
     TK->>IMG: build and push application image
     TK->>RS: write back task / status / result
-    RS->>PG: update manifest status to Ready/Succeeded
+    RS->>PG: update manifest status to Available/Unavailable
 ```
 
 ## Notes

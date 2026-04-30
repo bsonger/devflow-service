@@ -49,7 +49,7 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: "main", RepoAddress: "git@github.com:example/demo.git", CommitHash: "abcdef123456", ImageRef: "repo/demo@sha256:abc", ImageDigest: "sha256:abc", PipelineID: "pipe-1", TraceID: "trace-1", SpanID: "span-1", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: "main", RepoAddress: "git@github.com:example/demo.git", CommitHash: "abcdef123456", ImageRef: "repo/demo@sha256:abc", ImageDigest: "sha256:abc", PipelineID: "pipe-1", TraceID: "trace-1", SpanID: "span-1", Status: model.ManifestPending}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -73,6 +73,9 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 	if payload.Data.ImageRef == "" || payload.Data.CommitHash == "" || payload.Data.PipelineID == "" || payload.Data.GitRevision != "main" {
 		t.Fatalf("unexpected payload %+v", payload.Data)
 	}
+	if payload.Data.Status != model.ManifestPending {
+		t.Fatalf("status = %q, want %q", payload.Data.Status, model.ManifestPending)
+	}
 }
 
 func TestCreateManifestReturnsEnvironmentAgnosticImageRef(t *testing.T) {
@@ -83,7 +86,7 @@ func TestCreateManifestReturnsEnvironmentAgnosticImageRef(t *testing.T) {
 				item := &manifestdomain.Manifest{
 					ApplicationID: req.ApplicationID,
 					ImageRef:      "repo/demo@sha256:abc",
-					Status:        model.ManifestReady,
+					Status:        model.ManifestAvailable,
 				}
 				item.WithCreateDefault()
 				return item, nil
@@ -118,7 +121,7 @@ func TestCreateManifestAcceptsGitRevision(t *testing.T) {
 				if req.GitRevision != "main" {
 					t.Fatalf("GitRevision = %q, want main", req.GitRevision)
 				}
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: req.GitRevision, ImageRef: "repo/demo:tag", Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: req.GitRevision, ImageRef: "repo/demo:tag", Status: model.ManifestAvailable}
 				item.WithCreateDefault()
 				return item, nil
 			},
@@ -152,7 +155,7 @@ func TestCreateManifestOmitsGitRevisionWhenNotProvided(t *testing.T) {
 				if req.GitRevision != "" {
 					t.Fatalf("GitRevision = %q, want empty before service defaulting", req.GitRevision)
 				}
-				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, Status: model.ManifestReady}
+				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, Status: model.ManifestAvailable}
 				item.WithCreateDefault()
 				return item, nil
 			},

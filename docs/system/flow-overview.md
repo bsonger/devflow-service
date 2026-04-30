@@ -82,8 +82,10 @@ What gets frozen:
 What happens next:
 
 - `release-service` starts Tekton image build
+- the persisted manifest enters `Pending` immediately after freeze/build dispatch
+- runtime-side observer callbacks later write back the authoritative manifest status (`Running` and terminal `Available` / `Unavailable`)
 - Tekton produces workload image output
-- manifest status and steps are written back onto the durable manifest row
+- manifest status and steps are written back onto the durable manifest row, but aggregate manifest status follows runtime-reported state rather than local step convergence
 
 Key boundary rule:
 

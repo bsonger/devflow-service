@@ -26,6 +26,9 @@ func resolveWorkloadImageRef(repository, tag, digest string) (string, map[string
 	return "", nil, ErrManifestImageNotDeployable
 }
 
+// renderManifestResources builds a manifest-owned derived resources view for inspection.
+// It intentionally renders only from manifest-frozen snapshots plus the resolved workload image,
+// and does not include release-time inputs such as environment binding, app config, routes, or bundle publication metadata.
 func renderManifestResources(namespace, applicationName, applicationId string, workload manifestdomain.ManifestWorkloadConfig, services []manifestdomain.ManifestService, imageRef string, annotations map[string]string) ([]manifestdomain.ManifestRenderedResource, error) {
 	objects := make([]manifestdomain.ManifestRenderedResource, 0, len(services)+1)
 	selectorLabels := map[string]string{

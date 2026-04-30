@@ -231,9 +231,9 @@ func mapPipelineRunStatus(pr *tknv1.PipelineRun) model.ManifestStatus {
 	}
 	switch cond.Status {
 	case "True":
-		return model.ManifestReady
+		return model.ManifestAvailable
 	case "False":
-		return model.ManifestFailed
+		return model.ManifestUnavailable
 	default:
 		if pr.Status.StartTime != nil {
 			return model.ManifestRunning
@@ -419,7 +419,7 @@ func isNotFoundWriteback(err error) bool {
 
 func isTerminalManifestStatus(status model.ManifestStatus) bool {
 	switch status {
-	case model.ManifestReady, model.ManifestSucceeded, model.ManifestFailed:
+	case model.ManifestAvailable, model.ManifestUnavailable:
 		return true
 	default:
 		return false

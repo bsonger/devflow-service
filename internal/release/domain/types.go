@@ -44,11 +44,10 @@ const (
 )
 
 const (
-	ManifestPending   ManifestStatus = "Pending"
-	ManifestRunning   ManifestStatus = "Running"
-	ManifestReady     ManifestStatus = "Ready"
-	ManifestSucceeded ManifestStatus = "Succeeded"
-	ManifestFailed    ManifestStatus = "Failed"
+	ManifestPending     ManifestStatus = "Pending"
+	ManifestRunning     ManifestStatus = "Running"
+	ManifestAvailable   ManifestStatus = "Available"
+	ManifestUnavailable ManifestStatus = "Unavailable"
 )
 
 const (

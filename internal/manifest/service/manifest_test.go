@@ -89,6 +89,9 @@ func TestBuildManifestPrefersDigestAndRendersObjects(t *testing.T) {
 	if got.ImageRef != "registry.cn-hangzhou.aliyuncs.com/devflow/demo-api@sha256:abc" {
 		t.Fatalf("unexpected image ref %q", got.ImageRef)
 	}
+	if got.Status != model.ManifestPending {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestPending)
+	}
 }
 
 func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.T) {
@@ -199,7 +202,7 @@ func TestManifestDeleteSoftDeletesByID(t *testing.T) {
 
 	_, err := store.DB().ExecContext(context.Background(), `
 		insert into manifests (id, application_id, image_ref, status, created_at, updated_at, deleted_at)
-		values ($1,$2,$3,'Ready',$4,$5,null)
+		values ($1,$2,$3,'Available',$4,$5,null)
 	`, manifestID.String(), appID.String(), "repo/demo@sha256:abc", now, now)
 	if err != nil {
 		t.Fatalf("insert failed: %v", err)
@@ -253,7 +256,7 @@ func TestManifestResourcesViewStillBuildsLegacyResourcesEndpoint(t *testing.T) {
 	}
 }
 
-func TestUpdateBuildResultDoesNotMarkSucceededBeforeAllStepsFinish(t *testing.T) {
+func TestUpdateBuildResultDoesNotChangeRuntimeReportedStatus(t *testing.T) {
 	setupManifestTestDB(t)
 	svc := &manifestService{}
 	manifestID := uuid.New()
@@ -290,7 +293,7 @@ func TestUpdateBuildResultDoesNotMarkSucceededBeforeAllStepsFinish(t *testing.T)
 	}
 }
 
-func TestUpdateStepStatusPromotesToSucceededOnlyAfterAllStepsAndResultReady(t *testing.T) {
+func TestUpdateStepStatusDoesNotPromoteManifestStatus(t *testing.T) {
 	setupManifestTestDB(t)
 	svc := &manifestService{}
 	manifestID := uuid.New()
@@ -300,7 +303,7 @@ func TestUpdateStepStatusPromotesToSucceededOnlyAfterAllStepsAndResultReady(t *t
 		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
 		ApplicationID: appID,
 		PipelineID:    "pipe-success",
-		Status:        model.ManifestReady,
+		Status:        model.ManifestAvailable,
 		CommitHash:    "abcdef123456",
 		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
 		ImageTag:      "20260428-120000",
@@ -322,12 +325,15 @@ func TestUpdateStepStatusPromotesToSucceededOnlyAfterAllStepsAndResultReady(t *t
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
-	if got.Status != model.ManifestSucceeded {
-		t.Fatalf("status = %q, want %q", got.Status, model.ManifestSucceeded)
+	if got.Status != model.ManifestAvailable {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestAvailable)
+	}
+	if got.Steps[1].Status != model.StepSucceeded {
+		t.Fatalf("step status = %q, want %q", got.Steps[1].Status, model.StepSucceeded)
 	}
 }
 
-func TestUpdateManifestStatusReadyWaitsForAllSteps(t *testing.T) {
+func TestUpdateManifestStatusAcceptsRuntimeReportedAvailable(t *testing.T) {
 	setupManifestTestDB(t)
 	svc := &manifestService{}
 	manifestID := uuid.New()
@@ -347,7 +353,7 @@ func TestUpdateManifestStatusReadyWaitsForAllSteps(t *testing.T) {
 		t.Fatalf("insert manifest: %v", err)
 	}
 
-	if err := svc.UpdateManifestStatus(context.Background(), manifest.PipelineID, model.ManifestReady); err != nil {
+	if err := svc.UpdateManifestStatus(context.Background(), manifest.PipelineID, model.ManifestAvailable); err != nil {
 		t.Fatalf("UpdateManifestStatus() error = %v", err)
 	}
 
@@ -355,8 +361,8 @@ func TestUpdateManifestStatusReadyWaitsForAllSteps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
-	if got.Status != model.ManifestRunning {
-		t.Fatalf("status = %q, want %q", got.Status, model.ManifestRunning)
+	if got.Status != model.ManifestAvailable {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestAvailable)
 	}
 }
 
@@ -370,7 +376,7 @@ func TestUpdateBuildResultNoopWhenPayloadAlreadyPersisted(t *testing.T) {
 		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
 		ApplicationID: appID,
 		PipelineID:    "pipe-noop-result",
-		Status:        model.ManifestSucceeded,
+		Status:        model.ManifestAvailable,
 		CommitHash:    "abcdef123456",
 		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
 		ImageTag:      "20260428-120000",

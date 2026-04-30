@@ -111,7 +111,7 @@ Examples:
 Use when the request is valid, but a required dependency or upstream state is not ready.
 
 Examples:
-- release manifest is not ready
+- release manifest is not available
 - cluster onboarding is not ready
 - runtime spec binding does not match the requested release
 - sync cannot continue because a required upstream asset has not been prepared
@@ -192,7 +192,7 @@ Error messages returned to API clients should be:
 Allowed:
 - `invalid id`
 - `not found`
-- `manifest is not ready`
+- `manifest is not available`
 - `invalid request body`
 - `internal error`
 

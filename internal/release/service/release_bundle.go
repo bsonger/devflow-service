@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// buildReleaseBundle materializes the release-owned deployable bundle from manifest-frozen inputs plus release-time freeze inputs.
+// Unlike manifest resource inspection views, this output is the publishable deployment payload used for bundle preview, OCI publication, and Argo delivery.
 func buildReleaseBundle(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) (*model.ReleaseBundle, error) {
 	if manifest == nil {
 		return nil, sharederrs.Required("manifest")

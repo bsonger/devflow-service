@@ -134,7 +134,7 @@ Success means:
 
 Failure usually means:
 
-- manifest is not ready
+- manifest is not available
 - effective app config is missing
 - deploy target cluster is not ready
 - required downstream runtime dependency is unavailable

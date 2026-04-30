@@ -64,14 +64,44 @@ then the owning resource is `Release`, not `Manifest`.
 
 - `Pending`
 - `Running`
-- `Ready`
-- `Succeeded`
-- `Failed`
+- `Available`
+- `Unavailable`
 
-Current code uses `Ready` as an active top-level manifest status:
+Current manifest status semantics are:
 
-- `Ready` means manifest steps have completed and the build result is in a deployable state
-- `release-service` currently accepts both `ManifestReady` and `ManifestSucceeded` as deployable manifest states
+- `Pending`: the manifest record has been frozen and the build has been dispatched, but `release-service` has not yet received the first runtime / observer status writeback
+- `Running`: runtime writeback reports that the build execution is in progress
+- `Available`: runtime writeback reports that the manifest is deployable and can be consumed by release creation
+- `Unavailable`: runtime writeback reports a terminal non-consumable outcome for this manifest
+
+Important boundary rule:
+
+- manifest status is driven by runtime / observer writeback
+- `steps[*].status` are per-task observation details only
+- `release-service` does not locally derive aggregate manifest status from step completion or image-result persistence
+
+`release-service` currently accepts only `ManifestAvailable` as a deployable manifest state.
+
+### Observer writeback compatibility
+
+`Manifest` status is written back through observer / runtime callbacks. The canonical callback values are now:
+
+- `Pending`
+- `Running`
+- `Available`
+- `Unavailable`
+
+For migration compatibility, writeback ingress still normalizes older terminal payloads:
+
+- `Ready` -> `Available`
+- `Succeeded` -> `Available`
+- `Failed` -> `Unavailable`
+
+Compatibility intent:
+
+- existing external observers do not need to flip in the same deploy as the service-side change
+- new integrations should emit only `Available` / `Unavailable` for terminal manifest outcomes
+- once all observer producers are migrated, the legacy aliases should be removed rather than treated as permanent public contract
 
 ## Boundary summary
 
@@ -142,6 +172,7 @@ Pre-production shared ingress external surface:
 `GET /api/v1/manifests/{id}/resources` returns a derived resource view built from frozen snapshots plus `image_ref`.
 On the pre-production shared ingress, the external path is `GET /api/v1/release/manifests/{id}/resources`.
 The manifest record itself does not persist rendered output payloads.
+This resource view is for inspection only; it is not the release-owned deployment bundle, does not include release-time config/route inputs, and is not the payload published to OCI.
 
 ## Execution model
 
@@ -549,9 +580,9 @@ the manifest remains the durable source of truth for:
 Recommended `ManifestStatus` transitions:
 
 ```text
-Pending -> Running -> Ready -> Succeeded
-Pending -> Running -> Failed
-Pending -> Failed
+Pending -> Running -> Available
+Pending -> Running -> Unavailable
+Pending -> Unavailable
 ```
 
 Operational meaning:
@@ -560,16 +591,15 @@ Operational meaning:
 |---|---|
 | `Pending` | manifest record created, snapshots frozen, build not yet confirmed running |
 | `Running` | Tekton `PipelineRun` has started and at least one task is in progress |
-| `Ready` | all manifest steps have completed successfully, but the final build result writeback may still be settling |
-| `Succeeded` | all manifest steps completed successfully and final image metadata was written back |
-| `Failed` | Tekton pipeline failed, was cancelled, or ended without producing a valid final image result |
+| `Available` | runtime has confirmed the manifest is consumable for release creation |
+| `Unavailable` | runtime has confirmed the manifest is not consumable for release creation |
 
 Additional rules:
 
-- terminal states are `Succeeded` and `Failed`
+- terminal states are `Available` and `Unavailable`
 - late watcher events must not reopen a terminal manifest unless there is an explicit rebuild/retry operation
 - step state is more granular than top-level status; callers should use `steps` for detailed progress and `status` for high-level summary
-- writeback result data alone must not promote a manifest to `Succeeded` while any persisted step is still `Pending` or `Running`
+- writeback result data alone must not promote a manifest to `Available`; aggregate status is owned by runtime writeback, not local step/result convergence
 - duplicate observer callbacks with unchanged status, step state, or build result should be treated as idempotent no-ops
 - if `git_revision` points to a moving reference such as a branch, the persisted `commit_hash` is the durable audit value
 
@@ -976,7 +1006,7 @@ These decisions should be made explicitly during implementation if they are stil
   - directly before `PipelineRun` creation
   - or from Tekton-emitted results after clone/build starts?
 - should a failed source-resolution attempt create no manifest row at all, or create a failed manifest row?
-- should terminal cancellation map to `Failed`, or introduce a future `Cancelled` status?
+- should terminal cancellation map to `Unavailable`, or introduce a future `Cancelled` status?
 
 ## Validation notes
 

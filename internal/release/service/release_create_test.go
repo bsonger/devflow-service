@@ -63,7 +63,7 @@ func TestPopulateReleaseDefaultsPreservesManifestID(t *testing.T) {
 	}
 }
 
-func TestCreateReleaseRejectsManifestThatIsNotReady(t *testing.T) {
+func TestCreateReleaseRejectsManifestThatIsNotAvailable(t *testing.T) {
 	originalManifestSource := releaseManifestSource
 	releaseManifestSource = stubReleaseManifestReader{
 		getFn: func(_ context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
@@ -82,19 +82,19 @@ func TestCreateReleaseRejectsManifestThatIsNotReady(t *testing.T) {
 		Type:       model.ReleaseUpgrade,
 	})
 	if err == nil {
-		t.Fatalf("expected manifest not ready error")
+		t.Fatalf("expected manifest not available error")
 	}
-	if err != ErrReleaseManifestNotReady {
-		t.Fatalf("got err %v want %v", err, ErrReleaseManifestNotReady)
+	if err != ErrReleaseManifestNotAvailable {
+		t.Fatalf("got err %v want %v", err, ErrReleaseManifestNotAvailable)
 	}
 }
 
 func TestIsReleaseDeployableManifestStatus(t *testing.T) {
-	if !isReleaseDeployableManifestStatus(model.ManifestReady) {
-		t.Fatal("ManifestReady should be deployable")
+	if !isReleaseDeployableManifestStatus(model.ManifestAvailable) {
+		t.Fatal("ManifestAvailable should be deployable")
 	}
-	if !isReleaseDeployableManifestStatus(model.ManifestSucceeded) {
-		t.Fatal("ManifestSucceeded should be deployable")
+	if isReleaseDeployableManifestStatus(model.ManifestUnavailable) {
+		t.Fatal("ManifestUnavailable should not be deployable")
 	}
 	if isReleaseDeployableManifestStatus(model.ManifestRunning) {
 		t.Fatal("ManifestRunning should not be deployable")

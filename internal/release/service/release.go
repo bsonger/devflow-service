@@ -42,10 +42,10 @@ type ReleaseListFilter struct {
 var ReleaseService = &releaseService{store: repository.NewPostgresStore(), bundleStore: repository.NewBundlePostgresStore()}
 
 var (
-	ErrReleaseManifestNotReady = sharederrs.FailedPrecondition("manifest is not ready")
-	ErrReleaseAppConfigMissing = sharederrs.FailedPrecondition("effective app config is missing")
-	ErrReleaseBundleNotReady   = sharederrs.FailedPrecondition("bundle not ready")
-	ErrReleaseUnknownStep      = sharederrs.InvalidArgument("unknown release step")
+	ErrReleaseManifestNotAvailable = sharederrs.FailedPrecondition("manifest is not available")
+	ErrReleaseAppConfigMissing     = sharederrs.FailedPrecondition("effective app config is missing")
+	ErrReleaseBundleNotReady       = sharederrs.FailedPrecondition("bundle not ready")
+	ErrReleaseUnknownStep          = sharederrs.InvalidArgument("unknown release step")
 )
 
 type releaseManifestReader interface {
@@ -199,7 +199,7 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 		return uuid.Nil, err
 	}
 	if !isReleaseDeployableManifestStatus(manifest.Status) {
-		return uuid.Nil, ErrReleaseManifestNotReady
+		return uuid.Nil, ErrReleaseManifestNotAvailable
 	}
 	release.ApplicationID = manifest.ApplicationID
 	populateReleaseDefaults(release, manifest.ApplicationID, strings.TrimSpace(release.EnvironmentID))
@@ -242,7 +242,7 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 
 func isReleaseDeployableManifestStatus(status model.ManifestStatus) bool {
 	switch status {
-	case model.ManifestReady, model.ManifestSucceeded:
+	case model.ManifestAvailable:
 		return true
 	default:
 		return false

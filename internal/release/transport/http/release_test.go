@@ -89,7 +89,7 @@ func TestCreateReleaseFailedPreconditionReturnsErrorEnvelope(t *testing.T) {
 	handler := &ReleaseHandler{
 		svc: stubReleaseService{
 			createFn: func(_ context.Context, _ *model.Release) (uuid.UUID, error) {
-				return uuid.Nil, service.ErrReleaseManifestNotReady
+				return uuid.Nil, service.ErrReleaseManifestNotAvailable
 			},
 		},
 	}

@@ -104,7 +104,7 @@ Prefer:
 
 - sentinel errors
 - wrapped errors that preserve stable intent
-- domain-specific names such as `ErrReleaseManifestNotReady`
+- domain-specific names such as `ErrReleaseManifestNotAvailable`
 - shared generic helpers from `internal/shared/errs` for required-field, invalid-input, conflict, and failed-precondition cases that are not domain-specific
 
 Services should not decide final HTTP status codes.

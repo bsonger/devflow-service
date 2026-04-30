@@ -263,6 +263,8 @@ func (s *manifestService) AssignPipelineID(ctx context.Context, manifestID uuid.
 	return s.repoStore().AssignPipelineID(ctx, manifestID, strings.TrimSpace(pipelineID))
 }
 
+// UpdateManifestStatusByID persists the runtime-reported manifest status for a manifest row.
+// Manifest service does not derive aggregate status from local task-step snapshots; runtime writeback is the source of truth.
 func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifestID uuid.UUID, status model.ManifestStatus) error {
 	if manifestID == uuid.Nil {
 		return sharederrs.InvalidArgument("manifest id cannot be zero")
@@ -271,7 +273,7 @@ func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifest
 	if err != nil {
 		return err
 	}
-	nextStatus := convergeManifestStatus(current.Status, current.Steps, current.CommitHash, current.ImageRef, current.ImageTag, current.ImageDigest, status)
+	nextStatus := normalizeRuntimeManifestStatus(status, current.Status)
 	if current.Status == nextStatus {
 		return nil
 	}
@@ -306,7 +308,6 @@ func (s *manifestService) UpdateStepStatus(ctx context.Context, pipelineID, task
 	if !changed {
 		return nil
 	}
-	manifest.Status = convergeManifestStatus(manifest.Status, manifest.Steps, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest, manifest.Status)
 	manifest.UpdatedAt = time.Now()
 	return s.repoStore().UpdateStatusAndSteps(ctx, manifest.ID, manifest.Status, manifest.Steps, manifest.PipelineID)
 }
@@ -338,7 +339,7 @@ func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID s
 	if err != nil {
 		return err
 	}
-	nextStatus := convergeManifestStatus(manifest.Status, manifest.Steps, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest, status)
+	nextStatus := normalizeRuntimeManifestStatus(status, manifest.Status)
 	if manifest.Status == nextStatus {
 		return nil
 	}
@@ -361,92 +362,34 @@ func (s *manifestService) UpdateBuildResult(ctx context.Context, pipelineID, com
 	previousImageRef := manifest.ImageRef
 	previousImageTag := manifest.ImageTag
 	previousImageDigest := manifest.ImageDigest
-	manifest.CommitHash = commitHash
-	manifest.ImageRef = imageRef
-	manifest.ImageTag = imageTag
-	manifest.ImageDigest = imageDigest
-	status := convergeManifestStatus(manifest.Status, manifest.Steps, manifest.CommitHash, manifest.ImageRef, manifest.ImageTag, manifest.ImageDigest, manifest.Status)
 	if previousCommitHash == commitHash &&
 		previousImageRef == imageRef &&
 		previousImageTag == imageTag &&
-		previousImageDigest == imageDigest &&
-		previousStatus == status {
+		previousImageDigest == imageDigest {
 		return nil
 	}
-	return s.repoStore().UpdateBuildResult(ctx, manifest.ID, commitHash, imageRef, imageTag, imageDigest, status)
+	return s.repoStore().UpdateBuildResult(ctx, manifest.ID, commitHash, imageRef, imageTag, imageDigest, previousStatus)
 }
 
-func convergeManifestStatus(current model.ManifestStatus, steps []model.ImageTask, commitHash, imageRef, imageTag, imageDigest string, requested model.ManifestStatus) model.ManifestStatus {
-	switch current {
-	case model.ManifestFailed:
+func normalizeRuntimeManifestStatus(requested, current model.ManifestStatus) model.ManifestStatus {
+	switch requested {
+	case model.ManifestPending, model.ManifestRunning, model.ManifestAvailable, model.ManifestUnavailable:
+		return requested
+	case "":
+		if current == "" {
+			return model.ManifestPending
+		}
+		return current
+	default:
+		if current == "" {
+			return model.ManifestPending
+		}
 		return current
 	}
-	if requested == model.ManifestFailed {
-		return model.ManifestFailed
-	}
-
-	anyRunning := false
-	anyStarted := false
-	anyFailed := false
-	allSucceeded := len(steps) > 0
-
-	for _, step := range steps {
-		switch step.Status {
-		case model.StepFailed:
-			anyFailed = true
-			allSucceeded = false
-		case model.StepSucceeded:
-			anyStarted = true
-		case model.StepRunning:
-			anyRunning = true
-			anyStarted = true
-			allSucceeded = false
-		default:
-			allSucceeded = false
-		}
-	}
-
-	if anyFailed {
-		return model.ManifestFailed
-	}
-	if anyRunning {
-		return model.ManifestRunning
-	}
-	if allSucceeded {
-		if hasManifestBuildResult(commitHash, imageRef, imageTag, imageDigest) {
-			return model.ManifestSucceeded
-		}
-		return model.ManifestReady
-	}
-	if anyStarted {
-		return model.ManifestRunning
-	}
-
-	switch requested {
-	case model.ManifestRunning:
-		return model.ManifestRunning
-	case model.ManifestReady:
-		if hasManifestBuildResult(commitHash, imageRef, imageTag, imageDigest) {
-			return model.ManifestSucceeded
-		}
-		return model.ManifestReady
-	case model.ManifestPending:
-		return model.ManifestPending
-	}
-
-	if current == "" {
-		return model.ManifestPending
-	}
-	return current
 }
 
-func hasManifestBuildResult(commitHash, imageRef, imageTag, imageDigest string) bool {
-	return strings.TrimSpace(commitHash) != "" ||
-		strings.TrimSpace(imageRef) != "" ||
-		strings.TrimSpace(imageTag) != "" ||
-		strings.TrimSpace(imageDigest) != ""
-}
-
+// buildManifestResourcesView returns an inspection-oriented resources projection derived from manifest-frozen state.
+// It is not the release bundle, is not persisted as deployable output, and intentionally excludes release-time inputs.
 func buildManifestResourcesView(item *manifestdomain.Manifest) (*manifestdomain.ManifestResourcesView, error) {
 	if item == nil {
 		return nil, nil
@@ -521,7 +464,7 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, r
 		ImageTag:               target.Tag,
 		ServicesSnapshot:       servicesSnapshot,
 		WorkloadConfigSnapshot: workloadSnapshot,
-		Status:                 model.ManifestReady,
+		Status:                 model.ManifestPending,
 	}, nil
 }
 

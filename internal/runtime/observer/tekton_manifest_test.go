@@ -70,7 +70,7 @@ func TestMapPipelineAndTaskStatuses(t *testing.T) {
 			},
 		},
 	}
-	if got := mapPipelineRunStatus(pr); got != model.ManifestReady {
+	if got := mapPipelineRunStatus(pr); got != model.ManifestAvailable {
 		t.Fatalf("pipeline status = %s", got)
 	}
 	tr := &tknv1.TaskRun{

@@ -259,6 +259,13 @@ Primary outputs:
 - release `status` and step progress
 - derived `bundle_summary`
 
+The rendered deployment bundle is a release-owned publishable artifact.
+It is different from `Manifest` resource inspection views:
+
+- manifest resources are derived read-side projections built only from manifest-frozen snapshots plus the workload image
+- release bundles additionally include release-time config, route, strategy, and environment-targeted rendering decisions
+- only the release bundle is packaged for OCI publication and deployment
+
 It consumes `manifest.image_ref`, but it does not replace or duplicate `Manifest` as the build record.
 
 ## Action semantics field
@@ -646,8 +653,11 @@ release-service should validate:
 
 Recommended manifest readiness rule:
 
-- accept terminal successful build output, e.g. `Succeeded`
-- compatibility mode may still accept older `Ready`
+- accept manifest build output only when status is `Available`
+- older observer payloads such as `Ready` / `Succeeded` are normalized onto `Available` at writeback ingress
+- older observer payloads such as `Failed` are normalized onto `Unavailable` at writeback ingress
+- new manifest observers should emit `Available` / `Unavailable` terminal values directly
+- legacy aliases should be treated as migration compatibility only, not as the long-term manifest contract
 
 ## 3. Service freezes rollout-time inputs
 

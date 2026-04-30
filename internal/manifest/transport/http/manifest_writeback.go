@@ -198,12 +198,16 @@ func normalizeManifestStatus(status model.ManifestStatus) model.ManifestStatus {
 		return model.ManifestPending
 	case "running":
 		return model.ManifestRunning
+	case "available":
+		return model.ManifestAvailable
+	case "unavailable":
+		return model.ManifestUnavailable
 	case "ready":
-		return model.ManifestReady
+		return model.ManifestAvailable
 	case "succeeded":
-		return model.ManifestSucceeded
+		return model.ManifestAvailable
 	case "failed":
-		return model.ManifestFailed
+		return model.ManifestUnavailable
 	default:
 		return status
 	}

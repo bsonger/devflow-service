@@ -139,6 +139,45 @@ func TestHandleManifestStatusEventUpdatesManifest(t *testing.T) {
 	}
 }
 
+func TestHandleManifestStatusEventNormalizesLegacyTerminalStatuses(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	manifestID := uuid.New()
+	tests := []struct {
+		name    string
+		payload string
+		want    model.ManifestStatus
+	}{
+		{name: "ready maps to available", payload: "Ready", want: model.ManifestAvailable},
+		{name: "succeeded maps to available", payload: "Succeeded", want: model.ManifestAvailable},
+		{name: "failed maps to unavailable", payload: "Failed", want: model.ManifestUnavailable},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			handler := &ManifestWritebackHandler{svc: stubManifestWritebackService{
+				statusFn: func(_ context.Context, got uuid.UUID, status model.ManifestStatus) error {
+					called = got == manifestID && status == tc.want
+					return nil
+				},
+			}}
+			r := gin.New()
+			r.POST("/api/v1/manifests/tekton/status", handler.HandleTektonStatus)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/manifests/tekton/status", bytes.NewBufferString(`{"manifest_id":"`+manifestID.String()+`","status":"`+tc.payload+`"}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
+			}
+			if !called {
+				t.Fatalf("status update was not called with normalized status %q", tc.want)
+			}
+		})
+	}
+}
+
 func TestHandleManifestResultEventUpdatesBuildResult(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	manifestID := uuid.New()
