@@ -728,6 +728,24 @@ func (s *releaseService) publishDeploymentBundle(ctx context.Context, release *m
 	return s.UpdateArtifact(ctx, release.ID, result.Repository, result.Tag, result.Digest, result.Ref, publishBundleResultMessage(runtimeCfg, result), model.StepSucceeded, 100)
 }
 
+func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release, application *appv1.Application) {
+	if application == nil {
+		return
+	}
+	sc := trace.SpanContextFromContext(ctx)
+	application.Annotations = map[string]string{
+		oci.TraceIDAnnotation: sc.TraceID().String(),
+		oci.SpanAnnotation:    sc.SpanID().String(),
+	}
+	application.Labels = map[string]string{
+		"status":                     string(model.ReleaseRunning),
+		"app.kubernetes.io/name":     application.Name,
+		model.ReleaseIDLabel:          release.ID.String(),
+		model.ReleaseApplicationLabel: release.ApplicationID.String(),
+		model.ReleaseEnvironmentLabel: releaseTargetEnvironment(release),
+	}
+}
+
 func (s *releaseService) createArgoApplication(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
@@ -740,12 +758,7 @@ func (s *releaseService) createArgoApplication(ctx context.Context, release *mod
 	if err := s.persistArgoApplicationMetadata(ctx, release, application.Name); err != nil {
 		return err
 	}
-	sc := trace.SpanContextFromContext(ctx)
-	application.Annotations = map[string]string{
-		oci.TraceIDAnnotation: sc.TraceID().String(),
-		oci.SpanAnnotation:    sc.SpanID().String(),
-	}
-	application.Labels = map[string]string{"status": string(model.ReleaseRunning), model.ReleaseIDLabel: release.ID.String()}
+	applyReleaseApplicationMetadata(ctx, release, application)
 
 	err := applyReleaseApplication(ctx, release.Type, application, argoclient.CreateApplication, argoclient.UpdateApplication, s.syncArgoApplication)
 	if err != nil {

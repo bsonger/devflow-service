@@ -327,6 +327,31 @@ Treat the seam as explicit follow-up contract work for:
 - S04
 - S05
 
+## Runtime-consumable metadata contract
+
+The release-to-runtime seam is now one explicit contract rather than an implied convention.
+
+### Labels vs annotations
+
+- **Labels** are the authoritative runtime-consumable identity surface.
+- **Annotations** are supplementary tracing context and must not be required to reconstruct release ownership.
+
+| Field | Surface | Kind | Produced by | Stage | Downstream consumer | Why it exists |
+|---|---|---|---|---|---|---|
+| `app.kubernetes.io/name` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` | stages 4 and 6 | `runtime-service` workload lookup, operator diagnostics | Stable application/workload name for selectors and fallback deployment-name recovery. |
+| `devflow.io/release-id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` | stages 4 and 6 | `runtime-service` rollout observer, `release-service` writeback correlation | Canonical release identity for joining live rollout state back to one `Release`. |
+| `devflow.application/id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` | stages 4 and 6 | `runtime-service` observed workload/pod indexing | Canonical application identity for runtime ownership reconstruction. |
+| `devflow.environment/id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` | stages 4 and 6 | `runtime-service` observed workload/pod indexing and rollout observer fallback | Canonical environment identity for runtime ownership reconstruction in shared clusters. |
+| `status` | Argo CD `Application` | label | `release-service` | stage 6 | operator diagnostics | Dispatch-state hint on the handoff object; not rollout truth. |
+| `devflow.io/trace-id` | Argo CD `Application` | annotation | `release-service` | stage 6 | trace/debug tooling | Supplementary tracing context for the Argo handoff step. |
+| `devflow.io/span-id` | Argo CD `Application` | annotation | `release-service` | stage 6 | trace/debug tooling | Supplementary tracing context for the Argo handoff step. |
+
+Boundary rule:
+
+- stage 4 and stage 6 must agree on the identity labels above
+- stage 7 consumers may use either rendered workloads or the Argo CD `Application` as an inspection surface
+- stage 7 consumers must not require annotations to recover release/application/environment identity
+
 ## Failure routing by stage
 
 If the problem looks like this, start here:

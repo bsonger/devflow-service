@@ -262,6 +262,33 @@ These fields describe the published deployment artifact associated with the rend
 | `artifact_digest` | `string` | system-managed | no | 发布 bundle digest |
 | `artifact_ref` | `string` | system-managed | no | 完整 OCI 引用 |
 
+## Argo handoff metadata contract
+
+Release execution must publish one runtime-consumable metadata schema across both rendered workloads and the Argo CD `Application` handoff object.
+
+### Labels vs annotations
+
+- **Labels** carry stable identity and lookup keys that downstream runtime-side consumers can reconstruct from Kubernetes objects alone.
+- **Annotations** carry supplementary tracing or diagnostic context and must not be required for release/application/environment identity recovery.
+
+### Required metadata fields
+
+| Field | Surface | Kind | Produced by | Stage | Downstream consumer | Purpose |
+|---|---|---|---|---|---|---|
+| `app.kubernetes.io/name` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` render / Argo handoff | stage 4 and stage 6 | `runtime-service` workload lookup, operator diagnostics | Stable application/workload selector name used to recover the primary workload name when object names differ. |
+| `devflow.io/release-id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` render / Argo handoff | stage 4 and stage 6 | `runtime-service` rollout observer, release writeback correlation | Canonical release identity used to associate live Kubernetes state and rollout callbacks back to one `Release`. |
+| `devflow.application/id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` render / Argo handoff | stage 4 and stage 6 | `runtime-service` observed workload/pod indexing | Canonical application identity used to rebuild `application + environment` ownership from cluster state alone. |
+| `devflow.environment/id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` render / Argo handoff | stage 4 and stage 6 | `runtime-service` observed workload/pod indexing and rollout observer fallback | Canonical environment identity used to distinguish runtime ownership in shared clusters. |
+| `status` | Argo CD `Application` | label | `release-service` Argo handoff | stage 6 | Argo / operator diagnostics | Release-dispatch state hint for the handoff object itself; not a source of rollout truth. |
+| `devflow.io/trace-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary trace context for following release execution across service and cluster boundaries. |
+| `devflow.io/span-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary span context for the Argo handoff step. |
+
+Contract rule:
+
+- runtime-side identity reconstruction must depend on the required **labels** above
+- trace correlation may depend on the **annotations** above
+- no runtime consumer should require annotations to recover release, application, or environment identity
+
 ## Output boundary
 
 `Release` owns deploy-side outputs.

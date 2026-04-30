@@ -13,10 +13,12 @@ import (
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/google/uuid"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"go.opentelemetry.io/otel/trace"
 	oras "oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -40,6 +42,15 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 		ProjectName: "checkout",
 	}, target)
 
+	if app.Name != "demo-api" {
+		t.Fatalf("application name = %q", app.Name)
+	}
+	if app.Labels != nil {
+		t.Fatalf("expected constructor to leave labels unset, got %#v", app.Labels)
+	}
+	if app.Annotations != nil {
+		t.Fatalf("expected constructor to leave annotations unset, got %#v", app.Annotations)
+	}
 	if app.Spec.Source == nil {
 		t.Fatal("expected oci application source")
 	}
@@ -69,6 +80,54 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	}
 	if len(app.Spec.IgnoreDifferences[0].JSONPointers) != 1 || app.Spec.IgnoreDifferences[0].JSONPointers[0] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
 		t.Fatalf("ignoreDifference pointers = %#v", app.Spec.IgnoreDifferences[0].JSONPointers)
+	}
+}
+
+func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t *testing.T) {
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ManifestID:    uuid.New(),
+		EnvironmentID: "production",
+	}
+	application := &appv1.Application{}
+	application.Name = "demo-api"
+	application.Labels = map[string]string{"custom": "keep-if-reapplied-later"}
+	application.Annotations = map[string]string{"custom.annotation": "should-be-replaced"}
+
+	ctx := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		SpanID:  trace.SpanID{1, 2, 3, 4, 5, 6, 7, 8},
+	}))
+
+	applyReleaseApplicationMetadata(ctx, release, application)
+
+	if len(application.Annotations) != 2 {
+		t.Fatalf("annotations = %#v", application.Annotations)
+	}
+	if got := application.Annotations[oci.TraceIDAnnotation]; got != "0102030405060708090a0b0c0d0e0f10" {
+		t.Fatalf("trace annotation = %q", got)
+	}
+	if got := application.Annotations[oci.SpanAnnotation]; got != "0102030405060708" {
+		t.Fatalf("span annotation = %q", got)
+	}
+	if _, ok := application.Annotations["custom.annotation"]; ok {
+		t.Fatalf("unexpected custom annotation preserved: %#v", application.Annotations)
+	}
+	if got := application.Labels["app.kubernetes.io/name"]; got != "demo-api" {
+		t.Fatalf("app label = %q", got)
+	}
+	if got := application.Labels[model.ReleaseIDLabel]; got != release.ID.String() {
+		t.Fatalf("release label = %q", got)
+	}
+	if got := application.Labels[model.ReleaseApplicationLabel]; got != release.ApplicationID.String() {
+		t.Fatalf("application label = %q", got)
+	}
+	if got := application.Labels[model.ReleaseEnvironmentLabel]; got != release.EnvironmentID {
+		t.Fatalf("environment label = %q", got)
+	}
+	if got := application.Labels["status"]; got != string(model.ReleaseRunning) {
+		t.Fatalf("status label = %q", got)
 	}
 }
 

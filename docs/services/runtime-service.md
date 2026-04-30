@@ -80,7 +80,9 @@ Important current nuance:
 
 - the runtime index is not durable local storage inside `runtime-service`
 - after restart, runtime state is expected to be rebuilt by the in-process observers
-- release bundles now need runtime-relevant Kubernetes labels such as `devflow.application/id` and `devflow.environment/id` so the observer can reconstruct `application + environment` ownership from live workloads
+- release-owned Kubernetes metadata is the runtime identity contract: rendered workloads, pod templates, and the Argo CD `Application` handoff object must all carry `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, and `devflow.environment/id`
+- runtime-service consumes those labels as the authoritative release/application/environment lookup surface; it must not require annotations for identity recovery
+- Argo CD `Application` annotations are reserved for supplementary tracing context such as trace/span correlation during handoff diagnostics
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
