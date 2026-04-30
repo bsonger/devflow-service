@@ -26,6 +26,13 @@ That means:
 - workload overview does not query Kubernetes on every page load
 - pod list does not query Kubernetes on every page load
 - delete pod and restart workload still call Kubernetes
+- `runtime/workload` and `runtime/pods` must fail when the observer/index cannot truthfully identify exactly one runtime target for the requested `application + environment`
+
+The active contract is truth over optimism:
+
+- no read-path fallback to direct Kubernetes reads
+- no fabricated runtime spec or empty pod list when observer state is missing
+- no silent first-match selection when workload correlation is ambiguous
 
 ## Read-model resources
 
@@ -64,6 +71,8 @@ Stable required labels:
 Rules:
 
 - labels above are the authoritative runtime-consumable identity surface
+- workload and pod correlation require matching `devflow.application/id` and `devflow.environment/id` plus a non-empty `devflow.io/release-id`
+- `app.kubernetes.io/name` is a naming hint and deployment-name fallback, not a substitute for the release-owned identity labels
 - annotations are supplementary only; they may carry trace or restart context but must not be required for identity recovery
 - `runtime-service` may send rollout callbacks into `release-service`, but it does not own release truth
 - `release-service` remains the owner of release state, release steps, and terminal rollout persistence
@@ -80,6 +89,12 @@ Frontend usage model:
 - call `runtime/workload` for the summary card and conditions
 - call `runtime/pods` for the pod table
 - refresh both after any explicit runtime action succeeds
+
+Read failure contract:
+
+- `404 not_found` means runtime observer/index identity is missing for that `application + environment`, or no observed workload/pods currently exist for the resolved runtime target
+- `412 failed_precondition` means the runtime target exists conceptually, but lookup could not be resolved truthfully, such as unresolved namespace or ambiguous workload correlation
+- these failures are diagnostic surfaces, not cues for the caller to retry by querying Kubernetes directly
 
 ## Internal observer write surface
 
@@ -126,6 +141,13 @@ When runtime-service restarts, think:
 2. runtime-service reconstructs `application + environment` ownership from release-owned workload labels
 3. rollout observation can re-derive release correlation from `devflow.io/release-id` plus the same observed workload metadata
 4. workload and pod state is repopulated into the in-process runtime index
+
+When lookup fails, think:
+
+1. check whether observer-owned runtime identity exists for the requested `application + environment`
+2. check whether namespace resolution failed before the read/action could target Kubernetes truthfully
+3. check whether workload labels drifted or multiple release-owned Deployments still match
+4. do not bypass the observer/index contract with ad-hoc direct Kubernetes reads in product code
 
 ## Source pointers
 

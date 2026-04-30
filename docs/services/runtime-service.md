@@ -66,6 +66,7 @@ Read vs write split:
 
 - read surfaces should prefer runtime-owned observed index data
 - action surfaces should call Kubernetes only when an operator explicitly performs an action
+- read surfaces must fail explicitly when observer/index truth cannot resolve exactly one runtime target
 
 ### Current implementation note
 
@@ -148,11 +149,17 @@ Runtime service receives:
 
 Then it should:
 
-1. resolve the target runtime binding
+1. resolve the target runtime binding from observer/index-owned identity
 2. read the latest observed workload summary from runtime-owned index storage
 3. return one workload overview for that `application + environment`
 
 This is the controller-level read surface.
+
+Failure contract:
+
+- if no observer-owned runtime identity exists, return `not_found` (`ErrRuntimeIdentityMissing`)
+- if namespace resolution or workload targeting cannot be resolved truthfully, return `failed_precondition`
+- if more than one Deployment remains after release-owned label correlation, return `failed_precondition` (`ErrRuntimeWorkloadAmbiguous`) instead of picking one
 
 ### 2. List pod status
 
@@ -163,11 +170,17 @@ Runtime service receives:
 
 Then it should:
 
-1. resolve the target runtime binding
+1. resolve the target runtime binding from observer/index-owned identity
 2. read the latest observed pod list from runtime-owned index storage
 3. return current pod status for that application runtime
 
 This is the instance-level read surface.
+
+Failure contract:
+
+- if no observer-owned runtime identity exists, return `not_found` (`ErrRuntimeIdentityMissing`)
+- if the runtime target exists conceptually but the namespace cannot be derived truthfully, return `failed_precondition` (`ErrRuntimeNamespaceUnresolved`)
+- do not convert missing observer state into a successful empty pod list
 
 ### 3. Delete one pod
 
@@ -213,6 +226,7 @@ Runtime workload overview now uses:
 
 This endpoint should return one workload overview from the same observer/index model already used for runtime pod display.
 It should not directly query Kubernetes on every page load.
+It should also refuse optimistic success when the runtime target cannot be resolved truthfully from observer/index state plus release-owned labels.
 
 Suggested response emphasis:
 
@@ -277,7 +291,13 @@ Runtime endpoints:
 ## Verification
 
 ```sh
-go test ./internal/runtime/...
+go test ./internal/runtime/service ./internal/runtime/transport/http ./internal/runtime/observer
 go build -o bin/runtime-service ./cmd/runtime-service
 bash scripts/verify.sh
 ```
+
+Lookup-contract proof lives in:
+
+- `internal/runtime/service/service_test.go` — service-layer truthy lookup failures for missing observer identity, unresolved namespace, and ambiguous workload selection
+- `internal/runtime/transport/http/handler_test.go` — HTTP mapping proof for `404 not_found` versus `412 failed_precondition`
+- `internal/runtime/observer/release_rollout_test.go` — observer-side release-owned label correlation and ambiguity handling

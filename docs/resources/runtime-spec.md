@@ -66,6 +66,7 @@ Current implementation note:
   - `devflow.io/release-id`
   - `devflow.application/id`
   - `devflow.environment/id`
+- workload and pod correlation require matching application/environment labels plus a non-empty release ID; `app.kubernetes.io/name` alone is not sufficient to establish runtime identity
 - annotations are supplementary only and must not be required for release, application, or environment identity recovery
 - runtime-service may send rollout callbacks into `release-service`, but it does not own release truth
 
@@ -97,22 +98,34 @@ It does not own:
 Primary read flow:
 
 1. caller provides `application_id` and `environment_id`
-2. runtime-service resolves the target runtime binding
+2. runtime-service resolves the target runtime binding from observer/index-owned identity
 3. runtime-service reads the latest observed workload summary from runtime-owned index data
 4. runtime-service returns one workload overview
 
 This is the controller-level runtime read surface.
+
+Failure contract:
+
+- `not_found` when observer/index identity for the requested `application + environment` does not exist yet
+- `failed_precondition` when namespace resolution fails or workload correlation remains ambiguous after applying the release-owned label contract
+- callers must not treat these failures as permission to bypass the observer/index model with direct Kubernetes reads
 
 ### 2. List application pod status
 
 Primary read flow:
 
 1. caller provides `application_id` and `environment_id`
-2. runtime-service resolves the target runtime binding
+2. runtime-service resolves the target runtime binding from observer/index-owned identity
 3. runtime-service reads the latest observed pod list from runtime-owned index data
 4. runtime-service returns the current pod list and pod status snapshot
 
 This is the instance-level runtime read surface.
+
+Failure contract:
+
+- `not_found` when observer/index identity or observed pod state is absent for the requested target
+- `failed_precondition` when namespace resolution fails before the runtime target can be addressed truthfully
+- successful empty reads are not a substitute for missing observer state
 
 ### 3. Delete one pod
 
@@ -418,8 +431,9 @@ For each pod, the runtime read surface should prioritize:
 - `DELETE /runtime/pods/{pod_name}` must require `application_id` and `environment_id` in the JSON body
 - `POST /runtime/rollouts` must require `application_id` and `environment_id` in the JSON body
 - invalid UUID selector values return `invalid_argument`
-- missing target application runtime returns `not_found`
-- missing Kubernetes pod or Deployment returns `not_found`
+- missing observer-owned runtime identity for read/action lookup returns `not_found` (`ErrRuntimeIdentityMissing`)
+- missing Kubernetes pod or Deployment during an explicit mutation returns `not_found`
+- unresolved namespace and ambiguous workload targeting return `failed_precondition`
 - Kubernetes forbidden or runtime client initialization failures return `failed_precondition`
 
 Read-model rule:
@@ -427,6 +441,7 @@ Read-model rule:
 - runtime overview and pod display should read from observer/index-backed runtime records
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
 - rollout callback senders may report progress from observed Kubernetes state, but `runtime-service` does not own release truth
+- clients should rely on the failure class to diagnose missing observer state versus lookup ambiguity; they should not retry reads by bypassing the runtime observer contract
 
 ## Public API note
 
