@@ -132,11 +132,17 @@ Failure contract:
 Primary action flow:
 
 1. caller chooses one pod under one `application + environment`
-2. runtime-service resolves the target pod in Kubernetes
-3. runtime-service deletes the pod
+2. runtime-service resolves the runtime namespace and verifies the requested pod is present in observer-owned pod state for that exact target
+3. runtime-service deletes the pod in Kubernetes only after that observer-backed identity check succeeds
 4. Kubernetes recreates or rebalances it according to the owning controller
 
 This action is for one concrete pod, not for the whole application rollout.
+
+Failure contract:
+
+- `not_found` when observer-owned runtime identity for the requested `application + environment` does not exist yet
+- `failed_precondition` when namespace resolution fails or the requested pod is not present in observer-backed state for the resolved target
+- downstream Kubernetes `not_found` should only surface after the target was already resolved truthfully at the runtime boundary
 
 ### 4. Trigger rollout / restart
 
@@ -279,11 +285,10 @@ Optional fields:
 
 Resolution note:
 
-- runtime-service now tries to resolve the primary Deployment automatically
-- resolution order:
+- runtime-service now accepts only two rollout target sources:
   1. explicit `deployment_name`
   2. current observed workload name when the observed workload kind is `Deployment`
-  3. application name as Deployment name fallback
+- if neither source yields one confident Deployment target, the action fails with `failed_precondition`
 - callers may still send `deployment_name` explicitly when they want deterministic targeting
 
 ## Internal observer sync surface
@@ -433,7 +438,7 @@ For each pod, the runtime read surface should prioritize:
 - invalid UUID selector values return `invalid_argument`
 - missing observer-owned runtime identity for read/action lookup returns `not_found` (`ErrRuntimeIdentityMissing`)
 - missing Kubernetes pod or Deployment during an explicit mutation returns `not_found`
-- unresolved namespace and ambiguous workload targeting return `failed_precondition`
+- unresolved namespace, ambiguous workload targeting, and observer-missing pod targeting return `failed_precondition`
 - Kubernetes forbidden or runtime client initialization failures return `failed_precondition`
 
 Read-model rule:
@@ -441,7 +446,7 @@ Read-model rule:
 - runtime overview and pod display should read from observer/index-backed runtime records
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
 - rollout callback senders may report progress from observed Kubernetes state, but `runtime-service` does not own release truth
-- clients should rely on the failure class to diagnose missing observer state versus lookup ambiguity; they should not retry reads by bypassing the runtime observer contract
+- clients should rely on the failure class to diagnose missing observer state versus lookup ambiguity; they should not retry reads or actions by bypassing the runtime observer contract
 
 ## Public API note
 

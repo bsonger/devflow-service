@@ -267,6 +267,52 @@ func TestDeleteRuntimePod(t *testing.T) {
 	}
 }
 
+func TestDeleteRuntimePodReturnsIdentityNotFound(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			return runtimeservice.ErrRuntimeIdentityMissing
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(DeleteRuntimePodRequest{ApplicationID: applicationID, EnvironmentID: "env-1", Operator: "tester"})
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/runtime/pods/demo-0", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeleteRuntimePodReturnsTargetMissingPrecondition(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			return runtimeservice.ErrRuntimePodTargetMissing
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(DeleteRuntimePodRequest{ApplicationID: applicationID, EnvironmentID: "env-1", Operator: "tester"})
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/runtime/pods/demo-0", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPreconditionFailed {
+		t.Fatalf("expected 412, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestSyncObservedWorkloadReturnsInvalidArgument(t *testing.T) {
 	h := NewHandler(&mockRuntimeService{
 		syncObservedWorkloadFunc: func(context.Context, runtimeservice.SyncObservedWorkloadInput) (*runtimedomain.RuntimeObservedWorkload, error) {
@@ -316,6 +362,29 @@ func TestRolloutRuntime(t *testing.T) {
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRolloutRuntimeReturnsIdentityNotFound(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
+			if gotApplicationID != applicationID {
+				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
+			}
+			return runtimeservice.ErrRuntimeIdentityMissing
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(RolloutRequest{ApplicationID: applicationID, EnvironmentID: "env-1", Operator: "tester"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runtime/rollouts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

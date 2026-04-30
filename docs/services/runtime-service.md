@@ -192,9 +192,16 @@ Runtime service receives:
 
 Then it should:
 
-1. resolve the target pod in Kubernetes
-2. delete that pod
-3. let the owning controller recreate or rebalance it
+1. resolve the runtime namespace from runtime identity plus observer/index state
+2. verify the requested pod is present in observer-backed pod state for that exact target
+3. delete that pod in Kubernetes only after the target is confirmed truthfully
+4. let the owning controller recreate or rebalance it
+
+Failure contract:
+
+- if no observer-owned runtime identity exists, return `not_found` (`ErrRuntimeIdentityMissing`)
+- if namespace resolution fails or the requested pod is absent from observer-backed state for the resolved target, return `failed_precondition` (`ErrRuntimeNamespaceUnresolved` or `ErrRuntimePodTargetMissing`)
+- downstream Kubernetes `not_found` is reserved for resources that disappeared after the runtime target was already resolved confidently
 
 ### 4. Trigger rollout / restart
 
@@ -205,9 +212,10 @@ Runtime service receives:
 
 Then it should:
 
-1. resolve the target Deployment in Kubernetes
-2. patch `kubectl.kubernetes.io/restartedAt`
-3. let Kubernetes perform the rolling restart
+1. resolve exactly one target Deployment from either an explicit `deployment_name` or the observed workload record when that record is a `Deployment`
+2. fail with `failed_precondition` when no confident Deployment target can be derived from observer/index truth
+3. patch `kubectl.kubernetes.io/restartedAt`
+4. let Kubernetes perform the rolling restart
 
 ## External surface status
 
@@ -217,6 +225,11 @@ Then it should:
 - `GET /api/v1/runtime/pods`
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
+
+Action failure mapping at this boundary is intentional:
+
+- `404 not_found` means the requested `application + environment` has no observer-backed runtime identity yet, or Kubernetes could not find a resource after a valid target was already resolved
+- `412 failed_precondition` means runtime-service refused to guess because namespace, workload, or pod targeting could not be resolved confidently from observer/index truth
 
 ### Current read-model surface
 
@@ -298,6 +311,6 @@ bash scripts/verify.sh
 
 Lookup-contract proof lives in:
 
-- `internal/runtime/service/service_test.go` — service-layer truthy lookup failures for missing observer identity, unresolved namespace, and ambiguous workload selection
-- `internal/runtime/transport/http/handler_test.go` — HTTP mapping proof for `404 not_found` versus `412 failed_precondition`
+- `internal/runtime/service/service_test.go` — service-layer truthy lookup failures for missing observer identity, unresolved namespace, ambiguous workload selection, and observer-backed pod-target enforcement
+- `internal/runtime/transport/http/handler_test.go` — HTTP mapping proof for `404 not_found` versus `412 failed_precondition` on read and action routes
 - `internal/runtime/observer/release_rollout_test.go` — observer-side release-owned label correlation and ambiguity handling
