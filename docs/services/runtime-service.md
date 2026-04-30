@@ -1,5 +1,15 @@
 # Runtime Service
 
+## Reader routing
+
+Start with `docs/system/flow-overview.md` when you need the authoritative stage contract for the full release lifecycle.
+Use this document for the runtime-owned half of that contract:
+
+- stage 7 — runtime observation and release writeback, where `runtime-service` observes live Kubernetes state and may send callbacks, but does not own release truth
+- stage 8 — runtime operator actions, where `runtime-service` owns workload/pod read surfaces and explicit runtime mutations
+
+This service doc is intentionally not the deploy-side source of truth for `Release`, Argo handoff, or writeback route ownership. For those, route to `docs/resources/release.md`, `docs/services/release-service.md`, and `docs/system/release-writeback.md`.
+
 ## Purpose
 
 `runtime-service` owns runtime desired state, runtime revisions, runtime observed index state, and direct runtime operations.
@@ -74,6 +84,7 @@ Important current nuance:
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
+- when release writeback wiring is present, that rollout observer is a callback sender into `release-service`; it does not become the owner of release status, release steps, or writeback route policy
 
 Do not read the current runtime contract as a repo-wide PostgreSQL removal.
 For operator-facing workload and pod reads, the active path should be treated as observer/index-backed and memory-backed by default.

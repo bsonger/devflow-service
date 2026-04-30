@@ -43,10 +43,25 @@ If your question is instead about:
 - which workload and service snapshots were frozen for build
 
 then the owning resource is `Manifest`, not `Release`.
-For the service-ownership explanation and end-to-end reader routing around that split, start with:
 
-- `docs/services/release-service.md`
-- `docs/system/flow-overview.md`
+Use the docs in this order so lifecycle wording stays aligned:
+
+1. `docs/system/flow-overview.md` — authoritative stage map for owner, inputs, outputs, downstream consumer, and contract anchors across the whole release lifecycle
+2. `docs/resources/release.md` — deploy-side `Release` resource contract and field/API semantics
+3. `docs/system/release-steps.md` — step-by-step execution meaning for `Release.steps`
+4. `docs/system/release-writeback.md` — token-gated callback/writeback contract after Argo handoff
+5. `docs/services/release-service.md` — service assembly, dependencies, and diagnostics for the release-owned stages
+
+## Lifecycle boundary reminder
+
+For the authoritative release lifecycle boundaries, start with `docs/system/flow-overview.md`.
+Use this resource doc to understand the deploy-side `Release` contract after stage ownership is already clear.
+In particular:
+
+- stage 3 (`Release` freeze), stage 4 (deployment bundle render), stage 5 (bundle publish), and stage 6 (Argo handoff) are release-owned stages
+- stage 7 (runtime observation and release writeback) is split: `runtime-service` may observe and send callbacks, but `release-service` remains the owner of release truth and the callback surface
+
+If rollout/writeback behavior looks wrong, route next to `docs/system/release-writeback.md` instead of treating this resource page as the callback owner.
 
 ## Boundary summary
 

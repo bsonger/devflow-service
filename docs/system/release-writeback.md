@@ -5,6 +5,14 @@
 This document defines the current repo-local operational contract for `release-service` writeback and observer callbacks.
 It is the owning doc for token-gated writeback routes such as release step progress updates and artifact writebacks.
 
+Reader routing:
+
+- start with `docs/system/flow-overview.md` for the authoritative stage map
+- use `docs/system/release-steps.md` for the meaning of each release step
+- use this document only for the post-handoff callback/writeback surface, primarily the release-owned side of stage 7
+
+This document does not redefine release resource ownership or runtime read-model ownership; it explains how progress returns to the release-owned record after Argo handoff.
+
 ## Current owner
 
 - owning service boundary: `docs/services/release-service.md`
@@ -80,6 +88,7 @@ Current implementation note:
 - this route still exists for Argo-side status callbacks
 - the active `runtime-service` startup path in `internal/runtime/config/config.go` now starts the in-tree release rollout observer when in-cluster config is available
 - that observer derives rollout association from runtime observer state and Kubernetes workload labels, then writes back to `release-service`
+- treat this route as part of the release-owned callback surface after stage 6 Argo handoff; callers may include Argo-facing senders and runtime-side observers, but `release-service` remains the owner of normalized release status persistence
 - docs should describe this as an active observer callback path, not as a PostgreSQL-backed runtime store path
 
 Expected behavior:
@@ -108,7 +117,7 @@ Current primary use:
 
 - external executors or observers may use this route for ongoing release step progression
 - the in-tree runtime rollout observer is one active caller when `runtime-service` starts with in-cluster config and release-service writeback configuration
-- this remains a token-gated callback surface rather than a public user-facing route
+- this remains a token-gated release-owned callback surface rather than a public user-facing route or a runtime-owned API
 
 Expected behavior:
 - request body must include a valid `release_id`

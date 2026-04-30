@@ -1,5 +1,19 @@
 # Release Service
 
+## Reader routing
+
+Start with `docs/system/flow-overview.md` when you need the authoritative stage contract for the end-to-end release lifecycle.
+Use this document after that to inspect the service that owns stages 2 through 6 and the release-side callback surface for stage 7:
+
+- stage 2 — manifest freeze and build dispatch
+- stage 3 — release freeze
+- stage 4 — release bundle render
+- stage 5 — bundle publish
+- stage 6 — release execution handoff / Argo deployment
+- stage 7 — release-owned writeback surface and release truth persistence after runtime observation
+
+This service doc is intentionally not the top-level lifecycle explainer. It is the owner/diagnostics guide for the release-owned stages.
+
 ## Purpose
 
 `release-service` owns the build-to-deploy handoff records and the deployment execution flow: it creates the build-side `Manifest` record, creates the deploy-side `Release` record, and owns the callback surface that updates deploy progress.
@@ -97,15 +111,21 @@ It is the inspection surface for environment binding, rendered deployment bundle
 
 ## Rollout observation boundary
 
-`release-service` should be understood as the deployment initiator, not the rollout observer.
+`release-service` should be understood as the deployment initiator and release-truth owner, not the rollout observer.
 
 Target boundary:
 
 1. `release-service` creates or updates the Argo CD `Application`
 2. Argo CD syncs the release-owned OCI bundle into Kubernetes
-3. `release-service` does not poll Argo CD application status during normal release detail reads
-4. rollout progress writeback, when used, should come through token-gated release writeback routes
-5. those writeback routes are part of the release boundary, not a public runtime API surface
+3. `runtime-service` may observe rollout state from Kubernetes and send token-gated callbacks when its clustered observer path is wired
+4. `release-service` does not poll Argo CD application status during normal release detail reads
+5. rollout progress writeback, when used, comes through release-owned writeback routes
+6. those writeback routes are part of the release boundary, not a public runtime API surface
+
+See also:
+
+- `docs/system/release-writeback.md` for the callback contract
+- `docs/services/runtime-service.md` for the runtime observer/read-model side of the same seam
 
 ## Downstream Consumers
 
