@@ -2,18 +2,21 @@
 
 ## Purpose
 
-`release-service` owns build artifact records, deployment intent, release execution, and verify/writeback callbacks.
+`release-service` owns the build-to-deploy handoff records and the deployment execution flow: it creates the build-side `Manifest` record, creates the deploy-side `Release` record, and owns the callback surface that updates deploy progress.
 
 It is also the main cross-service orchestration boundary for build and deploy.
-It does not own upstream resource truth such as application metadata, app config, workload config, services, or routes, but it composes those facts into frozen manifest and release records.
+It does not own upstream resource truth such as application metadata, app config, workload config, services, or routes, but it composes those facts into two different release-owned freeze points:
+
+- `Manifest` for the build-side record and image-delivery trace
+- `Release` for the deploy-side environment bind, bundle publication, and rollout state
 
 ## Owns
 
-- `Manifest`
-- `Image`
-- `Release`
-- `Intent`
-- build and release lifecycle records around manifest OCI deployment artifacts
+- build-side `Manifest`
+- workload `Image` result recorded on the manifest
+- deploy-side `Release`
+- deploy `Intent`
+- build and release lifecycle records around image build, deployment bundle render, and deployment bundle publication
 - verify ingress and verification writeback responsibilities previously modeled as `verify-service`
 
 ## Does Not Own
@@ -38,11 +41,16 @@ It does not own upstream resource truth such as application metadata, app config
 
 ### Control-plane and persistence dependencies
 
-- PostgreSQL
-- Tekton
-- Argo CD
+- PostgreSQL for persisted `Manifest` and `Release` records
+- Tekton for build execution tied back to the build-side `Manifest`
+- Argo CD for deploying the deploy-side `Release` bundle
 - Kubernetes API
-- OCI registry for deployment bundle publication in pre-production (`zot`)
+- OCI registry for deploy-side bundle publication in pre-production (`zot`)
+
+Historical naming note:
+
+- the runtime/config surface still uses the legacy `manifest_registry` key and helper names
+- in the current code path that naming refers to the registry target for release deployment bundle publication, not ownership of the `Manifest` API resource
 
 ### Upstream business dependencies
 
@@ -68,9 +76,10 @@ When creating a manifest, `release-service` composes these upstream facts:
 2. read workload config from `config-service`
 3. read service list from `network-service`
 4. derive image target and submit Tekton build
-5. persist one frozen manifest record in PostgreSQL
+5. persist one frozen build-side manifest record in PostgreSQL
 
-This means `Manifest` is a release-owned record, but some of its frozen inputs come from other services.
+This means `Manifest` is a release-owned build-side record, but some of its frozen inputs come from other services.
+It is the inspection surface for build identity, frozen workload/service inputs, Tekton progress writeback, and final workload image output.
 
 ### Release create path
 
@@ -83,7 +92,8 @@ When creating a release, `release-service` composes these upstream facts:
 5. freeze those live inputs onto the release row
 6. render, publish, and deploy the release bundle
 
-This means `Release` is also release-owned, but it is intentionally assembled from cross-service inputs at freeze time.
+This means `Release` is the release-owned deploy-side record.
+It is the inspection surface for environment binding, rendered deployment bundle facts, published OCI artifact metadata, Argo CD handoff, and rollout/writeback status.
 
 ## Rollout observation boundary
 
@@ -166,6 +176,12 @@ The committed pre-production config now expects:
 - `manifest_registry.repository = releases`
 - `manifest_registry.plain_http = true`
 - `manifest_registry.mode = oras`
+
+Historical naming note:
+
+- `manifest_registry` is the legacy config block name kept for compatibility
+- in the active code path it configures release deployment bundle publication
+- it does not mean the registry owns or stores the `Manifest` resource contract itself
 
 Because release bundle repository paths are application-scoped under the `releases/` prefix, Argo CD should be configured with a repo-creds prefix secret rather than a single fixed repository entry.
 

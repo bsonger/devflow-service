@@ -87,10 +87,16 @@ What happens next:
 - Tekton produces workload image output
 - manifest status and steps are written back onto the durable manifest row, but aggregate manifest status follows runtime-reported state rather than local step convergence
 
+Inspection route:
+
+- start with `docs/resources/manifest.md` for build-side record fields, status, and writeback semantics
+- use `docs/services/release-service.md` when the question is which service owns the build-side record
+
 Key boundary rule:
 
 - `Manifest` is the build-side freeze point
 - `Manifest` does not own environment-specific deploy inputs
+- `Manifest` is release-owned, but it is not the deploy bundle or rollout record
 
 See:
 
@@ -122,6 +128,11 @@ Where those inputs come from:
 - deploy-time config comes from `config-service`
 - deploy-time route inputs come from `network-service`
 - target deploy metadata comes from `meta-service`
+
+Inspection route:
+
+- start with `docs/resources/release.md` for deploy-side record fields and execution phases
+- use `docs/services/release-service.md` when the question is which service owns the deploy-side handoff
 
 Key boundary rule:
 
@@ -176,6 +187,17 @@ Primary release-side artifact fields:
 - `artifact_digest`
 - `artifact_ref`
 
+Historical naming note:
+
+- the config/runtime seam still uses the legacy `manifest_registry` name
+- in current code that name points at the registry used for deploy-side bundle publication
+- it does not mean the published bundle is owned by the `Manifest` resource
+
+Inspection route:
+
+- start with `docs/resources/release.md` for bundle publication fields and bundle preview semantics
+- use `docs/services/release-service.md` for the pre-production OCI publication path and legacy naming note
+
 Key boundary rule:
 
 - workload image output belongs to `Manifest`
@@ -200,6 +222,11 @@ What happens:
 - `release-service` does not read Argo CD application status during normal release detail reads
 - rollout progress, when reported asynchronously, should be written back onto the release record through release-owned writeback routes
 
+Inspection route:
+
+- start with `docs/resources/release.md` for Argo handoff, artifact fields, and release step semantics
+- use `docs/system/release-writeback.md` when the question is callback/update routing after Argo handoff
+
 Key boundary rule:
 
 - Argo deploys the release-generated bundle, not the original config repo directly
@@ -220,15 +247,22 @@ What happens:
 - runtime observer/index state tracks workload summary and pod state
 - runtime reads should come from runtime-owned observed data
 - runtime page display should not require direct Kubernetes reads for every refresh
+- when clustered rollout observation is wired, runtime-side observers can send release progress back through release-owned writeback routes
 
 Primary runtime read surfaces:
 
 - `GET /api/v1/runtime/workload`
 - `GET /api/v1/runtime/pods`
 
+Inspection route:
+
+- start with `docs/resources/runtime-spec.md` for runtime read/action surfaces
+- use `docs/system/release-writeback.md` if runtime-side rollout callbacks appear to be missing or misrouted
+
 Key boundary rule:
 
 - runtime read model is separate from build/deploy freeze records
+- runtime-service can observe and report rollout state, but it does not own release truth
 
 See:
 
@@ -305,20 +339,23 @@ Answers:
 
 If the problem looks like this, start here:
 
-- build did not start or image result is wrong
+- build did not start, build writeback is wrong, or the workload image result is wrong
   - `docs/resources/manifest.md`
-- deployment bundle looks wrong
+  - `docs/services/release-service.md`
+- deployment bundle looks wrong or the published bundle metadata is wrong
   - `docs/resources/release.md`
-  - `docs/system/diagrams.md`
-- Argo rollout state looks wrong
+  - `docs/services/release-service.md`
+- Argo CD handoff or rollout callback state looks wrong
   - `docs/system/release-writeback.md`
   - `docs/system/release-steps.md`
+  - `docs/resources/release.md`
 - runtime page data looks stale or duplicated
   - `docs/resources/runtime-spec.md`
   - `docs/system/runtime-observer.md`
 - service ownership is unclear
-  - `docs/services/`
-  - `docs/system/diagrams.md`
+  - `docs/services/release-service.md`
+  - `docs/resources/manifest.md`
+  - `docs/resources/release.md`
 
 ## Source pointers
 
