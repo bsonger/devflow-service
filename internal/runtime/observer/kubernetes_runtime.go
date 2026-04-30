@@ -3,6 +3,7 @@ package observer
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -111,7 +112,10 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 	if targetNamespace == "" {
 		targetNamespace = o.resolveSpecNamespace(spec)
 	}
-	selector := "app.kubernetes.io/name=" + strings.TrimSpace(appName)
+	selector, err := releaseOwnedSelector(spec)
+	if err != nil {
+		return err
+	}
 
 	deployments, err := o.clientset.AppsV1().Deployments(targetNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: selector,
@@ -160,17 +164,12 @@ func (o *KubernetesRuntimeObserver) runtimeSpecFromDeployment(deployment *appsv1
 }
 
 func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *domain.RuntimeSpec, appName, namespace string, deployments []appsv1.Deployment) error {
-	sort.SliceStable(deployments, func(i, j int) bool {
-		if deployments[i].Name == appName {
-			return true
-		}
-		if deployments[j].Name == appName {
-			return false
-		}
-		return deployments[i].Name < deployments[j].Name
-	})
+	deployment, err := selectReleaseOwnedDeployment(spec, appName, deployments)
+	if err != nil {
+		return err
+	}
 
-	if len(deployments) == 0 {
+	if deployment == nil {
 		existing, err := o.store.GetObservedWorkload(ctx, spec.ID)
 		if err == nil && existing != nil {
 			return o.runtime.DeleteObservedWorkload(ctx, runtimeservice.DeleteObservedWorkloadInput{
@@ -188,9 +187,8 @@ func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *do
 		return err
 	}
 
-	deployment := deployments[0]
 	restartAt := parseRestartAt(deployment.Spec.Template.Annotations)
-	_, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
+	_, err = o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
 		ApplicationID:       spec.ApplicationID,
 		Environment:         spec.Environment,
 		Namespace:           namespace,
@@ -202,8 +200,8 @@ func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *do
 		AvailableReplicas:   int(deployment.Status.AvailableReplicas),
 		UnavailableReplicas: int(deployment.Status.UnavailableReplicas),
 		ObservedGeneration:  deployment.Status.ObservedGeneration,
-		SummaryStatus:       summarizeDeploymentStatus(deployment),
-		Images:              deploymentImages(deployment),
+		SummaryStatus:       summarizeDeploymentStatus(*deployment),
+		Images:              deploymentImages(*deployment),
 		Conditions:          deploymentConditions(deployment.Status.Conditions),
 		Labels:              deployment.Labels,
 		Annotations:         deployment.Spec.Template.Annotations,
@@ -227,7 +225,7 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 	}
 	now := time.Now().UTC()
 	seenNames := make(map[string]struct{}, len(pods))
-	for _, pod := range pods {
+	for _, pod := range filterReleaseOwnedPods(spec, pods) {
 		seenNames[pod.Name] = struct{}{}
 		_, err := o.runtime.SyncObservedPod(ctx, runtimeservice.SyncObservedPodInput{
 			ApplicationID: spec.ApplicationID,
@@ -264,6 +262,118 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 		}
 	}
 	return nil
+}
+
+func releaseOwnedSelector(spec *domain.RuntimeSpec) (string, error) {
+	if spec == nil {
+		return "", fmt.Errorf("runtime spec is required for release-owned correlation")
+	}
+	if spec.ApplicationID == uuid.Nil {
+		return "", fmt.Errorf("runtime spec application id is required for release-owned correlation")
+	}
+	environment := strings.TrimSpace(spec.Environment)
+	if environment == "" {
+		return "", fmt.Errorf("runtime spec environment is required for release-owned correlation")
+	}
+	return strings.Join([]string{
+		releasedomain.ReleaseApplicationLabel + "=" + spec.ApplicationID.String(),
+		releasedomain.ReleaseEnvironmentLabel + "=" + environment,
+	}, ","), nil
+}
+
+func deploymentMatchesRuntimeSpec(spec *domain.RuntimeSpec, deployment appsv1.Deployment) bool {
+	return labelsMatchRuntimeSpec(spec, deployment.GetLabels())
+}
+
+func podMatchesRuntimeSpec(spec *domain.RuntimeSpec, pod corev1.Pod) bool {
+	return labelsMatchRuntimeSpec(spec, pod.GetLabels())
+}
+
+func labelsMatchRuntimeSpec(spec *domain.RuntimeSpec, labels map[string]string) bool {
+	if spec == nil {
+		return false
+	}
+	if spec.ApplicationID == uuid.Nil {
+		return false
+	}
+	if strings.TrimSpace(spec.Environment) == "" {
+		return false
+	}
+	if len(labels) == 0 {
+		return false
+	}
+	if strings.TrimSpace(labels[releasedomain.ReleaseApplicationLabel]) != spec.ApplicationID.String() {
+		return false
+	}
+	if strings.TrimSpace(labels[releasedomain.ReleaseEnvironmentLabel]) != strings.TrimSpace(spec.Environment) {
+		return false
+	}
+	if strings.TrimSpace(labels[releasedomain.ReleaseIDLabel]) == "" {
+		return false
+	}
+	return true
+}
+
+func selectReleaseOwnedDeployment(spec *domain.RuntimeSpec, appName string, deployments []appsv1.Deployment) (*appsv1.Deployment, error) {
+	matches := make([]appsv1.Deployment, 0, len(deployments))
+	for _, deployment := range deployments {
+		if !deploymentMatchesRuntimeSpec(spec, deployment) {
+			continue
+		}
+		matches = append(matches, deployment)
+	}
+	if len(matches) == 0 {
+		return nil, nil
+	}
+	if len(matches) == 1 {
+		return &matches[0], nil
+	}
+	preferred := make([]appsv1.Deployment, 0, len(matches))
+	for _, deployment := range matches {
+		if strings.TrimSpace(appName) != "" && deployment.Name == strings.TrimSpace(appName) {
+			preferred = append(preferred, deployment)
+		}
+	}
+	if len(preferred) == 1 {
+		return &preferred[0], nil
+	}
+	if len(preferred) > 1 {
+		matches = preferred
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		return matches[i].Name < matches[j].Name
+	})
+	return nil, fmt.Errorf("%w: application_id=%s environment=%s namespace=%s candidates=%s", runtimeservice.ErrRuntimeWorkloadAmbiguous, spec.ApplicationID.String(), strings.TrimSpace(spec.Environment), strings.TrimSpace(matches[0].Namespace), joinDeploymentNames(matches))
+}
+
+func filterReleaseOwnedPods(spec *domain.RuntimeSpec, pods []corev1.Pod) []corev1.Pod {
+	if len(pods) == 0 {
+		return nil
+	}
+	filtered := make([]corev1.Pod, 0, len(pods))
+	for _, pod := range pods {
+		if !podMatchesRuntimeSpec(spec, pod) {
+			continue
+		}
+		filtered = append(filtered, pod)
+	}
+	return filtered
+}
+
+func joinDeploymentNames(items []appsv1.Deployment) string {
+	if len(items) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ",")
 }
 
 func (o *KubernetesRuntimeObserver) resolveSpecNamespace(spec *domain.RuntimeSpec) string {

@@ -3,14 +3,18 @@ package observer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
+	runtimeservice "github.com/bsonger/devflow-service/internal/runtime/service"
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -179,6 +183,158 @@ func TestPickPrimaryDeploymentPrefersNamedMatch(t *testing.T) {
 	picked := pickPrimaryDeployment("demo-api", items)
 	if picked == nil || picked.Name != "demo-api" {
 		t.Fatalf("picked = %#v", picked)
+	}
+}
+
+func TestReleaseOwnedSelectorRequiresApplicationAndEnvironment(t *testing.T) {
+	appID := uuid.New()
+	selector, err := releaseOwnedSelector(&runtimedomain.RuntimeSpec{ApplicationID: appID, Environment: "prod"})
+	if err != nil {
+		t.Fatalf("releaseOwnedSelector failed: %v", err)
+	}
+	wantParts := []string{
+		releasedomain.ReleaseApplicationLabel + "=" + appID.String(),
+		releasedomain.ReleaseEnvironmentLabel + "=prod",
+	}
+	for _, part := range wantParts {
+		if !strings.Contains(selector, part) {
+			t.Fatalf("selector %q missing %q", selector, part)
+		}
+	}
+	if _, err := releaseOwnedSelector(&runtimedomain.RuntimeSpec{ApplicationID: appID}); err == nil {
+		t.Fatal("expected environment-missing selector error")
+	}
+}
+
+func TestSelectReleaseOwnedDeploymentRejectsCrossEnvironmentNameCollision(t *testing.T) {
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{ApplicationID: appID, Environment: "prod"}
+	deployment, err := selectReleaseOwnedDeployment(spec, "demo-api", []appsv1.Deployment{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-api",
+				Namespace: "runtime-ns",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "staging",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-api",
+				Namespace: "runtime-ns",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("selectReleaseOwnedDeployment failed: %v", err)
+	}
+	if deployment == nil || deployment.Labels[releasedomain.ReleaseEnvironmentLabel] != "prod" {
+		t.Fatalf("deployment = %#v", deployment)
+	}
+}
+
+func TestSelectReleaseOwnedDeploymentRejectsLabelDriftWithoutReleaseID(t *testing.T) {
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{ApplicationID: appID, Environment: "prod"}
+	deployment, err := selectReleaseOwnedDeployment(spec, "demo-api", []appsv1.Deployment{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-api",
+				Namespace: "runtime-ns",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("selectReleaseOwnedDeployment failed: %v", err)
+	}
+	if deployment != nil {
+		t.Fatalf("expected drifted deployment to be rejected, got %#v", deployment)
+	}
+}
+
+func TestSelectReleaseOwnedDeploymentReturnsAmbiguousErrorForMultipleReleaseMatches(t *testing.T) {
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{ApplicationID: appID, Environment: "prod"}
+	_, err := selectReleaseOwnedDeployment(spec, "demo-api", []appsv1.Deployment{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-api-blue",
+				Namespace: "runtime-ns",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-api-green",
+				Namespace: "runtime-ns",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		},
+	})
+	if !errors.Is(err, runtimeservice.ErrRuntimeWorkloadAmbiguous) {
+		t.Fatalf("expected ambiguous workload error, got %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "demo-api-blue,demo-api-green") {
+		t.Fatalf("expected candidate names in error, got %v", err)
+	}
+}
+
+func TestFilterReleaseOwnedPodsSkipsDriftedPods(t *testing.T) {
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{ApplicationID: appID, Environment: "prod"}
+	pods := filterReleaseOwnedPods(spec, []corev1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "demo-api-good",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "demo-api-drifted-env",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "staging",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "demo-api-missing-release",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+				},
+			},
+		},
+	})
+	if len(pods) != 1 || pods[0].Name != "demo-api-good" {
+		t.Fatalf("filtered pods = %#v", pods)
 	}
 }
 
