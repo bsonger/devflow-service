@@ -134,6 +134,7 @@ When a user opens the runtime page, think:
 2. read latest pod list from runtime index
 3. when the user clicks restart or delete, call Kubernetes through runtime-service
 4. refresh workload + pods from runtime index after the action
+5. if the action was accepted, treat the immediate response as acknowledgement only and expect `convergence_state=pending_observation` until observer and release surfaces advance
 
 When runtime-service restarts, think:
 
@@ -150,6 +151,24 @@ When lookup fails, think:
 3. check whether workload labels drifted or multiple release-owned Deployments still match
 4. for accepted runtime actions that never converge, check whether rollout observation is still missing (`waiting for deployment ...`) versus merely running (`deployment progressing ...`) before blaming release writeback or status normalization
 5. do not bypass the observer/index contract with ad-hoc direct Kubernetes reads in product code
+
+## Canonical pre-production operator proof route
+
+Use this as the operator-facing troubleshooting order for the representative pre-production proof flow.
+It turns the observer details in this document into the middle layer of the canonical acknowledgement -> observer -> writeback -> release-status chain.
+
+Proof assumptions:
+
+- runtime observation is in-process inside `runtime-service`
+- `internal/runtime/config/config.go` starts rollout callbacks only when in-cluster config and release writeback wiring are available
+- accepted runtime mutations stay at `convergence_state=pending_observation` until observer and release-owned surfaces advance
+
+Canonical middle-layer checks after an accepted runtime action:
+
+1. if rollout observation is missing, expect diagnostics like `waiting for deployment ...` and treat that as an observer-layer stall
+2. if rollout observation is running, expect diagnostics like `deployment progressing ...` and keep convergence pending
+3. only when the observer reaches a terminal outcome should `observe_rollout` / `finalize_release` writeback become the next diagnostic layer
+4. do not collapse missing, running, and terminal observer states into one generic "runtime pending" bucket
 
 ## Source pointers
 

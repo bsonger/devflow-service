@@ -226,7 +226,7 @@ Then it should:
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
 
-Successful action responses on the mutation routes acknowledge that Kubernetes accepted the requested delete/restart and that runtime-service persisted an operation record. They intentionally do **not** claim rollout observation or release convergence has already succeeded.
+Successful action responses on the mutation routes acknowledge that Kubernetes accepted the requested delete/restart and that runtime-service persisted an operation record. They intentionally do **not** claim rollout observation or release convergence has already succeeded. The canonical acknowledgement payload keeps `convergence_state=pending_observation` until observer and release-owned surfaces advance.
 
 Action failure mapping at this boundary is intentional:
 
@@ -302,6 +302,37 @@ Runtime endpoints:
 - `/healthz`
 - `/readyz`
 - `/internal/status`
+
+## Canonical pre-production operator proof route
+
+Use this as the single operator-facing proof walk for the active pre-production contract.
+It closes the doc surface for S04 by turning the existing diagnostics into one authoritative route instead of separate research threads.
+
+Assumptions to keep explicit:
+
+- `runtime-service` owns `/api/v1/runtime/...` without ingress rewrite
+- runtime observation runs in-process inside `runtime-service`
+- accepted runtime mutations report acknowledgement first and keep `convergence_state=pending_observation` until observer and release truth advance
+
+Committed deployment anchors:
+
+1. `kubectl apply -f deployments/pre-production/release-service.yaml`
+2. `kubectl apply -f deployments/pre-production/runtime-service.yaml`
+3. `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml`
+
+Canonical host and routes:
+
+- host: `https://devflow-pre-production.bei.com`
+- reads: `GET /api/v1/runtime/workload`, `GET /api/v1/runtime/pods`
+- actions: `POST /api/v1/runtime/rollouts`, `DELETE /api/v1/runtime/pods/{pod_name}`
+
+Canonical inspection order after an accepted action:
+
+1. verify the runtime acknowledgement payload and target metadata
+2. confirm the action stayed at `convergence_state=pending_observation` until rollout observation advances
+3. inspect runtime observer progress before blaming release convergence
+4. then inspect release-service normalization of `observe_rollout` and `finalize_release`
+5. only then treat release-status convergence as the remaining layer
 
 ## Verification
 

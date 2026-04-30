@@ -77,6 +77,31 @@ Service ownership remains defined by:
 - `docs/resources/*.md`
 - the owning `internal/<domain>/...` packages
 
+## Canonical pre-production operator proof route
+
+For the representative operator-facing pre-production proof path, use the committed shared ingress exactly as rendered in `deployments/pre-production/istio/shared-ingress.yaml`.
+Do not invent alternate prefixes and do not assume a rewrite for runtime routes.
+
+Proof assumptions to keep explicit:
+
+- shared host: `devflow-pre-production.bei.com`
+- `runtime-service` owns `/api/v1/runtime/...` at both the backend and edge layers
+- `/api/v1/runtime/...` is routed without rewrite
+- `release-service` remains a separate backend reached through `/api/v1/release/...`, which *is* rewritten to `/api/v1/...` before it reaches the service
+
+Canonical external read/action paths for this proof surface:
+
+- `GET https://devflow-pre-production.bei.com/api/v1/runtime/workload?...`
+- `GET https://devflow-pre-production.bei.com/api/v1/runtime/pods?...`
+- `DELETE https://devflow-pre-production.bei.com/api/v1/runtime/pods/{pod_name}`
+- `POST https://devflow-pre-production.bei.com/api/v1/runtime/rollouts`
+
+If this route fails, diagnose in order:
+
+1. confirm `kubectl apply -f deployments/pre-production/runtime-service.yaml`, `kubectl apply -f deployments/pre-production/release-service.yaml`, and `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` were applied from the committed manifests
+2. confirm the caller used `/api/v1/runtime/...` directly rather than `/api/v1/runtime-service/...` or another guessed prefix
+3. confirm runtime failures are localized at the runtime boundary first before assuming release-service writeback or ingress drift
+
 ## Source pointers
 
 - edge artifact: `deployments/pre-production/istio/shared-ingress.yaml`

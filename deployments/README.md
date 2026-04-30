@@ -25,6 +25,37 @@ Current local pre-production flow:
 - pre-production runtime observation is now owned by the in-process observer inside `runtime-service`; there is no separate `resource-observer.yaml` deployment artifact in the active contract
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
 
+## Canonical pre-production operator proof route
+
+For the S04 proof surface, use one operator-like route anchored only in committed manifests and the shared ingress host.
+This route is documentation proof, not a new product feature.
+
+Assumptions to keep explicit during that walk:
+
+- `runtime-service` owns `/api/v1/runtime/...` without ingress rewrite
+- runtime observation runs in-process inside `runtime-service`
+- successful runtime mutation responses acknowledge acceptance only; convergence remains pending until observer and release surfaces advance
+
+Canonical setup order for that proof path:
+
+1. `kubectl apply -f deployments/pre-production/release-service.yaml`
+2. `kubectl apply -f deployments/pre-production/runtime-service.yaml`
+3. `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml`
+
+Canonical host and routes:
+
+- host: `devflow-pre-production.bei.com`
+- reads: `/api/v1/runtime/workload` and `/api/v1/runtime/pods`
+- actions: `/api/v1/runtime/rollouts` and `/api/v1/runtime/pods/{pod_name}`
+
+Use that single route to prove the operator flow in this order:
+
+1. read workload state from `GET /api/v1/runtime/workload`
+2. read pod state from `GET /api/v1/runtime/pods`
+3. trigger one representative runtime action
+4. treat the success response as acknowledgement only and expect `convergence_state=pending_observation`
+5. diagnose any stall through observer progression first, then release writeback normalization, then final release-status convergence
+
 `release-service` remains a backend `ClusterIP` service inside Kubernetes,
 but it is exposed at the shared edge through Istio path routing.
 

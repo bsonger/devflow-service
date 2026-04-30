@@ -151,7 +151,8 @@ Primary action flow:
 1. caller provides `application_id` and `environment_id`
 2. runtime-service resolves the target workload Deployment
 3. runtime-service patches the Deployment with `kubectl.kubernetes.io/restartedAt`
-4. Kubernetes performs the rolling restart
+4. runtime-service persists a `RuntimeOperation` acknowledgement and returns accepted mutation metadata with `convergence_state=pending_observation`
+5. Kubernetes performs the rolling restart while observer and release surfaces advance separately
 
 Current implementation note:
 
@@ -291,6 +292,42 @@ Resolution note:
   2. current observed workload name when the observed workload kind is `Deployment`
 - if neither source yields one confident Deployment target, the action fails with `failed_precondition`
 - callers may still send `deployment_name` explicitly when they want deterministic targeting
+- successful action responses are acknowledgements, not convergence claims; the canonical response should surface accepted target metadata with `convergence_state=pending_observation`
+
+## Canonical pre-production operator proof route
+
+Use this as the single operator-facing validation walk for the active pre-production contract.
+It is the authoritative route for proving S01-S03 together without re-deriving behavior from code or prior research.
+
+Proof assumptions:
+
+- `runtime-service` owns `/api/v1/runtime/...` without ingress rewrite
+- runtime observation is in-process inside `runtime-service`
+- successful runtime mutation responses acknowledge acceptance while convergence remains pending until observer and release surfaces advance
+
+Committed deployment anchors:
+
+1. `kubectl apply -f deployments/pre-production/release-service.yaml`
+2. `kubectl apply -f deployments/pre-production/runtime-service.yaml`
+3. `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml`
+
+Shared-ingress host:
+
+- `https://devflow-pre-production.bei.com`
+
+Canonical proof walk:
+
+1. call `GET /api/v1/runtime/workload?application_id=...&environment_id=...` to confirm the controller-level runtime target resolves through observer/index truth
+2. call `GET /api/v1/runtime/pods?application_id=...&environment_id=...` to confirm pod-level runtime truth for the same target
+3. trigger one representative runtime action through `POST /api/v1/runtime/rollouts` or `DELETE /api/v1/runtime/pods/{pod_name}`
+4. treat the successful response as an acknowledgement only and confirm `convergence_state=pending_observation`
+5. if convergence stalls, inspect in this order:
+   - runtime acknowledgement and target metadata
+   - runtime observer progression (missing vs running vs terminal rollout state)
+   - release-service writeback normalization of `observe_rollout` and `finalize_release`
+   - final release-status convergence
+
+This is a proof-surface route, not permission to bypass service ownership with ad-hoc direct Kubernetes reads in product behavior.
 
 ## Internal observer sync surface
 

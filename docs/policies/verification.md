@@ -83,3 +83,28 @@ go test ./internal/release/service ./internal/runtime/observer ./internal/releas
 - load and apply the `verify-before-complete` skill before claiming this seam contract is complete in future follow-up tasks
 - `scripts/check-docker-policy.sh` enforces Docker policy
 - `scripts/README.md` explains script behavior and side effects
+
+## Canonical pre-production operator proof route
+
+For the operator-facing S04 proof path, anchor verification to the committed pre-production manifests and the shared ingress host before interpreting any seam-local test output.
+
+Manifest/application anchors:
+
+1. `kubectl apply -f deployments/pre-production/release-service.yaml`
+2. `kubectl apply -f deployments/pre-production/runtime-service.yaml`
+3. `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml`
+
+Shared-ingress host and routes under proof:
+
+- host: `devflow-pre-production.bei.com`
+- reads: `/api/v1/runtime/workload`, `/api/v1/runtime/pods`
+- action path family: `/api/v1/runtime/...`
+- diagnostic downstream callbacks: `observe_rollout`, `finalize_release`
+
+Interpret the operator proof in the same layer order used by the seam tests:
+
+1. runtime read path proves the target resolves truthfully before mutation
+2. runtime action acknowledgement proves acceptance only and should remain `pending_observation` initially
+3. runtime observer progression distinguishes missing, running, and terminal rollout states
+4. release HTTP writeback normalization proves callback-owned step updates landed on the correct release boundary
+5. release-service convergence proves final status closure
