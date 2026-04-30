@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimeservice "github.com/bsonger/devflow-service/internal/runtime/service"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -149,6 +151,24 @@ func TestDeleteObservedPodReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestGetRuntimeWorkloadReturnsIdentityNotFound(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		getObservedWorkloadByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeObservedWorkload, error) {
+			return nil, runtimeservice.ErrRuntimeIdentityMissing
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/workload?application_id="+applicationID.String()+"&environment_id=env-1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestGetRuntimeWorkload(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
@@ -170,6 +190,24 @@ func TestGetRuntimeWorkload(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListRuntimePodsReturnsIdentityNotFound(t *testing.T) {
+	applicationID := uuid.New()
+	h := NewHandler(&mockRuntimeService{
+		listObservedPodsByApplicationEnvFunc: func(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error) {
+			return nil, runtimeservice.ErrRuntimeIdentityMissing
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runtime/pods?application_id="+applicationID.String()+"&environment_id=env-1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -281,23 +319,14 @@ func TestRolloutRuntime(t *testing.T) {
 	}
 }
 
-func TestRolloutRuntimeAllowsServerResolvedDeploymentName(t *testing.T) {
+func TestRolloutRuntimeReturnsAmbiguousWorkloadPrecondition(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
 		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
-			if environment != "env-1" {
-				t.Fatalf("environment = %s, want env-1", environment)
-			}
-			if deploymentName != "" {
-				t.Fatalf("deploymentName = %s, want empty", deploymentName)
-			}
-			if operator != "tester" {
-				t.Fatalf("operator = %s, want tester", operator)
-			}
-			return nil
+			return runtimeservice.ErrRuntimeWorkloadAmbiguous
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")
@@ -308,7 +337,48 @@ func TestRolloutRuntimeAllowsServerResolvedDeploymentName(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusPreconditionFailed {
+		t.Fatalf("expected 412, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWriteRuntimeErrorMapsFailedPrecondition(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	writeRuntimeError(c, runtimeservice.ErrRuntimeNamespaceUnresolved)
+
+	if rec.Code != http.StatusPreconditionFailed {
+		t.Fatalf("expected 412, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWriteRuntimeErrorMapsSqlNoRowsToNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	writeRuntimeError(c, sql.ErrNoRows)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWriteRuntimeErrorPrefersStructuredCodeOverWrappedSqlNoRows(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	coded := sharederrs.Wrap(sharederrs.CodeFailedPrecondition, "namespace unresolved", sql.ErrNoRows)
+	if !errors.Is(coded, sql.ErrNoRows) {
+		t.Fatal("expected wrapped sql.ErrNoRows to be discoverable")
+	}
+
+	writeRuntimeError(c, coded)
+
+	if rec.Code != http.StatusPreconditionFailed {
+		t.Fatalf("expected 412, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

@@ -97,6 +97,20 @@ func (s *memoryStore) EnsureRuntimeSpecByApplicationEnv(_ context.Context, appli
 	return cloneRuntimeSpec(spec), nil
 }
 
+func (s *memoryStore) FindRuntimeSpecByApplicationEnv(_ context.Context, applicationID uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	id, ok := s.runtimeSpecByAppEnv[runtimeAppEnvKey(applicationID, environment)]
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+	spec := s.runtimeSpecs[id]
+	if spec == nil {
+		return nil, sql.ErrNoRows
+	}
+	return cloneRuntimeSpec(spec), nil
+}
+
 func (s *memoryStore) GetApplicationName(_ context.Context, applicationID uuid.UUID) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

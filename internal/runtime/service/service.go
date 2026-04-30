@@ -20,6 +20,9 @@ import (
 
 var ErrDuplicateRuntimeSpec = sharederrs.Conflict("runtime spec already exists for application and environment")
 var ErrRuntimeSpecNotFound = sharederrs.NotFound("runtime spec not found")
+var ErrRuntimeIdentityMissing = sharederrs.NotFound("runtime observer identity not found for application and environment")
+var ErrRuntimeNamespaceUnresolved = sharederrs.FailedPrecondition("runtime namespace could not be resolved")
+var ErrRuntimeWorkloadAmbiguous = sharederrs.FailedPrecondition("runtime workload selection is ambiguous for application and environment")
 var ErrNamespaceMismatch = sharederrs.InvalidArgument("observed pod namespace does not match derived runtime namespace")
 var ErrK8sClientInit = sharederrs.FailedPrecondition("kubernetes client initialization failed")
 var ErrK8sNotFound = sharederrs.NotFound("kubernetes resource not found")
@@ -318,16 +321,13 @@ func (s *runtimeService) GetObservedWorkloadByApplicationEnv(ctx context.Context
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return nil, err
 	}
-	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.requireRuntimeIdentity(ctx, applicationID, environment)
 	if err != nil {
 		return nil, err
 	}
-	if spec == nil {
-		return nil, ErrRuntimeSpecNotFound
-	}
 	item, err := s.repoStore().GetObservedWorkload(ctx, spec.ID)
 	if err == sql.ErrNoRows {
-		return nil, ErrRuntimeSpecNotFound
+		return nil, ErrRuntimeIdentityMissing
 	}
 	return item, err
 }
@@ -433,14 +433,18 @@ func (s *runtimeService) ListObservedPodsByApplicationEnv(ctx context.Context, a
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return nil, err
 	}
-	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.requireRuntimeIdentity(ctx, applicationID, environment)
 	if err != nil {
 		return nil, err
 	}
-	if spec == nil {
-		return nil, ErrRuntimeSpecNotFound
+	pods, err := s.repoStore().ListObservedPods(ctx, spec.ID)
+	if err != nil {
+		return nil, err
 	}
-	return s.repoStore().ListObservedPods(ctx, spec.ID)
+	if len(pods) == 0 {
+		return nil, ErrRuntimeIdentityMissing
+	}
+	return pods, nil
 }
 
 func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPodInput) (*domain.RuntimeObservedPod, error) {
@@ -574,12 +578,9 @@ func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicat
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return err
 	}
-	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.requireRuntimeIdentity(ctx, applicationID, environment)
 	if err != nil {
 		return err
-	}
-	if spec == nil {
-		return ErrRuntimeSpecNotFound
 	}
 	return s.DeletePod(ctx, spec.ID, podName, operator)
 }
@@ -631,12 +632,9 @@ func (s *runtimeService) RestartDeploymentByApplicationEnv(ctx context.Context, 
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
 		return err
 	}
-	spec, err := s.repoStore().EnsureRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	spec, err := s.requireRuntimeIdentity(ctx, applicationID, environment)
 	if err != nil {
 		return err
-	}
-	if spec == nil {
-		return ErrRuntimeSpecNotFound
 	}
 	return s.RestartDeployment(ctx, spec.ID, deploymentName, operator)
 }
@@ -674,9 +672,14 @@ func (s *runtimeService) resolveDeploymentName(ctx context.Context, spec *domain
 	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
-	if workload != nil && strings.EqualFold(strings.TrimSpace(workload.WorkloadKind), "Deployment") {
-		if name := strings.TrimSpace(workload.WorkloadName); name != "" {
+	if workload != nil {
+		kind := strings.TrimSpace(workload.WorkloadKind)
+		name := strings.TrimSpace(workload.WorkloadName)
+		switch {
+		case strings.EqualFold(kind, "Deployment") && name != "":
 			return name, nil
+		case kind != "" || name != "":
+			return "", ErrRuntimeWorkloadAmbiguous
 		}
 	}
 	appName, err := s.repoStore().GetApplicationName(ctx, spec.ApplicationID)
@@ -686,7 +689,18 @@ func (s *runtimeService) resolveDeploymentName(ctx context.Context, spec *domain
 	if name := strings.TrimSpace(appName); name != "" {
 		return name, nil
 	}
-	return "", sharederrs.Required("deployment_name")
+	return "", ErrRuntimeWorkloadAmbiguous
+}
+
+func (s *runtimeService) requireRuntimeIdentity(ctx context.Context, applicationID uuid.UUID, environment string) (*domain.RuntimeSpec, error) {
+	spec, err := s.repoStore().FindRuntimeSpecByApplicationEnv(ctx, applicationID, environment)
+	if err == sql.ErrNoRows || spec == nil {
+		return nil, ErrRuntimeIdentityMissing
+	}
+	if err != nil {
+		return nil, err
+	}
+	return spec, nil
 }
 
 func validateRuntimeSpecInput(applicationId uuid.UUID, environment string) error {
@@ -821,7 +835,7 @@ func (s *runtimeService) resolveRuntimeNamespace(ctx context.Context, applicatio
 	if err == nil && strings.TrimSpace(namespace) != "" {
 		return strings.TrimSpace(namespace), nil
 	}
-	spec, specErr := s.repoStore().GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
+	spec, specErr := s.repoStore().FindRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
 	if specErr == nil && spec != nil {
 		workload, workloadErr := s.repoStore().GetObservedWorkload(ctx, spec.ID)
 		if workloadErr == nil && workload != nil {
@@ -844,8 +858,8 @@ func (s *runtimeService) resolveRuntimeNamespace(ctx context.Context, applicatio
 	if ns := strings.TrimSpace(fallback); ns != "" {
 		return ns, nil
 	}
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
-	return "", sharederrs.FailedPrecondition("runtime namespace could not be resolved")
+	return "", ErrRuntimeNamespaceUnresolved
 }

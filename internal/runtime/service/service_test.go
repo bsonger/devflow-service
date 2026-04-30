@@ -16,6 +16,7 @@ type stubStore struct {
 	getRuntimeSpecFunc                    func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
 	getRuntimeSpecByApplicationEnvFunc    func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	ensureRuntimeSpecByApplicationEnvFunc func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
+	findRuntimeSpecByApplicationEnvFunc   func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	getApplicationNameFunc                func(context.Context, uuid.UUID) (string, error)
 	resolveTargetNamespaceFunc            func(context.Context, uuid.UUID, string) (string, error)
 	deleteRuntimeSpecByApplicationEnvFunc func(context.Context, uuid.UUID, string) error
@@ -80,6 +81,18 @@ func (s stubStore) EnsureRuntimeSpecByApplicationEnv(ctx context.Context, applic
 		return s.ensureRuntimeSpecByApplicationEnvFunc(ctx, applicationId, environment)
 	}
 	return s.GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment)
+}
+
+func (s stubStore) FindRuntimeSpecByApplicationEnv(ctx context.Context, applicationId uuid.UUID, environment string) (*runtimedomain.RuntimeSpec, error) {
+	if s.findRuntimeSpecByApplicationEnvFunc != nil {
+		return s.findRuntimeSpecByApplicationEnvFunc(ctx, applicationId, environment)
+	}
+	if spec, err := s.GetRuntimeSpecByApplicationEnv(ctx, applicationId, environment); err != nil {
+		return nil, err
+	} else if spec != nil {
+		return spec, nil
+	}
+	return nil, sql.ErrNoRows
 }
 
 func (s stubStore) GetApplicationName(ctx context.Context, applicationId uuid.UUID) (string, error) {
@@ -322,6 +335,98 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	}
 	if captured == nil || captured.WorkloadName != "meta-service" {
 		t.Fatalf("captured workload = %#v", captured)
+	}
+}
+
+func TestGetObservedWorkloadByApplicationEnvFailsWhenObserverIdentityMissing(t *testing.T) {
+	applicationID := uuid.New()
+	svc := New(stubStore{
+		findRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return nil, sql.ErrNoRows
+		},
+	}, nil)
+
+	_, err := svc.GetObservedWorkloadByApplicationEnv(context.Background(), applicationID, "staging")
+	if !sharederrs.HasCode(err, sharederrs.CodeNotFound) {
+		t.Fatalf("expected not_found error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeIdentityMissing.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeIdentityMissing)
+	}
+}
+
+func TestListObservedPodsByApplicationEnvFailsWhenObserverIdentityMissing(t *testing.T) {
+	applicationID := uuid.New()
+	svc := New(stubStore{
+		findRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return nil, sql.ErrNoRows
+		},
+	}, nil)
+
+	_, err := svc.ListObservedPodsByApplicationEnv(context.Background(), applicationID, "staging")
+	if !sharederrs.HasCode(err, sharederrs.CodeNotFound) {
+		t.Fatalf("expected not_found error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeIdentityMissing.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeIdentityMissing)
+	}
+}
+
+func TestDeletePodByApplicationEnvFailsWhenObserverIdentityMissing(t *testing.T) {
+	applicationID := uuid.New()
+	svc := New(stubStore{
+		findRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return nil, sql.ErrNoRows
+		},
+	}, nil)
+
+	err := svc.DeletePodByApplicationEnv(context.Background(), applicationID, "staging", "demo-0", "tester")
+	if !sharederrs.HasCode(err, sharederrs.CodeNotFound) {
+		t.Fatalf("expected not_found error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeIdentityMissing.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeIdentityMissing)
+	}
+}
+
+func TestRestartDeploymentReturnsAmbiguousWhenObservedWorkloadIsNotDeployment(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	svc := New(stubStore{
+		getRuntimeSpecFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		getObservedWorkloadFunc: func(context.Context, uuid.UUID) (*runtimedomain.RuntimeObservedWorkload, error) {
+			return &runtimedomain.RuntimeObservedWorkload{RuntimeSpecID: runtimeSpecID, WorkloadKind: "StatefulSet", WorkloadName: "meta-service"}, nil
+		},
+	}, stubK8sExecutor{})
+
+	err := svc.RestartDeployment(context.Background(), runtimeSpecID, "", "tester")
+	if !sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition) {
+		t.Fatalf("expected failed_precondition error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeWorkloadAmbiguous.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeWorkloadAmbiguous)
+	}
+}
+
+func TestResolveRuntimeNamespaceReturnsExplicitNamespaceUnresolved(t *testing.T) {
+	applicationID := uuid.New()
+	svc := New(stubStore{
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "", sql.ErrNoRows
+		},
+		findRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return nil, sql.ErrNoRows
+		},
+	}, nil)
+
+	_, err := svc.(*runtimeService).resolveRuntimeNamespace(context.Background(), applicationID, "staging", "")
+	if !sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition) {
+		t.Fatalf("expected failed_precondition error, got %v", err)
+	}
+	if err == nil || err.Error() != ErrRuntimeNamespaceUnresolved.Error() {
+		t.Fatalf("error = %v, want %v", err, ErrRuntimeNamespaceUnresolved)
 	}
 }
 

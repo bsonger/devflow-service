@@ -13,6 +13,7 @@ type Store interface {
 	GetRuntimeSpec(context.Context, uuid.UUID) (*runtimedomain.RuntimeSpec, error)
 	GetRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	EnsureRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
+	FindRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error)
 	GetApplicationName(context.Context, uuid.UUID) (string, error)
 	ResolveTargetNamespace(context.Context, uuid.UUID, string) (string, error)
 	DeleteRuntimeSpecByApplicationEnv(context.Context, uuid.UUID, string) error

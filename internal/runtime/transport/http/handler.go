@@ -376,8 +376,6 @@ func (h *Handler) DeleteObservedWorkload(c *gin.Context) {
 
 func writeRuntimeError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		httpx.WriteNotFound(c, "not found")
 	case sharederrs.HasCode(err, sharederrs.CodeInvalidArgument):
 		httpx.WriteInvalidArgument(c, err.Error())
 	case sharederrs.HasCode(err, sharederrs.CodeConflict):
@@ -386,6 +384,8 @@ func writeRuntimeError(c *gin.Context, err error) {
 		httpx.WriteNotFound(c, err.Error())
 	case sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition):
 		httpx.WriteFailedPrecondition(c, http.StatusPreconditionFailed, err.Error())
+	case errors.Is(err, sql.ErrNoRows):
+		httpx.WriteNotFound(c, "not found")
 	default:
 		httpx.WriteInternalError(c, err)
 	}
