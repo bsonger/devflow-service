@@ -25,8 +25,8 @@ type mockRuntimeService struct {
 	listObservedPodsByApplicationEnvFunc    func(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error)
 	syncObservedPodFunc                     func(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
 	deleteObservedPodFunc                   func(context.Context, runtimeservice.DeleteObservedPodInput) error
-	deletePodByApplicationEnvFunc           func(context.Context, uuid.UUID, string, string, string) error
-	restartDeploymentByApplicationEnvFunc   func(context.Context, uuid.UUID, string, string, string) error
+	deletePodByApplicationEnvFunc           func(context.Context, uuid.UUID, string, string, string) (*runtimedomain.RuntimeActionAcknowledgement, error)
+	restartDeploymentByApplicationEnvFunc   func(context.Context, uuid.UUID, string, string, string) (*runtimedomain.RuntimeActionAcknowledgement, error)
 }
 
 func (m *mockRuntimeService) GetObservedWorkloadByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment string) (*runtimedomain.RuntimeObservedWorkload, error) {
@@ -71,18 +71,18 @@ func (m *mockRuntimeService) DeleteObservedPod(ctx context.Context, in runtimese
 	return nil
 }
 
-func (m *mockRuntimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) error {
+func (m *mockRuntimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 	if m.deletePodByApplicationEnvFunc != nil {
 		return m.deletePodByApplicationEnvFunc(ctx, applicationID, environment, podName, operator)
 	}
-	return nil
+	return nil, nil
 }
 
-func (m *mockRuntimeService) RestartDeploymentByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, deploymentName, operator string) error {
+func (m *mockRuntimeService) RestartDeploymentByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, deploymentName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 	if m.restartDeploymentByApplicationEnvFunc != nil {
 		return m.restartDeploymentByApplicationEnvFunc(ctx, applicationID, environment, deploymentName, operator)
 	}
-	return nil
+	return nil, nil
 }
 
 func setupRuntimeTestRouter(h *Handler, token string) *gin.Engine {
@@ -235,10 +235,10 @@ func TestListRuntimePods(t *testing.T) {
 	}
 }
 
-func TestDeleteRuntimePod(t *testing.T) {
+func TestDeleteRuntimePodReturnsAcknowledgement(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
-		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) error {
+		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
@@ -251,7 +251,19 @@ func TestDeleteRuntimePod(t *testing.T) {
 			if operator != "tester" {
 				t.Fatalf("operator = %s, want tester", operator)
 			}
-			return nil
+			return &runtimedomain.RuntimeActionAcknowledgement{
+				OperationID:      uuid.New(),
+				ApplicationID:    applicationID,
+				Environment:      "env-1",
+				OperationType:    runtimeservice.RuntimeOperationPodDelete,
+				TargetKind:       "pod",
+				TargetName:       "demo-0",
+				TargetNamespace:  "devflow-staging",
+				MutationState:    runtimeservice.RuntimeMutationAccepted,
+				ConvergenceState: runtimeservice.RuntimeConvergencePending,
+				AcceptedAt:       time.Now().UTC(),
+				Operator:         "tester",
+			}, nil
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")
@@ -262,19 +274,31 @@ func TestDeleteRuntimePod(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Data runtimedomain.RuntimeActionAcknowledgement `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Data.TargetName != "demo-0" {
+		t.Fatalf("target_name = %q, want demo-0", resp.Data.TargetName)
+	}
+	if resp.Data.ConvergenceState != runtimeservice.RuntimeConvergencePending {
+		t.Fatalf("convergence_state = %q, want %q", resp.Data.ConvergenceState, runtimeservice.RuntimeConvergencePending)
 	}
 }
 
 func TestDeleteRuntimePodReturnsIdentityNotFound(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
-		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) error {
+		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
-			return runtimeservice.ErrRuntimeIdentityMissing
+			return nil, runtimeservice.ErrRuntimeIdentityMissing
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")
@@ -293,11 +317,11 @@ func TestDeleteRuntimePodReturnsIdentityNotFound(t *testing.T) {
 func TestDeleteRuntimePodReturnsTargetMissingPrecondition(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
-		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) error {
+		deletePodByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, podName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
-			return runtimeservice.ErrRuntimePodTargetMissing
+			return nil, runtimeservice.ErrRuntimePodTargetMissing
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")
@@ -333,10 +357,10 @@ func TestSyncObservedWorkloadReturnsInvalidArgument(t *testing.T) {
 	}
 }
 
-func TestRolloutRuntime(t *testing.T) {
+func TestRolloutRuntimeReturnsAcknowledgement(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
-		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
+		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
@@ -349,7 +373,20 @@ func TestRolloutRuntime(t *testing.T) {
 			if operator != "tester" {
 				t.Fatalf("operator = %s, want tester", operator)
 			}
-			return nil
+			return &runtimedomain.RuntimeActionAcknowledgement{
+				OperationID:      uuid.New(),
+				ApplicationID:    applicationID,
+				Environment:      "env-1",
+				OperationType:    runtimeservice.RuntimeOperationDeploymentRestart,
+				TargetKind:       "deployment",
+				TargetName:       "demo-api",
+				TargetNamespace:  "devflow-staging",
+				MutationState:    runtimeservice.RuntimeMutationAccepted,
+				ConvergenceState: runtimeservice.RuntimeConvergencePending,
+				ObservedWorkload: "demo-api",
+				AcceptedAt:       time.Now().UTC(),
+				Operator:         "tester",
+			}, nil
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")
@@ -360,19 +397,31 @@ func TestRolloutRuntime(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Data runtimedomain.RuntimeActionAcknowledgement `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Data.TargetKind != "deployment" {
+		t.Fatalf("target_kind = %q, want deployment", resp.Data.TargetKind)
+	}
+	if resp.Data.ConvergenceState != runtimeservice.RuntimeConvergencePending {
+		t.Fatalf("convergence_state = %q, want %q", resp.Data.ConvergenceState, runtimeservice.RuntimeConvergencePending)
 	}
 }
 
 func TestRolloutRuntimeReturnsIdentityNotFound(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
-		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
+		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
-			return runtimeservice.ErrRuntimeIdentityMissing
+			return nil, runtimeservice.ErrRuntimeIdentityMissing
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")
@@ -391,11 +440,11 @@ func TestRolloutRuntimeReturnsIdentityNotFound(t *testing.T) {
 func TestRolloutRuntimeReturnsAmbiguousWorkloadPrecondition(t *testing.T) {
 	applicationID := uuid.New()
 	h := NewHandler(&mockRuntimeService{
-		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) error {
+		restartDeploymentByApplicationEnvFunc: func(_ context.Context, gotApplicationID uuid.UUID, environment, deploymentName, operator string) (*runtimedomain.RuntimeActionAcknowledgement, error) {
 			if gotApplicationID != applicationID {
 				t.Fatalf("applicationID = %s, want %s", gotApplicationID, applicationID)
 			}
-			return runtimeservice.ErrRuntimeWorkloadAmbiguous
+			return nil, runtimeservice.ErrRuntimeWorkloadAmbiguous
 		},
 	})
 	r := setupRuntimeTestRouter(h, "secret")

@@ -34,6 +34,13 @@ var ErrK8sClientInit = sharederrs.FailedPrecondition("kubernetes client initiali
 var ErrK8sNotFound = sharederrs.NotFound("kubernetes resource not found")
 var ErrK8sForbidden = sharederrs.FailedPrecondition("kubernetes operation forbidden")
 
+const (
+	RuntimeMutationAccepted          = "accepted"
+	RuntimeConvergencePending        = "pending_observation"
+	RuntimeOperationPodDelete        = "pod_delete"
+	RuntimeOperationDeploymentRestart = "deployment_restart"
+)
+
 type K8sExecutor interface {
 	DeletePod(ctx context.Context, namespace, name string) error
 	RestartDeployment(ctx context.Context, namespace, name string) error
@@ -55,10 +62,10 @@ type Service interface {
 	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*domain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, SyncObservedPodInput) (*domain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, DeleteObservedPodInput) error
-	DeletePod(context.Context, uuid.UUID, string, string) error
-	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
-	RestartDeployment(context.Context, uuid.UUID, string, string) error
-	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
+	DeletePod(context.Context, uuid.UUID, string, string) (*domain.RuntimeActionAcknowledgement, error)
+	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) (*domain.RuntimeActionAcknowledgement, error)
+	RestartDeployment(context.Context, uuid.UUID, string, string) (*domain.RuntimeActionAcknowledgement, error)
+	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) (*domain.RuntimeActionAcknowledgement, error)
 	ListRuntimeOperations(context.Context, uuid.UUID) ([]*domain.RuntimeOperation, error)
 }
 
@@ -543,110 +550,124 @@ func (s *runtimeService) DeleteObservedPod(ctx context.Context, in DeleteObserve
 	return s.repoStore().DeleteObservedPod(ctx, spec.ID, resolvedNamespace, in.PodName, observedAt)
 }
 
-func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID, podName, operator string) error {
+func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID, podName, operator string) (*domain.RuntimeActionAcknowledgement, error) {
 	if runtimeSpecID == uuid.Nil {
-		return sharederrs.Required("id")
+		return nil, sharederrs.Required("id")
 	}
 	if strings.TrimSpace(podName) == "" {
-		return sharederrs.Required("pod_name")
+		return nil, sharederrs.Required("pod_name")
 	}
 
 	spec, err := s.repoStore().GetRuntimeSpec(ctx, runtimeSpecID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return ErrRuntimeSpecNotFound
+			return nil, ErrRuntimeSpecNotFound
 		}
-		return err
+		return nil, err
 	}
 	if spec == nil {
-		return ErrRuntimeSpecNotFound
+		return nil, ErrRuntimeSpecNotFound
 	}
 
 	target, err := s.resolvePodDeleteTarget(ctx, spec, podName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	k8s, err := s.k8s()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := k8s.DeletePod(ctx, target.namespace, target.name); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ErrK8sNotFound
+			return nil, ErrK8sNotFound
 		}
 		if apierrors.IsForbidden(err) {
-			return ErrK8sForbidden
+			return nil, ErrK8sForbidden
 		}
-		return err
+		return nil, err
 	}
 
-	return s.recordOperation(ctx, spec.ID, "pod_delete", target.name, operator)
+	op, err := s.recordOperation(ctx, spec, RuntimeOperationPodDelete, target.name, target.namespace, operator)
+	if err != nil {
+		return nil, err
+	}
+	return buildActionAcknowledgement(op, "pod", ""), nil
 }
 
-func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) error {
+func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, podName, operator string) (*domain.RuntimeActionAcknowledgement, error) {
 	environment = strings.TrimSpace(environment)
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
-		return err
+		return nil, err
 	}
 	spec, err := s.requireRuntimeIdentity(ctx, applicationID, environment)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return s.DeletePod(ctx, spec.ID, podName, operator)
 }
 
-func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uuid.UUID, deploymentName, operator string) error {
+func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uuid.UUID, deploymentName, operator string) (*domain.RuntimeActionAcknowledgement, error) {
 	if runtimeSpecID == uuid.Nil {
-		return sharederrs.Required("id")
+		return nil, sharederrs.Required("id")
 	}
 
 	spec, err := s.repoStore().GetRuntimeSpec(ctx, runtimeSpecID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return ErrRuntimeSpecNotFound
+			return nil, ErrRuntimeSpecNotFound
 		}
-		return err
+		return nil, err
 	}
 	if spec == nil {
-		return ErrRuntimeSpecNotFound
+		return nil, ErrRuntimeSpecNotFound
 	}
 	deploymentName, err = s.resolveDeploymentName(ctx, spec, deploymentName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	k8s, err := s.k8s()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	namespace, err := s.resolveRuntimeNamespace(ctx, spec.ApplicationID, spec.Environment, "")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := k8s.RestartDeployment(ctx, namespace, deploymentName); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ErrK8sNotFound
+			return nil, ErrK8sNotFound
 		}
 		if apierrors.IsForbidden(err) {
-			return ErrK8sForbidden
+			return nil, ErrK8sForbidden
 		}
-		return err
+		return nil, err
 	}
 
-	return s.recordOperation(ctx, spec.ID, "deployment_restart", deploymentName, operator)
+	observedWorkload := deploymentName
+	if workload, workloadErr := s.repoStore().GetObservedWorkload(ctx, spec.ID); workloadErr == nil && workload != nil {
+		if name := strings.TrimSpace(workload.WorkloadName); name != "" {
+			observedWorkload = name
+		}
+	}
+	op, err := s.recordOperation(ctx, spec, RuntimeOperationDeploymentRestart, deploymentName, namespace, operator)
+	if err != nil {
+		return nil, err
+	}
+	return buildActionAcknowledgement(op, "deployment", observedWorkload), nil
 }
 
-func (s *runtimeService) RestartDeploymentByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, deploymentName, operator string) error {
+func (s *runtimeService) RestartDeploymentByApplicationEnv(ctx context.Context, applicationID uuid.UUID, environment, deploymentName, operator string) (*domain.RuntimeActionAcknowledgement, error) {
 	environment = strings.TrimSpace(environment)
 	if err := validateRuntimeSpecInput(applicationID, environment); err != nil {
-		return err
+		return nil, err
 	}
 	spec, err := s.requireRuntimeIdentity(ctx, applicationID, environment)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return s.RestartDeployment(ctx, spec.ID, deploymentName, operator)
 }
@@ -658,19 +679,44 @@ func (s *runtimeService) ListRuntimeOperations(ctx context.Context, runtimeSpecI
 	return s.repoStore().ListRuntimeOperations(ctx, runtimeSpecID)
 }
 
-func (s *runtimeService) recordOperation(ctx context.Context, runtimeSpecID uuid.UUID, operationType, targetName, operator string) error {
+func (s *runtimeService) recordOperation(ctx context.Context, spec *domain.RuntimeSpec, operationType, targetName, namespace, operator string) (*domain.RuntimeOperation, error) {
 	op := &domain.RuntimeOperation{
-		ID:            uuid.New(),
-		RuntimeSpecID: runtimeSpecID,
-		OperationType: operationType,
-		TargetName:    targetName,
-		Operator:      strings.TrimSpace(operator),
-		CreatedAt:     time.Now().UTC(),
+		ID:               uuid.New(),
+		RuntimeSpecID:    spec.ID,
+		OperationType:    operationType,
+		TargetName:       targetName,
+		TargetNamespace:  strings.TrimSpace(namespace),
+		ApplicationID:    spec.ApplicationID,
+		Environment:      spec.Environment,
+		ConvergenceState: RuntimeConvergencePending,
+		Operator:         strings.TrimSpace(operator),
+		CreatedAt:        time.Now().UTC(),
 	}
 	if err := s.repoStore().CreateRuntimeOperation(ctx, op); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return op, nil
+}
+
+func buildActionAcknowledgement(op *domain.RuntimeOperation, targetKind, observedWorkload string) *domain.RuntimeActionAcknowledgement {
+	if op == nil {
+		return nil
+	}
+	return &domain.RuntimeActionAcknowledgement{
+		OperationID:      op.ID,
+		RuntimeSpecID:    op.RuntimeSpecID,
+		ApplicationID:    op.ApplicationID,
+		Environment:      op.Environment,
+		OperationType:    op.OperationType,
+		TargetKind:       strings.TrimSpace(targetKind),
+		TargetName:       op.TargetName,
+		TargetNamespace:  op.TargetNamespace,
+		MutationState:    RuntimeMutationAccepted,
+		ConvergenceState: op.ConvergenceState,
+		ObservedWorkload: strings.TrimSpace(observedWorkload),
+		AcceptedAt:       op.CreatedAt,
+		Operator:         op.Operator,
+	}
 }
 
 func (s *runtimeService) resolveDeploymentName(ctx context.Context, spec *domain.RuntimeSpec, requested string) (string, error) {

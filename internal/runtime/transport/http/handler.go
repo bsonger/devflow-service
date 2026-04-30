@@ -23,8 +23,8 @@ type runtimeService interface {
 	ListObservedPodsByApplicationEnv(context.Context, uuid.UUID, string) ([]*runtimedomain.RuntimeObservedPod, error)
 	SyncObservedPod(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error)
 	DeleteObservedPod(context.Context, runtimeservice.DeleteObservedPodInput) error
-	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
-	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) error
+	DeletePodByApplicationEnv(context.Context, uuid.UUID, string, string, string) (*runtimedomain.RuntimeActionAcknowledgement, error)
+	RestartDeploymentByApplicationEnv(context.Context, uuid.UUID, string, string, string) (*runtimedomain.RuntimeActionAcknowledgement, error)
 }
 
 type Handler struct {
@@ -222,11 +222,12 @@ func (h *Handler) DeleteRuntimePod(c *gin.Context) {
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	if err := h.runtime.DeletePodByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, podName, req.Operator); err != nil {
+	ack, err := h.runtime.DeletePodByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, podName, req.Operator)
+	if err != nil {
 		writeRuntimeError(c, err)
 		return
 	}
-	httpx.WriteNoContent(c)
+	httpx.WriteData(c, http.StatusOK, ack)
 }
 
 func (h *Handler) RolloutRuntime(c *gin.Context) {
@@ -234,11 +235,12 @@ func (h *Handler) RolloutRuntime(c *gin.Context) {
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	if err := h.runtime.RestartDeploymentByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, req.DeploymentName, req.Operator); err != nil {
+	ack, err := h.runtime.RestartDeploymentByApplicationEnv(c.Request.Context(), req.ApplicationID, req.EnvironmentID, req.DeploymentName, req.Operator)
+	if err != nil {
 		writeRuntimeError(c, err)
 		return
 	}
-	httpx.WriteNoContent(c)
+	httpx.WriteData(c, http.StatusOK, ack)
 }
 
 func (h *Handler) SyncObservedPod(c *gin.Context) {

@@ -92,10 +92,30 @@ type RuntimeObservedWorkloadCondition struct {
 }
 
 type RuntimeOperation struct {
-	ID            uuid.UUID `json:"id" db:"id"`
-	RuntimeSpecID uuid.UUID `json:"runtime_spec_id" db:"runtime_spec_id"`
-	OperationType string    `json:"operation_type" db:"operation_type"`
-	TargetName    string    `json:"target_name" db:"target_name"`
-	Operator      string    `json:"operator" db:"operator"`
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+	ID               uuid.UUID `json:"id" db:"id"`
+	RuntimeSpecID    uuid.UUID `json:"runtime_spec_id" db:"runtime_spec_id"`
+	OperationType    string    `json:"operation_type" db:"operation_type"`
+	TargetName       string    `json:"target_name" db:"target_name"`
+	TargetNamespace  string    `json:"target_namespace" db:"target_namespace"`
+	ApplicationID    uuid.UUID `json:"application_id" db:"application_id"`
+	Environment      string    `json:"environment" db:"environment"`
+	ConvergenceState string    `json:"convergence_state" db:"convergence_state"`
+	Operator         string    `json:"operator" db:"operator"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
+}
+
+type RuntimeActionAcknowledgement struct {
+	OperationID       uuid.UUID `json:"operation_id"`
+	RuntimeSpecID     uuid.UUID `json:"runtime_spec_id"`
+	ApplicationID     uuid.UUID `json:"application_id"`
+	Environment       string    `json:"environment"`
+	OperationType     string    `json:"operation_type"`
+	TargetKind        string    `json:"target_kind"`
+	TargetName        string    `json:"target_name"`
+	TargetNamespace   string    `json:"target_namespace"`
+	MutationState     string    `json:"mutation_state"`
+	ConvergenceState  string    `json:"convergence_state"`
+	ObservedWorkload  string    `json:"observed_workload,omitempty"`
+	AcceptedAt        time.Time `json:"accepted_at"`
+	Operator          string    `json:"operator,omitempty"`
 }
