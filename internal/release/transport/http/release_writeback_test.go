@@ -117,6 +117,48 @@ func TestHandleArgoEventUpdatesReleaseStatus(t *testing.T) {
 	}
 }
 
+func TestHandleArgoEventDoesNotClaimReleaseOwnedStartDeploymentStep(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	var gotStepName string
+	handler := &ReleaseWritebackHandler{svc: stubReleaseWritebackService{
+		updateStatusFn: func(_ context.Context, got uuid.UUID, status model.ReleaseStatus) error {
+			if got != releaseID || status != model.ReleaseRunning {
+				t.Fatalf("unexpected status update: release=%s status=%s", got, status)
+			}
+			return nil
+		},
+		updateStepFn: func(_ context.Context, got uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, _, _ *time.Time) error {
+			if got != releaseID {
+				t.Fatalf("unexpected release id: %s", got)
+			}
+			gotStepName = stepName
+			if status != model.StepRunning || progress != 100 || message != "rollout is running in argocd" {
+				t.Fatalf("unexpected step update: step=%s status=%s progress=%d message=%q", stepName, status, progress, message)
+			}
+			return nil
+		},
+	}}
+	r := gin.New()
+	r.POST("/api/v1/verify/argo/events", handler.HandleArgoEvent)
+
+	body := bytes.NewBufferString(`{"release_id":"` + releaseID.String() + `","status":"Running"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/verify/argo/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if gotStepName != "observe_rollout" {
+		t.Fatalf("stepName = %q want observe_rollout", gotStepName)
+	}
+	if gotStepName == "start_deployment" {
+		t.Fatalf("argo callback must not own start_deployment")
+	}
+}
+
 func TestHandleArgoEventMapsFailedToReleaseFailed(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	releaseID := uuid.New()

@@ -1152,6 +1152,9 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeplo
 	if startDeployment.Status != model.StepPending {
 		t.Fatalf("start_deployment status = %q want %q", startDeployment.Status, model.StepPending)
 	}
+	if startDeployment.Progress != 0 {
+		t.Fatalf("start_deployment progress = %d want 0", startDeployment.Progress)
+	}
 	if startDeployment.Message != "" {
 		t.Fatalf("start_deployment message = %q want empty", startDeployment.Message)
 	}

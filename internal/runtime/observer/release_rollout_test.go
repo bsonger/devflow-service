@@ -47,6 +47,9 @@ func TestDeriveReleaseRolloutContext(t *testing.T) {
 	if ctx.DeploymentName != "demo-api" {
 		t.Fatalf("deploymentName = %q", ctx.DeploymentName)
 	}
+	if workload.Labels[releasedomain.ReleaseEnvironmentLabel] != ctx.EnvironmentID {
+		t.Fatalf("environment label must remain primary identity, labels=%#v ctx=%+v", workload.Labels, ctx)
+	}
 }
 
 func TestDeriveReleaseRolloutContextFallsBackToWorkloadEnvironment(t *testing.T) {

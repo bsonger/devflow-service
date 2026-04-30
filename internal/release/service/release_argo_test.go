@@ -129,6 +129,12 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 	if got := application.Labels["status"]; got != string(model.ReleaseRunning) {
 		t.Fatalf("status label = %q", got)
 	}
+	if len(application.Labels) != 5 {
+		t.Fatalf("labels = %#v", application.Labels)
+	}
+	if _, ok := application.Labels["custom"]; ok {
+		t.Fatalf("unexpected custom label preserved: %#v", application.Labels)
+	}
 }
 
 func TestBuildArgoApplicationDerivesOCIArtifactFromRef(t *testing.T) {

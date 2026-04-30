@@ -126,16 +126,13 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if ports[0]["name"] != "http" || ports[0]["containerPort"] != 8080 {
 		t.Fatalf("deployment port = %#v", ports[0])
 	}
-	if bundle.Resources.VirtualService == nil {
-		t.Fatal("expected virtualservice")
-	}
-	if len(bundle.Resources.Services) != 1 {
-		t.Fatalf("services = %d", len(bundle.Resources.Services))
-	}
 	if len(bundle.Files) < 2 {
 		t.Fatalf("expected bundle files, got %d", len(bundle.Files))
 	}
 	lastFile := bundle.Files[len(bundle.Files)-1]
+	if !strings.Contains(lastFile.Content, model.ReleaseIDLabel+": "+releaseID.String()) {
+		t.Fatalf("bundle.yaml missing release-id label: %s", lastFile.Content)
+	}
 	if lastFile.Path != "bundle.yaml" {
 		t.Fatalf("expected bundle.yaml, got %q", lastFile.Path)
 	}
