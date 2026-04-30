@@ -312,6 +312,7 @@ run_go_build_targets() {
 }
 
 info "Checking repository-local root-module and recovery surfaces"
+info "Focused release → Argo → runtime proof route: go test ./internal/release/service ./internal/runtime/observer ./internal/release/transport/http -run 'TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations|TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeploymentWriteback'"
 require_file "$ROOT_DIR/go.mod" "root go.mod"
 require_file "$ROOT_DIR/.gitignore" "root .gitignore"
 require_file "$ROOT_DIR/README.md" "root README"

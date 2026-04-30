@@ -23,6 +23,7 @@ The verifier should fail fast and prove:
 - repo-local startup and docs surfaces exist under the layered docs structure
 - the active Go baseline matches the current contract
 - Docker policy is enforced from the policy docs and script checks
+- the release → Argo → runtime proof route remains rerunnable from canonical surfaces: release-side metadata production and bundle rendering live in `internal/release/service`, runtime-side rollout observation and callback step emission live in `internal/runtime/observer`, release-side callback/writeback acceptance and status normalization live in `internal/release/transport/http` plus `internal/release/service`, and repo-wide anti-drift still terminates at `bash scripts/verify.sh`
 - release-flow contract wording stays aligned across `docs/system/flow-overview.md`, `docs/system/release-steps.md`, `docs/system/release-writeback.md`, and the reader-facing release/runtime docs that summarize `start_deployment`, `observe_rollout`, and `finalize_release`
 - production code under `internal/*/service` does not bypass repository boundaries with direct DB access
 - active code and docs do not retain Mongo-era dependency or naming remnants after the PostgreSQL migration
@@ -78,6 +79,18 @@ For packaging-related work, verify the root `Dockerfile` and Docker policy inste
 When debugging `runtime-service`, pair `bash scripts/verify.sh` with `docs/system/runtime-storage-model.md`: the verifier enforces the no-Postgres runtime-domain guardrail, and the runtime doc explains the accepted cold-start window where observer-backed in-memory state is temporarily empty after restart.
 
 When debugging release-flow contract drift, pair `bash scripts/verify.sh` with `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md`: those docs define the authoritative ownership split between the release-service handoff step (`start_deployment`) and callback-owned progression/finalization steps such as `observe_rollout` and `finalize_release`.
+
+The focused release → Argo → runtime proof route that should be rerun before broad repo debugging is:
+
+```sh
+go test ./internal/release/service ./internal/runtime/observer ./internal/release/transport/http -run 'TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations|TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeploymentWriteback'
+```
+
+Read the proof in layers when that command fails:
+- `internal/release/service` proves release-side metadata production, bundle rendering, and writeback/status convergence acceptance
+- `internal/runtime/observer` proves runtime-side release label consumption and callback-owned step emission
+- `internal/release/transport/http` proves release-side callback/writeback normalization at the HTTP boundary
+- `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun after those named seams pass
 
 Only runnable repo entrypoints under `cmd/` may be packaged this way.
 Current runnable entries are `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`.

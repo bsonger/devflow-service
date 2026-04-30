@@ -34,6 +34,7 @@ make ci
 - formatting, vet, lint, tests, build, and repo verification must agree
 - repo docs and verification must describe the same paths and command order
 - failures are real contract drift to fix, not accepted migration noise
+- the release → Argo → runtime contract must remain discoverable from canonical verifier surfaces: rerun the focused proof command first to localize failures, then use `bash scripts/verify.sh` as the repo-wide anti-drift gate
 - release-flow contract drift between code, docs, and verifier surfaces is a real verifier failure; when `start_deployment`, `observe_rollout`, `finalize_release`, or release writeback ownership wording drifts, treat that mismatch as contract drift and update the authoritative docs plus verifier surfaces together
 - use `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md` as the lifecycle/writeback authority when verifying release-flow wording in `docs/resources/*`, `docs/services/*`, or recovery/script guidance
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
@@ -63,5 +64,16 @@ make ci
 ## Verification ownership
 
 - `scripts/verify.sh` is the canonical repo-local verification entrypoint
+- focused release → Argo → runtime proof command:
+
+```sh
+go test ./internal/release/service ./internal/runtime/observer ./internal/release/transport/http -run 'TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations|TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeploymentWriteback'
+```
+
+- interpret that focused proof in layers before broad reruns:
+  - `internal/release/service` proves release metadata production, bundle rendering, and writeback/status convergence acceptance
+  - `internal/runtime/observer` proves runtime release-label consumption plus callback-owned `observe_rollout` / `finalize_release` emission
+  - `internal/release/transport/http` proves Argo/writeback callback normalization at the release HTTP boundary
+  - `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun once the named proof seams pass
 - `scripts/check-docker-policy.sh` enforces Docker policy
 - `scripts/README.md` explains script behavior and side effects
