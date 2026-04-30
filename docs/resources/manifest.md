@@ -31,6 +31,10 @@ If your question is instead about:
 - published OCI deployment bundle
 
 then the owning resource is `Release`, not `Manifest`.
+For the service-ownership explanation and end-to-end reader routing around that split, start with:
+
+- `docs/services/release-service.md`
+- `docs/system/flow-overview.md`
 
 ## Common base fields
 

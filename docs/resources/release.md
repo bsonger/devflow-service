@@ -43,6 +43,10 @@ If your question is instead about:
 - which workload and service snapshots were frozen for build
 
 then the owning resource is `Manifest`, not `Release`.
+For the service-ownership explanation and end-to-end reader routing around that split, start with:
+
+- `docs/services/release-service.md`
+- `docs/system/flow-overview.md`
 
 ## Boundary summary
 
