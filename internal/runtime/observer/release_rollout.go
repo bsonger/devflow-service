@@ -237,9 +237,6 @@ func (o *ReleaseRolloutObserver) lookupDeployment(ctx context.Context, rollout r
 func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout releaseRolloutContext, phase releasedomain.StepStatus, progress int32, message string) error {
 	switch phase {
 	case releasedomain.StepSucceeded:
-		if err := o.postStep(ctx, rollout.ReleaseID, "start_deployment", releasedomain.StepSucceeded, 100, message); err != nil {
-			return err
-		}
 		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepSucceeded, 100, message); err != nil {
 			return err
 		}
@@ -247,9 +244,6 @@ func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout 
 			return err
 		}
 	case releasedomain.StepFailed:
-		if err := o.postStep(ctx, rollout.ReleaseID, "start_deployment", releasedomain.StepFailed, 100, message); err != nil {
-			return err
-		}
 		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepFailed, 100, message); err != nil {
 			return err
 		}
@@ -257,9 +251,6 @@ func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout 
 			return err
 		}
 	default:
-		if err := o.postStep(ctx, rollout.ReleaseID, "start_deployment", releasedomain.StepRunning, progress, message); err != nil {
-			return err
-		}
 		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepRunning, progress, message); err != nil {
 			return err
 		}

@@ -1,6 +1,10 @@
 package observer
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
@@ -190,6 +194,117 @@ func TestProcessedKeysArePerReleaseAndState(t *testing.T) {
 	}
 	if observer.isProcessed(uuid.New().String(), "running|25") {
 		t.Fatal("same state key on a different release should not be duplicate")
+	}
+}
+
+func TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep(t *testing.T) {
+	releaseID := uuid.New()
+	tests := []struct {
+		name              string
+		phase             releasedomain.StepStatus
+		progress          int32
+		message           string
+		wantSteps         []string
+		wantStatuses      []releasedomain.StepStatus
+		wantProgresses    []int32
+		wantMessages      []string
+		forbiddenStepCode string
+	}{
+		{
+			name:              "running writes observe only",
+			phase:             releasedomain.StepRunning,
+			progress:          45,
+			message:           "deployment progressing",
+			wantSteps:         []string{"observe_rollout"},
+			wantStatuses:      []releasedomain.StepStatus{releasedomain.StepRunning},
+			wantProgresses:    []int32{45},
+			wantMessages:      []string{"deployment progressing"},
+			forbiddenStepCode: "start_deployment",
+		},
+		{
+			name:              "succeeded writes observe and finalize only",
+			phase:             releasedomain.StepSucceeded,
+			progress:          100,
+			message:           "deployment healthy",
+			wantSteps:         []string{"observe_rollout", "finalize_release"},
+			wantStatuses:      []releasedomain.StepStatus{releasedomain.StepSucceeded, releasedomain.StepSucceeded},
+			wantProgresses:    []int32{100, 100},
+			wantMessages:      []string{"deployment healthy", "release finalized after deployment became healthy"},
+			forbiddenStepCode: "start_deployment",
+		},
+		{
+			name:              "failed writes observe and finalize only",
+			phase:             releasedomain.StepFailed,
+			progress:          100,
+			message:           "deployment failed",
+			wantSteps:         []string{"observe_rollout", "finalize_release"},
+			wantStatuses:      []releasedomain.StepStatus{releasedomain.StepFailed, releasedomain.StepFailed},
+			wantProgresses:    []int32{100, 100},
+			wantMessages:      []string{"deployment failed", "release finalized after deployment failure"},
+			forbiddenStepCode: "start_deployment",
+		},
+	}
+
+	type stepPayload struct {
+		ReleaseID string `json:"release_id"`
+		StepCode  string `json:"step_code"`
+		Status    string `json:"status"`
+		Progress  int32  `json:"progress"`
+		Message   string `json:"message"`
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []stepPayload
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer r.Body.Close()
+				if r.Method != http.MethodPost {
+					t.Fatalf("method = %s", r.Method)
+				}
+				if r.URL.Path != "/api/v1/verify/release/steps" {
+					t.Fatalf("path = %s", r.URL.Path)
+				}
+				var payload stepPayload
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Fatalf("decode payload: %v", err)
+				}
+				got = append(got, payload)
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer server.Close()
+
+			observer := &ReleaseRolloutObserver{
+				httpClient:  server.Client(),
+				releaseBase: server.URL,
+			}
+			rollout := releaseRolloutContext{ReleaseID: releaseID}
+			if err := observer.writeReleaseSteps(context.Background(), rollout, tt.phase, tt.progress, tt.message); err != nil {
+				t.Fatalf("writeReleaseSteps failed: %v", err)
+			}
+			if len(got) != len(tt.wantSteps) {
+				t.Fatalf("posted steps = %d want %d (%#v)", len(got), len(tt.wantSteps), got)
+			}
+			for i := range tt.wantSteps {
+				if got[i].ReleaseID != releaseID.String() {
+					t.Fatalf("payload[%d].release_id = %q", i, got[i].ReleaseID)
+				}
+				if got[i].StepCode != tt.wantSteps[i] {
+					t.Fatalf("payload[%d].step_code = %q want %q", i, got[i].StepCode, tt.wantSteps[i])
+				}
+				if got[i].Status != string(tt.wantStatuses[i]) {
+					t.Fatalf("payload[%d].status = %q want %q", i, got[i].Status, tt.wantStatuses[i])
+				}
+				if got[i].Progress != tt.wantProgresses[i] {
+					t.Fatalf("payload[%d].progress = %d want %d", i, got[i].Progress, tt.wantProgresses[i])
+				}
+				if got[i].Message != tt.wantMessages[i] {
+					t.Fatalf("payload[%d].message = %q want %q", i, got[i].Message, tt.wantMessages[i])
+				}
+				if got[i].StepCode == tt.forbiddenStepCode {
+					t.Fatalf("payload[%d] unexpectedly wrote forbidden step %q", i, tt.forbiddenStepCode)
+				}
+			}
+		})
 	}
 }
 
