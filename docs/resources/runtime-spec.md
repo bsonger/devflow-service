@@ -14,6 +14,7 @@
 ## Purpose
 
 This runtime surface is primarily the application runtime inspection and operation API.
+Start with `docs/system/flow-overview.md` when you need the full release-lifecycle owner map, then use this document for the runtime-owned read/action surface that consumes release-owned metadata.
 Its core jobs are:
 
 - show the current workload overview for one `application + environment`
@@ -60,7 +61,13 @@ Current implementation note:
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - release rollout observation is also started by the active runtime startup path and consumes runtime observer state plus Kubernetes labels
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
-- release-generated workloads should carry labels such as `devflow.application/id` and `devflow.environment/id` so runtime-service can recover `application + environment` ownership from live Kubernetes resources
+- release-generated workloads should carry this stable release-owned label set so runtime-service can recover workload ownership and rollout correlation from live Kubernetes resources:
+  - `app.kubernetes.io/name`
+  - `devflow.io/release-id`
+  - `devflow.application/id`
+  - `devflow.environment/id`
+- annotations are supplementary only and must not be required for release, application, or environment identity recovery
+- runtime-service may send rollout callbacks into `release-service`, but it does not own release truth
 
 For the full storage boundary, see `docs/system/runtime-storage-model.md`.
 
@@ -329,6 +336,12 @@ Validation notes:
 - `application_id`, `environment`, `workload_kind`, and `workload_name` are required
 - namespace must match the runtime namespace derived by runtime-service
 - sync is idempotent for the same `application + environment + namespace + workload_kind + workload_name` target and updates the latest observed workload summary
+- labels should include the stable release-owned identity contract used by the observers:
+  - `app.kubernetes.io/name`
+  - `devflow.io/release-id`
+  - `devflow.application/id`
+  - `devflow.environment/id`
+- annotations are supplementary only; identity recovery and rollout correlation must continue to work from labels alone
 
 ### Delete workload summary
 
@@ -413,6 +426,7 @@ Read-model rule:
 
 - runtime overview and pod display should read from observer/index-backed runtime records
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
+- rollout callback senders may report progress from observed Kubernetes state, but `runtime-service` does not own release truth
 
 ## Public API note
 
@@ -453,6 +467,8 @@ Current runtime behavior should be read through the storage model in `docs/syste
 - in-process observers rebuild workload and pod index state from live cluster signals
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - release rollout observation is also started by the active runtime startup path and consumes runtime observer state plus Kubernetes labels
+- rollout observer startup follows `internal/runtime/config/config.go`: in-cluster config plus release writeback wiring enable the callback sender
+- those callbacks update release-owned steps such as `observe_rollout` and `finalize_release`
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 
 That internal observer detail should not dominate the external API contract if the main user value is:

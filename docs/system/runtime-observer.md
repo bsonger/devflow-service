@@ -4,11 +4,15 @@
 
 This document explains the active runtime read-model contract for workload and pod display.
 
+Start with `docs/system/flow-overview.md` when you need the full release-lifecycle ownership map.
+Use this document for the runtime-owned read model and for the runtime side of the release-to-runtime metadata seam.
+
 Use it to answer:
 
 - where runtime page data should come from
 - which parts call Kubernetes directly
 - what the active runtime read path is in pre-production
+- which release-owned metadata labels runtime-service consumes from Kubernetes objects
 
 ## Core rule
 
@@ -38,7 +42,31 @@ Important implementation note:
 
 - this read model is currently kept in-process inside `runtime-service`
 - it is rebuilt by observers after restart rather than being loaded from PostgreSQL at boot
-- the active recovery path depends on Kubernetes workloads carrying runtime-relevant labels such as `devflow.application/id` and `devflow.environment/id`
+- the active recovery path depends on release-owned Kubernetes labels, with this stable contract:
+  - `app.kubernetes.io/name`
+  - `devflow.io/release-id`
+  - `devflow.application/id`
+  - `devflow.environment/id`
+- annotations are supplementary only and must not be required to recover release, application, or environment identity from live cluster state
+
+## Runtime-consumable metadata contract
+
+The runtime observer path consumes release-owned workload metadata rather than runtime-local release truth.
+That contract is shared with `docs/system/flow-overview.md`, `docs/resources/release.md`, and `docs/services/runtime-service.md`.
+
+Stable required labels:
+
+- `app.kubernetes.io/name` — stable workload/application name and deployment-name fallback
+- `devflow.io/release-id` — canonical release identity for rollout callback correlation
+- `devflow.application/id` — canonical application identity for runtime ownership reconstruction
+- `devflow.environment/id` — canonical environment identity for shared-cluster ownership reconstruction
+
+Rules:
+
+- labels above are the authoritative runtime-consumable identity surface
+- annotations are supplementary only; they may carry trace or restart context but must not be required for identity recovery
+- `runtime-service` may send rollout callbacks into `release-service`, but it does not own release truth
+- `release-service` remains the owner of release state, release steps, and terminal rollout persistence
 
 ## Public runtime read surface
 
@@ -77,6 +105,8 @@ Authentication note:
 - the default runtime HTTP path is memory-backed and rebuilt by observer sync
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - release rollout observation is also started by the active runtime startup path and consumes the in-memory runtime observer state plus Kubernetes labels
+- the observer startup path in `internal/runtime/config/config.go` starts rollout callbacks only when in-cluster config and release writeback wiring are available
+- those rollout callbacks currently update release-owned steps such as `observe_rollout` and `finalize_release`
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 
 For the storage boundary, see `docs/system/runtime-storage-model.md`.
@@ -93,8 +123,9 @@ When a user opens the runtime page, think:
 When runtime-service restarts, think:
 
 1. observers rescan live Kubernetes resources
-2. runtime-service reconstructs `application + environment` ownership from workload labels
-3. workload and pod state is repopulated into the in-process runtime index
+2. runtime-service reconstructs `application + environment` ownership from release-owned workload labels
+3. rollout observation can re-derive release correlation from `devflow.io/release-id` plus the same observed workload metadata
+4. workload and pod state is repopulated into the in-process runtime index
 
 ## Source pointers
 

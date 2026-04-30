@@ -12,6 +12,9 @@ Use this file when you only need:
 
 ## Runtime page load
 
+Use `docs/system/flow-overview.md` as the stage-routing starting point when rollout ownership is unclear.
+For the runtime page itself, treat these reads as the runtime-owned surface consuming release-owned labels from the observed cluster state.
+
 Always provide:
 
 - `application_id`
@@ -40,6 +43,11 @@ Use for:
 - replica counts
 - current image summary
 - restart timestamp
+- release-aware runtime identity recovered from stable workload labels:
+  - `app.kubernetes.io/name`
+  - `devflow.io/release-id`
+  - `devflow.application/id`
+  - `devflow.environment/id`
 
 ### `GET /api/v1/runtime/pods`
 
@@ -101,11 +109,15 @@ After restart or delete succeeds:
 4. update UI only from those read responses
 
 Do not do an ad-hoc direct Kubernetes read from the frontend.
+Do not require annotations to recover release/application/environment identity; annotations are supplementary only.
 
 ## Page contract summary
 
 - read path = runtime owned observer/index state
 - write path = runtime-service calling Kubernetes
+- release truth stays owned by `release-service`
+- runtime-service may send rollout callbacks after observing cluster state, but does not own release truth
+- annotations are supplementary only; stable identity comes from labels
 
 ## Source pointers
 
