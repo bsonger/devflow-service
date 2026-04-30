@@ -1168,3 +1168,72 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeplo
 		t.Fatalf("release status = %q want %q while release-owned handoff step is still pending", release.Status, model.ReleaseRunning)
 	}
 }
+
+func TestReleaseStatusConvergenceRollingObserverOwnedStepsRemainRunningUntilStartDeploymentConverges(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Running',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	completedBeforeObserver := []struct {
+		code    string
+		message string
+	}{
+		{"freeze_inputs", "release inputs frozen"},
+		{"ensure_namespace", "namespace ready"},
+		{"ensure_pull_secret", "pull secret ready"},
+		{"ensure_appproject_destination", "appproject destination ready"},
+		{"render_deployment_bundle", "bundle rendered"},
+		{"publish_bundle", "bundle published"},
+		{"create_argocd_application", "application created"},
+	}
+	for _, step := range completedBeforeObserver {
+		if err := svc.UpdateStep(context.Background(), releaseID, step.code, model.StepSucceeded, 100, step.message, nil, nil); err != nil {
+			t.Fatalf("%s succeeded failed: %v", step.code, err)
+		}
+	}
+	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepRunning, 55, "deployment progressing", nil, nil); err != nil {
+		t.Fatalf("observe_rollout running failed: %v", err)
+	}
+	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepSucceeded, 100, "deployment healthy", nil, nil); err != nil {
+		t.Fatalf("observe_rollout succeeded failed: %v", err)
+	}
+	if err := svc.UpdateStep(context.Background(), releaseID, "finalize_release", model.StepSucceeded, 100, "release finalized after deployment became healthy", nil, nil); err != nil {
+		t.Fatalf("finalize_release succeeded failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.Status != model.ReleaseRunning {
+		t.Fatalf("release status = %q want %q while start_deployment is still pending", release.Status, model.ReleaseRunning)
+	}
+	for _, step := range release.Steps {
+		switch step.Code {
+		case "start_deployment":
+			if step.Status != model.StepPending {
+				t.Fatalf("start_deployment status = %q want %q", step.Status, model.StepPending)
+			}
+		case "observe_rollout":
+			if step.Status != model.StepSucceeded || step.Message != "deployment healthy" {
+				t.Fatalf("observe_rollout = %+v", step)
+			}
+		case "finalize_release":
+			if step.Status != model.StepSucceeded || step.Message != "release finalized after deployment became healthy" {
+				t.Fatalf("finalize_release = %+v", step)
+			}
+		}
+	}
+}

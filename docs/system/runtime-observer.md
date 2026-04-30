@@ -141,13 +141,15 @@ When runtime-service restarts, think:
 2. runtime-service reconstructs `application + environment` ownership from release-owned workload labels
 3. rollout observation can re-derive release correlation from `devflow.io/release-id` plus the same observed workload metadata
 4. workload and pod state is repopulated into the in-process runtime index
+5. accepted runtime actions may still show pending convergence until observer state advances from missing/running rollout observation into terminal `observe_rollout` / `finalize_release` writeback
 
 When lookup fails, think:
 
 1. check whether observer-owned runtime identity exists for the requested `application + environment`
 2. check whether namespace resolution failed before the read/action could target Kubernetes truthfully
 3. check whether workload labels drifted or multiple release-owned Deployments still match
-4. do not bypass the observer/index contract with ad-hoc direct Kubernetes reads in product code
+4. for accepted runtime actions that never converge, check whether rollout observation is still missing (`waiting for deployment ...`) versus merely running (`deployment progressing ...`) before blaming release writeback or status normalization
+5. do not bypass the observer/index contract with ad-hoc direct Kubernetes reads in product code
 
 ## Source pointers
 

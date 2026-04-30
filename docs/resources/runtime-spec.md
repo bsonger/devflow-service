@@ -157,6 +157,7 @@ Current implementation note:
 
 - the runtime action is implemented as a Deployment restart
 - in product language, this can be described as triggering a rollout or restart for the application workload
+- a successful runtime action response acknowledges Kubernetes mutation acceptance plus persisted runtime operation metadata; it does not claim that rollout observation or release convergence has already completed
 
 ## Question routing
 
@@ -447,6 +448,7 @@ Read-model rule:
 - direct Kubernetes calls are reserved for explicit operations such as delete pod and restart workload
 - rollout callback senders may report progress from observed Kubernetes state, but `runtime-service` does not own release truth
 - clients should rely on the failure class to diagnose missing observer state versus lookup ambiguity; they should not retry reads or actions by bypassing the runtime observer contract
+- if a runtime action acknowledgement stays pending, localize the failure by layer: targeting failures stop before mutation, observer gaps leave rollout progress missing or stuck in running, and release-service convergence must be checked through `observe_rollout` / `finalize_release` rather than inferred from the action response alone
 
 ## Public API note
 

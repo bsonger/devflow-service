@@ -91,6 +91,7 @@ Current implementation note:
 - treat this route as part of the release-owned callback surface after stage 6 Argo handoff; callers may include Argo-facing senders and runtime-side observers, but `release-service` remains the owner of normalized release status persistence
 - docs should describe this as an active observer callback path, not as a PostgreSQL-backed runtime store path
 - for rolling releases, Argo-side step updates from this route normalize only onto callback-owned rollout confirmation steps such as `observe_rollout`; they must not reopen or advance release-owned handoff steps such as `start_deployment`
+- a `running` callback means the rollout observer or Argo sender has accepted and reported progress, not that the full release graph has converged; release status stays `Running` until the remaining canonical release-owned steps also converge
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -137,6 +138,7 @@ Preferred step targeting rule:
 - `step_name` remains migration-only compatibility input and should not be used for new callback integrations
 - for rolling releases, callback senders should target `observe_rollout` and `finalize_release` only; `start_deployment` stays release-service-owned
 - if callback payload omits `message`, release-service should synthesize a default operator-facing message from `step_code`, `status`, and `progress`
+- when convergence stalls, inspect the callback layer in this order: missing `release_id` or token rejection at the writeback route, unexpected `step_code` normalization, then release-service step/status convergence state
 
 ### `POST /api/v1/verify/release/artifact`
 

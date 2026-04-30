@@ -369,6 +369,54 @@ func TestHandleReleaseStepGeneratesDefaultMessageWhenMissing(t *testing.T) {
 	}
 }
 
+func TestHandleReleaseStepClampsAndNormalizesCallbackOwnedRunningUpdate(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	var gotStepName string
+	var gotStatus model.StepStatus
+	var gotProgress int32
+	var gotMessage string
+	handler := &ReleaseWritebackHandler{svc: stubReleaseWritebackService{
+		updateStepFn: func(_ context.Context, got uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, _, _ *time.Time) error {
+			if got != releaseID {
+				t.Fatalf("unexpected release id: %s", got)
+			}
+			gotStepName = stepName
+			gotStatus = status
+			gotProgress = progress
+			gotMessage = message
+			return nil
+		},
+	}}
+	r := gin.New()
+	r.POST("/api/v1/verify/release/steps", handler.HandleReleaseStep)
+
+	body := bytes.NewBufferString(`{"release_id":"` + releaseID.String() + `","step_code":"observe_rollout","status":"running","progress":145}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/verify/release/steps", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if gotStepName != "observe_rollout" {
+		t.Fatalf("stepName = %q", gotStepName)
+	}
+	if gotStatus != model.StepRunning {
+		t.Fatalf("status = %q", gotStatus)
+	}
+	if gotProgress != 145 {
+		t.Fatalf("progress = %d want passthrough request value for service-side clamping", gotProgress)
+	}
+	if gotMessage != "observe rollout running (145%)" {
+		t.Fatalf("message = %q", gotMessage)
+	}
+	if gotStepName == "start_deployment" {
+		t.Fatal("callback-owned writeback must not target release-owned start_deployment")
+	}
+}
+
 func TestHandleReleaseStepNormalizesLegacyStepNameMessageWhenMissing(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	releaseID := uuid.New()

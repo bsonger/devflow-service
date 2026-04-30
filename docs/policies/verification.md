@@ -75,5 +75,11 @@ go test ./internal/release/service ./internal/runtime/observer ./internal/releas
   - `internal/runtime/observer` proves runtime release-label consumption plus callback-owned `observe_rollout` / `finalize_release` emission
   - `internal/release/transport/http` proves Argo/writeback callback normalization at the release HTTP boundary
   - `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun once the named proof seams pass
+- when convergence stalls after a runtime action acknowledgement, inspect signals in this order:
+  1. runtime action response and persisted `RuntimeOperation` metadata prove whether the Kubernetes mutation was accepted at all
+  2. `internal/runtime/observer/release_rollout_test.go` maps observer-side missing-vs-running-vs-terminal rollout state and the state-key de-duplication used to emit follow-up callbacks
+  3. `internal/release/transport/http/release_writeback_test.go` proves writeback ingress normalization, token enforcement, and callback-owned step targeting
+  4. `internal/release/service/release_test.go` proves final release status remains `Running` until the full canonical step graph converges, even when `observe_rollout` / `finalize_release` already succeeded
+- load and apply the `verify-before-complete` skill before claiming this seam contract is complete in future follow-up tasks
 - `scripts/check-docker-policy.sh` enforces Docker policy
 - `scripts/README.md` explains script behavior and side effects

@@ -226,6 +226,8 @@ Then it should:
 - `DELETE /api/v1/runtime/pods/{pod_name}`
 - `POST /api/v1/runtime/rollouts`
 
+Successful action responses on the mutation routes acknowledge that Kubernetes accepted the requested delete/restart and that runtime-service persisted an operation record. They intentionally do **not** claim rollout observation or release convergence has already succeeded.
+
 Action failure mapping at this boundary is intentional:
 
 - `404 not_found` means the requested `application + environment` has no observer-backed runtime identity yet, or Kubernetes could not find a resource after a valid target was already resolved

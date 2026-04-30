@@ -166,12 +166,68 @@ func TestDeriveReleaseRolloutStateRunning(t *testing.T) {
 			},
 		},
 	}
-	status, _, progress, _ := deriveReleaseRolloutState("demo-ns", "demo-api", deployment)
+	status, message, progress, stateKey := deriveReleaseRolloutState("demo-ns", "demo-api", deployment)
 	if status != releasedomain.StepRunning {
 		t.Fatalf("status = %q", status)
 	}
 	if progress <= 0 || progress >= 100 {
 		t.Fatalf("progress = %d", progress)
+	}
+	if !strings.Contains(message, "deployment progressing") {
+		t.Fatalf("message = %q", message)
+	}
+	if !strings.HasPrefix(stateKey, "running|") {
+		t.Fatalf("stateKey = %q", stateKey)
+	}
+}
+
+func TestDeriveReleaseRolloutStateTransitionProducesDistinctRunningAndTerminalStateKeys(t *testing.T) {
+	running := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo-api", Generation: 3},
+		Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(3)},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration:  2,
+			UpdatedReplicas:     2,
+			ReadyReplicas:       1,
+			AvailableReplicas:   1,
+			UnavailableReplicas: 2,
+			Conditions: []appsv1.DeploymentCondition{
+				{Type: appsv1.DeploymentProgressing, Status: "True", Reason: "ReplicaSetUpdated"},
+			},
+		},
+	}
+	succeeded := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo-api", Generation: 3},
+		Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(3)},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration:  3,
+			UpdatedReplicas:     3,
+			ReadyReplicas:       3,
+			AvailableReplicas:   3,
+			UnavailableReplicas: 0,
+		},
+	}
+
+	runningStatus, runningMessage, runningProgress, runningStateKey := deriveReleaseRolloutState("demo-ns", "demo-api", running)
+	succeededStatus, succeededMessage, succeededProgress, succeededStateKey := deriveReleaseRolloutState("demo-ns", "demo-api", succeeded)
+
+	if runningStatus != releasedomain.StepRunning {
+		t.Fatalf("running status = %q", runningStatus)
+	}
+	if succeededStatus != releasedomain.StepSucceeded {
+		t.Fatalf("succeeded status = %q", succeededStatus)
+	}
+	if runningProgress >= succeededProgress {
+		t.Fatalf("running progress = %d, succeeded progress = %d", runningProgress, succeededProgress)
+	}
+	if runningStateKey == succeededStateKey {
+		t.Fatalf("expected distinct state keys for running and terminal states, got %q", runningStateKey)
+	}
+	if !strings.Contains(runningMessage, "deployment progressing") {
+		t.Fatalf("running message = %q", runningMessage)
+	}
+	if !strings.Contains(succeededMessage, "deployment healthy") {
+		t.Fatalf("succeeded message = %q", succeededMessage)
 	}
 }
 
