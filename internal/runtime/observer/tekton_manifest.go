@@ -90,6 +90,8 @@ func (o *TektonManifestObserver) run(ctx context.Context) {
 	}
 }
 
+// sync polls build-side Tekton resources and forwards only manifest writeback updates to release-service.
+// It does not report release rollout progress; deploy-phase diagnostics continue through release rows, bundle preview, and Argo-facing execution.
 func (o *TektonManifestObserver) sync(ctx context.Context) {
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
@@ -120,6 +122,8 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 	}
 }
 
+// syncPipelineRun translates one Tekton build pipeline run into manifest writeback callbacks.
+// The observer's responsibility ends at build status/task/image-result synchronization; release bundle publication is a later release-service concern.
 func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.PipelineRun) error {
 	manifestID := strings.TrimSpace(pr.Labels[manifestIDLabel])
 	if manifestID == "" {

@@ -133,6 +133,8 @@ func selectReleaseRoutes(items []servicedownstream.Route, environmentId string) 
 	return out
 }
 
+// freezeReleaseLiveInputs snapshots deploy-time config and route inputs onto the release row.
+// Unlike manifest snapshots, these inputs are environment-aware and exist only to produce the deployable release bundle.
 func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error {
 	if release == nil {
 		return nil
@@ -181,6 +183,8 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	return nil
 }
 
+// Create validates that the build-side manifest is deployable, freezes release-only live inputs, and then starts deploy execution.
+// This is the explicit handoff point from manifest build observation into release-owned bundle render/publication and Argo delivery.
 func (s *releaseService) Create(ctx context.Context, release *model.Release) (uuid.UUID, error) {
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
@@ -533,6 +537,8 @@ func (s *releaseService) updateStatusFromSteps(ctx context.Context, releaseID uu
 	return s.updateStatus(ctx, releaseID, nextStatus)
 }
 
+// executeReleasePhases runs the deploy-side pipeline after manifest build handoff has completed.
+// From this point on, step messages, bundle preview/publication, and Argo application sync are the authoritative diagnostics surfaces.
 func (s *releaseService) executeReleasePhases(ctx context.Context, release *model.Release) error {
 	log := logger.LoggerWithContext(ctx)
 	annotateReleaseSpan(ctx, release)
@@ -664,6 +670,8 @@ func inferReleaseType(release *model.Release) model.ReleaseType {
 	return model.Normal
 }
 
+// renderDeploymentBundle materializes the release-owned deployable payload and persists it for preview/publication.
+// This is intentionally distinct from manifest resource inspection, which never includes release-only config or routing inputs.
 func (s *releaseService) renderDeploymentBundle(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
 	if err := s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepRunning, 25, "rendering deployment bundle", nil, nil); err != nil {
 		return err
@@ -686,6 +694,8 @@ func (s *releaseService) renderDeploymentBundle(ctx context.Context, release *mo
 	return s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepSucceeded, 100, message, nil, nil)
 }
 
+// publishDeploymentBundle publishes the persisted release bundle artifact for downstream deploy consumers.
+// It reads the release bundle store rather than reusing manifest inspection resources so deploy diagnostics stay anchored to release-owned output.
 func (s *releaseService) publishDeploymentBundle(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
 	runtimeCfg := releasesupport.CurrentRuntimeConfig()
 	if err := s.UpdateStep(ctx, release.ID, "publish_bundle", model.StepRunning, 25, publishBundleStartMessage(runtimeCfg), nil, nil); err != nil {

@@ -63,6 +63,8 @@ func NewManifestService() *manifestService {
 	}
 }
 
+// CreateManifest freezes build-time inputs, dispatches the Tekton image build, and persists the manifest as the build-owned handoff artifact.
+// Release creation starts later from the persisted manifest once runtime writeback marks the build output available.
 func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
 	req.GitRevision = normalizeGitRevision(req.GitRevision)
 
@@ -128,6 +130,8 @@ func normalizeGitRevision(value string) string {
 	return trimmed
 }
 
+// submitManifestBuild starts the build-side Tekton pipeline and records only build-observation identifiers back onto the manifest row.
+// It does not render or publish the deployable release bundle; that handoff begins later in release-service.
 func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest, imageRegistry string, target oci.ImageTarget) error {
 	if manifest == nil {
 		return sharederrs.Required("manifest")
@@ -240,6 +244,8 @@ func (s *manifestService) GetByPipelineID(ctx context.Context, pipelineID string
 	return s.repoStore().GetByPipelineID(ctx, pipelineID)
 }
 
+// GetResources returns the manifest-owned inspection view for a previously frozen build artifact.
+// Callers should use release bundle preview/publication to inspect deployable output; this view intentionally stops at build-side rendering.
 func (s *manifestService) GetResources(ctx context.Context, id uuid.UUID) (*manifestdomain.ManifestResourcesView, error) {
 	item, err := s.Get(ctx, id)
 	if err != nil {
@@ -282,6 +288,8 @@ func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifest
 	return s.repoStore().UpdateStatusAndSteps(ctx, current.ID, current.Status, current.Steps, current.PipelineID)
 }
 
+// UpdateStepStatus persists build-task observations coming back from Tekton writeback.
+// Release step diagnostics are tracked separately on release rows and are never derived from manifest task updates.
 func (s *manifestService) UpdateStepStatus(ctx context.Context, pipelineID, taskName string, status model.StepStatus, message string, start, end *time.Time) error {
 	manifest, err := s.GetByPipelineID(ctx, pipelineID)
 	if err != nil {
@@ -348,6 +356,8 @@ func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID s
 	return s.repoStore().UpdateStatusAndSteps(ctx, manifest.ID, manifest.Status, manifest.Steps, manifest.PipelineID)
 }
 
+// UpdateBuildResult stores the build output that release creation later consumes as its deployable image input.
+// It still remains a build-side writeback path; deploy-side bundle rendering/publication happens only after a release is created.
 func (s *manifestService) UpdateBuildResult(ctx context.Context, pipelineID, commitHash, imageRef, imageTag, imageDigest string) error {
 	manifest, err := s.GetByPipelineID(ctx, pipelineID)
 	if err != nil {

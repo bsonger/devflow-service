@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
@@ -8,12 +9,12 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestBuildManifestResourcesViewDerivesResourcesFromSnapshots(t *testing.T) {
-	manifestID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-	appID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+func TestBuildManifestResourcesViewRemainsInspectionOnly(t *testing.T) {
+	applicationID := uuid.New()
+	manifestID := uuid.New()
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: manifestID},
-		ApplicationID: appID,
+		ApplicationID: applicationID,
 		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
 		ServicesSnapshot: []manifestdomain.ManifestService{{
 			Name: "demo-api",
@@ -25,28 +26,55 @@ func TestBuildManifestResourcesViewDerivesResourcesFromSnapshots(t *testing.T) {
 			}},
 		}},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Replicas: 2,
-			Env:      []model.EnvVar{{Name: "APP_ENV", Value: "prod"}},
+			Replicas:           2,
+			ServiceAccountName: "demo-api",
+			Resources: map[string]any{
+				"limits": map[string]any{"cpu": "500m"},
+			},
+			Env:         []model.EnvVar{{Name: "APP_ENV", Value: "prod"}},
+			Annotations: map[string]string{"devflow.io/build-snapshot": "true"},
 		},
 	}
 
-	got, err := buildManifestResourcesView(manifest)
+	view, err := buildManifestResourcesView(manifest)
 	if err != nil {
-		t.Fatalf("buildManifestResourcesView() error = %v", err)
+		t.Fatalf("buildManifestResourcesView failed: %v", err)
 	}
-	if got.ManifestID != manifestID {
-		t.Fatalf("ManifestID = %s want %s", got.ManifestID, manifestID)
+	if view == nil {
+		t.Fatal("expected manifest resources view")
 	}
-	if got.Resources.ConfigMap != nil || got.Resources.VirtualService != nil || got.Resources.Rollout != nil {
-		t.Fatalf("expected only derived service/deployment resources, got %+v", got.Resources)
+	if view.ManifestID != manifestID {
+		t.Fatalf("manifest view id = %s want %s", view.ManifestID, manifestID)
 	}
-	if got.Resources.Deployment == nil || got.Resources.Deployment.Kind != "Deployment" {
-		t.Fatalf("expected deployment resource, got %#v", got.Resources.Deployment)
+	if view.ApplicationID != applicationID {
+		t.Fatalf("manifest view application id = %s want %s", view.ApplicationID, applicationID)
 	}
-	if len(got.Resources.Services) != 1 || got.Resources.Services[0].Name != "demo-api" {
-		t.Fatalf("expected one service resource, got %#v", got.Resources.Services)
+	if view.Resources.ConfigMap != nil {
+		t.Fatalf("manifest view should not render release configmap: %#v", view.Resources.ConfigMap)
 	}
-	if got.Resources.Deployment.Object["kind"] != "Deployment" {
-		t.Fatalf("expected decoded deployment object, got %#v", got.Resources.Deployment.Object)
+	if view.Resources.VirtualService != nil {
+		t.Fatalf("manifest view should not render release virtualservice: %#v", view.Resources.VirtualService)
+	}
+	if view.Resources.Rollout != nil {
+		t.Fatalf("manifest view should not render release rollout: %#v", view.Resources.Rollout)
+	}
+	if view.Resources.Deployment == nil {
+		t.Fatal("manifest view missing deployment")
+	}
+	if len(view.Resources.Services) != 1 {
+		t.Fatalf("manifest services = %d want 1", len(view.Resources.Services))
+	}
+	if !strings.Contains(view.Resources.Deployment.YAML, "kind: Deployment") {
+		t.Fatalf("manifest deployment yaml missing deployment kind: %s", view.Resources.Deployment.YAML)
+	}
+	podSpec, ok := view.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	if !ok {
+		t.Fatalf("manifest deployment pod spec missing: %#v", view.Resources.Deployment.Object)
+	}
+	if _, ok := podSpec["volumes"]; ok {
+		t.Fatalf("manifest view should not include release config volumes: %#v", podSpec["volumes"])
+	}
+	if got := podSpec["serviceAccountName"]; got != "demo-api" {
+		t.Fatalf("manifest serviceAccountName = %#v", got)
 	}
 }

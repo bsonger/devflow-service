@@ -11,6 +11,8 @@ import (
 
 var ErrManifestImageNotDeployable = sharederrs.FailedPrecondition("image has neither digest nor tag")
 
+// resolveWorkloadImageRef resolves the workload image reference used by both the manifest inspection view and the release deployable bundle.
+// The shared image ref does not mean the rendered outputs are interchangeable: manifest resources stay inspection-only while release bundles add deploy-time state.
 func resolveWorkloadImageRef(repository, tag, digest string) (string, map[string]string, error) {
 	annotations := map[string]string{}
 	if digest != "" {

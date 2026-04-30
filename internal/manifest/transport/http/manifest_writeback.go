@@ -85,6 +85,8 @@ func RequireManifestObserverToken(expected string) gin.HandlerFunc {
 	}
 }
 
+// RegisterManifestWritebackRoutes wires the build-side Tekton writeback ingress.
+// These endpoints update manifest build status, task progress, and image result only; release-phase diagnostics live on release-service step updates and bundle surfaces.
 func RegisterManifestWritebackRoutes(rg *gin.RouterGroup) {
 	handler := NewManifestWritebackHandler()
 	group := rg.Group("/manifests/tekton", RequireManifestObserverToken(ManifestObserverSharedToken))
@@ -107,6 +109,8 @@ func resolveManifestPipelineID(ctx *gin.Context, svc manifestWritebackService, m
 	return manifest.PipelineID, nil
 }
 
+// HandleTektonStatus accepts aggregate build-state callbacks from the runtime Tekton observer.
+// It intentionally updates only the persisted manifest status and never synthesizes release deployment state.
 func (h *ManifestWritebackHandler) HandleTektonStatus(c *gin.Context) {
 	var req ManifestTektonStatusRequest
 	if !httpx.BindJSON(c, &req) {
@@ -129,6 +133,8 @@ func (h *ManifestWritebackHandler) HandleTektonStatus(c *gin.Context) {
 	httpx.WriteNoContent(c)
 }
 
+// HandleTektonTask accepts per-task build progress callbacks from the runtime Tekton observer.
+// The stored task state is build-only observability and remains separate from release step execution messages.
 func (h *ManifestWritebackHandler) HandleTektonTask(c *gin.Context) {
 	var req ManifestTektonTaskRequest
 	if !httpx.BindJSON(c, &req) {
@@ -156,6 +162,8 @@ func (h *ManifestWritebackHandler) HandleTektonTask(c *gin.Context) {
 	httpx.WriteNoContent(c)
 }
 
+// HandleTektonResult accepts final build output metadata from the runtime Tekton observer.
+// The recorded image result becomes release input later, but this route does not render or publish any deploy-side bundle state itself.
 func (h *ManifestWritebackHandler) HandleTektonResult(c *gin.Context) {
 	var req ManifestTektonResultRequest
 	if !httpx.BindJSON(c, &req) {
