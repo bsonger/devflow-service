@@ -8,8 +8,13 @@ import (
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 )
 
+// ManifestRegistryConfigFromConfig resolves the historical `manifest_registry` config block
+// into the OCI publication target used by release deployment bundle publication.
+//
+// The external config key keeps its legacy name for compatibility, but this runtime path
+// now feeds deploy-side bundle publication rather than build-side Manifest persistence.
 func ManifestRegistryConfigFromConfig(source *model.ManifestRegistryRuntimeConfig, image *model.ImageRegistryRuntimeConfig) (manifestdomain.ManifestRegistryConfig, bool, error) {
-	cfg := manifestdomain.ManifestRegistryConfig{
+	bundleRegistryCfg := manifestdomain.ManifestRegistryConfig{
 		Registry:   firstNonEmpty(stringValue(source, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Registry }), stringValue(image, func(v *model.ImageRegistryRuntimeConfig) string { return v.Registry })),
 		Namespace:  firstNonEmpty(stringValue(source, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Namespace }), stringValue(image, func(v *model.ImageRegistryRuntimeConfig) string { return v.Namespace })),
 		Repository: stringValue(source, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Repository }),
@@ -17,19 +22,19 @@ func ManifestRegistryConfigFromConfig(source *model.ManifestRegistryRuntimeConfi
 		Password:   firstNonEmpty(stringValue(source, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Password }), stringValue(image, func(v *model.ImageRegistryRuntimeConfig) string { return v.Password })),
 		PlainHTTP:  boolValue(source, func(v *model.ManifestRegistryRuntimeConfig) bool { return v.PlainHTTP }),
 	}
-	if cfg.Repository == "" {
-		cfg.Repository = "manifests"
+	if bundleRegistryCfg.Repository == "" {
+		bundleRegistryCfg.Repository = "manifests"
 	}
-	if cfg.Registry == "" && cfg.Namespace == "" {
+	if bundleRegistryCfg.Registry == "" && bundleRegistryCfg.Namespace == "" {
 		return manifestdomain.ManifestRegistryConfig{}, false, nil
 	}
-	if cfg.Registry == "" {
+	if bundleRegistryCfg.Registry == "" {
 		return manifestdomain.ManifestRegistryConfig{}, false, fmt.Errorf("manifest registry config missing registry")
 	}
-	if cfg.Namespace == "" {
+	if bundleRegistryCfg.Namespace == "" {
 		return manifestdomain.ManifestRegistryConfig{}, false, fmt.Errorf("manifest registry config missing namespace")
 	}
-	return cfg, true, nil
+	return bundleRegistryCfg, true, nil
 }
 
 func firstNonEmpty(values ...string) string {

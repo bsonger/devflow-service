@@ -41,6 +41,8 @@ type Config struct {
 	Worker           *model.WorkerConfig                  `mapstructure:"worker" json:"worker" yaml:"worker"`
 	Downstream       *model.DownstreamConfig              `mapstructure:"downstream" json:"downstream" yaml:"downstream"`
 	ImageRegistry    *model.ImageRegistryRuntimeConfig    `mapstructure:"image_registry" json:"image_registry" yaml:"image_registry"`
+	// ManifestRegistry keeps the historical external config key used for release deployment bundle publication.
+	// The runtime wiring still reads `manifest_registry` for compatibility even though the active behavior is deploy-side bundle publication.
 	ManifestRegistry *model.ManifestRegistryRuntimeConfig `mapstructure:"manifest_registry" json:"manifest_registry" yaml:"manifest_registry"`
 	Consul           *model.Consul                        `mapstructure:"consul" json:"consul" yaml:"consul"`
 	Pyroscope        string                               `mapstructure:"pyroscope" json:"pyroscope" yaml:"pyroscope"`
@@ -123,7 +125,9 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		runtimeCancel()
 		return shutdown, err
 	}
-	manifestRegistryCfg, manifestRegistryEnabled, err := runtime.ManifestRegistryConfigFromConfig(config.ManifestRegistry, config.ImageRegistry)
+	// The external `manifest_registry` block is historical naming; at runtime it resolves
+	// the OCI target and mode for release deployment bundle publication.
+	bundlePublicationRegistryCfg, bundlePublicationEnabled, err := runtime.ManifestRegistryConfigFromConfig(config.ManifestRegistry, config.ImageRegistry)
 	if err != nil {
 		runtimeCancel()
 		return shutdown, err
@@ -133,8 +137,8 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	manifesthttp.ManifestObserverSharedToken = observerToken
 	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{
 		ImageRegistry:           imageRegistryCfg,
-		ManifestRegistry:        manifestRegistryCfg,
-		ManifestRegistryEnabled: manifestRegistryEnabled,
+		ManifestRegistry:        bundlePublicationRegistryCfg,
+		ManifestRegistryEnabled: bundlePublicationEnabled,
 		ManifestPublisherMode:   stringValue(config.ManifestRegistry, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Mode }),
 		Downstream: model.DownstreamConfig{
 			PlatformOrchestratorBaseURL: stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.PlatformOrchestratorBaseURL }),

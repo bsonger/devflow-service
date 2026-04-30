@@ -9,11 +9,17 @@ import (
 )
 
 type RuntimeConfig struct {
-	ImageRegistry           oci.ImageRegistryConfig
-	ManifestRegistry        manifestdomain.ManifestRegistryConfig
+	ImageRegistry oci.ImageRegistryConfig
+	// ManifestRegistry retains the historical field name because the external config and
+	// downstream release/runtime code still speak in `manifest_registry` terms. In current
+	// behavior, these values point at release deployment bundle publication, not build-side manifests.
+	ManifestRegistry manifestdomain.ManifestRegistryConfig
+	// ManifestRegistryEnabled gates whether release bundle publication should run at all.
 	ManifestRegistryEnabled bool
-	ManifestPublisherMode   string
-	Downstream              model.DownstreamConfig
+	// ManifestPublisherMode selects how release bundle publication is performed while keeping
+	// the historical `manifest_registry.mode` config key stable.
+	ManifestPublisherMode string
+	Downstream            model.DownstreamConfig
 }
 
 var (
