@@ -12,6 +12,7 @@ import (
 )
 
 func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t *testing.T) {
+	releaseID := uuid.New()
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
 		ApplicationID: uuid.New(),
@@ -27,6 +28,14 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
 			Replicas:           2,
 			ServiceAccountName: "demo-api",
+			Labels: map[string]string{
+				"team":                      "payments",
+				model.ReleaseIDLabel:         "user-overridden-release",
+				model.ReleaseApplicationLabel: "user-overridden-app",
+			},
+			Annotations: map[string]string{
+				"example.com/trace": "enabled",
+			},
 			Resources: map[string]any{
 				"limits": map[string]any{"cpu": "500m"},
 			},
@@ -34,7 +43,7 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		},
 	}
 	release := &model.Release{
-		BaseModel:     model.BaseModel{ID: uuid.New()},
+		BaseModel:     model.BaseModel{ID: releaseID},
 		ApplicationID: manifest.ApplicationID,
 		EnvironmentID: "production",
 		AppConfigSnapshot: model.ReleaseAppConfig{
@@ -63,9 +72,36 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if !strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "kind: ServiceAccount") {
 		t.Fatalf("bundle.yaml missing serviceaccount: %s", bundle.Files[len(bundle.Files)-1].Content)
 	}
-	containerSpec, ok := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)
+	deploymentSpec := bundle.Resources.Deployment.Object["spec"].(map[string]any)
+	template := deploymentSpec["template"].(map[string]any)
+	templateMeta := template["metadata"].(map[string]any)
+	templateLabels := templateMeta["labels"].(map[string]any)
+	templateAnnotations := templateMeta["annotations"].(map[string]any)
+	metadata := bundle.Resources.Deployment.Object["metadata"].(map[string]any)
+	workloadLabels := metadata["labels"].(map[string]any)
+	containerSpec, ok := template["spec"].(map[string]any)["containers"].([]map[string]any)
 	if !ok || len(containerSpec) == 0 {
 		t.Fatalf("deployment containers missing: %#v", bundle.Resources.Deployment.Object)
+	}
+	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
+		if got := labels[model.ReleaseIDLabel]; got != releaseID.String() {
+			t.Fatalf("release-id label = %#v", got)
+		}
+		if got := labels[model.ReleaseApplicationLabel]; got != manifest.ApplicationID.String() {
+			t.Fatalf("application label = %#v", got)
+		}
+		if got := labels[model.ReleaseEnvironmentLabel]; got != "production" {
+			t.Fatalf("environment label = %#v", got)
+		}
+		if got := labels["app.kubernetes.io/name"]; got != "demo-api" {
+			t.Fatalf("app label = %#v", got)
+		}
+		if got := labels["team"]; got != "payments" {
+			t.Fatalf("custom team label = %#v", got)
+		}
+	}
+	if got := templateAnnotations["example.com/trace"]; got != "enabled" {
+		t.Fatalf("template annotation = %#v", got)
 	}
 	if got := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["serviceAccountName"]; got != "demo-api" {
 		t.Fatalf("serviceAccountName = %#v", got)

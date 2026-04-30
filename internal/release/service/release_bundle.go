@@ -255,15 +255,20 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	if len(manifest.ServicesSnapshot) > 0 && strings.TrimSpace(manifest.ServicesSnapshot[0].Name) != "" {
 		selectorName = strings.TrimSpace(manifest.ServicesSnapshot[0].Name)
 	}
-	labels := map[string]any{
+	requiredLabels := map[string]any{
 		"app.kubernetes.io/name":      selectorName,
+		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
 	}
+	labels := make(map[string]any, len(requiredLabels)+len(workload.Labels))
 	for k, v := range workload.Labels {
 		if strings.TrimSpace(k) == "" {
 			continue
 		}
+		labels[k] = v
+	}
+	for k, v := range requiredLabels {
 		labels[k] = v
 	}
 	annotations := map[string]any{}
