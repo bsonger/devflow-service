@@ -2,366 +2,384 @@
 
 ## Purpose
 
-This document is the reader-first overview of the current DevFlow delivery chain.
-Use it when you want one place to understand how the active services connect across:
+This document is the authoritative stage-routing contract for the current release lifecycle.
+Use it when you need one reader-first map that answers, stage by stage:
 
-- build input selection
-- manifest freeze
-- release freeze
-- bundle render and publish
-- Argo CD deployment
-- runtime observation and runtime actions
+- who owns the stage
+- which inputs are consumed
+- which outputs are produced
+- who consumes those outputs next
+- which code and docs are the strongest contract anchors
 
-This document is intentionally overview-oriented.
-For exact field contracts and route contracts, follow the linked owning docs.
+This document intentionally stays at the lifecycle-contract level.
+It does not redesign the metadata schema or step semantics.
+When you need exact field definitions, route payloads, or step-by-step execution semantics, follow the linked contract anchors.
 
-## Quick reader guide
+## Reader outcome
 
-Use this document when your first question is:
+After reading this file, a fresh engineer or agent should be able to:
 
-- how does one application move from source to running workload
-- where are the freeze points
-- which service owns which stage of the flow
-- where should I look when a build, deploy, or runtime page looks wrong
+- localize any release-lifecycle failure to a specific stage
+- identify the owning service for that stage
+- know which frozen record or runtime surface is authoritative there
+- follow the strongest code and doc anchors into `release-service`, release writeback routes, Argo handoff, and runtime observer code paths
 
-If you already know which resource you need, go directly to:
+## End-to-end stage map
 
-- `docs/resources/manifest.md`
-- `docs/resources/release.md`
-- `docs/resources/runtime-spec.md`
+| Stage | Owner | Primary inputs | Outputs | Downstream consumer | Contract anchors |
+|---|---|---|---|---|---|
+| 1. Metadata resolution | `meta-service`, `config-service`, `network-service` | application metadata, environment metadata, cluster/deploy-target metadata, workload config truth, service truth, route truth | upstream metadata projections used by later freeze stages | `release-service` manifest/release creation flows | Docs: `docs/system/architecture.md`, `docs/services/release-service.md` |
+| 2. Manifest freeze and build dispatch | `release-service` | metadata-stage application/workload/service truth, requested `git_revision` | persisted `Manifest`, frozen `services_snapshot`, frozen `workload_config_snapshot`, resolved `commit_hash`, Tekton build dispatch, manifest build status/writeback join keys | runtime Tekton observer, later release creation | Docs: `docs/resources/manifest.md`, `docs/services/release-service.md`; Code: `internal/manifest/service/manifest.go` |
+| 3. Release freeze | `release-service` | deployable `Manifest`, target `environment_id`, app config truth, optional/deferred route truth, deploy-target metadata | persisted `Release`, frozen `app_config_snapshot`, frozen `routes_snapshot`, initialized release `steps`, release execution intent/dispatch state | release execution phases | Docs: `docs/resources/release.md`, `docs/system/release-steps.md`, `docs/services/release-service.md`; Code: `internal/release/service/release.go` |
+| 4. Release bundle render | `release-service` | manifest image/workload/service snapshots, release app config snapshot, release route snapshot, strategy, target namespace/environment | canonical rendered deployment bundle persisted as release-owned bundle fact | bundle publication, bundle preview, Argo application creation | Docs: `docs/resources/release.md`, `docs/services/release-service.md`; Code: `internal/release/service/release.go`, `internal/release/service/release_bundle.go` |
+| 5. Bundle publish | `release-service` | rendered release bundle, registry config (`manifest_registry` legacy naming) | `artifact_repository`, `artifact_tag`, `artifact_digest`, `artifact_ref` on `Release` | Argo CD application source, release detail readers | Docs: `docs/resources/release.md`, `docs/services/release-service.md`; Code: `internal/release/service/release.go` |
+| 6. Release execution handoff / Argo deployment | `release-service` initiates, Argo CD executes | published release OCI artifact, deploy target metadata, Argo application config | Argo CD `Application`, sync request, external deployment handoff, release step/status updates for dispatch-owned phases | Argo CD controllers, release writeback senders | Docs: `docs/resources/release.md`, `docs/system/release-steps.md`, `docs/system/release-writeback.md`; Code: `internal/release/service/release.go` |
+| 7. Runtime observation and release writeback | `runtime-service` observes; `release-service` owns release truth and callback surface | Kubernetes workload state, runtime observer/index state, release/app/environment labels on workloads, release writeback config/token | runtime observed workload/pod state, release rollout step callbacks, release terminal progress/failure updates | runtime readers/operators, release detail readers | Docs: `docs/services/runtime-service.md`, `docs/system/release-writeback.md`, `docs/resources/release.md`; Code: `internal/runtime/observer/release_rollout.go`, `internal/runtime/config/config.go`, `internal/release/transport/http/release_writeback.go` |
+| 8. Runtime operator actions | `runtime-service` | operator request, runtime observed workload identity, Kubernetes API | pod delete / rollout restart mutations and refreshed runtime-observed state | operators, runtime UI/readers | Docs: `docs/services/runtime-service.md`, `docs/resources/runtime-spec.md`; Code: `internal/runtime/transport/http`, `internal/runtime/service/service.go` |
 
-## End-to-end stages
+## Stage-by-stage contract
 
-The current end-to-end chain is:
+### Stage 1. Metadata resolution
 
-1. metadata resolution
-2. manifest freeze and image build
-3. release freeze
-4. deployment bundle render
-5. OCI artifact publish
-6. Argo CD deployment
-7. runtime observation
-8. runtime operator actions
+**Owner:** `meta-service`, `config-service`, `network-service`
 
-## Stage 1. Metadata resolution
+**Inputs:**
+- application metadata from `meta-service`
+- environment / cluster / deploy-target metadata from `meta-service`
+- workload config truth from `config-service`
+- service topology truth from `network-service`
+- route topology truth from `network-service`
 
-Owning truth:
+**Outputs:**
+- upstream metadata projections that later stages freeze into release-owned records
 
-- `meta-service`
-- `config-service`
-- `network-service`
+**Downstream consumer:**
+- `release-service` manifest creation and release creation flows
 
-What happens:
+**Contract anchors:**
+- Doc: `docs/system/architecture.md`
+- Doc: `docs/services/release-service.md`
 
-- `meta-service` provides application / environment / cluster metadata
-- `config-service` provides workload config and app config truth
-- `network-service` provides service and route truth
+**Boundary rule:**
+- This stage does **not** create a release-owned durable freeze record.
+- It provides source-of-truth inputs that later freeze points must snapshot.
 
-Why this matters:
+### Stage 2. Manifest freeze and build dispatch
 
-- later stages should freeze these upstream facts instead of re-querying them forever
+**Owner:** `release-service`
 
-## Stage 2. Manifest freeze and image build
-
-Owning service:
-
-- `release-service`
-
-Owning resource:
-
-- `Manifest`
-
-What gets frozen:
-
-- application metadata needed for build
-- `workload_config_snapshot`
-- `services_snapshot`
+**Inputs:**
+- application identity and repository metadata from `meta-service`
+- workload config truth from `config-service`
+- service topology truth from `network-service`
 - requested `git_revision`
+
+**Outputs:**
+- persisted build-side `Manifest`
+- frozen `services_snapshot`
+- frozen `workload_config_snapshot`
 - resolved immutable `commit_hash`
+- Tekton build dispatch metadata such as `pipeline_id`, `trace_id`, `span_id`
+- manifest status and step writeback join points for runtime observers
 
-What happens next:
+**Downstream consumer:**
+- runtime Tekton observer path for ongoing build progress
+- release creation flow once manifest reaches deployable state
 
-- `release-service` starts Tekton image build
-- the persisted manifest enters `Pending` immediately after freeze/build dispatch
-- runtime-side observer callbacks later write back the authoritative manifest status (`Running` and terminal `Available` / `Unavailable`)
-- Tekton produces workload image output
-- manifest status and steps are written back onto the durable manifest row, but aggregate manifest status follows runtime-reported state rather than local step convergence
+**Contract anchors:**
+- Doc: `docs/resources/manifest.md`
+- Doc: `docs/services/release-service.md`
+- Code: `internal/manifest/service/manifest.go`
 
-Inspection route:
+**Boundary rule:**
+- `Manifest` is the build-side freeze point.
+- It owns build identity and image-delivery trace.
+- It does **not** own environment-specific deploy inputs, release bundle publication, or rollout truth.
 
-- start with `docs/resources/manifest.md` for build-side record fields, status, and writeback semantics
-- use `docs/services/release-service.md` when the question is which service owns the build-side record
+### Stage 3. Release freeze
 
-Key boundary rule:
+**Owner:** `release-service`
 
-- `Manifest` is the build-side freeze point
-- `Manifest` does not own environment-specific deploy inputs
-- `Manifest` is release-owned, but it is not the deploy bundle or rollout record
-
-See:
-
-- `docs/resources/manifest.md`
-- `docs/system/diagrams.md`
-
-## Stage 3. Release freeze
-
-Owning service:
-
-- `release-service`
-
-Owning resource:
-
-- `Release`
-
-What gets frozen:
-
-- `manifest_id`
+**Inputs:**
+- deployable persisted `Manifest`
 - `environment_id`
-- `app_config_snapshot`
-- `routes_snapshot`
+- app config truth from `config-service`
+- optional/deferred route truth from `network-service`
+- deploy-target metadata from `meta-service`
+
+**Outputs:**
+- persisted deploy-side `Release`
+- frozen `app_config_snapshot`
+- frozen `routes_snapshot`
+- chosen rollout `strategy`
+- initialized release `steps`
+- create/dispatch state for release execution
+
+**Downstream consumer:**
+- release execution phases that render, publish, and hand off deployment
+
+**Contract anchors:**
+- Doc: `docs/resources/release.md`
+- Doc: `docs/system/release-steps.md`
+- Doc: `docs/services/release-service.md`
+- Code: `internal/release/service/release.go`
+
+**Boundary rule:**
+- `Release` is the deploy-side freeze point.
+- It consumes `Manifest`; it does not replace it.
+
+### Stage 4. Release bundle render
+
+**Owner:** `release-service`
+
+**Inputs:**
+- `manifest.image_ref`
+- `manifest.services_snapshot`
+- `manifest.workload_config_snapshot`
+- `release.app_config_snapshot`
+- optional/deferred `release.routes_snapshot`
 - rollout `strategy`
-- initial execution `steps`
+- target namespace and deploy target
 
-Where those inputs come from:
+**Outputs:**
+- one canonical rendered deployment bundle fact for the release
+- persisted release bundle preview source (`bundle.yaml`, rendered objects, summary fields)
 
-- build-side frozen inputs come from persisted `Manifest`
-- deploy-time config comes from `config-service`
-- deploy-time route inputs come from `network-service`
-- target deploy metadata comes from `meta-service`
+**Downstream consumer:**
+- bundle publication
+- Argo application creation
+- release bundle preview readers
 
-Inspection route:
+**Contract anchors:**
+- Doc: `docs/resources/release.md`
+- Doc: `docs/services/release-service.md`
+- Code: `internal/release/service/release.go`
+- Code: `internal/release/service/release_bundle.go`
 
-- start with `docs/resources/release.md` for deploy-side record fields and execution phases
-- use `docs/services/release-service.md` when the question is which service owns the deploy-side handoff
+**Boundary rule:**
+- The rendered deployment bundle belongs to `Release`, not `Manifest`.
+- Manifest resource inspection views are not the deployable artifact.
 
-Key boundary rule:
+### Stage 5. Bundle publish
 
-- `Release` is the deploy-side freeze point
-- `Release` consumes `Manifest`; it does not replace `Manifest`
+**Owner:** `release-service`
 
-See:
+**Inputs:**
+- persisted rendered release bundle
+- registry publication config from the legacy-named `manifest_registry` block
 
-- `docs/resources/release.md`
-- `docs/system/release-steps.md`
-
-## Stage 4. Deployment bundle render
-
-Owning service:
-
-- `release-service`
-
-What happens:
-
-- release-time frozen inputs are combined into final Kubernetes objects
-- one canonical rendered bundle fact is produced for the release
-- bundle preview reads from this release-owned rendered output
-
-Typical rendered objects:
-
-- `ServiceAccount`
-- `ConfigMap`
-- `Service`
-- `Deployment` or `Rollout`
-- `VirtualService` when route flow is active
-
-Key boundary rule:
-
-- rendered deployment YAML belongs to `Release`, not `Manifest`
-
-## Stage 5. OCI artifact publish
-
-Owning service:
-
-- `release-service`
-
-What happens:
-
-- rendered bundle is packaged as one OCI artifact payload
-- artifact is pushed to the configured registry
-- artifact metadata is written back onto `Release`
-
-Primary release-side artifact fields:
-
+**Outputs:**
 - `artifact_repository`
 - `artifact_tag`
 - `artifact_digest`
 - `artifact_ref`
+- `publish_bundle` step progress/message on the `Release`
 
-Historical naming note:
+**Downstream consumer:**
+- Argo CD application source configuration
+- release detail readers and diagnostics
 
-- the config/runtime seam still uses the legacy `manifest_registry` name
-- in current code that name points at the registry used for deploy-side bundle publication
-- it does not mean the published bundle is owned by the `Manifest` resource
+**Contract anchors:**
+- Doc: `docs/resources/release.md`
+- Doc: `docs/services/release-service.md`
+- Code: `internal/release/service/release.go`
 
-Inspection route:
+**Boundary rule:**
+- The legacy config name `manifest_registry` does **not** change ownership.
+- The published OCI deployment bundle is release-owned output, not manifest-owned output.
 
-- start with `docs/resources/release.md` for bundle publication fields and bundle preview semantics
-- use `docs/services/release-service.md` for the pre-production OCI publication path and legacy naming note
+### Stage 6. Release execution handoff / Argo deployment
 
-Key boundary rule:
+**Owner:** `release-service` initiates the handoff; Argo CD owns ongoing deployment execution
 
-- workload image output belongs to `Manifest`
-- deployment bundle artifact belongs to `Release`
+**Inputs:**
+- published release artifact reference
+- release strategy and target metadata
+- Argo application spec derived from the release
 
-## Stage 6. Argo CD deployment
+**Outputs:**
+- Argo CD `Application`
+- sync request / deployment start handoff
+- release-owned dispatch-step updates such as `create_argocd_application` and strategy-specific deployment-start steps
 
-Owning service:
+**Downstream consumer:**
+- Argo CD controllers in cluster
+- callback senders that report rollout progress back into `release-service`
 
-- `release-service`
+**Contract anchors:**
+- Doc: `docs/resources/release.md`
+- Doc: `docs/system/release-steps.md`
+- Doc: `docs/system/release-writeback.md`
+- Code: `internal/release/service/release.go`
 
-External controller:
+**Boundary rule:**
+- `release-service` owns deployment initiation and the durable release record.
+- It does **not** own long-running rollout truth by polling Argo in normal detail reads.
+- Post-handoff progress returns through release-owned writeback routes.
 
-- Argo CD
+### Stage 7. Runtime observation and release writeback
 
-What happens:
+**Owner:**
+- `runtime-service` owns runtime observation and runtime read state
+- `release-service` owns release truth and the callback/writeback surface
 
-- `release-service` creates or updates an Argo CD `Application`
-- Argo CD pulls the release-owned OCI artifact
-- Argo CD syncs the rendered bundle into Kubernetes
-- `release-service` stops at deployment initiation and does not own long-running rollout observation
-- `release-service` does not read Argo CD application status during normal release detail reads
-- rollout progress, when reported asynchronously, should be written back onto the release record through release-owned writeback routes
+**Inputs:**
+- Kubernetes workload state
+- runtime observer/index state
+- workload metadata labels including:
+  - `devflow.io/release-id`
+  - `devflow.application/id`
+  - `devflow.environment/id`
+- release writeback base URL and shared observer token when configured
 
-Inspection route:
+**Outputs:**
+- runtime observed workload and pod summaries
+- token-gated release step callbacks
+- release rollout progress and terminal status updates persisted on `Release`
 
-- start with `docs/resources/release.md` for Argo handoff, artifact fields, and release step semantics
-- use `docs/system/release-writeback.md` when the question is callback/update routing after Argo handoff
+**Downstream consumer:**
+- runtime readers/operators
+- release detail readers
+- future debugging/inspection of rollout state
 
-Key boundary rule:
+**Contract anchors:**
+- Doc: `docs/services/runtime-service.md`
+- Doc: `docs/system/release-writeback.md`
+- Doc: `docs/resources/release.md`
+- Code: `internal/runtime/observer/release_rollout.go`
+- Code: `internal/runtime/config/config.go`
+- Code: `internal/release/transport/http/release_writeback.go`
 
-- Argo deploys the release-generated bundle, not the original config repo directly
+**Boundary rule:**
+- `runtime-service` is an active clustered callback sender when in-cluster config and release writeback wiring are present.
+- `runtime-service` does **not** own release truth.
+- `release-service` remains the owner of release state, callback routes, and normalized rollout status persistence.
 
-See:
+### Stage 8. Runtime operator actions
 
-- `docs/system/release-writeback.md`
-- `docs/system/diagrams.md`
+**Owner:** `runtime-service`
 
-## Stage 7. Runtime observation
+**Inputs:**
+- operator request
+- runtime observed workload identity
+- Kubernetes API reachability
 
-Owning service:
+**Outputs:**
+- pod delete and rollout/restart mutations against Kubernetes
+- refreshed runtime-observed state after controllers reconcile
 
-- `runtime-service`
+**Downstream consumer:**
+- human operators
+- runtime UI/readers
 
-What happens:
+**Contract anchors:**
+- Doc: `docs/services/runtime-service.md`
+- Doc: `docs/resources/runtime-spec.md`
+- Code: `internal/runtime/transport/http`
+- Code: `internal/runtime/service/service.go`
 
-- runtime observer/index state tracks workload summary and pod state
-- runtime reads should come from runtime-owned observed data
-- runtime page display should not require direct Kubernetes reads for every refresh
-- when clustered rollout observation is wired, runtime-side observers can send release progress back through release-owned writeback routes
+**Boundary rule:**
+- Runtime actions mutate live Kubernetes state.
+- They do not redefine build-side or deploy-side release truth.
 
-Primary runtime read surfaces:
+## Freeze points and ownership summary
 
-- `GET /api/v1/runtime/workload`
-- `GET /api/v1/runtime/pods`
+| Freeze / truth boundary | Authoritative owner | Answers |
+|---|---|---|
+| Build-side freeze | `Manifest` in `release-service` | what was built, from which commit, with which workload/service snapshots, and what image/build status resulted |
+| Deploy-side freeze | `Release` in `release-service` | what was deployed, to which environment, with which app config/routes/strategy, and which deployment artifact was handed to Argo |
+| Runtime read model | `runtime-service` observer/index state | what is running now, which pods/workloads are observed, and what operators can mutate |
+| Rollout callback contract | `release-service` writeback routes | how rollout progress/failure is written back after deployment handoff |
 
-Inspection route:
+## Metadata seam carried forward for later slices
 
-- start with `docs/resources/runtime-spec.md` for runtime read/action surfaces
-- use `docs/system/release-writeback.md` if runtime-side rollout callbacks appear to be missing or misrouted
+The current lifecycle has an explicit metadata seam that this document records but does **not** resolve.
 
-Key boundary rule:
+### What runtime rollout observation consumes
 
-- runtime read model is separate from build/deploy freeze records
-- runtime-service can observe and report rollout state, but it does not own release truth
+Runtime rollout observation currently associates workload state back to a release by consuming workload labels:
 
-See:
+- `devflow.io/release-id`
+- `devflow.application/id`
+- `devflow.environment/id`
 
-- `docs/resources/runtime-spec.md`
-- `docs/system/runtime-observer.md`
+Code anchors:
+- `internal/runtime/observer/release_rollout.go`
+- `internal/release/domain/release.go` (label constants referenced by the observer)
 
-## Stage 8. Runtime operator actions
+### Why this is a seam
 
-Owning service:
+Current production points differ across the lifecycle:
 
-- `runtime-service`
+- workload rendering injects release/application/environment labels into rendered workload metadata during release bundle construction
+- Argo CD `Application` creation is a separate handoff stage with its own metadata production surface
+- runtime rollout observation depends on those workload labels being present and consistent after deployment lands in Kubernetes
 
-What happens:
+This means the release-to-runtime association contract currently spans more than one production point rather than being unified behind one formally documented metadata source.
 
-- operator can delete one pod
-- operator can restart / rollout one workload
-- these action routes call Kubernetes explicitly
-- after success, UI should refresh runtime read surfaces from the observer/index model
-- restart can now resolve the primary Deployment server-side and does not require the UI to send `deployment_name` in the common path
+### Scope decision for this slice
 
-Primary runtime action surfaces:
+This task records that seam as current reality.
+It does **not** redesign label production or step semantics here.
+Treat the seam as explicit follow-up contract work for:
 
-- `DELETE /api/v1/runtime/pods/{pod_name}`
-- `POST /api/v1/runtime/rollouts`
+- S02
+- S04
+- S05
 
-Key boundary rule:
-
-- runtime actions mutate Kubernetes
-- runtime reads prefer observer/index-backed state
-
-## Freeze-point summary
-
-### Build-side freeze point
-
-Resource:
-
-- `Manifest`
-
-Answers:
-
-- what was built
-- which commit was built
-- which image was produced
-- what service/workload shape was frozen for build
-
-### Deploy-side freeze point
-
-Resource:
-
-- `Release`
-
-Answers:
-
-- what was deployed
-- where it was deployed
-- which config and routes were frozen
-- which deployment artifact was published
-- what happened during rollout
-
-### Runtime read/action boundary
-
-Surface:
-
-- runtime API
-
-Answers:
-
-- what is running now
-- what pods are currently observed
-- restart this workload
-- delete this pod
-
-## Failure routing cheat sheet
+## Failure routing by stage
 
 If the problem looks like this, start here:
 
-- build did not start, build writeback is wrong, or the workload image result is wrong
+- metadata looks wrong before any freeze point
+  - `docs/system/architecture.md`
+  - `docs/services/release-service.md`
+- build did not start, build progress is wrong, or manifest status/image result is wrong
   - `docs/resources/manifest.md`
   - `docs/services/release-service.md`
-- deployment bundle looks wrong or the published bundle metadata is wrong
+  - `internal/manifest/service/manifest.go`
+- release create froze the wrong environment/config/routes or refuses to deploy a manifest
+  - `docs/resources/release.md`
+  - `docs/system/release-steps.md`
+  - `internal/release/service/release.go`
+- bundle preview or rendered deployment YAML looks wrong
+  - `docs/resources/release.md`
+  - `internal/release/service/release.go`
+  - `internal/release/service/release_bundle.go`
+- published artifact metadata is wrong or missing
   - `docs/resources/release.md`
   - `docs/services/release-service.md`
-- Argo CD handoff or rollout callback state looks wrong
+  - `internal/release/service/release.go`
+- Argo handoff or release callback routing looks wrong
   - `docs/system/release-writeback.md`
   - `docs/system/release-steps.md`
-  - `docs/resources/release.md`
-- runtime page data looks stale or duplicated
+  - `internal/release/transport/http/release_writeback.go`
+- rollout progress is stale, duplicated, or not reaching the release record
+  - `docs/system/release-writeback.md`
+  - `docs/services/runtime-service.md`
+  - `internal/runtime/observer/release_rollout.go`
+  - `internal/runtime/config/config.go`
+- runtime page data or operator actions look wrong
+  - `docs/services/runtime-service.md`
   - `docs/resources/runtime-spec.md`
-  - `docs/system/runtime-observer.md`
-- service ownership is unclear
-  - `docs/services/release-service.md`
-  - `docs/resources/manifest.md`
-  - `docs/resources/release.md`
+  - `internal/runtime/transport/http`
 
-## Source pointers
+## Contract anchor index
 
-- architecture overview: `docs/system/architecture.md`
-- visual diagrams: `docs/system/diagrams.md`
-- manifest contract: `docs/resources/manifest.md`
-- release contract: `docs/resources/release.md`
-- runtime contract: `docs/resources/runtime-spec.md`
-- runtime observer/index model: `docs/system/runtime-observer.md`
+### Docs
+- `docs/system/architecture.md`
+- `docs/resources/manifest.md`
+- `docs/resources/release.md`
+- `docs/resources/runtime-spec.md`
+- `docs/services/release-service.md`
+- `docs/services/runtime-service.md`
+- `docs/system/release-writeback.md`
+- `docs/system/release-steps.md`
+
+### Code
+- `internal/manifest/service/manifest.go`
+- `internal/release/service/release.go`
+- `internal/release/service/release_bundle.go`
+- `internal/release/transport/http/release_writeback.go`
+- `internal/runtime/observer/release_rollout.go`
+- `internal/runtime/config/config.go`
