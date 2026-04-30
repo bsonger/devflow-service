@@ -38,6 +38,7 @@ bash scripts/verify.sh
 ```
 
 Use it first because it is the canonical repo-local proof surface and should remain the highest-value recovery command during the migration. It also carries the mechanical runtime-domain no-Postgres guard for `internal/runtime/**`, so rerunning it is the fastest way to catch accidental PostgreSQL reintroduction in the Kubernetes-first runtime path.
+When release-flow code/doc drift is suspected, treat that as a real contract failure, not as acceptable migration noise, and use the same verifier rerun to confirm the docs and script surfaces still point at the authoritative lifecycle/writeback docs.
 
 ## Current verification stack
 
@@ -107,11 +108,18 @@ Inspect next:
 ### If release writeback or observer callbacks fail
 
 Inspect next:
-1. `docs/system/release-writeback.md`
-2. `internal/release/transport/http/router.go`
-3. `internal/release/transport/http/writeback_support.go`
-4. `internal/release/transport/http/release_writeback.go`
-5. `internal/release/config/config.go`
+1. `docs/system/flow-overview.md`
+2. `docs/system/release-steps.md`
+3. `docs/system/release-writeback.md`
+4. `internal/release/transport/http/router.go`
+5. `internal/release/transport/http/writeback_support.go`
+6. `internal/release/transport/http/release_writeback.go`
+7. `internal/release/config/config.go`
+
+Use those docs to confirm the ownership split before changing code:
+- `start_deployment` is the release-service-owned handoff step
+- `observe_rollout` and `finalize_release` are callback-owned follow-up steps
+- drift between those lifecycle docs and reader-facing release/runtime docs is a real contract drift failure
 
 ### If migration-boundary decisions are unclear
 

@@ -23,6 +23,7 @@ The verifier should fail fast and prove:
 - repo-local startup and docs surfaces exist under the layered docs structure
 - the active Go baseline matches the current contract
 - Docker policy is enforced from the policy docs and script checks
+- release-flow contract wording stays aligned across `docs/system/flow-overview.md`, `docs/system/release-steps.md`, `docs/system/release-writeback.md`, and the reader-facing release/runtime docs that summarize `start_deployment`, `observe_rollout`, and `finalize_release`
 - production code under `internal/*/service` does not bypass repository boundaries with direct DB access
 - active code and docs do not retain Mongo-era dependency or naming remnants after the PostgreSQL migration
 - API error envelopes and handler mappings stay aligned with the error-handling policy
@@ -75,6 +76,8 @@ Local ad-hoc Docker image builds are not part of the active verification or depl
 For packaging-related work, verify the root `Dockerfile` and Docker policy instead.
 
 When debugging `runtime-service`, pair `bash scripts/verify.sh` with `docs/system/runtime-storage-model.md`: the verifier enforces the no-Postgres runtime-domain guardrail, and the runtime doc explains the accepted cold-start window where observer-backed in-memory state is temporarily empty after restart.
+
+When debugging release-flow contract drift, pair `bash scripts/verify.sh` with `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md`: those docs define the authoritative ownership split between the release-service handoff step (`start_deployment`) and callback-owned progression/finalization steps such as `observe_rollout` and `finalize_release`.
 
 Only runnable repo entrypoints under `cmd/` may be packaged this way.
 Current runnable entries are `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`.

@@ -672,6 +672,11 @@ If the release is still active, show an execution banner such as:
 - `Switching traffic`
 
 The banner text should come from the currently running step when available.
+Keep the ownership split explicit in that copy:
+
+- `start_deployment` is the release-service-owned handoff step that starts the rolling deployment
+- `observe_rollout` and `finalize_release` are callback-owned confirmation/finalization steps after handoff
+- route lifecycle questions back to `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md` instead of inventing UI-only step semantics
 
 ### Deployment artifact
 
@@ -727,6 +732,7 @@ Runtime tracking presentation rules:
 - use `steps[].name` as the main label
 - keep `steps[].code` visible in an advanced details affordance for debugging
 - show `progress`, `status`, `message`, `start_time`, and `end_time` inline
+- for rolling releases, present `start_deployment` as the release-service-owned deployment-start handoff and reserve callback progress wording for `observe_rollout` and `finalize_release`
 
 Polling rules:
 
@@ -813,6 +819,7 @@ The runtime page should follow one clear split:
 - action buttons call runtime action APIs that then call Kubernetes
 
 Do not make routine page rendering depend on live Kubernetes reads.
+Treat runtime-service as a consumer of the release-owned metadata contract described in `docs/system/flow-overview.md` and `docs/system/release-writeback.md`: runtime reads and actions should stay keyed to label-driven workload identity, not to release-detail fields or callback ownership.
 
 ### Runtime information architecture
 

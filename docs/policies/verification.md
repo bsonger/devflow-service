@@ -34,6 +34,8 @@ make ci
 - formatting, vet, lint, tests, build, and repo verification must agree
 - repo docs and verification must describe the same paths and command order
 - failures are real contract drift to fix, not accepted migration noise
+- release-flow contract drift between code, docs, and verifier surfaces is a real verifier failure; when `start_deployment`, `observe_rollout`, `finalize_release`, or release writeback ownership wording drifts, treat that mismatch as contract drift and update the authoritative docs plus verifier surfaces together
+- use `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md` as the lifecycle/writeback authority when verifying release-flow wording in `docs/resources/*`, `docs/services/*`, or recovery/script guidance
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
 - API error envelope and handler mapping changes must follow `docs/policies/error-handling.md`
 - HTTP transport behavior changes must follow `docs/policies/http-handler.md`
