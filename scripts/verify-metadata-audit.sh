@@ -103,10 +103,30 @@ check \
   "runtime rollout context derives environment identity from workload labels" \
   "environmentID := strings.TrimSpace(workload.Labels[releasedomain.ReleaseEnvironmentLabel])" \
   internal/runtime/observer/release_rollout.go
+check \
+  "runtime rollout tests prove release labels stay primary when fallback fields disagree" \
+  "TestDeriveReleaseRolloutContextPrefersReleaseLabelsOverRuntimeFields" \
+  internal/runtime/observer/release_rollout_test.go
 
 check \
   "drift proof documents the meta-service out-of-sync resource" \
   "meta-service" \
+  docs/resources/metadata-drift-proof.md
+check \
+  "drift proof records the live OutOfSync result" \
+  'result: `OutOfSync`' \
+  docs/resources/metadata-drift-proof.md
+check \
+  "drift proof records deployment-only live drift evidence" \
+  'apps Deployment devflow/meta-service OutOfSync' \
+  docs/resources/metadata-drift-proof.md
+check \
+  "drift proof records the live ignore-pointer confirmation path" \
+  '/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt' \
+  docs/resources/metadata-drift-proof.md
+check \
+  "drift proof documents label-based runtime release correlation" \
+  'runtime/release rollout correlation still depends on release-owned labels' \
   docs/resources/metadata-drift-proof.md
 check \
   "drift proof documents the drifting restartedAt field" \

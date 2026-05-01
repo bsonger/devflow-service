@@ -78,6 +78,33 @@ func TestDeriveReleaseRolloutContextFallsBackToWorkloadEnvironment(t *testing.T)
 	}
 }
 
+func TestDeriveReleaseRolloutContextPrefersReleaseLabelsOverRuntimeFields(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	workload := &runtimedomain.RuntimeObservedWorkload{
+		Environment:  "staging-fallback",
+		Namespace:    "demo-ns",
+		WorkloadName: "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:          releaseID.String(),
+			releasedomain.ReleaseApplicationLabel: applicationID.String(),
+			releasedomain.ReleaseEnvironmentLabel: "prod-release",
+			"app.kubernetes.io/name":            "demo-api-shadow",
+		},
+	}
+
+	ctx, reason := deriveReleaseRolloutContext(workload)
+	if reason != "" {
+		t.Fatalf("reason = %q", reason)
+	}
+	if ctx.EnvironmentID != "prod-release" {
+		t.Fatalf("environmentID = %q", ctx.EnvironmentID)
+	}
+	if ctx.DeploymentName != "demo-api" {
+		t.Fatalf("deploymentName = %q", ctx.DeploymentName)
+	}
+}
+
 func TestDeriveReleaseRolloutContextMissingMetadata(t *testing.T) {
 	workload := &runtimedomain.RuntimeObservedWorkload{
 		Namespace:    "demo-ns",
