@@ -89,6 +89,12 @@ func TestBuildApplicationInspectionSummarizesSyncTruth(t *testing.T) {
 	if inspection.DestinationNamespace != "meta-service" {
 		t.Fatalf("destination namespace = %q", inspection.DestinationNamespace)
 	}
+	if inspection.PrimaryWorkloadGroup != "apps" || inspection.PrimaryWorkloadKind != "Deployment" {
+		t.Fatalf("primary workload target = %s/%s", inspection.PrimaryWorkloadGroup, inspection.PrimaryWorkloadKind)
+	}
+	if len(inspection.MetadataCompatibleKinds) != 2 || inspection.MetadataCompatibleKinds[0] != "Deployment" || inspection.MetadataCompatibleKinds[1] != "Rollout" {
+		t.Fatalf("metadata compatible kinds = %#v", inspection.MetadataCompatibleKinds)
+	}
 	if !inspection.RestartedAtIgnoreConfigured {
 		t.Fatal("expected restartedAt ignore to be detected")
 	}
@@ -122,5 +128,42 @@ func TestBuildApplicationInspectionReportsMissingRestartedAtIgnore(t *testing.T)
 	}
 	if inspection.RestartedAtIgnoreConfigured {
 		t.Fatalf("expected restartedAt ignore detection to be false: %#v", inspection.IgnoreDifferenceTargets)
+	}
+	if len(inspection.MetadataCompatibleKinds) != 2 || inspection.MetadataCompatibleKinds[0] != "Deployment" || inspection.MetadataCompatibleKinds[1] != "Rollout" {
+		t.Fatalf("metadata compatible kinds = %#v", inspection.MetadataCompatibleKinds)
+	}
+}
+
+func TestBuildApplicationInspectionRecognizesRolloutPrimaryWorkload(t *testing.T) {
+	app := &appv1.Application{
+		Spec: appv1.ApplicationSpec{
+			IgnoreDifferences: appv1.IgnoreDifferences{{
+				Group: "argoproj.io",
+				Kind:  "Rollout",
+				JSONPointers: []string{restartedAtIgnorePointer},
+			}},
+		},
+		Status: appv1.ApplicationStatus{
+			Resources: []appv1.ResourceStatus{{
+				Group:  "argoproj.io",
+				Kind:   "Rollout",
+				Name:   "meta-service",
+				Status: appv1.SyncStatusCodeOutOfSync,
+			}},
+		},
+	}
+
+	inspection := BuildApplicationInspection(app)
+	if inspection == nil {
+		t.Fatal("expected inspection")
+	}
+	if inspection.PrimaryWorkloadGroup != "argoproj.io" || inspection.PrimaryWorkloadKind != "Rollout" {
+		t.Fatalf("primary workload target = %s/%s", inspection.PrimaryWorkloadGroup, inspection.PrimaryWorkloadKind)
+	}
+	if !inspection.RestartedAtIgnoreConfigured {
+		t.Fatal("expected rollout restartedAt ignore to be detected")
+	}
+	if len(inspection.MetadataCompatibleKinds) != 2 || inspection.MetadataCompatibleKinds[0] != "Deployment" || inspection.MetadataCompatibleKinds[1] != "Rollout" {
+		t.Fatalf("metadata compatible kinds = %#v", inspection.MetadataCompatibleKinds)
 	}
 }

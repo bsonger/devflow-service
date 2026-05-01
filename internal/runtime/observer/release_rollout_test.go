@@ -48,8 +48,14 @@ func TestDeriveReleaseRolloutContext(t *testing.T) {
 	if ctx.Namespace != "demo-ns" {
 		t.Fatalf("namespace = %q", ctx.Namespace)
 	}
-	if ctx.DeploymentName != "demo-api" {
-		t.Fatalf("deploymentName = %q", ctx.DeploymentName)
+	if ctx.PrimaryWorkloadName != "demo-api" {
+		t.Fatalf("primaryWorkloadName = %q", ctx.PrimaryWorkloadName)
+	}
+	if ctx.ObservedWorkloadKind != "Deployment" {
+		t.Fatalf("observedWorkloadKind = %q", ctx.ObservedWorkloadKind)
+	}
+	if ctx.ObservedWorkloadName != "demo-api" {
+		t.Fatalf("observedWorkloadName = %q", ctx.ObservedWorkloadName)
 	}
 	if workload.Labels[releasedomain.ReleaseEnvironmentLabel] != ctx.EnvironmentID {
 		t.Fatalf("environment label must remain primary identity, labels=%#v ctx=%+v", workload.Labels, ctx)
@@ -100,8 +106,42 @@ func TestDeriveReleaseRolloutContextPrefersReleaseLabelsOverRuntimeFields(t *tes
 	if ctx.EnvironmentID != "prod-release" {
 		t.Fatalf("environmentID = %q", ctx.EnvironmentID)
 	}
-	if ctx.DeploymentName != "demo-api" {
-		t.Fatalf("deploymentName = %q", ctx.DeploymentName)
+	if ctx.PrimaryWorkloadName != "demo-api-shadow" {
+		t.Fatalf("primaryWorkloadName = %q", ctx.PrimaryWorkloadName)
+	}
+	if ctx.ObservedWorkloadName != "demo-api" {
+		t.Fatalf("observedWorkloadName = %q", ctx.ObservedWorkloadName)
+	}
+}
+
+func TestDeriveReleaseRolloutContextKeepsRolloutMetadataCompatibleButObservationDeploymentScoped(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	workload := &runtimedomain.RuntimeObservedWorkload{
+		Environment:  "prod",
+		Namespace:    "demo-ns",
+		WorkloadKind: "Rollout",
+		WorkloadName: "demo-api-preview",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:          releaseID.String(),
+			releasedomain.ReleaseApplicationLabel: applicationID.String(),
+			releasedomain.ReleaseEnvironmentLabel: "prod",
+			"app.kubernetes.io/name":            "demo-api",
+		},
+	}
+
+	ctx, reason := deriveReleaseRolloutContext(workload)
+	if reason != "" {
+		t.Fatalf("reason = %q", reason)
+	}
+	if ctx.PrimaryWorkloadName != "demo-api" {
+		t.Fatalf("primaryWorkloadName = %q", ctx.PrimaryWorkloadName)
+	}
+	if ctx.ObservedWorkloadKind != "Rollout" {
+		t.Fatalf("observedWorkloadKind = %q", ctx.ObservedWorkloadKind)
+	}
+	if ctx.ObservedWorkloadName != "demo-api-preview" {
+		t.Fatalf("observedWorkloadName = %q", ctx.ObservedWorkloadName)
 	}
 }
 

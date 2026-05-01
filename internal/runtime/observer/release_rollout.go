@@ -35,11 +35,13 @@ type ReleaseRolloutObserverConfig struct {
 }
 
 type releaseRolloutContext struct {
-	ReleaseID      uuid.UUID
-	ApplicationID  uuid.UUID
-	EnvironmentID  string
-	Namespace      string
-	DeploymentName string
+	ReleaseID             uuid.UUID
+	ApplicationID         uuid.UUID
+	EnvironmentID         string
+	Namespace             string
+	PrimaryWorkloadName   string
+	ObservedWorkloadKind  string
+	ObservedWorkloadName  string
 }
 
 type ReleaseRolloutObserver struct {
@@ -137,6 +139,7 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 		log.Debug("skip release rollout observer because release metadata is incomplete",
 			zap.String("runtime_spec_id", spec.ID.String()),
 			zap.String("namespace", strings.TrimSpace(workload.Namespace)),
+			zap.String("workload_kind", strings.TrimSpace(workload.WorkloadKind)),
 			zap.String("workload_name", strings.TrimSpace(workload.WorkloadName)),
 			zap.String("reason", skipReason),
 		)
@@ -147,11 +150,12 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 	if err != nil {
 		return err
 	}
-	phase, message, progress, stateKey := deriveReleaseRolloutState(rollout.Namespace, rollout.DeploymentName, deployment)
+	phase, message, progress, stateKey := deriveReleaseRolloutState(rollout.Namespace, rollout.ObservedWorkloadName, deployment)
 	if o.isProcessed(rollout.ReleaseID.String(), stateKey) {
 		log.Debug("skip duplicate rollout writeback event",
 			zap.String("release_id", rollout.ReleaseID.String()),
-			zap.String("deployment", rollout.DeploymentName),
+			zap.String("observed_workload_kind", rollout.ObservedWorkloadKind),
+			zap.String("observed_workload_name", rollout.ObservedWorkloadName),
 			zap.String("namespace", rollout.Namespace),
 			zap.String("state_key", stateKey),
 		)
@@ -160,7 +164,8 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 	if err := o.writeReleaseSteps(ctx, rollout, phase, progress, message); err != nil {
 		log.Warn("release rollout writeback failed",
 			zap.String("release_id", rollout.ReleaseID.String()),
-			zap.String("deployment", rollout.DeploymentName),
+			zap.String("observed_workload_kind", rollout.ObservedWorkloadKind),
+			zap.String("observed_workload_name", rollout.ObservedWorkloadName),
 			zap.String("namespace", rollout.Namespace),
 			zap.String("phase", string(phase)),
 			zap.Error(err),
@@ -171,7 +176,9 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 		zap.String("release_id", rollout.ReleaseID.String()),
 		zap.String("application_id", rollout.ApplicationID.String()),
 		zap.String("environment_id", rollout.EnvironmentID),
-		zap.String("deployment", rollout.DeploymentName),
+		zap.String("primary_workload_name", rollout.PrimaryWorkloadName),
+		zap.String("observed_workload_kind", rollout.ObservedWorkloadKind),
+		zap.String("observed_workload_name", rollout.ObservedWorkloadName),
 		zap.String("namespace", rollout.Namespace),
 		zap.String("phase", string(phase)),
 		zap.Int32("progress", progress),
@@ -204,19 +211,32 @@ func deriveReleaseRolloutContext(workload *runtimedomain.RuntimeObservedWorkload
 	if namespace == "" {
 		return releaseRolloutContext{}, "missing_namespace"
 	}
-	deploymentName := strings.TrimSpace(workload.WorkloadName)
-	if deploymentName == "" {
-		deploymentName = strings.TrimSpace(workload.Labels["app.kubernetes.io/name"])
+	primaryWorkloadName := strings.TrimSpace(workload.Labels["app.kubernetes.io/name"])
+	if primaryWorkloadName == "" {
+		primaryWorkloadName = strings.TrimSpace(workload.WorkloadName)
 	}
-	if deploymentName == "" {
-		return releaseRolloutContext{}, "missing_deployment_name"
+	if primaryWorkloadName == "" {
+		return releaseRolloutContext{}, "missing_primary_workload_name"
+	}
+	observedWorkloadKind := strings.TrimSpace(workload.WorkloadKind)
+	if observedWorkloadKind == "" {
+		observedWorkloadKind = "Deployment"
+	}
+	observedWorkloadName := strings.TrimSpace(workload.WorkloadName)
+	if observedWorkloadName == "" {
+		observedWorkloadName = primaryWorkloadName
+	}
+	if observedWorkloadName == "" {
+		return releaseRolloutContext{}, "missing_observed_workload_name"
 	}
 	return releaseRolloutContext{
-		ReleaseID:      releaseID,
-		ApplicationID:  applicationID,
-		EnvironmentID:  environmentID,
-		Namespace:      namespace,
-		DeploymentName: deploymentName,
+		ReleaseID:            releaseID,
+		ApplicationID:        applicationID,
+		EnvironmentID:        environmentID,
+		Namespace:            namespace,
+		PrimaryWorkloadName:  primaryWorkloadName,
+		ObservedWorkloadKind: observedWorkloadKind,
+		ObservedWorkloadName: observedWorkloadName,
 	}, ""
 }
 
@@ -227,7 +247,7 @@ func (o *ReleaseRolloutObserver) lookupDeployment(ctx context.Context, rollout r
 	if err != nil {
 		return nil, err
 	}
-	deployment := pickPrimaryDeployment(rollout.DeploymentName, deployments.Items)
+	deployment := pickPrimaryDeployment(rollout.PrimaryWorkloadName, deployments.Items)
 	if deployment != nil {
 		return deployment, nil
 	}

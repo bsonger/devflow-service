@@ -64,6 +64,7 @@ In particular:
 
 - stage 3 (`Release` freeze), stage 4 (deployment bundle render), stage 5 (bundle publish), and stage 6 (Argo handoff) are release-owned stages
 - stage 7 (runtime observation and release writeback) is split: `runtime-service` may observe and send callbacks, but `release-service` remains the owner of release truth and the callback surface
+- release metadata labels, rendered workload identity, and Argo handoff inspection are intentionally compatible with both `Deployment` and `Rollout` primary workloads so future strategy work is not blocked on a Deployment-only dead end
 - the stable release `steps[*].code` set is the compatibility boundary, and each code keeps one advancing owner even when other components send supporting writeback facts
 
 If rollout/writeback behavior looks wrong, route next to `docs/system/release-writeback.md` instead of treating this resource page as the callback owner.
@@ -846,6 +847,7 @@ Metadata contract reminder for this phase:
 - the Argo `Application` mirrors the same required release/application/environment identity labels used on rendered workloads
 - OpenTelemetry annotations stay limited to supplementary diagnostic correlation on the handoff object
 - live drift handling for restart annotations belongs to the Argo ignore-differences seam, not to identity metadata
+- the metadata and inspection contract is intentionally workload-kind-compatible across `Deployment` and `Rollout`, even though the active in-tree runtime rollout observer still derives live rollout state from `Deployment` objects only today
 
 ## 7. ArgoCD starts deployment
 

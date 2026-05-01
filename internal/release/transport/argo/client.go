@@ -44,6 +44,9 @@ type ApplicationInspection struct {
 	RepoURL                     string
 	DestinationServer           string
 	DestinationNamespace        string
+	PrimaryWorkloadGroup        string
+	PrimaryWorkloadKind         string
+	MetadataCompatibleKinds     []string
 	IgnoreDifferenceTargets     []IgnoreDifferenceTarget
 	OutOfSyncResources          []ApplicationResourceObservation
 	RestartedAtCandidates       []ApplicationResourceObservation
@@ -128,6 +131,8 @@ func BuildApplicationInspection(app *appv1.Application) *ApplicationInspection {
 		inspection.OperationMessage = strings.TrimSpace(app.Status.OperationState.Message)
 	}
 	inspection.IgnoreDifferenceTargets = buildIgnoreDifferenceTargets(app.Spec.IgnoreDifferences)
+	inspection.PrimaryWorkloadGroup, inspection.PrimaryWorkloadKind = inspectPrimaryWorkloadTarget(inspection.IgnoreDifferenceTargets, app.Status.Resources)
+	inspection.MetadataCompatibleKinds = metadataCompatibleWorkloadKinds(inspection.PrimaryWorkloadKind)
 	inspection.RestartedAtIgnoreConfigured = inspectionHasRestartedAtIgnore(inspection.IgnoreDifferenceTargets)
 	inspection.OutOfSyncResources, inspection.RestartedAtCandidates = summarizeApplicationResources(app.Status.Resources)
 	return inspection
@@ -181,7 +186,7 @@ func summarizeApplicationResources(resources []appv1.ResourceStatus) ([]Applicat
 
 func inspectionHasRestartedAtIgnore(targets []IgnoreDifferenceTarget) bool {
 	for _, target := range targets {
-		if !strings.EqualFold(target.Kind, "Deployment") {
+		if !strings.EqualFold(target.Kind, "Deployment") && !strings.EqualFold(target.Kind, "Rollout") {
 			continue
 		}
 		for _, pointer := range target.JSONPointers {
@@ -191,6 +196,40 @@ func inspectionHasRestartedAtIgnore(targets []IgnoreDifferenceTarget) bool {
 		}
 	}
 	return false
+}
+
+func inspectPrimaryWorkloadTarget(targets []IgnoreDifferenceTarget, resources []appv1.ResourceStatus) (string, string) {
+	for _, target := range targets {
+		if !isPrimaryReleaseWorkloadKind(target.Kind) {
+			continue
+		}
+		return strings.TrimSpace(target.Group), strings.TrimSpace(target.Kind)
+	}
+	for _, resource := range resources {
+		if !isPrimaryReleaseWorkloadKind(resource.Kind) {
+			continue
+		}
+		return strings.TrimSpace(resource.Group), strings.TrimSpace(resource.Kind)
+	}
+	return "", ""
+}
+
+func metadataCompatibleWorkloadKinds(primaryKind string) []string {
+	compatible := []string{"Deployment", "Rollout"}
+	primaryKind = strings.TrimSpace(primaryKind)
+	if primaryKind == "" {
+		return compatible
+	}
+	for _, item := range compatible {
+		if strings.EqualFold(item, primaryKind) {
+			return compatible
+		}
+	}
+	return append([]string{primaryKind}, compatible...)
+}
+
+func isPrimaryReleaseWorkloadKind(kind string) bool {
+	return strings.EqualFold(strings.TrimSpace(kind), "Deployment") || strings.EqualFold(strings.TrimSpace(kind), "Rollout")
 }
 
 func cloneTrimmedStrings(values []string) []string {

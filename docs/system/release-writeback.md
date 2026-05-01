@@ -90,6 +90,7 @@ Current implementation note:
 - that observer derives rollout association from runtime observer state and Kubernetes workload labels, then writes back to `release-service`
 - treat this route as part of the release-owned callback surface after stage 6 Argo handoff; callers may include Argo-facing senders and runtime-side observers, but `release-service` remains the owner of normalized release status persistence
 - docs should describe this as an active observer callback path, not as a PostgreSQL-backed runtime store path
+- release/application/environment metadata compatibility spans both `Deployment` and `Rollout` handoff objects, but the active in-tree runtime rollout observer still derives live progress from `Deployment` objects only today
 - for rolling releases, Argo-side step updates from this route normalize only onto callback-owned rollout confirmation steps such as `observe_rollout`; they must not reopen or advance release-owned handoff steps such as `start_deployment`
 - a `running` callback means the rollout observer or Argo sender has accepted and reported progress, not that the full release graph has converged; release status stays `Running` until the remaining canonical release-owned steps also converge
 
@@ -121,6 +122,7 @@ Current primary use:
 - the in-tree runtime rollout observer is one active caller when `runtime-service` starts with in-cluster config and release-service writeback configuration
 - this remains a token-gated release-owned callback surface rather than a public user-facing route or a runtime-owned API
 - the stable `step_code` set is the compatibility boundary, and each code has one advancing owner even when multiple components can report facts into release-service
+- for workload-kind questions, separate metadata compatibility from live observation scope: release-owned labels, Argo `Application` metadata, and inspection helpers intentionally support both `Deployment` and `Rollout` primary workloads, while the active in-tree runtime rollout observer remains Deployment-only until explicit Rollout runtime support is delivered
 
 Expected behavior:
 - request body must include a valid `release_id`
