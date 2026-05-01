@@ -96,6 +96,24 @@ These make it easy to separate:
 - handler validation failures (`invalid_argument`, `failed_precondition`)
 - repository cleanup or missing-row behavior after a legacy/incompatible payload
 
+## Application detail page verification
+
+Use the same `APPLICATION_ID` and `WORKLOAD_CONFIG_ID` from the API probe when checking the deployed application detail page workload tab.
+
+Expected page checkpoints after a clean round trip:
+
+1. the workload tab renders a structured summary instead of raw JSON helpers
+2. the visible size-class card matches the backend canonical table:
+   - `small` → requests `100m / 128Mi`, limits `500m / 512Mi`
+   - `medium` → requests `250m / 256Mi`, limits `1 / 1Gi`
+   - `large` → requests `500m / 512Mi`, limits `2 / 2Gi`
+   - `xlarge` → requests `1 / 1Gi`, limits `4 / 4Gi`
+3. the right-side drawer keeps the same constrained fields as the probe payload: replicas, service account name, `resources.size_class`, liveness/readiness probe rows, and repeated env rows
+4. a save failure stays inline and leaves the drawer open for correction
+5. a refresh shows the same summary values that the API probe captured in `read_after_write.body.json`
+
+If the page summary disagrees with the API probe while the probe itself succeeds, localize the regression to frontend mapping/copy (`ApplicationDetailPage.tsx`) before suspecting ingress or backend drift.
+
 ## Grep anchors
 
 This README intentionally includes the same contract vocabulary the task verifier checks:
