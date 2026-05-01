@@ -44,6 +44,10 @@ If your question is instead about:
 
 then the owning resource is `Manifest`, not `Release`.
 
+For the current emitted/consumed metadata inventory across release-rendered workloads, pod templates, Argo CD `Application`, Tekton `PipelineRun`, and runtime observers, use:
+
+- `docs/resources/metadata-contract-audit.md`
+
 Use the docs in this order so lifecycle wording stays aligned:
 
 1. `docs/system/flow-overview.md` — authoritative stage map for owner, inputs, outputs, downstream consumer, and contract anchors across the whole release lifecycle
@@ -281,14 +285,15 @@ Release execution must publish one runtime-consumable metadata schema across bot
 | `devflow.application/id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` render / Argo handoff | stage 4 and stage 6 | `runtime-service` observed workload/pod indexing | Canonical application identity used to rebuild `application + environment` ownership from cluster state alone. |
 | `devflow.environment/id` | rendered workloads, pod templates, Argo CD `Application` | label | `release-service` render / Argo handoff | stage 4 and stage 6 | `runtime-service` observed workload/pod indexing and rollout observer fallback | Canonical environment identity used to distinguish runtime ownership in shared clusters. |
 | `status` | Argo CD `Application` | label | `release-service` Argo handoff | stage 6 | Argo / operator diagnostics | Release-dispatch state hint for the handoff object itself; not a source of rollout truth. |
-| `devflow.io/trace-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary trace context for following release execution across service and cluster boundaries. |
-| `devflow.io/span-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary span context for the Argo handoff step. |
+| `otel.devflow.io/trace-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary trace context for following release execution across service and cluster boundaries. |
+| `otel.devflow.io/parent-span-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary span context for the Argo handoff step. |
 
 Contract rule:
 
 - runtime-side identity reconstruction must depend on the required **labels** above
 - trace correlation may depend on the **annotations** above
 - no runtime consumer should require annotations to recover release, application, or environment identity
+- the live annotation keys emitted by code are `otel.devflow.io/trace-id` and `otel.devflow.io/parent-span-id`; treat them as supplementary diagnostics rather than business identity
 
 ## Output boundary
 

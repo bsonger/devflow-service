@@ -768,7 +768,7 @@ func (s *releaseService) createArgoApplication(ctx context.Context, release *mod
 	}
 	_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepSucceeded, 100, createArgoApplicationSuccessMessage(release, application.Name), nil, nil)
 	if code, message := releaseDeploymentStartStep(release); code != "" {
-		_ = s.UpdateStep(ctx, release.ID, code, model.StepRunning, 10, message, nil, nil)
+		_ = s.UpdateStep(ctx, release.ID, code, model.StepSucceeded, 100, message, nil, nil)
 	}
 	return nil
 }

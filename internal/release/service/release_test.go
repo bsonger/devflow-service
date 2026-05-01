@@ -1120,6 +1120,24 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeplo
 	}
 
 	svc := &releaseService{}
+	completedBeforeObserver := []struct {
+		code    string
+		message string
+	}{
+		{"freeze_inputs", "release inputs frozen"},
+		{"ensure_namespace", "namespace ready"},
+		{"ensure_pull_secret", "pull secret ready"},
+		{"ensure_appproject_destination", "appproject destination ready"},
+		{"render_deployment_bundle", "bundle rendered"},
+		{"publish_bundle", "bundle published"},
+		{"create_argocd_application", "application created"},
+		{"start_deployment", "deployment sync started"},
+	}
+	for _, step := range completedBeforeObserver {
+		if err := svc.UpdateStep(context.Background(), releaseID, step.code, model.StepSucceeded, 100, step.message, nil, nil); err != nil {
+			t.Fatalf("%s succeeded failed: %v", step.code, err)
+		}
+	}
 	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepRunning, 55, "deployment progressing", nil, nil); err != nil {
 		t.Fatalf("observe_rollout running failed: %v", err)
 	}
@@ -1149,14 +1167,14 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeplo
 	if startDeployment == nil || observeRollout == nil || finalizeRelease == nil {
 		t.Fatalf("missing expected steps: start=%v observe=%v finalize=%v", startDeployment != nil, observeRollout != nil, finalizeRelease != nil)
 	}
-	if startDeployment.Status != model.StepPending {
-		t.Fatalf("start_deployment status = %q want %q", startDeployment.Status, model.StepPending)
+	if startDeployment.Status != model.StepSucceeded {
+		t.Fatalf("start_deployment status = %q want %q", startDeployment.Status, model.StepSucceeded)
 	}
-	if startDeployment.Progress != 0 {
-		t.Fatalf("start_deployment progress = %d want 0", startDeployment.Progress)
+	if startDeployment.Progress != 100 {
+		t.Fatalf("start_deployment progress = %d want 100", startDeployment.Progress)
 	}
-	if startDeployment.Message != "" {
-		t.Fatalf("start_deployment message = %q want empty", startDeployment.Message)
+	if startDeployment.Message != "deployment sync started" {
+		t.Fatalf("start_deployment message = %q want %q", startDeployment.Message, "deployment sync started")
 	}
 	if observeRollout.Status != model.StepSucceeded || observeRollout.Progress != 100 {
 		t.Fatalf("observe_rollout = %+v", *observeRollout)
@@ -1164,8 +1182,8 @@ func TestReleaseStatusConvergenceRollingObserverOwnedStepsDoNotRequireStartDeplo
 	if finalizeRelease.Status != model.StepSucceeded || finalizeRelease.Progress != 100 {
 		t.Fatalf("finalize_release = %+v", *finalizeRelease)
 	}
-	if release.Status != model.ReleaseRunning {
-		t.Fatalf("release status = %q want %q while release-owned handoff step is still pending", release.Status, model.ReleaseRunning)
+	if release.Status != model.ReleaseSucceeded {
+		t.Fatalf("release status = %q want %q after handoff and rollout finalized", release.Status, model.ReleaseSucceeded)
 	}
 }
 
