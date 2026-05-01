@@ -73,20 +73,29 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	if app.Spec.Destination.Server != target.DestinationServer {
 		t.Fatalf("server = %q", app.Spec.Destination.Server)
 	}
-	if len(app.Spec.IgnoreDifferences) != 1 {
-		t.Fatalf("ignoreDifferences = %#v", app.Spec.IgnoreDifferences)
+	assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, "apps", "Deployment")
+}
+
+func TestBuildArgoApplicationTargetsRolloutRestartedAtIgnoreForCanary(t *testing.T) {
+	release := &model.Release{
+		BaseModel:          model.BaseModel{ID: uuid.New()},
+		ApplicationID:      uuid.New(),
+		ManifestID:         uuid.New(),
+		EnvironmentID:      "production",
+		Strategy:           string(model.ReleaseStrategyCanary),
+		ArtifactRepository: "zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/production",
+		ArtifactDigest:     "sha256:abc",
+		ArtifactRef:        "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/production@sha256:abc",
 	}
-	if app.Spec.IgnoreDifferences[0].Group != "apps" || app.Spec.IgnoreDifferences[0].Kind != "Deployment" {
-		t.Fatalf("ignoreDifference target = %#v", app.Spec.IgnoreDifferences[0])
-	}
-	if len(app.Spec.IgnoreDifferences[0].JSONPointers) != 1 || app.Spec.IgnoreDifferences[0].JSONPointers[0] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
-		t.Fatalf("ignoreDifference pointers = %#v", app.Spec.IgnoreDifferences[0].JSONPointers)
-	}
-	for _, pointer := range app.Spec.IgnoreDifferences[0].JSONPointers {
-		if strings.Contains(pointer, model.ReleaseIDLabel) || strings.Contains(pointer, model.ReleaseApplicationLabel) || strings.Contains(pointer, model.ReleaseEnvironmentLabel) {
-			t.Fatalf("identity labels must not be ignored by Argo diffing: %#v", app.Spec.IgnoreDifferences)
-		}
-	}
+	manifest := &manifestdomain.Manifest{BaseModel: model.BaseModel{ID: release.ManifestID}}
+	target := releasesupport.DeployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
+
+	app := buildArgoApplication(release, manifest, &releasesupport.ApplicationProjection{
+		Name:        "demo-api",
+		ProjectName: "checkout",
+	}, target)
+
+	assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, "argoproj.io", "Rollout")
 }
 
 func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t *testing.T) {
@@ -819,6 +828,24 @@ func TestCreateArgoApplicationMessageHelpers(t *testing.T) {
 	failure := createArgoApplicationFailureMessage("demo-api", errors.New("sync denied"))
 	if failure != "argocd application demo-api failed: sync denied" {
 		t.Fatalf("failure = %q", failure)
+	}
+}
+
+func assertRestartedAtIgnoreDifference(t *testing.T, items appv1.IgnoreDifferences, wantGroup, wantKind string) {
+	t.Helper()
+	if len(items) != 1 {
+		t.Fatalf("ignoreDifferences = %#v", items)
+	}
+	if items[0].Group != wantGroup || items[0].Kind != wantKind {
+		t.Fatalf("ignoreDifference target = %#v", items[0])
+	}
+	if len(items[0].JSONPointers) != 1 || items[0].JSONPointers[0] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
+		t.Fatalf("ignoreDifference pointers = %#v", items[0].JSONPointers)
+	}
+	for _, pointer := range items[0].JSONPointers {
+		if strings.Contains(pointer, model.ReleaseIDLabel) || strings.Contains(pointer, model.ReleaseApplicationLabel) || strings.Contains(pointer, model.ReleaseEnvironmentLabel) {
+			t.Fatalf("identity labels must not be ignored by Argo diffing: %#v", items)
+		}
 	}
 }
 

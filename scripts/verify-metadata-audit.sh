@@ -62,9 +62,13 @@ check \
   "oci.SpanAnnotation:    sc.SpanID().String()," \
   internal/release/service/release.go
 check \
-  "Argo ignore-differences includes restartedAt annotation" \
-  "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" \
-  internal/release/service/release.go internal/release/service/release_argo_test.go
+  "Argo ignore-differences includes restartedAt annotation for rolling deployments" \
+  "assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, \"apps\", \"Deployment\")" \
+  internal/release/service/release_argo_test.go
+check \
+  "Argo ignore-differences retargets restartedAt annotation to rollout workloads when strategy requires it" \
+  "assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, \"argoproj.io\", \"Rollout\")" \
+  internal/release/service/release_argo_test.go
 
 check \
   "runtime restart path patches kubectl restartedAt" \

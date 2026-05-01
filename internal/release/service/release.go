@@ -969,20 +969,34 @@ func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manif
 			Project:           "app",
 			Source:            buildOCIApplicationSource(release),
 			Destination:       appv1.ApplicationDestination{Server: target.DestinationServer, Namespace: target.Namespace},
-			IgnoreDifferences: releaseApplicationIgnoreDifferences(),
+			IgnoreDifferences: releaseApplicationIgnoreDifferences(release),
 		},
 	}
 }
 
-func releaseApplicationIgnoreDifferences() appv1.IgnoreDifferences {
+func releaseApplicationIgnoreDifferences(release *model.Release) appv1.IgnoreDifferences {
 	return appv1.IgnoreDifferences{
-		{
-			Group: "apps",
-			Kind:  "Deployment",
-			JSONPointers: []string{
-				"/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
-			},
+		releaseWorkloadRestartedAtIgnoreDifference(release),
+	}
+}
+
+func releaseWorkloadRestartedAtIgnoreDifference(release *model.Release) appv1.ResourceIgnoreDifferences {
+	group, kind := releasePrimaryWorkloadIgnoreTarget(release)
+	return appv1.ResourceIgnoreDifferences{
+		Group: group,
+		Kind:  kind,
+		JSONPointers: []string{
+			"/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
 		},
+	}
+}
+
+func releasePrimaryWorkloadIgnoreTarget(release *model.Release) (string, string) {
+	switch model.ReleaseStrategyToType(release.Strategy) {
+	case model.BlueGreen, model.Canary:
+		return "argoproj.io", "Rollout"
+	default:
+		return "apps", "Deployment"
 	}
 }
 
