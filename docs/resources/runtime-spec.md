@@ -67,8 +67,10 @@ Current implementation note:
   - `devflow.application/id`
   - `devflow.environment/id`
 - workload and pod correlation require matching application/environment labels plus a non-empty release ID; `app.kubernetes.io/name` alone is not sufficient to establish runtime identity
-- annotations are supplementary only and must not be required for release, application, or environment identity recovery
+- annotations are supplementary diagnostics only and must not be required for release, application, or environment identity recovery
+- release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, but the active in-tree runtime rollout observer still derives live rollout progress from `Deployment` objects only today
 - runtime-service may send rollout callbacks into `release-service`, but it does not own release truth
+- once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
 
 For the full storage boundary, see `docs/system/runtime-storage-model.md`.
 

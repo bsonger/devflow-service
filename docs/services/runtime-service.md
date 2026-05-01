@@ -88,6 +88,8 @@ Important current nuance:
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
 - when release writeback wiring is present, that rollout observer is a callback sender into `release-service`; it does not become the owner of release status, release steps, or writeback route policy
+- release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, but the active in-tree runtime rollout observer still derives live rollout progress from `Deployment` objects only today
+- once `finalize_release` closes a release, runtime-side late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
 
 Do not read the current runtime contract as a repo-wide PostgreSQL removal.
 For operator-facing workload and pod reads, the active path should be treated as observer/index-backed and memory-backed by default.
@@ -233,7 +235,14 @@ Action failure mapping at this boundary is intentional:
 - `404 not_found` means the requested `application + environment` has no observer-backed runtime identity yet, or Kubernetes could not find a resource after a valid target was already resolved
 - `412 failed_precondition` means runtime-service refused to guess because namespace, workload, or pod targeting could not be resolved confidently from observer/index truth
 
-### Current read-model surface
+### Runtime read-model surface
+
+The active reader-facing runtime contract is intentionally narrower than the full release metadata contract:
+
+- runtime readers consume release/application/environment identity from labels, not annotations
+- annotations remain supplementary diagnostics only
+- metadata and inspection surfaces stay compatible with both `Deployment` and `Rollout`
+- the active in-tree runtime observer still derives live rollout progress from `Deployment` objects only today, so ambiguous or non-Deployment rollout targeting must fail explicitly instead of guessing
 
 Runtime workload overview now uses:
 

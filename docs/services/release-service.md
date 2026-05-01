@@ -122,6 +122,14 @@ Target boundary:
 5. rollout progress writeback, when used, comes through release-owned writeback routes
 6. those writeback routes are part of the release boundary, not a public runtime API surface
 
+Operational reminders carried forward from the system lifecycle docs:
+
+- `start_deployment` remains the release-service-owned handoff step for rolling releases.
+- `observe_rollout` and `finalize_release` remain callback-owned follow-up steps after that handoff.
+- release/application/environment identity must continue to ride on labels; annotations stay supplementary diagnostics only.
+- the release metadata and inspection contract stays compatible with both `Deployment` and `Rollout` primary workloads even though the active in-tree runtime observer still derives live rollout progress from `Deployment` objects only today.
+- once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
+
 See also:
 
 - `docs/system/release-writeback.md` for the callback contract

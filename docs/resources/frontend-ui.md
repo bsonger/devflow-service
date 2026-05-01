@@ -738,6 +738,7 @@ Polling rules:
 
 - while `status` is `Pending`, `Running`, or `Syncing`, poll release detail on a short interval such as `5s`
 - stop polling automatically on terminal states such as `Succeeded`, `Failed`, `RolledBack`, or `SyncFailed`
+- after `finalize_release` reaches a terminal outcome, treat the release as closed and do not keep the page in an active-progress state because of late callback noise
 - manual refresh should remain available even after polling stops
 
 Strategy-sensitive timeline note:
@@ -820,6 +821,16 @@ The runtime page should follow one clear split:
 
 Do not make routine page rendering depend on live Kubernetes reads.
 Treat runtime-service as a consumer of the release-owned metadata contract described in `docs/system/flow-overview.md` and `docs/system/release-writeback.md`: runtime reads and actions should stay keyed to label-driven workload identity, not to release-detail fields or callback ownership.
+
+This page is not the deploy-side source of truth for `Release` terminality.
+If release convergence or polling behavior looks wrong, route next to `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md`.
+The UI contract should mirror those lifecycle rules, not restate them differently:
+
+- `start_deployment` stays the release-service-owned rolling handoff step.
+- `observe_rollout` and `finalize_release` stay callback-owned follow-up steps.
+- release/application/environment identity for runtime readers and actions continues to ride on labels; annotations are supplementary diagnostics only.
+- the metadata and inspection contract stays compatible with both `Deployment` and `Rollout`, but the active in-tree runtime rollout observer still derives live progress from `Deployment` objects only today.
+- once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
 
 ### Runtime information architecture
 
