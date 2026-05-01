@@ -473,6 +473,10 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 	if err != nil {
 		return err
 	}
+	switch release.Status {
+	case model.ReleaseSucceeded, model.ReleaseFailed, model.ReleaseRolledBack, model.ReleaseSyncFailed:
+		return nil
+	}
 	nextSteps := cloneReleaseSteps(release.Steps)
 	currentStep := findReleaseStep(release.Steps, stepName)
 	if currentStep == nil {

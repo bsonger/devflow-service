@@ -205,6 +205,36 @@ func TestDeriveReleaseStatusFromSteps(t *testing.T) {
 			want: ReleaseFailed,
 		},
 		{
+			name:          "preserve terminal succeeded against late running step",
+			releaseAction: ReleaseUpgrade,
+			currentStatus: ReleaseSucceeded,
+			steps: []ReleaseStep{
+				{Name: "observe rollout", Status: StepRunning, Message: "late running callback"},
+				{Name: "finalize release", Status: StepSucceeded, Message: "release finalized"},
+			},
+			want: ReleaseSucceeded,
+		},
+		{
+			name:          "preserve terminal succeeded against late duplicate finalize failure",
+			releaseAction: ReleaseUpgrade,
+			currentStatus: ReleaseSucceeded,
+			steps: []ReleaseStep{
+				{Name: "observe rollout", Status: StepSucceeded, Message: "deployment healthy"},
+				{Name: "finalize release", Status: StepFailed, Message: "late duplicate finalize failure"},
+			},
+			want: ReleaseSucceeded,
+		},
+		{
+			name:          "preserve terminal failed against late duplicate finalize success",
+			releaseAction: ReleaseUpgrade,
+			currentStatus: ReleaseFailed,
+			steps: []ReleaseStep{
+				{Name: "observe rollout", Status: StepFailed, Message: "deployment unhealthy"},
+				{Name: "finalize release", Status: StepSucceeded, Message: "late duplicate finalize success"},
+			},
+			want: ReleaseFailed,
+		},
+		{
 			name:          "empty steps with syncing preserves syncing",
 			releaseAction: ReleaseUpgrade,
 			currentStatus: ReleaseSyncing,

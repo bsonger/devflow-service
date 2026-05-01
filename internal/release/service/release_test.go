@@ -995,9 +995,12 @@ func TestReleaseStatusConvergenceDuplicateLateEventsAfterTerminal(t *testing.T) 
 	}
 
 	svc := &releaseService{}
-	// Late duplicate/orphan step events should not alter terminal status
-	_ = svc.UpdateStep(context.Background(), releaseID, "deploy ready", model.StepFailed, 0, "late failure", nil, nil)
-	_ = svc.UpdateStep(context.Background(), releaseID, "orphan late step", model.StepRunning, 50, "late running", nil, nil)
+	if err := svc.UpdateStep(context.Background(), releaseID, "observe_rollout", model.StepFailed, 0, "late failure", nil, nil); err != nil {
+		t.Fatalf("unexpected error updating observe_rollout: %v", err)
+	}
+	if err := svc.UpdateStep(context.Background(), releaseID, "finalize_release", model.StepRunning, 50, "late running", nil, nil); err != nil {
+		t.Fatalf("unexpected error updating finalize_release: %v", err)
+	}
 
 	release, err := svc.Get(context.Background(), releaseID)
 	if err != nil {
@@ -1006,6 +1009,142 @@ func TestReleaseStatusConvergenceDuplicateLateEventsAfterTerminal(t *testing.T) 
 	if release.Status != model.ReleaseSucceeded {
 		t.Fatalf("terminal Succeeded was overwritten by late events: got %q", release.Status)
 	}
+	for _, step := range release.Steps {
+		switch step.Code {
+		case "observe_rollout", "finalize_release":
+			if step.Status != model.StepPending {
+				t.Fatalf("%s status = %q want %q after ignored late callback", step.Code, step.Status, model.StepPending)
+			}
+			if step.Progress != 0 {
+				t.Fatalf("%s progress = %d want 0 after ignored late callback", step.Code, step.Progress)
+			}
+			if step.Message != "" {
+				t.Fatalf("%s message = %q want empty after ignored late callback", step.Code, step.Message)
+			}
+		}
+	}
+}
+
+func TestUpdateStepIgnoresLateFinalizeFailureAfterTerminalSuccess(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "observe_rollout":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "deployment healthy"
+			steps[i].EndTime = &now
+		case "finalize_release":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "release finalized"
+			steps[i].EndTime = &now
+		}
+	}
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Succeeded',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	if err := svc.UpdateStep(context.Background(), releaseID, "finalize_release", model.StepFailed, 0, "late duplicate finalize failure", nil, nil); err != nil {
+		t.Fatalf("UpdateStep failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.Status != model.ReleaseSucceeded {
+		t.Fatalf("release status = %q want %q", release.Status, model.ReleaseSucceeded)
+	}
+	for _, step := range release.Steps {
+		if step.Code != "finalize_release" {
+			continue
+		}
+		if step.Status != model.StepSucceeded {
+			t.Fatalf("finalize_release status = %q", step.Status)
+		}
+		if step.Progress != 100 {
+			t.Fatalf("finalize_release progress = %d", step.Progress)
+		}
+		if step.Message != "release finalized" {
+			t.Fatalf("finalize_release message = %q", step.Message)
+		}
+		return
+	}
+	t.Fatal("finalize_release step not found")
+}
+
+func TestUpdateStepIgnoresLateFinalizeSuccessAfterTerminalFailure(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "observe_rollout":
+			steps[i].Status = model.StepFailed
+			steps[i].Progress = 100
+			steps[i].Message = "deployment unhealthy"
+			steps[i].EndTime = &now
+		case "finalize_release":
+			steps[i].Status = model.StepFailed
+			steps[i].Progress = 100
+			steps[i].Message = "release failed"
+			steps[i].EndTime = &now
+		}
+	}
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade',$4,'Failed',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	if err := svc.UpdateStep(context.Background(), releaseID, "finalize_release", model.StepSucceeded, 100, "late duplicate finalize success", nil, nil); err != nil {
+		t.Fatalf("UpdateStep failed: %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.Status != model.ReleaseFailed {
+		t.Fatalf("release status = %q want %q", release.Status, model.ReleaseFailed)
+	}
+	for _, step := range release.Steps {
+		if step.Code != "finalize_release" {
+			continue
+		}
+		if step.Status != model.StepFailed {
+			t.Fatalf("finalize_release status = %q", step.Status)
+		}
+		if step.Progress != 100 {
+			t.Fatalf("finalize_release progress = %d", step.Progress)
+		}
+		if step.Message != "release failed" {
+			t.Fatalf("finalize_release message = %q", step.Message)
+		}
+		return
+	}
+	t.Fatal("finalize_release step not found")
 }
 
 func TestUpdateStepNormalizesLegacyStepNameAndStatus(t *testing.T) {
