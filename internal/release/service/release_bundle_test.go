@@ -29,8 +29,8 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 			Replicas:           2,
 			ServiceAccountName: "demo-api",
 			Labels: map[string]string{
-				"team":                      "payments",
-				model.ReleaseIDLabel:         "user-overridden-release",
+				"team":                        "payments",
+				model.ReleaseIDLabel:          "user-overridden-release",
 				model.ReleaseApplicationLabel: "user-overridden-app",
 			},
 			Annotations: map[string]string{
@@ -84,18 +84,7 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		t.Fatalf("deployment containers missing: %#v", bundle.Resources.Deployment.Object)
 	}
 	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
-		if got := labels[model.ReleaseIDLabel]; got != releaseID.String() {
-			t.Fatalf("release-id label = %#v", got)
-		}
-		if got := labels[model.ReleaseApplicationLabel]; got != manifest.ApplicationID.String() {
-			t.Fatalf("application label = %#v", got)
-		}
-		if got := labels[model.ReleaseEnvironmentLabel]; got != "production" {
-			t.Fatalf("environment label = %#v", got)
-		}
-		if got := labels["app.kubernetes.io/name"]; got != "demo-api" {
-			t.Fatalf("app label = %#v", got)
-		}
+		assertRequiredIdentityLabels(t, labels, releaseID.String(), manifest.ApplicationID.String(), "production", "demo-api")
 		if got := labels["team"]; got != "payments" {
 			t.Fatalf("custom team label = %#v", got)
 		}
@@ -222,5 +211,112 @@ func TestBuildReleaseBundleRendersRolloutForBlueGreenStrategy(t *testing.T) {
 	}
 	if bundle.Resources.Services[1].Name != "demo-api-preview" {
 		t.Fatalf("preview service = %q", bundle.Resources.Services[1].Name)
+	}
+}
+
+func TestBuildReleaseBundleStripsDriftProneAnnotations(t *testing.T) {
+	releaseID := uuid.New()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{{
+			Name: "demo-api",
+		}},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas: 1,
+			Annotations: map[string]string{
+				"kubectl.kubernetes.io/restartedAt": "2026-05-01T02:03:04Z",
+				"example.com/trace":                 "enabled",
+			},
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: releaseID},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "production",
+	}
+
+	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	metadata := bundle.Resources.Deployment.Object["metadata"].(map[string]any)
+	if annotations, ok := metadata["annotations"]; ok {
+		annotationMap := annotations.(map[string]any)
+		if _, exists := annotationMap["kubectl.kubernetes.io/restartedAt"]; exists {
+			t.Fatalf("workload metadata should not include drift-prone annotation: %#v", annotationMap)
+		}
+	}
+	templateAnnotations := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["metadata"].(map[string]any)["annotations"].(map[string]any)
+	if _, exists := templateAnnotations["kubectl.kubernetes.io/restartedAt"]; exists {
+		t.Fatalf("template annotations should strip drift-prone annotation: %#v", templateAnnotations)
+	}
+	if got := templateAnnotations["example.com/trace"]; got != "enabled" {
+		t.Fatalf("expected supplementary annotation to survive, got %#v", got)
+	}
+	if strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "kubectl.kubernetes.io/restartedAt") {
+		t.Fatalf("bundle.yaml should not contain drift-prone annotation: %s", bundle.Files[len(bundle.Files)-1].Content)
+	}
+}
+
+func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
+	releaseID := uuid.New()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{{
+			Name: "demo-api",
+		}},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas: 1,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":      "overridden",
+				model.ReleaseIDLabel:          "wrong-release",
+				model.ReleaseApplicationLabel: "wrong-app",
+				model.ReleaseEnvironmentLabel: "wrong-env",
+				"custom.io/owner":             "platform",
+			},
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: releaseID},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "production",
+		Strategy:      string(model.ReleaseStrategyCanary),
+	}
+
+	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	if bundle.Resources.Rollout == nil {
+		t.Fatal("expected rollout")
+	}
+	metadata := bundle.Resources.Rollout.Object["metadata"].(map[string]any)
+	workloadLabels := metadata["labels"].(map[string]any)
+	templateLabels := bundle.Resources.Rollout.Object["spec"].(map[string]any)["template"].(map[string]any)["metadata"].(map[string]any)["labels"].(map[string]any)
+	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
+		assertRequiredIdentityLabels(t, labels, releaseID.String(), manifest.ApplicationID.String(), "production", "demo-api")
+		if got := labels["custom.io/owner"]; got != "platform" {
+			t.Fatalf("expected custom label to survive, got %#v", got)
+		}
+	}
+}
+
+func assertRequiredIdentityLabels(t *testing.T, labels map[string]any, releaseID, applicationID, environmentID, name string) {
+	t.Helper()
+	if got := labels[model.ReleaseIDLabel]; got != releaseID {
+		t.Fatalf("release-id label = %#v", got)
+	}
+	if got := labels[model.ReleaseApplicationLabel]; got != applicationID {
+		t.Fatalf("application label = %#v", got)
+	}
+	if got := labels[model.ReleaseEnvironmentLabel]; got != environmentID {
+		t.Fatalf("environment label = %#v", got)
+	}
+	if got := labels["app.kubernetes.io/name"]; got != name {
+		t.Fatalf("app label = %#v", got)
 	}
 }

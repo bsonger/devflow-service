@@ -255,29 +255,8 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	if len(manifest.ServicesSnapshot) > 0 && strings.TrimSpace(manifest.ServicesSnapshot[0].Name) != "" {
 		selectorName = strings.TrimSpace(manifest.ServicesSnapshot[0].Name)
 	}
-	requiredLabels := map[string]any{
-		"app.kubernetes.io/name":      selectorName,
-		model.ReleaseIDLabel:          release.ID.String(),
-		model.ReleaseApplicationLabel: release.ApplicationID.String(),
-		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
-	}
-	labels := make(map[string]any, len(requiredLabels)+len(workload.Labels))
-	for k, v := range workload.Labels {
-		if strings.TrimSpace(k) == "" {
-			continue
-		}
-		labels[k] = v
-	}
-	for k, v := range requiredLabels {
-		labels[k] = v
-	}
-	annotations := map[string]any{}
-	for k, v := range workload.Annotations {
-		if strings.TrimSpace(k) == "" {
-			continue
-		}
-		annotations[k] = v
-	}
+	labels := releaseWorkloadLabels(selectorName, workload.Labels, release)
+	annotations := releaseSupplementaryAnnotations(workload.Annotations)
 	metadata := map[string]any{
 		"name":   applicationName,
 		"labels": labels,
@@ -405,6 +384,48 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		}
 		return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
 	}
+}
+
+func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string, release *model.Release) map[string]any {
+	requiredLabels := map[string]any{
+		"app.kubernetes.io/name":      selectorName,
+		model.ReleaseIDLabel:          release.ID.String(),
+		model.ReleaseApplicationLabel: release.ApplicationID.String(),
+		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
+	}
+	labels := make(map[string]any, len(requiredLabels)+len(workloadLabels))
+	for key, value := range workloadLabels {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		labels[key] = value
+	}
+	for key, value := range requiredLabels {
+		labels[key] = value
+	}
+	return labels
+}
+
+var releaseDriftProneAnnotationKeys = map[string]struct{}{
+	"kubectl.kubernetes.io/restartedAt": {},
+}
+
+func releaseSupplementaryAnnotations(workloadAnnotations map[string]string) map[string]any {
+	annotations := make(map[string]any)
+	for key, value := range workloadAnnotations {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey == "" {
+			continue
+		}
+		if _, blocked := releaseDriftProneAnnotationKeys[trimmedKey]; blocked {
+			continue
+		}
+		annotations[trimmedKey] = value
+	}
+	if len(annotations) == 0 {
+		return nil
+	}
+	return annotations
 }
 
 func buildReleaseContainerPorts(services []manifestdomain.ManifestService) []map[string]any {
