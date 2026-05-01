@@ -276,19 +276,48 @@ The active handler/service contract enforces these write rules:
 - empty `env[*].name` entries are rejected
 - list endpoints support `application_id` and `include_deleted`
 
-## Legacy cleanup policy: migrate or reject
+## Legacy cleanup policy: migrate or delete on read
 
-Older data may still carry the previous free-form resource or probe shape. The target policy is deterministic:
+Older stored rows may still carry the previous free-form resource or probe shape. The active repository read contract is deterministic:
 
-1. **migrate** legacy records that can be translated losslessly into the constrained contract
-2. **reject** legacy create/update writes that depend on wide resource fields or other unsupported shapes
+1. **migrate in place on read** when a stored row can be translated losslessly into the constrained contract
+2. **soft-delete on read** when a stored row cannot be translated without inventing data or preserving an unsupported shape
+3. **reject on write** when a caller sends legacy wide resource fields or any other unsupported create/update payload shape
 
-Practical rule:
+The repository boundary enforces this behavior during `Get` and `List` reads so downstream manifest and release consumers either see:
 
-- if a record cleanly maps to one canonical size class plus the named probe slots, it can be preserved in the constrained form
-- if it depends on arbitrary map keys, conflicting env names, ambiguous probe keys, or resource values outside the canonical mapping rows, the system must not invent a new shape
+- the constrained canonical `WorkloadConfig`, or
+- the same outcome as a missing row
 
-This policy exists to prevent the repo from carrying two equivalent workload contract models indefinitely.
+They do **not** need compatibility branches for legacy stored shapes.
+
+### Deterministic migration rule
+
+A stored row is preserved only when every legacy field maps exactly to the constrained model already implemented in the service:
+
+- `resources` must match one row in `internal/workloadconfig/domain.WorkloadSizeClassResources`
+- a typed `resources.size_class` row is kept only when any stored `requests`/`limits` values, if present, exactly match that size class's canonical values
+- legacy `requests` + `limits` maps are migrated only when they exactly match one canonical size-class row
+- `probes` must already decode into the typed `liveness` / `readiness` / `startup` structure
+- `env` must decode into the ordered `[]EnvVar` shape with non-empty unique names
+- empty `labels`, `annotations`, `resources`, or `env` payloads are normalized to the current canonical empty form
+
+If those checks succeed, the repository rewrites the row with canonical JSON and refreshes `updated_at`.
+
+### Delete-on-incompatible-read rule
+
+A stored row is soft-deleted instead of being surfaced when any read-time normalization check fails, including cases such as:
+
+- resource quantities that do not match any canonical size class
+- typed `size_class` data whose stored `requests` or `limits` disagree with the canonical mapping
+- malformed JSON in the stored resource, probe, env, label, or annotation payloads
+- `env` entries with empty names or duplicates
+- any other stored shape that cannot be mapped losslessly into the constrained contract
+
+For `Get`, the caller receives the same result as a missing active row.
+For `List`, incompatible rows are omitted from the result set and then soft-deleted after the cursor closes.
+
+This keeps legacy cleanup observable through normal repository-backed list/get behavior instead of ad-hoc database inspection.
 
 ## Removed legacy fields
 
@@ -307,6 +336,13 @@ Reasons:
 - rollout strategy belongs to `Release`
 
 ## Rendering boundary
+
+Manifest creation freezes the canonical workload-config payload into `Manifest.workload_config_snapshot`, and release preview/render flows consume that frozen snapshot plus persisted release bundle records. They do not re-read live workload-config rows during later bundle preview or render paths.
+
+That means verification splits cleanly across two boundaries:
+
+- repository/list/get regressions explain live-row migration or delete behavior
+- manifest/release regressions explain frozen snapshot and persisted bundle consumption behavior
 
 `WorkloadConfig` does **not** decide whether downstream rendering produces:
 
@@ -336,7 +372,8 @@ The anti-drift proof surfaces for this contract are:
 
 - `internal/workloadconfig/domain/workload_config_contract_test.go`
 - `internal/workloadconfig/transport/http/handler_test.go`
-- downstream mirror contract tests under `internal/manifest/...` and `internal/release/...`
+- `internal/workloadconfig/repository/repository_test.go` for read-time migrate-or-delete behavior
+- downstream mirror contract tests under `internal/manifest/...` and `internal/release/...`, including frozen manifest snapshot and persisted bundle preview coverage
 - generated OpenAPI in `api/openapi/swagger.yaml`
 - repo verification via `bash scripts/regen-swagger.sh` and `bash scripts/verify.sh`
 
