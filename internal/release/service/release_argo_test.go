@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,6 +82,11 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	if len(app.Spec.IgnoreDifferences[0].JSONPointers) != 1 || app.Spec.IgnoreDifferences[0].JSONPointers[0] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
 		t.Fatalf("ignoreDifference pointers = %#v", app.Spec.IgnoreDifferences[0].JSONPointers)
 	}
+	for _, pointer := range app.Spec.IgnoreDifferences[0].JSONPointers {
+		if strings.Contains(pointer, model.ReleaseIDLabel) || strings.Contains(pointer, model.ReleaseApplicationLabel) || strings.Contains(pointer, model.ReleaseEnvironmentLabel) {
+			t.Fatalf("identity labels must not be ignored by Argo diffing: %#v", app.Spec.IgnoreDifferences)
+		}
+	}
 }
 
 func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t *testing.T) {
@@ -114,6 +120,11 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 	if _, ok := application.Annotations["custom.annotation"]; ok {
 		t.Fatalf("unexpected custom annotation preserved: %#v", application.Annotations)
 	}
+	for key := range application.Annotations {
+		if key != oci.TraceIDAnnotation && key != oci.SpanAnnotation {
+			t.Fatalf("unexpected non-otel annotation emitted: %s (%#v)", key, application.Annotations)
+		}
+	}
 	if got := application.Labels["app.kubernetes.io/name"]; got != "demo-api" {
 		t.Fatalf("app label = %q", got)
 	}
@@ -134,6 +145,9 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 	}
 	if _, ok := application.Labels["custom"]; ok {
 		t.Fatalf("unexpected custom label preserved: %#v", application.Labels)
+	}
+	if _, ok := application.Labels["otel.devflow.io/trace-id"]; ok {
+		t.Fatalf("otel trace metadata must not be mirrored into labels: %#v", application.Labels)
 	}
 }
 
