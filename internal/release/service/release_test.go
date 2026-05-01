@@ -523,6 +523,128 @@ func TestGetBundlePreviewReadsPersistedBundleRecord(t *testing.T) {
 	}
 }
 
+func TestGetBundlePreviewUsesPersistedBundleWhenManifestSnapshotWouldNowBeMissingLiveConfig(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "render_deployment_bundle", "publish_bundle":
+			steps[i].Status = model.StepSucceeded
+			steps[i].EndTime = &now
+		}
+	}
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (
+			id, application_id, manifest_id, env, strategy,
+			artifact_repository, artifact_tag, artifact_digest, artifact_ref,
+			type, steps, status, created_at, updated_at, deleted_at
+		)
+		values ($1,$2,$3,'staging','rolling',$4,$5,$6,$7,'Upgrade',$8,'Running',$9,$10,null)
+	`, releaseID.String(), appID.String(), manifestID.String(),
+		"registry.example.com/devflow/releases/demo-api",
+		"release-20260501",
+		"sha256:bundle",
+		"oci://registry.example.com/devflow/releases/demo-api@sha256:bundle",
+		stepsJSON, now, now)
+	if err != nil {
+		t.Fatalf("insert release failed: %v", err)
+	}
+
+	bundleRecord := newReleaseBundleRecord(&model.ReleaseBundle{
+		ReleaseID:     releaseID,
+		ApplicationID: appID,
+		EnvironmentID: "staging",
+		Namespace:     "frozen-checkout",
+		ArtifactName:  "demo-api",
+		RenderedObjects: []model.ReleaseRenderedResource{
+			{
+				Kind:      "Deployment",
+				Name:      "demo-api",
+				Namespace: "frozen-checkout",
+				YAML:      "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: demo-api\nspec:\n  replicas: 4\n  template:\n    spec:\n      containers:\n        - name: demo-api\n          image: registry.example.com/demo-api@sha256:abc\n          env:\n            - name: FROZEN_ONLY\n              value: \"true\"\n",
+				Object: map[string]any{
+					"spec": map[string]any{
+						"replicas": 4,
+						"template": map[string]any{
+							"spec": map[string]any{
+								"containers": []map[string]any{{
+									"image": "registry.example.com/demo-api@sha256:abc",
+									"env": []map[string]any{{"name": "FROZEN_ONLY", "value": "true"}},
+									"resources": map[string]any{
+										"requests": map[string]any{"cpu": "250m", "memory": "256Mi"},
+										"limits":   map[string]any{"cpu": "1", "memory": "1Gi"},
+									},
+								}},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	svc := &releaseService{}
+	if err := svc.repoBundleStore().Insert(context.Background(), bundleRecord); err != nil {
+		t.Fatalf("insert bundle failed: %v", err)
+	}
+
+	originalManifestSource := releaseManifestSource
+	releaseManifestSource = stubReleaseManifestReader{
+		getFn: func(_ context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
+			if id != manifestID {
+				t.Fatalf("manifest id = %s want %s", id, manifestID)
+			}
+			return &manifestdomain.Manifest{
+				BaseModel:     model.BaseModel{ID: manifestID},
+				ApplicationID: appID,
+				CommitHash:    "commit-from-frozen-manifest",
+				ImageRef:      "registry.example.com/demo-api@sha256:abc",
+				ImageDigest:   "sha256:abc",
+				ServicesSnapshot: []manifestdomain.ManifestService{{
+					Name:  "demo-api",
+					Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"}},
+				}},
+				WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+					Replicas: 4,
+					Resources: manifestdomain.ManifestWorkloadConfig{}.Resources,
+					Env: []model.EnvVar{{Name: "FROZEN_ONLY", Value: "true"}},
+				},
+			}, nil
+		},
+	}
+	defer func() { releaseManifestSource = originalManifestSource }()
+
+	preview, err := svc.GetBundlePreview(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("GetBundlePreview failed: %v", err)
+	}
+	if preview.Namespace != "frozen-checkout" {
+		t.Fatalf("preview namespace = %q", preview.Namespace)
+	}
+	if preview.BundleDigest != bundleRecord.BundleDigest {
+		t.Fatalf("preview digest = %q want %q", preview.BundleDigest, bundleRecord.BundleDigest)
+	}
+	if preview.FrozenInputs.ManifestSummary.CommitHash != "commit-from-frozen-manifest" {
+		t.Fatalf("manifest summary commit = %q", preview.FrozenInputs.ManifestSummary.CommitHash)
+	}
+	if len(preview.RenderedBundle.RenderedResources) != 1 {
+		t.Fatalf("rendered resources = %#v", preview.RenderedBundle.RenderedResources)
+	}
+	if preview.RenderedBundle.RenderedResources[0].Kind != "Deployment" {
+		t.Fatalf("primary rendered resource = %#v", preview.RenderedBundle.RenderedResources[0])
+	}
+	if got := preview.RenderedBundle.RenderedResources[0].Summary["replicas"]; got != 4 {
+		t.Fatalf("rendered replicas = %#v", got)
+	}
+	if !strings.Contains(preview.RenderedBundle.Files[len(preview.RenderedBundle.Files)-1].Content, "FROZEN_ONLY") {
+		t.Fatalf("bundle preview file missing frozen env content: %s", preview.RenderedBundle.Files[len(preview.RenderedBundle.Files)-1].Content)
+	}
+}
+
 func TestGetReleaseAttachesBundleSummary(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()

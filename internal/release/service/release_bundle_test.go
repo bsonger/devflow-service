@@ -261,6 +261,60 @@ func TestBuildReleaseBundleStripsDriftProneAnnotations(t *testing.T) {
 	}
 }
 
+func TestBuildReleaseBundleUsesFrozenManifestSnapshotWithoutLiveWorkloadReads(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{{
+			Name: "demo-api",
+			Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"}},
+		}},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas: 4,
+			Resources: workloadconfigdomain.WorkloadResourceRequirements{
+				SizeClass: workloadconfigdomain.WorkloadSizeClassLarge,
+			},
+			Env: []model.EnvVar{{Name: "SNAPSHOT_ONLY", Value: "true"}},
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "staging",
+	}
+
+	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	container := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)[0]
+	resources := container["resources"].(map[string]any)
+	limits := resources["limits"].(map[string]any)
+	requests := resources["requests"].(map[string]any)
+	if got := bundle.Resources.Deployment.Object["spec"].(map[string]any)["replicas"]; got != 4 {
+		t.Fatalf("deployment replicas = %#v", got)
+	}
+	if got := requests["cpu"]; got != "500m" {
+		t.Fatalf("requests cpu = %#v", got)
+	}
+	if got := requests["memory"]; got != "512Mi" {
+		t.Fatalf("requests memory = %#v", got)
+	}
+	if got := limits["cpu"]; got != "2" {
+		t.Fatalf("limits cpu = %#v", got)
+	}
+	if got := limits["memory"]; got != "2Gi" {
+		t.Fatalf("limits memory = %#v", got)
+	}
+	if env := container["env"].([]map[string]any); len(env) != 1 || env[0]["name"] != "SNAPSHOT_ONLY" {
+		t.Fatalf("deployment env = %#v", env)
+	}
+	if !strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "SNAPSHOT_ONLY") {
+		t.Fatalf("bundle.yaml missing frozen env entry: %s", bundle.Files[len(bundle.Files)-1].Content)
+	}
+}
+
 func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
 	releaseID := uuid.New()
 	manifest := &manifestdomain.Manifest{

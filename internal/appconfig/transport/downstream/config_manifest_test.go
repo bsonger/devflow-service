@@ -99,3 +99,22 @@ func TestFindWorkloadConfigUsesApplicationScopedEntry(t *testing.T) {
 		t.Fatalf("unexpected env %+v", got.Env)
 	}
 }
+
+func TestFindWorkloadConfigReturnsNilWhenCleanupDeletedLegacyRow(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/workload-configs" || r.URL.RawQuery != "application_id=app-1" {
+			t.Fatalf("unexpected request path=%s query=%s", r.URL.Path, r.URL.RawQuery)
+		}
+		_, _ = io.WriteString(w, `{"data":[]}`)
+	}))
+	defer ts.Close()
+
+	client := New(ts.URL)
+	got, err := client.FindWorkloadConfig(context.Background(), "app-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil config after cleanup deleted legacy row, got %+v", got)
+	}
+}

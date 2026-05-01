@@ -3,17 +3,25 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	platformlogger "github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	"github.com/google/uuid"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	corev1 "k8s.io/api/core/v1"
+	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
 
@@ -110,6 +118,114 @@ func TestBuildManifestFallsBackToConfiguredRegistryForGitRepoAddress(t *testing.
 	}
 	if got.ImageRef != "registry.cn-hangzhou.aliyuncs.com/devflow/devflow-runtime-service@sha256:abc" {
 		t.Fatalf("unexpected image ref %q", got.ImageRef)
+	}
+}
+
+type stubManifestApplicationReader struct {
+	getFn func(context.Context, uuid.UUID) (*releasesupport.ApplicationProjection, error)
+}
+
+func (s stubManifestApplicationReader) Get(ctx context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+	return s.getFn(ctx, id)
+}
+
+func TestBuildManifestFreezesCanonicalizedWorkloadSnapshot(t *testing.T) {
+	req := &manifestdomain.CreateManifestRequest{
+		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
+	}
+	workload := &appconfigdownstream.WorkloadConfig{
+		ID:                 "wc-legacy-migrated",
+		Replicas:           3,
+		ServiceAccountName: "demo-api",
+		Resources: appconfigdownstream.WorkloadResourceRequirements{
+			SizeClass: "medium",
+			Requests:  appconfigdownstream.WorkloadResourceList{CPU: "250m", Memory: "256Mi"},
+			Limits:    appconfigdownstream.WorkloadResourceList{CPU: "1", Memory: "1Gi"},
+		},
+		Probes: appconfigdownstream.WorkloadProbes{
+			Readiness: &appconfigdownstream.WorkloadProbe{Path: "/readyz", Port: "http", PeriodSeconds: 5},
+		},
+		Env: []appconfigdownstream.EnvVar{{Name: "LOG_LEVEL", Value: "debug"}},
+		Labels: map[string]string{"team": "platform"},
+		Annotations: map[string]string{"example.com/revision": "migrated"},
+	}
+	target := oci.ImageTarget{
+		Name: "demo-api",
+		Tag:  "20260411-120000",
+		Ref:  "registry.example.com/devflow/demo-api:20260411-120000",
+	}
+	got, err := buildManifest(req, "demo-api", "git@github.com:example/demo-api.git", target, "sha256:abc", workload, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.WorkloadConfigSnapshot.Resources != workload.Resources {
+		t.Fatalf("resources snapshot = %+v, want %+v", got.WorkloadConfigSnapshot.Resources, workload.Resources)
+	}
+	if got.WorkloadConfigSnapshot.Resources.SizeClass != workload.Resources.SizeClass {
+		t.Fatalf("size class = %q, want %q", got.WorkloadConfigSnapshot.Resources.SizeClass, workload.Resources.SizeClass)
+	}
+	if got.WorkloadConfigSnapshot.Probes.Readiness == nil || got.WorkloadConfigSnapshot.Probes.Readiness.Path != "/readyz" {
+		t.Fatalf("unexpected probes snapshot %+v", got.WorkloadConfigSnapshot.Probes)
+	}
+	if len(got.WorkloadConfigSnapshot.Env) != 1 || got.WorkloadConfigSnapshot.Env[0].Name != "LOG_LEVEL" {
+		t.Fatalf("unexpected env snapshot %+v", got.WorkloadConfigSnapshot.Env)
+	}
+}
+
+func TestCreateManifestReturnsMissingConfigWhenCleanupDeletedLegacyRow(t *testing.T) {
+	originalCreatePVC := manifestCreatePVC
+	originalCreatePipelineRun := manifestCreatePipelineRun
+	originalPatchPVCOwner := manifestPatchPVCOwner
+	originalGetPipeline := manifestGetPipeline
+	originalLogger := platformlogger.Logger
+	t.Cleanup(func() {
+		manifestCreatePVC = originalCreatePVC
+		manifestCreatePipelineRun = originalCreatePipelineRun
+		manifestPatchPVCOwner = originalPatchPVCOwner
+		manifestGetPipeline = originalGetPipeline
+		platformlogger.Logger = originalLogger
+	})
+	platformlogger.Logger = zap.NewNop()
+
+	manifestCreatePVC = func(context.Context, string, string, string, string) (*corev1.PersistentVolumeClaim, error) {
+		t.Fatal("manifest build should not be submitted when workload config is missing")
+		return nil, nil
+	}
+	manifestCreatePipelineRun = func(context.Context, string, *tknv1.PipelineRun) (*tknv1.PipelineRun, error) {
+		t.Fatal("manifest build should not be submitted when workload config is missing")
+		return nil, nil
+	}
+	manifestPatchPVCOwner = func(context.Context, *corev1.PersistentVolumeClaim, *tknv1.PipelineRun) error {
+		t.Fatal("manifest build should not be submitted when workload config is missing")
+		return nil
+	}
+	manifestGetPipeline = func(context.Context, string, string) (*tknv1.Pipeline, error) {
+		t.Fatal("manifest build should not be submitted when workload config is missing")
+		return nil, nil
+	}
+
+	configAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/workload-configs" || r.URL.RawQuery != "application_id=11111111-1111-1111-1111-111111111111" {
+			t.Fatalf("unexpected request path=%s query=%s", r.URL.Path, r.URL.RawQuery)
+		}
+		_, _ = io.WriteString(w, `{"data":[]}`)
+	}))
+	defer configAPI.Close()
+
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	cfg := runtimeCfg
+	cfg.Downstream.ConfigServiceBaseURL = configAPI.URL
+	t.Cleanup(func() { releasesupport.ConfigureRuntimeConfig(runtimeCfg) })
+	releasesupport.ConfigureRuntimeConfig(cfg)
+
+	svc := &manifestService{apps: stubManifestApplicationReader{
+		getFn: func(_ context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+			return &releasesupport.ApplicationProjection{ID: id, Name: "demo-api", RepoAddress: "git@github.com:example/demo-api.git"}, nil
+		},
+	}}
+	_, err := svc.CreateManifest(context.Background(), &manifestdomain.CreateManifestRequest{ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111")})
+	if !errors.Is(err, ErrManifestWorkloadConfigMissing) {
+		t.Fatalf("CreateManifest() error = %v, want %v", err, ErrManifestWorkloadConfigMissing)
 	}
 }
 
