@@ -68,11 +68,7 @@ func (h *Handler) CreateWorkloadConfig(c *gin.Context) {
 	}
 	item.WithCreateDefault()
 	if _, err := h.workloadConfigs.Create(c.Request.Context(), item); err != nil {
-		if sharederrs.HasCode(err, sharederrs.CodeConflict) {
-			httpx.WriteConflict(c, err.Error())
-			return
-		}
-		httpx.WriteInvalidArgument(c, err.Error())
+		writeWorkloadConfigWriteError(c, err)
 		return
 	}
 	httpx.WriteData(c, http.StatusCreated, item)
@@ -135,7 +131,7 @@ func (h *Handler) UpdateWorkloadConfig(c *gin.Context) {
 			httpx.WriteNotFound(c, "not found")
 			return
 		}
-		httpx.WriteInvalidArgument(c, err.Error())
+		writeWorkloadConfigWriteError(c, err)
 		return
 	}
 	httpx.WriteNoContent(c)
@@ -188,4 +184,24 @@ func (h *Handler) ListWorkloadConfigs(c *gin.Context) {
 		return
 	}
 	httpx.WritePaginatedList(c, http.StatusOK, items)
+}
+
+func writeWorkloadConfigWriteError(c *gin.Context, err error) {
+	switch {
+	case sharederrs.HasCode(err, sharederrs.CodeConflict):
+		httpx.WriteConflict(c, err.Error())
+	case sharederrs.HasCode(err, sharederrs.CodeFailedPrecondition), isLegacyWorkloadConfigWriteError(err):
+		httpx.WriteFailedPrecondition(c, http.StatusPreconditionFailed, err.Error())
+	case sharederrs.HasCode(err, sharederrs.CodeInvalidArgument):
+		httpx.WriteInvalidArgument(c, err.Error())
+	default:
+		httpx.WriteInternalError(c, err)
+	}
+}
+
+func isLegacyWorkloadConfigWriteError(err error) bool {
+	message := err.Error()
+	return message == "resources.requests must not be provided on write" ||
+		message == "resources.limits must not be provided on write" ||
+		message == "resources.requests must not be provided on write; resources.limits must not be provided on write"
 }
