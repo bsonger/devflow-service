@@ -250,6 +250,8 @@ If cluster access is not available, leave the placeholders and record that the e
 
 ### Live command results
 
+#### Argo drift-localization refresh
+
 - `kubectl get application -n argocd meta-service -o jsonpath='{.status.sync.status}'`
   - result: `OutOfSync`
 - `kubectl get application -n argocd meta-service -o jsonpath='{.status.health.status}{"\n"}{.status.operationState.phase}{"\n"}{.status.operationState.message}{"\n"}'`
@@ -272,12 +274,85 @@ If cluster access is not available, leave the placeholders and record that the e
   - result: `UNAVAILABLE_IN_ENVIRONMENT`
   - note: local `argocd` CLI returned `Argo CD server address unspecified`.
 
+#### Runtime acknowledgement -> observer -> writeback refresh
+
+Representative runtime target used for the live walk:
+
+- `application_id`: `999c0c88-1f1f-41d1-a67a-8159d07c878c`
+- `environment_id`: `b780ca97-a213-4763-bfb9-43f7e3a11ee7`
+- observed release label before/after action: `devflow.io/release-id=9dd5e401-89c3-4acc-891c-440f861a8045`
+- shared ingress host: `https://devflow-pre-production.bei.com`
+
+Inspection order used:
+
+1. `GET /api/v1/runtime/workload`
+2. `GET /api/v1/runtime/pods`
+3. `POST /api/v1/runtime/rollouts`
+4. re-read runtime workload/pods to confirm observer-facing progression
+5. inspect live Kubernetes `Deployment` / pods for the mutated restart annotation plus release/application/environment labels
+6. inspect `release-service` and `runtime-service` logs for callback/writeback activity
+7. inspect `GET /api/v1/release/releases/{release_id}` to verify final release-step convergence instead of claiming success from the action response
+
+Live results from that walk:
+
+- `GET /api/v1/runtime/workload?application_id=999c0c88-1f1f-41d1-a67a-8159d07c878c&environment_id=b780ca97-a213-4763-bfb9-43f7e3a11ee7`
+  - result before action: `200` with workload `Deployment/meta-service`, `summary_status=Healthy`, `ready_replicas=1`, and stable labels:
+    - `app.kubernetes.io/name=meta-service`
+    - `devflow.io/release-id=9dd5e401-89c3-4acc-891c-440f861a8045`
+    - `devflow.application/id=999c0c88-1f1f-41d1-a67a-8159d07c878c`
+    - `devflow.environment/id=b780ca97-a213-4763-bfb9-43f7e3a11ee7`
+- `GET /api/v1/runtime/pods?...`
+  - result before action: `200` with one running pod owned by `ReplicaSet/meta-service-88b649cbc` and the same release/application/environment labels.
+- `POST /api/v1/runtime/rollouts`
+  - request body:
+    ```json
+    {
+      "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+      "environment_id": "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
+      "operator": "gsd-auto"
+    }
+    ```
+  - result: `200` acknowledgement with:
+    - `operation_type=deployment_restart`
+    - `target_kind=deployment`
+    - `target_name=meta-service`
+    - `mutation_state=accepted`
+    - `convergence_state=pending_observation`
+    - `accepted_at=2026-05-01T04:55:32.989625833Z`
+- re-read `GET /api/v1/runtime/workload` after the acknowledgement
+  - result: `observed_generation` advanced from `13` to `14`
+  - result: `annotations.kubectl.kubernetes.io/restartedAt` advanced from `2026-04-29T11:57:06Z` to `2026-05-01T04:55:32Z`
+  - result: workload remained `Healthy` with `ready=1/1`, `updated=1/1`, `available=1/1`
+- re-read `GET /api/v1/runtime/pods` after the acknowledgement
+  - result: pod identity rolled from `meta-service-88b649cbc-cmj9r` to `meta-service-8c9b9c857-hl4lq`
+  - result: the new pod still carried the same release/application/environment labels, proving release correlation remained label-derived through the real restart path
+- `kubectl get deploy -n devflow meta-service -o jsonpath='...'`
+  - result: live Deployment generation `14`, observedGeneration `14`, restartedAt `2026-05-01T04:55:32Z`, updated/ready/available replicas `1/1/1`
+- `kubectl get pods -n devflow -l app.kubernetes.io/name=meta-service -o jsonpath='...'`
+  - result: the live pod `meta-service-8c9b9c857-hl4lq` carried:
+    - `devflow.io/release-id=9dd5e401-89c3-4acc-891c-440f861a8045`
+    - `devflow.application/id=999c0c88-1f1f-41d1-a67a-8159d07c878c`
+    - `devflow.environment/id=b780ca97-a213-4763-bfb9-43f7e3a11ee7`
+- `kubectl logs deploy/release-service -n devflow-pre-production --tail=200 | rg 'verify/release/steps|...'`
+  - result: release-service accepted three callback/writeback `POST /api/v1/verify/release/steps` requests immediately after the runtime action (`04:55:41Z`, `04:55:56Z`, `04:55:56Z`)
+- `kubectl logs deploy/runtime-service -n devflow-pre-production --tail=200 | rg 'rollout|...'`
+  - result: runtime-service logs captured the external runtime action acknowledgement request; recent callback evidence was clearer from the release-service ingress logs than from runtime-service info logs in this environment
+- `GET /api/v1/release/releases/9dd5e401-89c3-4acc-891c-440f861a8045`
+  - result: top-level release `status` remained `Running`
+  - result: callback-owned steps converged successfully:
+    - `observe_rollout`: `Succeeded` — `deployment healthy (ready=1/1, updated=1/1, available=1/1)`
+    - `finalize_release`: `Succeeded` — `release finalized after deployment became healthy`
+  - result: release-owned handoff step did **not** converge terminally:
+    - `start_deployment`: `Running` with progress `10` and message `deployment sync started`
+
 ### Interpreted outcome
 
-- current best classification: `live deployment-only drift persists even though the Application still carries the narrow restartedAt ignore pointer`
+- current best classification for Argo drift: `live deployment-only drift persists even though the Application still carries the narrow restartedAt ignore pointer`
 - narrowed localization from the refreshed session: `the only live offender remains apps/Deployment devflow/meta-service, and Argo status does not currently advertise a pruning mismatch for that resource`
 - proven ownership boundary: `runtime/release rollout correlation still depends on release-owned labels; no runtime-local release store was reintroduced to repair Argo sync`
-- next live question to answer: `does the Argo controller diff still reduce to restartedAt after normalization, or is another Deployment field/path keeping meta-service OutOfSync?`
+- proven acknowledgement contract: `the shared-ingress runtime rollout action still acknowledges acceptance first and returns convergence_state=pending_observation rather than claiming rollout completion`
+- proven convergence layering: `observer-facing runtime state and callback-owned release steps converged after the restart, but the top-level release remained Running because the release-owned start_deployment handoff step still governs terminal closure`
+- remaining live question for the Argo seam: `does the Argo controller diff still reduce to restartedAt after normalization, or is another Deployment field/path keeping meta-service OutOfSync?`
 
 ## What this proves today
 
@@ -286,6 +361,10 @@ From tracked repo state plus live cluster evidence, this artifact now proves:
 - the metadata identity contract is label-based and intentionally narrow
 - the runtime restart annotation is supplementary runtime state, not release identity
 - runtime rollout writeback still resolves release/application/environment context from workload labels
+- the real shared-ingress runtime action path still returns acknowledgement-first `pending_observation` responses rather than premature success claims
+- the same real runtime restart path still preserves release/application/environment correlation through workload and pod labels after pod replacement
+- callback-owned writeback steps can reach `observe_rollout=Succeeded` and `finalize_release=Succeeded` on the observed release path without reopening release identity ownership on the runtime side
+- late observer callbacks preserved finalized-release terminality at the step layer in the observed path, but top-level release closure still depends on the release-owned `start_deployment` handoff step remaining non-terminal here
 - release-service already attempts to suppress restart-annotation-only drift at the Argo layer
 - the release-side ignore rule is workload-kind-aware even though the current live `meta-service` evidence is deployment-shaped
 - the live `meta-service` Application still reports a single `apps/Deployment` drift signal while carrying the restartedAt ignore pointer, so the remaining seam is now a real Argo/live-diff localization problem rather than a missing contract problem
