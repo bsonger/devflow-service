@@ -275,6 +275,7 @@ Release execution must publish one runtime-consumable metadata schema across bot
 
 - **Labels** carry stable identity and lookup keys that downstream runtime-side consumers can reconstruct from Kubernetes objects alone.
 - **Annotations** carry supplementary tracing or diagnostic context and must not be required for release/application/environment identity recovery.
+- **Rendered workload and pod-template annotations** are filtered before publication so drift-prone runtime-mutated keys do not become desired-state contract by accident.
 
 ### Required metadata fields
 
@@ -288,12 +289,28 @@ Release execution must publish one runtime-consumable metadata schema across bot
 | `otel.devflow.io/trace-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary trace context for following release execution across service and cluster boundaries. |
 | `otel.devflow.io/parent-span-id` | Argo CD `Application` | annotation | `release-service` Argo handoff | stage 6 | trace correlation, debugging | Supplementary span context for the Argo handoff step. |
 
+### Desired-state workload annotation filter
+
+Release rendering now treats workload annotations as a filtered supplementary surface instead of a broad copy.
+
+Current enforced rule:
+
+- carry forward workload snapshot annotations only after passing the release-owned desired-state filter
+- strip `kubectl.kubernetes.io/restartedAt` from rendered workload object metadata and rendered pod-template metadata by default
+
+Why this matters:
+
+- `kubectl.kubernetes.io/restartedAt` is a live runtime mutation signal, not stable release identity
+- runtime restart operations may still patch it onto the live `Deployment`
+- Argo drift handling for that live mutation belongs to the `Application.spec.ignoreDifferences` seam, not to desired-state rendering
+
 Contract rule:
 
 - runtime-side identity reconstruction must depend on the required **labels** above
 - trace correlation may depend on the **annotations** above
 - no runtime consumer should require annotations to recover release, application, or environment identity
 - the live annotation keys emitted by code are `otel.devflow.io/trace-id` and `otel.devflow.io/parent-span-id`; treat them as supplementary diagnostics rather than business identity
+- `kubectl.kubernetes.io/restartedAt` is intentionally excluded from rendered desired-state workload metadata even though live workloads may later carry it
 
 ## Output boundary
 
@@ -625,7 +642,7 @@ Rules:
 - `resource_groups` should only list kinds that actually exist in the rendered bundle
 - `rendered_resources` should carry one final YAML string per rendered object
 - `rendered_resources[].summary` should vary by `kind`
-- `files` should include the combined `bundle.yaml`
+- the rendered workload and pod-template metadata shown here should reflect the release-owned annotation filter, not live runtime mutations
 
 ### Recommended `release_bundle` persistence model
 
@@ -769,6 +786,12 @@ The output of this phase is a deployment bundle, not a manifest resource record.
 
 This rendering responsibility belongs to release-service's deployment execution flow, not manifest.
 
+Metadata contract reminder for this phase:
+
+- release rendering overlays required identity labels onto workload and pod-template metadata
+- release rendering carries forward only filtered supplementary annotations on those same desired-state surfaces
+- runtime-mutated drift-prone annotations such as `kubectl.kubernetes.io/restartedAt` are intentionally excluded from rendered desired state by default
+
 ## 5. Release execution uploads deployment bundle to OCI
 
 After rendering the deployment bundle:
@@ -817,6 +840,12 @@ Operational rule:
 - `targetRevision` should prefer the published digest when available
 
 When the OCI registry is exposed only through in-cluster HTTP, ArgoCD repository configuration must enable OCI force-http semantics for that registry prefix.
+
+Metadata contract reminder for this phase:
+
+- the Argo `Application` mirrors the same required release/application/environment identity labels used on rendered workloads
+- OpenTelemetry annotations stay limited to supplementary diagnostic correlation on the handoff object
+- live drift handling for restart annotations belongs to the Argo ignore-differences seam, not to identity metadata
 
 ## 7. ArgoCD starts deployment
 

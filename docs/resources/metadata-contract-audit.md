@@ -12,6 +12,7 @@ Later slices need one repo-tracked place to answer:
 - which surfaces carry release/application/environment identity
 - which consumers require labels instead of annotations
 - where trace/span metadata is present only for diagnostics
+- which desired-state annotations are intentionally filtered before Argo sees them
 - where Argo CD drift investigations should start
 
 For release lifecycle context, read this alongside:
@@ -38,15 +39,31 @@ The key contract split is:
 - **business identity** for release/runtime correlation lives on **labels**
 - **trace/span correlation** lives on **annotations** when present
 - runtime observers must be able to recover release/application/environment identity from labels alone
+- release rendering now treats workload annotations as an **explicitly filtered supplementary surface**, not a blind copy of every snapshot annotation
 
 ## Surface matrix
 
 | Surface | Produced by | Identity keys written | Diagnostic keys written | Primary downstream consumers |
 |---|---|---|---|---|
-| Release-rendered workload object metadata | `internal/release/service/release_bundle.go` (`buildReleaseWorkloadResource`) | `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, `devflow.environment/id` | workload snapshot annotations copied through from `manifest.WorkloadConfigSnapshot.Annotations` | `internal/runtime/observer/kubernetes_runtime.go`, `internal/runtime/observer/release_rollout.go` |
-| Release-rendered pod-template metadata | `internal/release/service/release_bundle.go` (`buildReleaseWorkloadResource`) | `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, `devflow.environment/id` | workload snapshot annotations copied through from `manifest.WorkloadConfigSnapshot.Annotations` | `internal/runtime/observer/kubernetes_runtime.go` (stores template annotations, parses restart annotation), rollout observer indirectly via persisted runtime state |
+| Release-rendered workload object metadata | `internal/release/service/release_bundle.go` (`buildReleaseWorkloadResource`) | `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, `devflow.environment/id` | filtered workload snapshot annotations copied through from `manifest.WorkloadConfigSnapshot.Annotations` | `internal/runtime/observer/kubernetes_runtime.go`, `internal/runtime/observer/release_rollout.go` |
+| Release-rendered pod-template metadata | `internal/release/service/release_bundle.go` (`buildReleaseWorkloadResource`) | `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, `devflow.environment/id` | filtered workload snapshot annotations copied through from `manifest.WorkloadConfigSnapshot.Annotations` | `internal/runtime/observer/kubernetes_runtime.go` (stores template annotations, parses restart annotation when present on live objects), rollout observer indirectly via persisted runtime state |
 | Argo CD `Application` | `internal/release/service/release.go` (`applyReleaseApplicationMetadata`) | `status`, `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, `devflow.environment/id` | `otel.devflow.io/trace-id`, `otel.devflow.io/parent-span-id` | Argo object handoff, operator diagnostics, future drift/debug inspection |
 | Tekton `PipelineRun` | `internal/manifest/service/manifest.go` (`buildManifestPipelineRun`, `submitManifestBuild`) | `devflow.manifest/id` (label and annotation) | `otel.devflow.io/trace-id`, `otel.devflow.io/parent-span-id` | `internal/runtime/observer/tekton_manifest.go`, manifest writeback routes |
+
+## Contract seam summary
+
+The enforced code seam for workload metadata lives in release bundle rendering.
+
+Release rendering now does two distinct things on workload and pod-template metadata:
+
+1. **overlays required identity labels** using a release-owned helper so runtime correlation cannot be broken by upstream snapshot drift
+2. **filters supplementary annotations** so drift-prone runtime-mutated keys are not emitted into desired state by default
+
+Today the explicit desired-state filter blocks:
+
+- `kubectl.kubernetes.io/restartedAt`
+
+That key is still allowed to exist on live workloads because runtime restart operations patch it onto the cluster object. The contract is simply that release rendering does not publish it as desired state by default.
 
 ## Surface details
 
@@ -61,17 +78,18 @@ Current object-level labels written on the rendered `Deployment` or `Rollout`:
 
 | Key | Kind | Written by | Notes | Downstream consumption |
 |---|---|---|---|---|
-| `app.kubernetes.io/name` | label | `requiredLabels` in `buildReleaseWorkloadResource` | Uses the first service name when present, otherwise the application name. Also used by Service selectors. | `runtimeSpecFromDeployment` falls back to this label when reconstructing the primary app/workload name in `internal/runtime/observer/kubernetes_runtime.go`; `deriveReleaseRolloutContext` also falls back to it if workload name is absent in `internal/runtime/observer/release_rollout.go`. |
-| `devflow.io/release-id` | label | `requiredLabels` in `buildReleaseWorkloadResource` | Canonical release identity on live workloads. | `labelsMatchRuntimeSpec` requires it to be non-empty in `internal/runtime/observer/kubernetes_runtime.go`; `deriveReleaseRolloutContext` parses it as mandatory release identity in `internal/runtime/observer/release_rollout.go`; `lookupDeployment` later selects deployments by this label. |
-| `devflow.application/id` | label | `requiredLabels` in `buildReleaseWorkloadResource` | Canonical application identity. | Used by the runtime observer list selector and spec matching in `internal/runtime/observer/kubernetes_runtime.go`; parsed as required in `runtimeSpecFromDeployment` and `deriveReleaseRolloutContext`. |
-| `devflow.environment/id` | label | `requiredLabels` in `buildReleaseWorkloadResource` | Canonical environment identity. | Used by the runtime observer selector and matching in `internal/runtime/observer/kubernetes_runtime.go`; parsed as required in `runtimeSpecFromDeployment`; rollout observer prefers the label and only falls back to persisted runtime environment if the label is absent in `internal/runtime/observer/release_rollout.go`. |
+| `app.kubernetes.io/name` | label | `releaseWorkloadLabels` in `buildReleaseWorkloadResource` | Uses the first service name when present, otherwise the application name. Also used by Service selectors. | `runtimeSpecFromDeployment` falls back to this label when reconstructing the primary app/workload name in `internal/runtime/observer/kubernetes_runtime.go`; `deriveReleaseRolloutContext` also falls back to it if workload name is absent in `internal/runtime/observer/release_rollout.go`. |
+| `devflow.io/release-id` | label | `releaseWorkloadLabels` in `buildReleaseWorkloadResource` | Canonical release identity on live workloads. | `labelsMatchRuntimeSpec` requires it to be non-empty in `internal/runtime/observer/kubernetes_runtime.go`; `deriveReleaseRolloutContext` parses it as mandatory release identity in `internal/runtime/observer/release_rollout.go`; `lookupDeployment` later selects deployments by this label. |
+| `devflow.application/id` | label | `releaseWorkloadLabels` in `buildReleaseWorkloadResource` | Canonical application identity. | Used by the runtime observer list selector and spec matching in `internal/runtime/observer/kubernetes_runtime.go`; parsed as required in `runtimeSpecFromDeployment` and `deriveReleaseRolloutContext`. |
+| `devflow.environment/id` | label | `releaseWorkloadLabels` in `buildReleaseWorkloadResource` | Canonical environment identity. | Used by the runtime observer selector and matching in `internal/runtime/observer/kubernetes_runtime.go`; parsed as required in `runtimeSpecFromDeployment`; rollout observer prefers the label and only falls back to persisted runtime environment if the label is absent in `internal/runtime/observer/release_rollout.go`. |
 | `<workload snapshot labels>` | label | copied from `manifest.WorkloadConfigSnapshot.Labels` before required labels are overlaid | User/config-supplied labels survive unless they collide with required identity labels. | Not relied on for release/runtime identity in the current observers. |
 
 Current object-level annotations written on the rendered `Deployment` or `Rollout`:
 
 | Key | Kind | Written by | Notes | Downstream consumption |
 |---|---|---|---|---|
-| `<workload snapshot annotations>` | annotation | copied from `manifest.WorkloadConfigSnapshot.Annotations` in `buildReleaseWorkloadResource` | Release rendering preserves workload-config annotations exactly; it does **not** add release trace/span annotations here. | Not used for identity matching. They are runtime-observed and stored, but only label keys are required for correlation. |
+| filtered `<workload snapshot annotations>` | annotation | `releaseSupplementaryAnnotations` in `buildReleaseWorkloadResource` | Release rendering preserves workload-config annotations only after filtering the explicit denylist. | Not used for identity matching. They are runtime-observed and stored, but only label keys are required for correlation. |
+| `kubectl.kubernetes.io/restartedAt` | annotation | **not written to desired state by default** | Explicitly filtered from rendered workload metadata because it is runtime-mutated and drift-prone. | Live objects may still carry it after a runtime restart patch; Argo ignore-diff coverage handles that live mutation separately. |
 
 ### 2. Release-rendered pod-template metadata
 
@@ -81,15 +99,15 @@ Source:
 
 Current pod-template metadata:
 
-- `spec.template.metadata.labels` reuses the same `labels` map as top-level workload metadata
-- `spec.template.metadata.annotations` reuses the same `annotations` map as top-level workload metadata
+- `spec.template.metadata.labels` reuses the same release-owned label map as top-level workload metadata
+- `spec.template.metadata.annotations` reuses the same filtered supplementary annotations map as top-level workload metadata
 
 That means the pod template currently carries:
 
 | Key group | Kind | Written by | Downstream consumption |
 |---|---|---|---|
 | `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, `devflow.environment/id` | labels | same `labels` map passed into `spec.template.metadata` | Pod label matching in `podMatchesRuntimeSpec` / `labelsMatchRuntimeSpec` inside `internal/runtime/observer/kubernetes_runtime.go`. |
-| `<workload snapshot annotations>` | annotations | same `annotations` map passed into `spec.template.metadata` | `syncDeployment` persists `deployment.Spec.Template.Annotations` into runtime observed workload state; `parseRestartAt` specifically reads `kubectl.kubernetes.io/restartedAt` from those annotations in `internal/runtime/observer/kubernetes_runtime.go`. |
+| filtered `<workload snapshot annotations>` except `kubectl.kubernetes.io/restartedAt` | annotations | same `annotations` map passed into `spec.template.metadata` | `syncDeployment` persists `deployment.Spec.Template.Annotations` into runtime observed workload state; `parseRestartAt` specifically reads `kubectl.kubernetes.io/restartedAt` from those annotations when the live workload has been runtime-mutated in `internal/runtime/observer/kubernetes_runtime.go`. |
 
 Identity requirement:
 
@@ -173,6 +191,22 @@ Contract implication:
 
 - if a workload or pod loses the release/application/environment labels, runtime correlation and rollout writeback can break even when annotations still exist
 - trace/span annotations are not substitutes for those labels
+- desired-state workload annotations are intentionally a weaker, supplementary surface than labels
+
+### Release rendering now blocks drift-prone desired-state annotations by default
+
+`internal/release/service/release_bundle.go` is now the release-owned enforcement seam for desired-state workload metadata.
+
+That means:
+
+- release rendering does **not** trust upstream workload snapshot annotations to already be safe for desired state
+- the denylist currently strips `kubectl.kubernetes.io/restartedAt` from both workload object metadata and pod-template metadata
+- future drift-prone annotation filtering should be added at this same seam instead of scattered across consumers
+
+Contract implication:
+
+- if Argo shows drift on `kubectl.kubernetes.io/restartedAt`, the live mutation path is the runtime restart operation, not the rendered desired state
+- a future executor investigating live drift should first ask whether the key is meant to exist only on the live object, not whether rendering forgot to preserve it
 
 ### Argo handoff mirrors the release identity contract
 
@@ -270,8 +304,10 @@ When investigating Argo CD drift or runtime correlation issues, inspect in this 
      - `devflow.io/release-id`
      - `devflow.application/id`
      - `devflow.environment/id`
+   - confirm the desired-state annotation filter still blocks `kubectl.kubernetes.io/restartedAt`
 2. `internal/release/service/release.go`
    - confirm `applyReleaseApplicationMetadata` still mirrors the same identity labels onto the Argo `Application`
+   - confirm Argo `ignoreDifferences` still covers the live restart annotation mutation path
 3. `internal/runtime/observer/kubernetes_runtime.go`
    - confirm selectors and matching logic still depend on the same labels
 4. `internal/runtime/observer/release_rollout.go`
@@ -284,7 +320,9 @@ When investigating Argo CD drift or runtime correlation issues, inspect in this 
 The current metadata contract is:
 
 - **Release-rendered workloads and pod templates** carry the authoritative release/application/environment identity labels consumed by runtime observers.
+- **Release-rendered workloads and pod templates** copy only filtered supplementary annotations into desired state; `kubectl.kubernetes.io/restartedAt` is intentionally excluded by default.
 - **Argo CD `Application`** mirrors those identity labels and adds OpenTelemetry trace/span annotations for diagnostics.
 - **Tekton `PipelineRun`** uses `devflow.manifest/id` as its build-side identity key and also carries OpenTelemetry trace/span annotations for diagnostics.
 - **Trace/span annotations are supplementary diagnostics, not business identity.**
 - **Runtime observers are label-only for identity recovery.**
+- **Live runtime-mutated annotations and desired-state rendered annotations are intentionally not the same surface.**
