@@ -5,7 +5,7 @@ This directory contains repo-level verification and support scripts.
 ## Reader and outcome
 
 This guide is for a fresh engineer or agent landing in `devflow-service`.
-After reading it, the reader should know which repo-local script to run first and what that script is supposed to prove during the migration.
+After reading it, the reader should know which repo-local script to run first, what each focused verifier is allowed to claim, and where the final anti-drift gate lives.
 
 ## Canonical verifier
 
@@ -16,6 +16,20 @@ bash scripts/verify.sh
 ```
 
 This remains the canonical repo-local handoff check while the repository migrates from the older nested shape to the root `cmd/` and `internal/` layout.
+
+## Proof split
+
+Use the verification surfaces in this order:
+
+1. focused Go seam tests for behavioral proof
+2. `bash scripts/verify-metadata-audit.sh` for metadata/doc routing consistency only
+3. `bash scripts/verify.sh` for the final repo-wide anti-drift gate
+
+That split is intentional:
+
+- typed tests own behavior such as callback ownership, rollout progression, and finalized-release terminality
+- `verify-metadata-audit.sh` only checks that code seams, evidence docs, and verifier guidance still describe the same metadata contract and proof routing
+- `verify.sh` remains the broad repo-local contract check before handoff
 
 ## What `verify.sh` should prove
 
@@ -80,27 +94,42 @@ When debugging `runtime-service`, pair `bash scripts/verify.sh` with `docs/syste
 
 When debugging release-flow contract drift, pair `bash scripts/verify.sh` with `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md`: those docs define the authoritative ownership split between the release-service handoff step (`start_deployment`) and callback-owned progression/finalization steps such as `observe_rollout` and `finalize_release`.
 
-The focused release → Argo → runtime proof route that should be rerun before broad repo debugging is:
+The focused release → Argo → runtime behavioral proof route that should be rerun before broad repo debugging is:
 
 ```sh
 go test ./internal/runtime/transport/http ./internal/runtime/observer ./internal/release/transport/http ./internal/release/service -run 'TestDeleteRuntimePodReturnsAcknowledgement|TestRolloutRuntimeReturnsAcknowledgement|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRequiresReleaseOwnedStartDeploymentBeforeClosingRelease'
 ```
 
-Read the proof in layers when that command fails:
+Read the behavioral proof in layers when that command fails:
 - `internal/runtime/transport/http` proves operator-facing runtime read/action HTTP mapping plus acknowledgement payload shape, including `convergence_state=pending_observation`
 - `internal/runtime/observer` proves runtime-side release label consumption and callback-owned step emission
 - `internal/release/transport/http` proves release-side callback/writeback normalization at the HTTP boundary
 - `internal/release/service` proves final release status stays `Running` until the release-owned `start_deployment` handoff step succeeds and the full canonical graph converges
-- `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun after those named seams pass
+
+The focused metadata/doc routing proof route that should be rerun after metadata-contract or verifier-guidance edits is:
+
+```sh
+bash scripts/verify-metadata-audit.sh
+```
+
+Read that consistency proof in layers when it fails:
+- release bundle checks prove the canonical label overlay and supplementary-annotation filter still exist at the release-owned seam
+- Argo checks prove restartedAt ignore-difference targeting remains narrow and workload-kind-aware (`Deployment` for rolling, `Rollout` for blue-green/canary)
+- runtime observer checks prove release/application/environment correlation still comes from workload labels
+- doc checks prove `docs/resources/metadata-contract-audit.md` and `docs/resources/metadata-drift-proof.md` still present themselves as evidence artifacts and still route readers to the canonical system docs plus the correct verifier order
+
+After the focused seams pass, `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun.
 
 Only runnable repo entrypoints under `cmd/` may be packaged this way.
 Current runnable entries are `meta-service`, `config-service`, `network-service`, `release-service`, and `runtime-service`.
-
 
 ## What this verifier should not claim
 
 `verify.sh` should not pretend that the migration is already complete while old paths are still in use.
 It should verify the active local contract honestly.
+
+`verify-metadata-audit.sh` should not claim to prove runtime behavior, release terminality, or callback execution semantics by itself.
+It is a routing and consistency check that complements, but does not replace, the focused Go seam tests.
 
 ## Related docs
 

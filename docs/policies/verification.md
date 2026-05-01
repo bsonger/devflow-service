@@ -28,7 +28,6 @@ The repo-level convenience target for the same contract is:
 make ci
 ```
 
-
 ## Expectations
 
 - formatting, vet, lint, tests, build, and repo verification must agree
@@ -36,7 +35,9 @@ make ci
 - failures are real contract drift to fix, not accepted migration noise
 - the release → Argo → runtime contract must remain discoverable from canonical verifier surfaces: rerun the focused proof command first to localize failures, then use `bash scripts/verify.sh` as the repo-wide anti-drift gate
 - release-flow contract drift between code, docs, and verifier surfaces is a real verifier failure; when `start_deployment`, `observe_rollout`, `finalize_release`, or release writeback ownership wording drifts, treat that mismatch as contract drift and update the authoritative docs plus verifier surfaces together
-- use `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md` as the lifecycle/writeback authority when verifying release-flow wording in `docs/resources/*`, `docs/services/*`, or recovery/script guidance
+- use `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md` as the lifecycle/writeback authority when verifying release-flow wording in `docs/resources/*`, `docs/services/*`, recovery guidance, or script guidance
+- metadata proof docs under `docs/resources/metadata-*.md` are tracked evidence artifacts, not alternate authorities; they should route readers back to the canonical system docs for normative semantics
+- focused Go seam tests prove behavioral seams such as callback ownership, rollout-writeback normalization, and finalized-release terminality; `bash scripts/verify-metadata-audit.sh` proves metadata/doc routing consistency only; `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
 - API error envelope and handler mapping changes must follow `docs/policies/error-handling.md`
 - HTTP transport behavior changes must follow `docs/policies/http-handler.md`
@@ -64,18 +65,29 @@ make ci
 ## Verification ownership
 
 - `scripts/verify.sh` is the canonical repo-local verification entrypoint
-- focused release → Argo → runtime proof command:
+- focused release → Argo → runtime behavioral proof command:
 
 ```sh
 go test ./internal/runtime/transport/http ./internal/runtime/observer ./internal/release/transport/http ./internal/release/service -run 'TestDeleteRuntimePodReturnsAcknowledgement|TestRolloutRuntimeReturnsAcknowledgement|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRequiresReleaseOwnedStartDeploymentBeforeClosingRelease'
 ```
 
-- interpret that focused proof in layers before broad reruns:
+- interpret that focused behavioral proof in layers before broad reruns:
   - `internal/runtime/transport/http` proves operator-facing runtime read/action HTTP mapping plus acknowledgement payload shape, including `convergence_state=pending_observation`
   - `internal/runtime/observer` proves runtime release-label consumption plus callback-owned `observe_rollout` / `finalize_release` emission
   - `internal/release/transport/http` proves Argo/writeback callback normalization at the release HTTP boundary
   - `internal/release/service` proves final release status remains `Running` until the full canonical step graph converges and only closes after the release-owned `start_deployment` handoff step succeeds
-  - `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun once the named proof seams pass
+- focused metadata/doc routing proof command:
+
+```sh
+bash scripts/verify-metadata-audit.sh
+```
+
+- interpret that focused metadata/doc routing proof as a consistency gate, not a behavioral test suite:
+  - code checks confirm the release bundle still overlays canonical identity labels and filters supplementary annotations at the intended seam
+  - code checks confirm Argo ignore-difference targeting remains restartedAt-only and workload-kind-aware (`Deployment` for rolling, `Rollout` for blue-green/canary)
+  - doc checks confirm the metadata audit and live drift proof remain evidence artifacts linked to the canonical system docs rather than alternate authorities
+  - doc checks confirm the verifier guidance still routes fresh readers to focused seam tests first, then `bash scripts/verify-metadata-audit.sh`, then `bash scripts/verify.sh`
+- `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun once the named proof seams pass
 - when convergence stalls after a runtime action acknowledgement, inspect signals in this order:
   1. runtime action response and persisted `RuntimeOperation` metadata prove whether the Kubernetes mutation was accepted at all
   2. `internal/runtime/observer/release_rollout_test.go` maps observer-side missing-vs-running-vs-terminal rollout state and the state-key de-duplication used to emit follow-up callbacks

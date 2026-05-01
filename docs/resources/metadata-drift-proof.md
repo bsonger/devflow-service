@@ -1,8 +1,14 @@
 # Metadata drift proof: `meta-service` Argo sync seam
 
-This document is the tracked proof workflow for the live `meta-service` Argo CD drift investigation.
+This document is a tracked evidence artifact for the live `meta-service` Argo CD drift investigation.
 
 It is intentionally code-adjacent: it ties the live Argo `Application` status surface to the repo-owned `ignoreDifferences` contract, the release-owned identity labels that correlate runtime rollouts back to releases, and the runtime mutation path that can still produce drift-like symptoms. Future executors should start here instead of re-reading planner notes or assuming the problem is still only `kubectl.kubernetes.io/restartedAt`.
+
+It is not a second authority for lifecycle ownership or terminality. For normative wording, return to:
+
+- `docs/system/flow-overview.md`
+- `docs/system/release-steps.md`
+- `docs/system/release-writeback.md`
 
 ## Why this artifact exists
 
@@ -15,11 +21,24 @@ Before changing Argo ignore rules, we need a repeatable way to answer four quest
 
 This artifact gives a single workflow that answers those questions, while still being usable when cluster access is unavailable in the current environment.
 
+## Evidence scope and proof split
+
+This file is evidence, not an alternate authority.
+
+Use the proof surfaces in this order:
+
+1. focused Go seam tests for behavioral ownership and terminality
+2. `bash scripts/verify-metadata-audit.sh` for metadata/doc routing consistency only
+3. this live proof workflow to localize a real cluster drift report
+4. `bash scripts/verify.sh` as the final repo-wide anti-drift gate
+
+That split keeps live drift localization grounded in tracked evidence without letting this document overclaim ownership of release semantics already defined elsewhere.
+
 ## Current repo-backed hypothesis set
 
 The repo already proves all of the following:
 
-- runtime-service writes `spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"]` onto live `Deployment` objects via `internal/runtime/service/service.go`
+- runtime-service writes `spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"]` onto live workload objects via `internal/runtime/service/service.go`
 - runtime observers still read that timestamp back as a real operational signal
 - runtime rollout writeback derives release/application/environment correlation from workload labels via `internal/runtime/observer/release_rollout.go`
 - release-service already renders an Argo `ignoreDifferences` entry for the actual release workload kind, while preserving the narrow restartedAt-only ignore pointer
@@ -44,7 +63,7 @@ The seam summarizes the fields that matter for this investigation:
 - destination server/namespace
 - rendered `spec.ignoreDifferences` targets
 - the concrete `status.resources[]` entries Argo currently marks `OutOfSync`
-- the subset of those resources that are plausible `restartedAt` candidates (`Deployment` resources)
+- the subset of those resources that are plausible `restartedAt` candidates (`Deployment` or `Rollout`, depending on the rendered release shape)
 
 This summary is intended to be the first-class diagnostic surface for sync-truth regressions.
 
@@ -58,7 +77,7 @@ The runtime/release handoff boundary remains intentionally narrow:
 
 The regression checks that keep this true are:
 
-- `go test ./internal/runtime/observer -run 'TestDeriveReleaseRolloutContext|TestReleaseOwnedSelector|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep'`
+- `go test ./internal/runtime/transport/http ./internal/runtime/observer ./internal/release/transport/http ./internal/release/service -run 'TestDeleteRuntimePodReturnsAcknowledgement|TestRolloutRuntimeReturnsAcknowledgement|TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep|TestHandleArgoEventUpdatesReleaseStatus|TestReleaseStatusConvergenceRequiresReleaseOwnedStartDeploymentBeforeClosingRelease'`
 - `bash scripts/verify-metadata-audit.sh`
 
 Those proofs matter because S03 is only valid if Argo drift repair does **not** weaken the release/runtime ownership split.
@@ -78,6 +97,7 @@ What this proves locally:
 - canonical release/application/environment labels are still release-owned contract
 - drift-prone runtime annotations are filtered from rendered desired state
 - Argo `ignoreDifferences` still covers `kubectl.kubernetes.io/restartedAt`
+- the ignore target remains workload-kind-aware (`Deployment` for rolling releases, `Rollout` for blue-green/canary)
 - runtime rollout writeback still derives release/application/environment identity from workload labels
 - runtime restart writeback and runtime observer parsing still point at the same annotation path
 - this document is still linked from the broader audit docs
@@ -96,7 +116,7 @@ kubectl get application -n argocd meta-service -o jsonpath='{range .status.resou
 If `kubectl` jsonpath output looks suspiciously blank for `jsonPointers`, confirm against the raw YAML instead of assuming the pointer is absent:
 
 ```sh
-rg -n "ignoreDifferences|jsonPointers|restartedAt|kind: Deployment|name: meta-service" /tmp/meta-service-application.yaml
+rg -n "ignoreDifferences|jsonPointers|restartedAt|kind: Deployment|kind: Rollout|name: meta-service" /tmp/meta-service-application.yaml
 ```
 
 If `argocd` CLI access is configured, also capture the controller’s own comparison view:
@@ -113,10 +133,10 @@ Use the following interpretation table.
 | Live signal | What it means | Likely next step |
 |---|---|---|
 | `status.sync.status=Synced` | The original drift is no longer present. | Stop changing ignore rules; preserve this doc as historical proof only. |
-| `OutOfSync` and the only `status.resources[]` offender is `apps/Deployment meta-service` | The remaining drift may still be the restart annotation path. | Confirm the live `Application.spec.ignoreDifferences` still includes the restartedAt pointer and inspect Argo diff output for that deployment specifically. |
-| `OutOfSync` but the offender is not a `Deployment` | The restart-annotation hypothesis is incomplete or wrong. | Inspect the reported kind/object before changing ignore rules. |
-| `OutOfSync` on `Deployment`, but live `spec.ignoreDifferences` does **not** include `/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt` | The live `Application` is stale, hand-edited, or no longer matches rendered desired state. | Repair the Argo application handoff/update path before adding broader ignores. |
-| `OutOfSync` on `Deployment`, ignore rule is present, but Argo diff shows another path/object | The restart annotation is not the active drift root cause. | Narrow the fix to the new diff path instead of widening ignores. |
+| `OutOfSync` and the only `status.resources[]` offender is the primary rollout workload (`apps/Deployment` for rolling releases, `argoproj.io/Rollout` for blue-green/canary) | The remaining drift may still be the restart annotation path. | Confirm the live `Application.spec.ignoreDifferences` still includes the restartedAt pointer and inspect Argo diff output for that workload specifically. |
+| `OutOfSync` but the offender is not the primary rollout workload | The restart-annotation hypothesis is incomplete or wrong. | Inspect the reported kind/object before changing ignore rules. |
+| `OutOfSync` on the primary rollout workload, but live `spec.ignoreDifferences` does **not** include `/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt` for that workload kind | The live `Application` is stale, hand-edited, or no longer matches rendered desired state. | Repair the Argo application handoff/update path before adding broader ignores. |
+| `OutOfSync` on the primary rollout workload, ignore rule is present, but Argo diff shows another path/object | The restart annotation is not the active drift root cause. | Narrow the fix to the new diff path instead of widening ignores. |
 | `requiresPruning=true` on an out-of-sync resource | The drift is about ownership/target-set mismatch, not annotation mutation. | Investigate desired/live resource targeting and pruning expectations. |
 
 ## Expected diff signals
@@ -127,9 +147,9 @@ The evidence you want from the live system is one of these concrete outcomes:
 
 You should see:
 
-- `status.resources[]` includes `apps / Deployment / meta-service / OutOfSync`
-- `spec.ignoreDifferences[]` includes `apps / Deployment / /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt`
-- Argo diff output for that deployment references only the pod-template `restartedAt` annotation
+- `status.resources[]` includes the primary rollout workload as `OutOfSync`
+- `spec.ignoreDifferences[]` includes the matching workload kind plus `/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt`
+- Argo diff output for that workload references only the pod-template `restartedAt` annotation
 
 If all three are true, the next executor should investigate **why Argo is still surfacing the diff despite the matching ignore pointer**.
 
@@ -137,8 +157,8 @@ If all three are true, the next executor should investigate **why Argo is still 
 
 You should see:
 
-- `status.resources[]` marks an object kind other than `Deployment` as `OutOfSync`
-- or the mutated object is a rollout/custom workload while the ignore rule only targets `apps/Deployment`
+- `status.resources[]` marks an object kind other than the active release workload kind as `OutOfSync`
+- or the mutated object is a rollout/custom workload while the ignore rule only targets another kind
 
 If true, the fix is not to broaden all metadata ignores blindly; it is to align the ignore target to the actual workload kind or to move the runtime mutation off that object.
 
@@ -146,7 +166,7 @@ If true, the fix is not to broaden all metadata ignores blindly; it is to align 
 
 You should see:
 
-- the deployment is present, but the diff points at a different JSON path
+- the primary rollout workload is present, but the diff points at a different JSON path
 - or another object in `status.resources[]` is also `OutOfSync`
 - or `requiresPruning=true` indicates desired/live set mismatch rather than metadata mutation
 
@@ -156,7 +176,7 @@ If true, treat the restart-annotation path as background context, not root cause
 
 The still-unresolved live question is:
 
-> If the live `meta-service` drift really reduces to `kubectl.kubernetes.io/restartedAt` on an `apps/Deployment`, why does Argo still report `OutOfSync` when the rendered `Application` already includes that exact ignore pointer?
+> If the live `meta-service` drift really reduces to `kubectl.kubernetes.io/restartedAt` on the rendered primary workload, why does Argo still report `OutOfSync` when the rendered `Application` already includes that exact ignore pointer for the active workload kind?
 
 This document intentionally does not guess past the available evidence. Use the live inspection workflow above to decide whether the remaining problem is:
 
@@ -203,17 +223,22 @@ The environment label may fall back to `workload.Environment` when absent, but t
 The release path still renders this ignore rule in `internal/release/service/release.go`:
 
 ```go
-func releaseApplicationIgnoreDifferences() appv1.IgnoreDifferences {
+func releaseApplicationIgnoreDifferences(release *model.Release) appv1.IgnoreDifferences {
     return appv1.IgnoreDifferences{
-        {
-            Group: "apps",
-            Kind:  "Deployment",
-            JSONPointers: []string{
-                "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
-            },
-        },
+        releaseWorkloadRestartedAtIgnoreDifference(release),
     }
 }
+```
+
+The target kind is chosen by `releasePrimaryWorkloadIgnoreTarget(release)`:
+
+- rolling releases → `apps` / `Deployment`
+- blue-green and canary releases → `argoproj.io` / `Rollout`
+
+The pointer remains:
+
+```text
+/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
 ```
 
 That is the contract the live `Application` should be compared against.
@@ -261,6 +286,7 @@ From tracked repo state plus live cluster evidence, this artifact now proves:
 - the runtime restart annotation is supplementary runtime state, not release identity
 - runtime rollout writeback still resolves release/application/environment context from workload labels
 - release-service already attempts to suppress restart-annotation-only drift at the Argo layer
+- the release-side ignore rule is workload-kind-aware even though the current live `meta-service` evidence is deployment-shaped
 - the live `meta-service` Application still reports a single `apps/Deployment` drift signal while carrying the restartedAt ignore pointer, so the remaining seam is now a real Argo/live-diff localization problem rather than a missing contract problem
 
 ## Related tracked context

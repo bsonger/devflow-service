@@ -109,6 +109,14 @@ check \
   internal/runtime/observer/release_rollout_test.go
 
 check \
+  "drift proof declares itself an evidence artifact" \
+  'This document is a tracked evidence artifact for the live `meta-service` Argo CD drift investigation.' \
+  docs/resources/metadata-drift-proof.md
+check \
+  "drift proof routes readers back to canonical system docs" \
+  "docs/system/flow-overview.md" \
+  docs/resources/metadata-drift-proof.md
+check \
   "drift proof documents the meta-service out-of-sync resource" \
   "meta-service" \
   docs/resources/metadata-drift-proof.md
@@ -140,7 +148,19 @@ check \
   "drift proof preserves the open Argo question" \
   "Open question" \
   docs/resources/metadata-drift-proof.md
+check \
+  "drift proof documents workload-kind-aware ignore targeting" \
+  'the ignore target remains workload-kind-aware (`Deployment` for rolling releases, `Rollout` for blue-green/canary)' \
+  docs/resources/metadata-drift-proof.md
 
+check \
+  "metadata audit declares itself an evidence artifact" \
+  "This document is a tracked evidence artifact for metadata ownership across the current build → release → Argo CD → runtime-observer path." \
+  docs/resources/metadata-contract-audit.md
+check \
+  "metadata audit routes readers back to canonical system docs" \
+  "docs/system/flow-overview.md" \
+  docs/resources/metadata-contract-audit.md
 check \
   "metadata audit documents the desired-state annotation filter seam" \
   "release rendering now treats workload annotations as an **explicitly filtered supplementary surface**" \
@@ -157,6 +177,40 @@ check \
   "metadata audit links to the focused verifier" \
   "bash scripts/verify-metadata-audit.sh" \
   docs/resources/metadata-contract-audit.md
+check \
+  "metadata audit documents workload-kind-aware Argo ignore targeting" \
+  "The release path now renders restartedAt ignore-difference targets against the actual primary release workload kind." \
+  docs/resources/metadata-contract-audit.md
+
+check \
+  "verification policy distinguishes metadata audit from behavioral proof" \
+  'focused Go seam tests prove behavioral seams such as callback ownership, rollout-writeback normalization, and finalized-release terminality; `bash scripts/verify-metadata-audit.sh` proves metadata/doc routing consistency only; `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun' \
+  docs/policies/verification.md
+check \
+  "verification policy defines the focused metadata/doc routing proof command" \
+  "focused metadata/doc routing proof command:" \
+  docs/policies/verification.md
+check \
+  "verification policy documents workload-kind-aware ignore targeting" \
+  'Argo ignore-difference targeting remains restartedAt-only and workload-kind-aware (`Deployment` for rolling, `Rollout` for blue-green/canary)' \
+  docs/policies/verification.md
+
+check \
+  "scripts readme defines the proof split" \
+  "## Proof split" \
+  scripts/README.md
+check \
+  "scripts readme defines verify-metadata-audit as consistency-only" \
+  '`verify-metadata-audit.sh` only checks that code seams, evidence docs, and verifier guidance still describe the same metadata contract and proof routing' \
+  scripts/README.md
+check \
+  "scripts readme documents workload-kind-aware ignore targeting" \
+  'Argo checks prove restartedAt ignore-difference targeting remains narrow and workload-kind-aware (`Deployment` for rolling, `Rollout` for blue-green/canary)' \
+  scripts/README.md
+check \
+  "scripts readme warns metadata audit does not prove terminality behavior" \
+  "`verify-metadata-audit.sh` should not claim to prove runtime behavior, release terminality, or callback execution semantics by itself." \
+  scripts/README.md
 
 check \
   "release doc documents the desired-state workload annotation filter" \

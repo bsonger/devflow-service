@@ -1,8 +1,8 @@
 # Metadata surfaces audit
 
-This document is the tracked handoff surface for metadata ownership across the current build → release → Argo CD → runtime-observer path.
+This document is a tracked evidence artifact for metadata ownership across the current build → release → Argo CD → runtime-observer path.
 
-It inventories the metadata surfaces currently emitted by code, the exact keys written on each surface, and the downstream code paths that consume those keys.
+It inventories the metadata surfaces currently emitted by code, the exact keys written on each surface, and the downstream code paths that consume those keys. It is not a second authority for lifecycle semantics; use it to inspect proof and routing, then return to the canonical system docs for the normative contract.
 
 ## Why this exists
 
@@ -15,15 +15,32 @@ Later slices need one repo-tracked place to answer:
 - which desired-state annotations are intentionally filtered before Argo sees them
 - where Argo CD drift investigations should start
 
-For release lifecycle context, read this alongside:
+Normative lifecycle and ownership wording still lives in:
+
+- `docs/system/flow-overview.md`
+- `docs/system/release-steps.md`
+- `docs/system/release-writeback.md`
+
+For release lifecycle context and supporting evidence, read this alongside:
 
 - `docs/resources/release.md`
 - `docs/resources/metadata-drift-proof.md`
-- `docs/system/flow-overview.md`
-- `docs/system/release-writeback.md`
 - `docs/services/release-service.md`
 - `docs/services/runtime-service.md`
 - `bash scripts/verify-metadata-audit.sh`
+
+## Evidence scope and proof split
+
+This file is an evidence artifact, not an alternate authority.
+
+Use the proof surfaces in this order:
+
+1. canonical system docs above for lifecycle, ownership, and terminality wording
+2. focused Go seam tests for behavioral proof such as callback ownership, terminal convergence, and rollout writeback behavior
+3. `bash scripts/verify-metadata-audit.sh` for metadata/doc routing consistency only
+4. `bash scripts/verify.sh` for the final repo-wide anti-drift gate
+
+That split matters for R043: the shell verifier should prove that docs and code point at the same contract, while behavioral seams remain owned by the typed test packages.
 
 ## Metadata surfaces
 
@@ -220,6 +237,21 @@ That alignment means later drift-fix slices can compare:
 
 from a single shared contract.
 
+### Argo ignore targeting is workload-kind-aware
+
+The release path now renders restartedAt ignore-difference targets against the actual primary release workload kind.
+
+Code evidence:
+
+- rolling releases target `apps/Deployment`
+- blue-green and canary releases target `argoproj.io/Rollout`
+- the ignore pointer remains narrowly scoped to `/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt`
+
+Contract implication:
+
+- drift proof must verify the target kind as well as the pointer path
+- readers should not assume the ignore rule is deployment-only just because the current live `meta-service` proof is deployment-shaped
+
 ### Tekton uses a separate build identity contract
 
 Tekton `PipelineRun` metadata is not part of release/runtime identity.
@@ -307,7 +339,7 @@ When investigating Argo CD drift or runtime correlation issues, inspect in this 
    - confirm the desired-state annotation filter still blocks `kubectl.kubernetes.io/restartedAt`
 2. `internal/release/service/release.go`
    - confirm `applyReleaseApplicationMetadata` still mirrors the same identity labels onto the Argo `Application`
-   - confirm Argo `ignoreDifferences` still covers the live restart annotation mutation path
+   - confirm Argo `ignoreDifferences` still covers the live restart annotation mutation path for the active workload kind
 3. `internal/runtime/observer/kubernetes_runtime.go`
    - confirm selectors and matching logic still depend on the same labels
 4. `internal/runtime/observer/release_rollout.go`
@@ -322,6 +354,7 @@ The current metadata contract is:
 - **Release-rendered workloads and pod templates** carry the authoritative release/application/environment identity labels consumed by runtime observers.
 - **Release-rendered workloads and pod templates** copy only filtered supplementary annotations into desired state; `kubectl.kubernetes.io/restartedAt` is intentionally excluded by default.
 - **Argo CD `Application`** mirrors those identity labels and adds OpenTelemetry trace/span annotations for diagnostics.
+- **Argo CD ignore targeting** follows the rendered primary workload kind: `Deployment` for rolling releases, `Rollout` for blue-green/canary releases, with the same narrow restartedAt pointer.
 - **Tekton `PipelineRun`** uses `devflow.manifest/id` as its build-side identity key and also carries OpenTelemetry trace/span annotations for diagnostics.
 - **Trace/span annotations are supplementary diagnostics, not business identity.**
 - **Runtime observers are label-only for identity recovery.**
