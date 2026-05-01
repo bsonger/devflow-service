@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/google/uuid"
 )
 
@@ -29,5 +30,23 @@ func TestBaseModelWithCreateDefault(t *testing.T) {
 	}
 	if base.CreatedAt.IsZero() || base.UpdatedAt.IsZero() {
 		t.Fatal("BaseModel.WithCreateDefault should set timestamps")
+	}
+}
+
+func TestReleaseFrozenWorkloadContractUsesConstrainedTypes(t *testing.T) {
+	typ := reflect.TypeOf(ReleaseFrozenWorkload{})
+	resourcesField, ok := typ.FieldByName("Resources")
+	if !ok {
+		t.Fatal("ReleaseFrozenWorkload missing Resources field")
+	}
+	if resourcesField.Type != reflect.TypeOf(workloadconfigdomain.WorkloadResourceRequirements{}) {
+		t.Fatalf("ReleaseFrozenWorkload.Resources type = %v", resourcesField.Type)
+	}
+	probesField, ok := typ.FieldByName("Probes")
+	if !ok {
+		t.Fatal("ReleaseFrozenWorkload missing Probes field")
+	}
+	if probesField.Type != reflect.TypeOf(workloadconfigdomain.WorkloadProbes{}) {
+		t.Fatalf("ReleaseFrozenWorkload.Probes type = %v", probesField.Type)
 	}
 }

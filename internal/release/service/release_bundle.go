@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"sigs.k8s.io/yaml"
@@ -276,18 +277,14 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		"image":                    manifest.ImageRef,
 		"imagePullPolicy":          "IfNotPresent",
 		"env":                      env,
-		"resources":                workload.Resources,
+		"resources":                buildReleaseKubernetesResourceRequirements(workload.Resources),
 		"terminationMessagePath":   "/dev/termination-log",
 		"terminationMessagePolicy": "File",
 	}
 	if ports := buildReleaseContainerPorts(manifest.ServicesSnapshot); len(ports) > 0 {
 		container["ports"] = ports
 	}
-	if len(workload.Probes) > 0 {
-		for k, v := range workload.Probes {
-			container[k] = v
-		}
-	}
+	applyReleaseWorkloadProbes(container, workload.Probes)
 	if len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
 		volumeName := "app-config"
 		container["volumeMounts"] = []map[string]any{{
@@ -384,6 +381,70 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		}
 		return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
 	}
+}
+
+func buildReleaseKubernetesResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) map[string]any {
+	out := map[string]any{}
+	if requests := buildReleaseKubernetesResourceList(resources.Requests); len(requests) > 0 {
+		out["requests"] = requests
+	}
+	if limits := buildReleaseKubernetesResourceList(resources.Limits); len(limits) > 0 {
+		out["limits"] = limits
+	}
+	return out
+}
+
+func buildReleaseKubernetesResourceList(resources workloadconfigdomain.WorkloadResourceList) map[string]any {
+	out := map[string]any{}
+	if cpu := strings.TrimSpace(resources.CPU); cpu != "" {
+		out["cpu"] = cpu
+	}
+	if memory := strings.TrimSpace(resources.Memory); memory != "" {
+		out["memory"] = memory
+	}
+	return out
+}
+
+func applyReleaseWorkloadProbes(container map[string]any, probes workloadconfigdomain.WorkloadProbes) {
+	if probe := buildReleaseKubernetesProbe(probes.Liveness); len(probe) > 0 {
+		container["livenessProbe"] = probe
+	}
+	if probe := buildReleaseKubernetesProbe(probes.Readiness); len(probe) > 0 {
+		container["readinessProbe"] = probe
+	}
+	if probe := buildReleaseKubernetesProbe(probes.Startup); len(probe) > 0 {
+		container["startupProbe"] = probe
+	}
+}
+
+func buildReleaseKubernetesProbe(probe *workloadconfigdomain.WorkloadProbe) map[string]any {
+	if probe == nil {
+		return nil
+	}
+	out := map[string]any{}
+	httpGet := map[string]any{}
+	if path := strings.TrimSpace(probe.Path); path != "" {
+		httpGet["path"] = path
+	}
+	if port := strings.TrimSpace(probe.Port); port != "" {
+		httpGet["port"] = port
+	}
+	if len(httpGet) > 0 {
+		out["httpGet"] = httpGet
+	}
+	if probe.InitialDelaySeconds > 0 {
+		out["initialDelaySeconds"] = probe.InitialDelaySeconds
+	}
+	if probe.PeriodSeconds > 0 {
+		out["periodSeconds"] = probe.PeriodSeconds
+	}
+	if probe.TimeoutSeconds > 0 {
+		out["timeoutSeconds"] = probe.TimeoutSeconds
+	}
+	if probe.FailureThreshold > 0 {
+		out["failureThreshold"] = probe.FailureThreshold
+	}
+	return out
 }
 
 func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string, release *model.Release) map[string]any {

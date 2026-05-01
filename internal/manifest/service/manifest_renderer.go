@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"sigs.k8s.io/yaml"
 )
@@ -101,6 +102,13 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 	if namespace != "" {
 		deploymentMetadata["namespace"] = namespace
 	}
+	container := map[string]any{
+		"name":      applicationName,
+		"image":     imageRef,
+		"env":       env,
+		"resources": buildKubernetesResourceRequirements(workload.Resources),
+	}
+	applyWorkloadProbes(container, workload.Probes)
 	deploymentObj := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
@@ -117,12 +125,7 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 				},
 				"spec": map[string]any{
 					"imagePullSecrets": []map[string]any{{"name": "aliyun-docker-config"}},
-					"containers": []map[string]any{{
-						"name":      applicationName,
-						"image":     imageRef,
-						"env":       env,
-						"resources": workload.Resources,
-					}},
+					"containers":       []map[string]any{container},
 				},
 			},
 		},
@@ -130,18 +133,76 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 	if strings.TrimSpace(workload.ServiceAccountName) != "" {
 		deploymentObj["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["serviceAccountName"] = workload.ServiceAccountName
 	}
-	if len(workload.Probes) > 0 {
-		container := deploymentObj["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)[0]
-		for k, v := range workload.Probes {
-			container[k] = v
-		}
-	}
 	item, err := marshalRenderedObject("Deployment", applicationName, namespace, deploymentObj)
 	if err != nil {
 		return nil, err
 	}
 	objects = append(objects, item)
 	return objects, nil
+}
+
+func buildKubernetesResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) map[string]any {
+	out := map[string]any{}
+	if requests := buildKubernetesResourceList(resources.Requests); len(requests) > 0 {
+		out["requests"] = requests
+	}
+	if limits := buildKubernetesResourceList(resources.Limits); len(limits) > 0 {
+		out["limits"] = limits
+	}
+	return out
+}
+
+func buildKubernetesResourceList(resources workloadconfigdomain.WorkloadResourceList) map[string]any {
+	out := map[string]any{}
+	if cpu := strings.TrimSpace(resources.CPU); cpu != "" {
+		out["cpu"] = cpu
+	}
+	if memory := strings.TrimSpace(resources.Memory); memory != "" {
+		out["memory"] = memory
+	}
+	return out
+}
+
+func applyWorkloadProbes(container map[string]any, probes workloadconfigdomain.WorkloadProbes) {
+	if probe := buildKubernetesProbe(probes.Liveness); len(probe) > 0 {
+		container["livenessProbe"] = probe
+	}
+	if probe := buildKubernetesProbe(probes.Readiness); len(probe) > 0 {
+		container["readinessProbe"] = probe
+	}
+	if probe := buildKubernetesProbe(probes.Startup); len(probe) > 0 {
+		container["startupProbe"] = probe
+	}
+}
+
+func buildKubernetesProbe(probe *workloadconfigdomain.WorkloadProbe) map[string]any {
+	if probe == nil {
+		return nil
+	}
+	out := map[string]any{}
+	httpGet := map[string]any{}
+	if path := strings.TrimSpace(probe.Path); path != "" {
+		httpGet["path"] = path
+	}
+	if port := strings.TrimSpace(probe.Port); port != "" {
+		httpGet["port"] = port
+	}
+	if len(httpGet) > 0 {
+		out["httpGet"] = httpGet
+	}
+	if probe.InitialDelaySeconds > 0 {
+		out["initialDelaySeconds"] = probe.InitialDelaySeconds
+	}
+	if probe.PeriodSeconds > 0 {
+		out["periodSeconds"] = probe.PeriodSeconds
+	}
+	if probe.TimeoutSeconds > 0 {
+		out["timeoutSeconds"] = probe.TimeoutSeconds
+	}
+	if probe.FailureThreshold > 0 {
+		out["failureThreshold"] = probe.FailureThreshold
+	}
+	return out
 }
 
 func marshalRenderedObject(kind, name, namespace string, object any) (manifestdomain.ManifestRenderedResource, error) {

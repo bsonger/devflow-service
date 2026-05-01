@@ -6,6 +6,7 @@ import (
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/google/uuid"
 )
 
@@ -28,8 +29,12 @@ func TestBuildManifestResourcesViewRemainsInspectionOnly(t *testing.T) {
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
 			Replicas:           2,
 			ServiceAccountName: "demo-api",
-			Resources: map[string]any{
-				"limits": map[string]any{"cpu": "500m"},
+			Resources: workloadconfigdomain.WorkloadResourceRequirements{
+				SizeClass: workloadconfigdomain.WorkloadSizeClassMedium,
+				Limits:    workloadconfigdomain.WorkloadResourceList{CPU: "500m", Memory: "512Mi"},
+			},
+			Probes: workloadconfigdomain.WorkloadProbes{
+				Readiness: &workloadconfigdomain.WorkloadProbe{Path: "/readyz", Port: "http", PeriodSeconds: 5},
 			},
 			Env:         []model.EnvVar{{Name: "APP_ENV", Value: "prod"}},
 			Annotations: map[string]string{"devflow.io/build-snapshot": "true"},
@@ -70,6 +75,16 @@ func TestBuildManifestResourcesViewRemainsInspectionOnly(t *testing.T) {
 	podSpec, ok := view.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
 	if !ok {
 		t.Fatalf("manifest deployment pod spec missing: %#v", view.Resources.Deployment.Object)
+	}
+	containerSpec, ok := podSpec["containers"].([]map[string]any)
+	if !ok || len(containerSpec) == 0 {
+		t.Fatalf("manifest deployment containers missing: %#v", podSpec)
+	}
+	if _, ok := containerSpec[0]["readinessProbe"]; !ok {
+		t.Fatalf("manifest deployment missing readinessProbe: %#v", containerSpec[0])
+	}
+	if resources, ok := containerSpec[0]["resources"].(map[string]any); !ok || resources["limits"] == nil {
+		t.Fatalf("manifest deployment missing typed resources: %#v", containerSpec[0])
 	}
 	if _, ok := podSpec["volumes"]; ok {
 		t.Fatalf("manifest view should not include release config volumes: %#v", podSpec["volumes"])

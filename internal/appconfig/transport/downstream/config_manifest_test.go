@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 )
 
 func TestFindAppConfigUsesEnvironmentScopedEntryOnly(t *testing.T) {
@@ -69,7 +71,7 @@ func TestFindWorkloadConfigUsesApplicationScopedEntry(t *testing.T) {
 				t.Fatalf("unexpected query %s", r.URL.RawQuery)
 			}
 		case "/api/v1/workload-configs/wc-base":
-			_, _ = io.WriteString(w, `{"data":{"id":"wc-base","application_id":"app-1","replicas":2,"service_account_name":"default","labels":{"team":"platform"},"annotations":{"sidecar.istio.io/inject":"true"}}}`)
+			_, _ = io.WriteString(w, `{"data":{"id":"wc-base","application_id":"app-1","replicas":2,"service_account_name":"default","resources":{"size_class":"medium","requests":{"cpu":"250m","memory":"256Mi"},"limits":{"cpu":"1","memory":"1Gi"}},"probes":{"liveness":{"path":"/healthz","port":"http","period_seconds":10}},"env":[{"name":"LOG_LEVEL","value":"info"}],"labels":{"team":"platform"},"annotations":{"sidecar.istio.io/inject":"true"}}}`)
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -83,5 +85,17 @@ func TestFindWorkloadConfigUsesApplicationScopedEntry(t *testing.T) {
 	}
 	if got == nil || got.ID != "wc-base" {
 		t.Fatalf("unexpected config %+v", got)
+	}
+	if got.Resources.SizeClass != workloadconfigdomain.WorkloadSizeClassMedium {
+		t.Fatalf("resources.size_class = %q", got.Resources.SizeClass)
+	}
+	if got.Resources.Requests.CPU != "250m" || got.Resources.Limits.Memory != "1Gi" {
+		t.Fatalf("unexpected resources %+v", got.Resources)
+	}
+	if got.Probes.Liveness == nil || got.Probes.Liveness.Path != "/healthz" || got.Probes.Liveness.Port != "http" {
+		t.Fatalf("unexpected probes %+v", got.Probes)
+	}
+	if len(got.Env) != 1 || got.Env[0].Name != "LOG_LEVEL" {
+		t.Fatalf("unexpected env %+v", got.Env)
 	}
 }

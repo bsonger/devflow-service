@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/google/uuid"
 )
 
@@ -78,13 +79,13 @@ type ReleaseFrozenServicePort struct {
 }
 
 type ReleaseFrozenWorkload struct {
-	Replicas           int               `json:"replicas"`
-	ServiceAccountName string            `json:"service_account_name,omitempty"`
-	Resources          map[string]any    `json:"resources,omitempty"`
-	Probes             map[string]any    `json:"probes,omitempty"`
-	Env                []EnvVar          `json:"env,omitempty"`
-	Labels             map[string]string `json:"labels,omitempty"`
-	Annotations        map[string]string `json:"annotations,omitempty"`
+	Replicas           int                                          `json:"replicas"`
+	ServiceAccountName string                                       `json:"service_account_name,omitempty"`
+	Resources          workloadconfigdomain.WorkloadResourceRequirements `json:"resources,omitempty"`
+	Probes             workloadconfigdomain.WorkloadProbes          `json:"probes,omitempty"`
+	Env                []EnvVar                                     `json:"env,omitempty"`
+	Labels             map[string]string                            `json:"labels,omitempty"`
+	Annotations        map[string]string                            `json:"annotations,omitempty"`
 }
 
 type ReleaseRenderedBundleView struct {

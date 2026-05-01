@@ -8,6 +8,7 @@ import (
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/google/uuid"
 )
 
@@ -36,8 +37,8 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 			Annotations: map[string]string{
 				"example.com/trace": "enabled",
 			},
-			Resources: map[string]any{
-				"limits": map[string]any{"cpu": "500m"},
+			Resources: workloadconfigdomain.WorkloadResourceRequirements{
+				Limits: workloadconfigdomain.WorkloadResourceList{CPU: "500m"},
 			},
 			Env: []model.EnvVar{{Name: "APP_ENV", Value: "prod"}},
 		},

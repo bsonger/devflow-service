@@ -5,13 +5,19 @@ import (
 	"fmt"
 	"net/url"
 
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/bsonger/devflow-service/internal/shared/downstreamhttp"
 )
 
-type EnvVar struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
+type EnvVar = workloadconfigdomain.EnvVar
+
+type WorkloadResourceList = workloadconfigdomain.WorkloadResourceList
+
+type WorkloadResourceRequirements = workloadconfigdomain.WorkloadResourceRequirements
+
+type WorkloadProbe = workloadconfigdomain.WorkloadProbe
+
+type WorkloadProbes = workloadconfigdomain.WorkloadProbes
 
 type ManifestFile struct {
 	Name    string `json:"name"`
@@ -29,15 +35,15 @@ type AppConfig struct {
 }
 
 type WorkloadConfig struct {
-	ID                 string            `json:"id"`
-	ApplicationID      string            `json:"application_id"`
-	Replicas           int               `json:"replicas"`
-	ServiceAccountName string            `json:"service_account_name,omitempty"`
-	Resources          map[string]any    `json:"resources,omitempty"`
-	Probes             map[string]any    `json:"probes,omitempty"`
-	Env                []EnvVar          `json:"env,omitempty"`
-	Labels             map[string]string `json:"labels,omitempty"`
-	Annotations        map[string]string `json:"annotations,omitempty"`
+	ID                 string                      `json:"id"`
+	ApplicationID      string                      `json:"application_id"`
+	Replicas           int                         `json:"replicas"`
+	ServiceAccountName string                      `json:"service_account_name,omitempty"`
+	Resources          WorkloadResourceRequirements `json:"resources,omitempty"`
+	Probes             WorkloadProbes              `json:"probes,omitempty"`
+	Env                []EnvVar                    `json:"env,omitempty"`
+	Labels             map[string]string           `json:"labels,omitempty"`
+	Annotations        map[string]string           `json:"annotations,omitempty"`
 }
 
 type Client struct{ *downstreamhttp.Client }

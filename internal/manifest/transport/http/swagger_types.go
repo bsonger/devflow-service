@@ -1,6 +1,9 @@
 package http
 
-import "github.com/google/uuid"
+import (
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
+	"github.com/google/uuid"
+)
 
 type ManifestStepDoc struct {
 	TaskName  string `json:"task_name"`
@@ -52,15 +55,23 @@ type ManifestEnvVarDoc struct {
 	Value string `json:"value"`
 }
 
+type ManifestWorkloadResourceListDoc = workloadconfigdomain.WorkloadResourceList
+
+type ManifestWorkloadResourceRequirementsDoc = workloadconfigdomain.WorkloadResourceRequirements
+
+type ManifestWorkloadProbeDoc = workloadconfigdomain.WorkloadProbe
+
+type ManifestWorkloadProbesDoc = workloadconfigdomain.WorkloadProbes
+
 type ManifestWorkloadConfigDoc struct {
-	ID                 string              `json:"id,omitempty"`
-	Replicas           int                 `json:"replicas"`
-	ServiceAccountName string              `json:"service_account_name,omitempty"`
-	Resources          map[string]any      `json:"resources,omitempty"`
-	Probes             map[string]any      `json:"probes,omitempty"`
-	Env                []ManifestEnvVarDoc `json:"env,omitempty"`
-	Labels             map[string]string   `json:"labels,omitempty"`
-	Annotations        map[string]string   `json:"annotations,omitempty"`
+	ID                 string                                `json:"id,omitempty"`
+	Replicas           int                                   `json:"replicas"`
+	ServiceAccountName string                                `json:"service_account_name,omitempty"`
+	Resources          ManifestWorkloadResourceRequirementsDoc `json:"resources,omitempty"`
+	Probes             ManifestWorkloadProbesDoc             `json:"probes,omitempty"`
+	Env                []ManifestEnvVarDoc                   `json:"env,omitempty"`
+	Labels             map[string]string                     `json:"labels,omitempty"`
+	Annotations        map[string]string                     `json:"annotations,omitempty"`
 }
 
 type ManifestRenderedObjectDoc struct {

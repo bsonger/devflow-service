@@ -1,6 +1,9 @@
 package http
 
-import "github.com/google/uuid"
+import (
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
+	"github.com/google/uuid"
+)
 
 type ReleaseStepDoc struct {
 	Code      string `json:"code"`
@@ -123,14 +126,22 @@ type ReleaseFrozenServiceDoc struct {
 	Ports []ReleaseFrozenServicePortDoc `json:"ports,omitempty"`
 }
 
+type ReleaseWorkloadResourceListDoc = workloadconfigdomain.WorkloadResourceList
+
+type ReleaseWorkloadResourceRequirementsDoc = workloadconfigdomain.WorkloadResourceRequirements
+
+type ReleaseWorkloadProbeDoc = workloadconfigdomain.WorkloadProbe
+
+type ReleaseWorkloadProbesDoc = workloadconfigdomain.WorkloadProbes
+
 type ReleaseFrozenWorkloadDoc struct {
-	Replicas           int                 `json:"replicas"`
-	ServiceAccountName string              `json:"service_account_name,omitempty"`
-	Resources          map[string]any      `json:"resources,omitempty"`
-	Probes             map[string]any      `json:"probes,omitempty"`
-	Env                []ManifestEnvVarDoc `json:"env,omitempty"`
-	Labels             map[string]string   `json:"labels,omitempty"`
-	Annotations        map[string]string   `json:"annotations,omitempty"`
+	Replicas           int                                  `json:"replicas"`
+	ServiceAccountName string                               `json:"service_account_name,omitempty"`
+	Resources          ReleaseWorkloadResourceRequirementsDoc `json:"resources,omitempty"`
+	Probes             ReleaseWorkloadProbesDoc            `json:"probes,omitempty"`
+	Env                []ManifestEnvVarDoc                 `json:"env,omitempty"`
+	Labels             map[string]string                   `json:"labels,omitempty"`
+	Annotations        map[string]string                   `json:"annotations,omitempty"`
 }
 
 type ReleaseBundleFrozenInputsDoc struct {
@@ -236,15 +247,23 @@ type ManifestEnvVarDoc struct {
 	Value string `json:"value"`
 }
 
+type ManifestWorkloadResourceListDoc = workloadconfigdomain.WorkloadResourceList
+
+type ManifestWorkloadResourceRequirementsDoc = workloadconfigdomain.WorkloadResourceRequirements
+
+type ManifestWorkloadProbeDoc = workloadconfigdomain.WorkloadProbe
+
+type ManifestWorkloadProbesDoc = workloadconfigdomain.WorkloadProbes
+
 type ManifestWorkloadConfigDoc struct {
-	ID                 string              `json:"id,omitempty"`
-	Replicas           int                 `json:"replicas"`
-	ServiceAccountName string              `json:"service_account_name,omitempty"`
-	Resources          map[string]any      `json:"resources,omitempty"`
-	Probes             map[string]any      `json:"probes,omitempty"`
-	Env                []ManifestEnvVarDoc `json:"env,omitempty"`
-	Labels             map[string]string   `json:"labels,omitempty"`
-	Annotations        map[string]string   `json:"annotations,omitempty"`
+	ID                 string                                  `json:"id,omitempty"`
+	Replicas           int                                     `json:"replicas"`
+	ServiceAccountName string                                  `json:"service_account_name,omitempty"`
+	Resources          ManifestWorkloadResourceRequirementsDoc `json:"resources,omitempty"`
+	Probes             ManifestWorkloadProbesDoc               `json:"probes,omitempty"`
+	Env                []ManifestEnvVarDoc                     `json:"env,omitempty"`
+	Labels             map[string]string                       `json:"labels,omitempty"`
+	Annotations        map[string]string                       `json:"annotations,omitempty"`
 }
 
 type ManifestRenderedObjectDoc struct {
