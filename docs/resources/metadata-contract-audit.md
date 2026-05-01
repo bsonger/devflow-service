@@ -17,10 +17,12 @@ Later slices need one repo-tracked place to answer:
 For release lifecycle context, read this alongside:
 
 - `docs/resources/release.md`
+- `docs/resources/metadata-drift-proof.md`
 - `docs/system/flow-overview.md`
 - `docs/system/release-writeback.md`
 - `docs/services/release-service.md`
 - `docs/services/runtime-service.md`
+- `bash scripts/verify-metadata-audit.sh`
 
 ## Metadata surfaces
 
