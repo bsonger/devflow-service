@@ -209,7 +209,7 @@ check \
   scripts/README.md
 check \
   "scripts readme warns metadata audit does not prove terminality behavior" \
-  "`verify-metadata-audit.sh` should not claim to prove runtime behavior, release terminality, or callback execution semantics by itself." \
+  '`verify-metadata-audit.sh` should not claim to prove runtime behavior, release terminality, or callback execution semantics by itself.' \
   scripts/README.md
 
 check \

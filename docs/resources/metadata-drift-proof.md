@@ -275,6 +275,7 @@ If cluster access is not available, leave the placeholders and record that the e
 ### Interpreted outcome
 
 - current best classification: `live deployment-only drift persists even though the Application still carries the narrow restartedAt ignore pointer`
+- narrowed localization from the refreshed session: `the only live offender remains apps/Deployment devflow/meta-service, and Argo status does not currently advertise a pruning mismatch for that resource`
 - proven ownership boundary: `runtime/release rollout correlation still depends on release-owned labels; no runtime-local release store was reintroduced to repair Argo sync`
 - next live question to answer: `does the Argo controller diff still reduce to restartedAt after normalization, or is another Deployment field/path keeping meta-service OutOfSync?`
 
@@ -283,6 +284,24 @@ If cluster access is not available, leave the placeholders and record that the e
 From tracked repo state plus live cluster evidence, this artifact now proves:
 
 - the metadata identity contract is label-based and intentionally narrow
+- the runtime restart annotation is supplementary runtime state, not release identity
+- runtime rollout writeback still resolves release/application/environment context from workload labels
+- release-service already attempts to suppress restart-annotation-only drift at the Argo layer
+- the release-side ignore rule is workload-kind-aware even though the current live `meta-service` evidence is deployment-shaped
+- the live `meta-service` Application still reports a single `apps/Deployment` drift signal while carrying the restartedAt ignore pointer, so the remaining seam is now a real Argo/live-diff localization problem rather than a missing contract problem
+
+## Related tracked context
+
+- `docs/resources/metadata-contract-audit.md`
+- `docs/resources/runtime-spec.md`
+- `docs/services/runtime-service.md`
+- `internal/runtime/service/service.go`
+- `internal/runtime/observer/kubernetes_runtime.go`
+- `internal/runtime/observer/release_rollout.go`
+- `internal/release/service/release.go`
+- `internal/release/transport/argo/client.go`
+- `scripts/verify-metadata-audit.sh`
+ntentionally narrow
 - the runtime restart annotation is supplementary runtime state, not release identity
 - runtime rollout writeback still resolves release/application/environment context from workload labels
 - release-service already attempts to suppress restart-annotation-only drift at the Argo layer
