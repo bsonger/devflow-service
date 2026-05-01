@@ -74,7 +74,7 @@ func (h *Handler) Attach(c *gin.Context) {
 // @Tags ApplicationEnvironment
 // @Produce json
 // @Param id path string true "Application ID"
-// @Success 200 {object} httpx.PaginatedResponse
+// @Success 200 {object} httpx.ListResponse[applicationenvservice.BindingView]
 // @Failure 400 {object} httpx.ErrorResponse
 // @Failure 404 {object} httpx.ErrorResponse
 // @Failure 500 {object} httpx.ErrorResponse

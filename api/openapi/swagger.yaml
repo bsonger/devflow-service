@@ -96,6 +96,68 @@ definitions:
       value:
         type: string
     type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_domain.Binding:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment_id:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_domain.BindingInput:
+    properties:
+      environment_id:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_service.BindingDetail:
+    properties:
+      app_configs:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig'
+        type: array
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment'
+      environment_id:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+      workload_configs:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig'
+        type: array
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_service.BindingView:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment'
+      environment_id:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+    type: object
   github_com_bsonger_devflow-service_internal_cluster_domain.Cluster:
     properties:
       argocd_cluster_name:
@@ -241,6 +303,15 @@ definitions:
       data:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_applicationenv_service_BindingView
+  : properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_service.BindingView'
         type: array
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
@@ -494,13 +565,11 @@ definitions:
           type: string
         type: object
       probes:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes'
       replicas:
         type: integer
       resources:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements'
       service_account_name:
         type: string
       updated_at:
@@ -523,16 +592,66 @@ definitions:
           type: string
         type: object
       probes:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes'
       replicas:
         type: integer
       resources:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements'
       service_account_name:
         type: string
     type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe:
+    properties:
+      failure_threshold:
+        type: integer
+      initial_delay_seconds:
+        type: integer
+      path:
+        type: string
+      period_seconds:
+        type: integer
+      port:
+        type: string
+      timeout_seconds:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes:
+    properties:
+      liveness:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+      readiness:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+      startup:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList:
+    properties:
+      cpu:
+        type: string
+      memory:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements:
+    properties:
+      limits:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
+      requests:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
+      size_class:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass'
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass:
+    enum:
+    - small
+    - medium
+    - large
+    - xlarge
+    type: string
+    x-enum-varnames:
+    - WorkloadSizeClassSmall
+    - WorkloadSizeClassMedium
+    - WorkloadSizeClassLarge
+    - WorkloadSizeClassXLarge
   http.ArgoEventRequest:
     properties:
       external_ref:
@@ -592,8 +711,6 @@ definitions:
         type: string
       mount_path:
         type: string
-      name:
-        type: string
       revision_id:
         type: string
       source_commit:
@@ -622,50 +739,116 @@ definitions:
     required:
     - release_id
     type: object
+  http.ReleaseBundleArtifactDoc:
+    properties:
+      digest:
+        type: string
+      ref:
+        type: string
+      repository:
+        type: string
+      tag:
+        type: string
+    type: object
   http.ReleaseBundleDoc:
     properties:
       application_id:
         type: string
+      artifact:
+        $ref: '#/definitions/http.ReleaseBundleArtifactDoc'
       artifact_name:
+        type: string
+      bundle_digest:
         type: string
       environment_id:
         type: string
-      files:
-        items:
-          $ref: '#/definitions/http.ReleaseBundleFileDoc'
-        type: array
+      frozen_inputs:
+        $ref: '#/definitions/http.ReleaseBundleFrozenInputsDoc'
+      manifest_id:
+        type: string
       namespace:
+        type: string
+      published_at:
         type: string
       release_id:
         type: string
-      rendered_objects:
-        items:
-          $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
-        type: array
-      resources:
-        $ref: '#/definitions/http.ReleaseBundleResourcesDoc'
+      rendered_at:
+        type: string
+      rendered_bundle:
+        $ref: '#/definitions/http.ReleaseRenderedBundleViewDoc'
+      strategy:
+        type: string
     type: object
-  http.ReleaseBundleFileDoc:
+  http.ReleaseBundleFileViewDoc:
     properties:
       content:
         type: string
       path:
         type: string
     type: object
-  http.ReleaseBundleResourcesDoc:
+  http.ReleaseBundleFrozenInputsDoc:
     properties:
-      configmap:
-        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
-      deployment:
-        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
-      rollout:
-        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+      app_config:
+        $ref: '#/definitions/http.ReleaseAppConfigDoc'
+      manifest_summary:
+        $ref: '#/definitions/http.ReleaseBundleManifestSummaryDoc'
+      routes:
+        items:
+          $ref: '#/definitions/http.ReleaseRouteDoc'
+        type: array
       services:
         items:
-          $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+          $ref: '#/definitions/http.ReleaseFrozenServiceDoc'
         type: array
-      virtualservice:
-        $ref: '#/definitions/http.ReleaseRenderedResourceDoc'
+      workload:
+        $ref: '#/definitions/http.ReleaseFrozenWorkloadDoc'
+    type: object
+  http.ReleaseBundleManifestSummaryDoc:
+    properties:
+      commit_hash:
+        type: string
+      image_digest:
+        type: string
+      image_ref:
+        type: string
+      manifest_id:
+        type: string
+    type: object
+  http.ReleaseBundleResourceCountsDoc:
+    properties:
+      configmaps:
+        type: integer
+      deployments:
+        type: integer
+      rollouts:
+        type: integer
+      services:
+        type: integer
+      total:
+        type: integer
+      virtualservices:
+        type: integer
+    type: object
+  http.ReleaseBundleSummaryDoc:
+    properties:
+      artifact:
+        $ref: '#/definitions/http.ReleaseBundleArtifactDoc'
+      artifact_name:
+        type: string
+      available:
+        type: boolean
+      bundle_digest:
+        type: string
+      namespace:
+        type: string
+      primary_workload_kind:
+        type: string
+      published_at:
+        type: string
+      rendered_at:
+        type: string
+      resource_counts:
+        $ref: '#/definitions/http.ReleaseBundleResourceCountsDoc'
     type: object
   http.ReleaseDoc:
     properties:
@@ -683,6 +866,8 @@ definitions:
         type: string
       artifact_tag:
         type: string
+      bundle_summary:
+        $ref: '#/definitions/http.ReleaseBundleSummaryDoc'
       created_at:
         type: string
       environment_id:
@@ -719,6 +904,49 @@ definitions:
       name:
         type: string
     type: object
+  http.ReleaseFrozenServiceDoc:
+    properties:
+      name:
+        type: string
+      ports:
+        items:
+          $ref: '#/definitions/http.ReleaseFrozenServicePortDoc'
+        type: array
+    type: object
+  http.ReleaseFrozenServicePortDoc:
+    properties:
+      name:
+        type: string
+      protocol:
+        type: string
+      service_port:
+        type: integer
+      target_port:
+        type: integer
+    type: object
+  http.ReleaseFrozenWorkloadDoc:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      env:
+        items:
+          $ref: '#/definitions/internal_release_transport_http.ManifestEnvVarDoc'
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      probes:
+        $ref: '#/definitions/http.ReleaseWorkloadProbesDoc'
+      replicas:
+        type: integer
+      resources:
+        $ref: '#/definitions/http.ReleaseWorkloadResourceRequirementsDoc'
+      service_account_name:
+        type: string
+    type: object
   http.ReleaseListResponse:
     properties:
       data:
@@ -728,7 +956,29 @@ definitions:
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
     type: object
-  http.ReleaseRenderedResourceDoc:
+  http.ReleaseRenderedBundleViewDoc:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/http.ReleaseBundleFileViewDoc'
+        type: array
+      rendered_resources:
+        items:
+          $ref: '#/definitions/http.ReleaseRenderedResourceViewDoc'
+        type: array
+      resource_groups:
+        items:
+          $ref: '#/definitions/http.ReleaseResourceGroupDoc'
+        type: array
+    type: object
+  http.ReleaseRenderedResourceRefDoc:
+    properties:
+      name:
+        type: string
+      namespace:
+        type: string
+    type: object
+  http.ReleaseRenderedResourceViewDoc:
     properties:
       kind:
         type: string
@@ -736,10 +986,19 @@ definitions:
         type: string
       namespace:
         type: string
-      object:
+      summary:
         additionalProperties: {}
         type: object
       yaml:
+        type: string
+    type: object
+  http.ReleaseResourceGroupDoc:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/http.ReleaseRenderedResourceRefDoc'
+        type: array
+      kind:
         type: string
     type: object
   http.ReleaseResponse:
@@ -796,6 +1055,24 @@ definitions:
     required:
     - release_id
     - status
+    type: object
+  http.ReleaseWorkloadProbesDoc:
+    properties:
+      liveness:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+      readiness:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+      startup:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+    type: object
+  http.ReleaseWorkloadResourceRequirementsDoc:
+    properties:
+      limits:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
+      requests:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
+      size_class:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass'
     type: object
   internal_application_transport_http.CreateApplicationRequest:
     properties:
@@ -1098,15 +1375,31 @@ definitions:
           type: string
         type: object
       probes:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc'
       replicas:
         type: integer
       resources:
-        additionalProperties: {}
-        type: object
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc'
       service_account_name:
         type: string
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadProbesDoc:
+    properties:
+      liveness:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+      readiness:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+      startup:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc:
+    properties:
+      limits:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
+      requests:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
+      size_class:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass'
     type: object
   internal_project_transport_http.CreateProjectRequest:
     properties:
@@ -1128,6 +1421,23 @@ definitions:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_project_domain.LabelItem'
         type: array
       name:
+        type: string
+    type: object
+  internal_release_transport_http.ManifestEnvVarDoc:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  internal_route_transport_http.DeleteRouteRequest:
+    properties:
+      application_id:
+        type: string
+    type: object
+  internal_service_transport_http.DeleteServiceRequest:
+    properties:
+      application_id:
         type: string
     type: object
 info:
@@ -1336,6 +1646,138 @@ paths:
       summary: 更新应用
       tags:
       - Application
+  /api/v1/applications/{id}/environments:
+    get:
+      parameters:
+      - description: Application ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_applicationenv_service_BindingView'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+      summary: List application environment bindings
+      tags:
+      - ApplicationEnvironment
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Application ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Binding Data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_domain.BindingInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_domain.Binding'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+      summary: Attach environment to application
+      tags:
+      - ApplicationEnvironment
+  /api/v1/applications/{id}/environments/{environment_id}:
+    delete:
+      parameters:
+      - description: Application ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Environment ID
+        in: path
+        name: environment_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+      summary: Delete application environment binding
+      tags:
+      - ApplicationEnvironment
+    get:
+      parameters:
+      - description: Application ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Environment ID
+        in: path
+        name: environment_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_service.BindingDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+      summary: Get application environment binding detail
+      tags:
+      - ApplicationEnvironment
   /api/v1/clusters:
     get:
       responses:
@@ -1881,6 +2323,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/http.ReleaseBundleDoc'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
       summary: 获取Release bundle preview
       tags:
       - Release
@@ -1951,11 +2397,12 @@ paths:
         name: route_id
         required: true
         type: string
-      - description: Application ID
-        in: query
-        name: application_id
+      - description: Delete request
+        in: body
+        name: data
         required: true
-        type: string
+        schema:
+          $ref: '#/definitions/internal_route_transport_http.DeleteRouteRequest'
       responses:
         "204":
           description: No Content
@@ -2067,11 +2514,12 @@ paths:
         name: service_id
         required: true
         type: string
-      - description: Application ID
-        in: query
-        name: application_id
+      - description: Delete request
+        in: body
+        name: data
         required: true
-        type: string
+        schema:
+          $ref: '#/definitions/internal_service_transport_http.DeleteServiceRequest'
       responses:
         "204":
           description: No Content

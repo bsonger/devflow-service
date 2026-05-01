@@ -323,6 +323,206 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/applications/{id}/environments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ApplicationEnvironment"
+                ],
+                "summary": "List application environment bindings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_applicationenv_service_BindingView"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ApplicationEnvironment"
+                ],
+                "summary": "Attach environment to application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Binding Data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_domain.BindingInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_domain.Binding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/applications/{id}/environments/{environment_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ApplicationEnvironment"
+                ],
+                "summary": "Get application environment binding detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "environment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_service.BindingDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "ApplicationEnvironment"
+                ],
+                "summary": "Delete application environment binding",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "environment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/clusters": {
             "get": {
                 "tags": [
@@ -1163,6 +1363,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/http.ReleaseBundleDoc"
                         }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -1272,11 +1478,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "query",
-                        "required": true
+                        "description": "Delete request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_route_transport_http.DeleteRouteRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -1451,11 +1659,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Application ID",
-                        "name": "application_id",
-                        "in": "query",
-                        "required": true
+                        "description": "Delete request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_service_transport_http.DeleteServiceRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -1934,6 +2144,101 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_bsonger_devflow-service_internal_applicationenv_domain.Binding": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "environment_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_applicationenv_domain.BindingInput": {
+            "type": "object",
+            "properties": {
+                "environment_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_applicationenv_service.BindingDetail": {
+            "type": "object",
+            "properties": {
+                "app_configs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig"
+                    }
+                },
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "environment": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment"
+                },
+                "environment_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workload_configs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig"
+                    }
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_applicationenv_service.BindingView": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "environment": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment"
+                },
+                "environment_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_bsonger_devflow-service_internal_cluster_domain.Cluster": {
             "type": "object",
             "properties": {
@@ -2159,6 +2464,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_applicationenv_service_BindingView": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_service.BindingView"
                     }
                 },
                 "pagination": {
@@ -2548,15 +2867,13 @@ const docTemplate = `{
                     }
                 },
                 "probes": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes"
                 },
                 "replicas": {
                     "type": "integer"
                 },
                 "resources": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements"
                 },
                 "service_account_name": {
                     "type": "string"
@@ -2591,20 +2908,95 @@ const docTemplate = `{
                     }
                 },
                 "probes": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes"
                 },
                 "replicas": {
                     "type": "integer"
                 },
                 "resources": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements"
                 },
                 "service_account_name": {
                     "type": "string"
                 }
             }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe": {
+            "type": "object",
+            "properties": {
+                "failure_threshold": {
+                    "type": "integer"
+                },
+                "initial_delay_seconds": {
+                    "type": "integer"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "period_seconds": {
+                    "type": "integer"
+                },
+                "port": {
+                    "type": "string"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes": {
+            "type": "object",
+            "properties": {
+                "liveness": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                },
+                "readiness": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                },
+                "startup": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList": {
+            "type": "object",
+            "properties": {
+                "cpu": {
+                    "type": "string"
+                },
+                "memory": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements": {
+            "type": "object",
+            "properties": {
+                "limits": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+                },
+                "requests": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+                },
+                "size_class": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass": {
+            "type": "string",
+            "enum": [
+                "small",
+                "medium",
+                "large",
+                "xlarge"
+            ],
+            "x-enum-varnames": [
+                "WorkloadSizeClassSmall",
+                "WorkloadSizeClassMedium",
+                "WorkloadSizeClassLarge",
+                "WorkloadSizeClassXLarge"
+            ]
         },
         "http.ArgoEventRequest": {
             "type": "object",
@@ -2695,9 +3087,6 @@ const docTemplate = `{
                 "mount_path": {
                     "type": "string"
                 },
-                "name": {
-                    "type": "string"
-                },
                 "revision_id": {
                     "type": "string"
                 },
@@ -2741,42 +3130,68 @@ const docTemplate = `{
                 }
             }
         },
+        "http.ReleaseBundleArtifactDoc": {
+            "type": "object",
+            "properties": {
+                "digest": {
+                    "type": "string"
+                },
+                "ref": {
+                    "type": "string"
+                },
+                "repository": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                }
+            }
+        },
         "http.ReleaseBundleDoc": {
             "type": "object",
             "properties": {
                 "application_id": {
                     "type": "string"
                 },
+                "artifact": {
+                    "$ref": "#/definitions/http.ReleaseBundleArtifactDoc"
+                },
                 "artifact_name": {
+                    "type": "string"
+                },
+                "bundle_digest": {
                     "type": "string"
                 },
                 "environment_id": {
                     "type": "string"
                 },
-                "files": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/http.ReleaseBundleFileDoc"
-                    }
+                "frozen_inputs": {
+                    "$ref": "#/definitions/http.ReleaseBundleFrozenInputsDoc"
+                },
+                "manifest_id": {
+                    "type": "string"
                 },
                 "namespace": {
+                    "type": "string"
+                },
+                "published_at": {
                     "type": "string"
                 },
                 "release_id": {
                     "type": "string"
                 },
-                "rendered_objects": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
-                    }
+                "rendered_at": {
+                    "type": "string"
                 },
-                "resources": {
-                    "$ref": "#/definitions/http.ReleaseBundleResourcesDoc"
+                "rendered_bundle": {
+                    "$ref": "#/definitions/http.ReleaseRenderedBundleViewDoc"
+                },
+                "strategy": {
+                    "type": "string"
                 }
             }
         },
-        "http.ReleaseBundleFileDoc": {
+        "http.ReleaseBundleFileViewDoc": {
             "type": "object",
             "properties": {
                 "content": {
@@ -2787,26 +3202,101 @@ const docTemplate = `{
                 }
             }
         },
-        "http.ReleaseBundleResourcesDoc": {
+        "http.ReleaseBundleFrozenInputsDoc": {
             "type": "object",
             "properties": {
-                "configmap": {
-                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                "app_config": {
+                    "$ref": "#/definitions/http.ReleaseAppConfigDoc"
                 },
-                "deployment": {
-                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                "manifest_summary": {
+                    "$ref": "#/definitions/http.ReleaseBundleManifestSummaryDoc"
                 },
-                "rollout": {
-                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                "routes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseRouteDoc"
+                    }
                 },
                 "services": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                        "$ref": "#/definitions/http.ReleaseFrozenServiceDoc"
                     }
                 },
-                "virtualservice": {
-                    "$ref": "#/definitions/http.ReleaseRenderedResourceDoc"
+                "workload": {
+                    "$ref": "#/definitions/http.ReleaseFrozenWorkloadDoc"
+                }
+            }
+        },
+        "http.ReleaseBundleManifestSummaryDoc": {
+            "type": "object",
+            "properties": {
+                "commit_hash": {
+                    "type": "string"
+                },
+                "image_digest": {
+                    "type": "string"
+                },
+                "image_ref": {
+                    "type": "string"
+                },
+                "manifest_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.ReleaseBundleResourceCountsDoc": {
+            "type": "object",
+            "properties": {
+                "configmaps": {
+                    "type": "integer"
+                },
+                "deployments": {
+                    "type": "integer"
+                },
+                "rollouts": {
+                    "type": "integer"
+                },
+                "services": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "virtualservices": {
+                    "type": "integer"
+                }
+            }
+        },
+        "http.ReleaseBundleSummaryDoc": {
+            "type": "object",
+            "properties": {
+                "artifact": {
+                    "$ref": "#/definitions/http.ReleaseBundleArtifactDoc"
+                },
+                "artifact_name": {
+                    "type": "string"
+                },
+                "available": {
+                    "type": "boolean"
+                },
+                "bundle_digest": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "primary_workload_kind": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "rendered_at": {
+                    "type": "string"
+                },
+                "resource_counts": {
+                    "$ref": "#/definitions/http.ReleaseBundleResourceCountsDoc"
                 }
             }
         },
@@ -2833,6 +3323,9 @@ const docTemplate = `{
                 },
                 "artifact_tag": {
                     "type": "string"
+                },
+                "bundle_summary": {
+                    "$ref": "#/definitions/http.ReleaseBundleSummaryDoc"
                 },
                 "created_at": {
                     "type": "string"
@@ -2889,6 +3382,72 @@ const docTemplate = `{
                 }
             }
         },
+        "http.ReleaseFrozenServiceDoc": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseFrozenServicePortDoc"
+                    }
+                }
+            }
+        },
+        "http.ReleaseFrozenServicePortDoc": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "service_port": {
+                    "type": "integer"
+                },
+                "target_port": {
+                    "type": "integer"
+                }
+            }
+        },
+        "http.ReleaseFrozenWorkloadDoc": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "env": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_release_transport_http.ManifestEnvVarDoc"
+                    }
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "probes": {
+                    "$ref": "#/definitions/http.ReleaseWorkloadProbesDoc"
+                },
+                "replicas": {
+                    "type": "integer"
+                },
+                "resources": {
+                    "$ref": "#/definitions/http.ReleaseWorkloadResourceRequirementsDoc"
+                },
+                "service_account_name": {
+                    "type": "string"
+                }
+            }
+        },
         "http.ReleaseListResponse": {
             "type": "object",
             "properties": {
@@ -2903,7 +3462,41 @@ const docTemplate = `{
                 }
             }
         },
-        "http.ReleaseRenderedResourceDoc": {
+        "http.ReleaseRenderedBundleViewDoc": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseBundleFileViewDoc"
+                    }
+                },
+                "rendered_resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseRenderedResourceViewDoc"
+                    }
+                },
+                "resource_groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseResourceGroupDoc"
+                    }
+                }
+            }
+        },
+        "http.ReleaseRenderedResourceRefDoc": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.ReleaseRenderedResourceViewDoc": {
             "type": "object",
             "properties": {
                 "kind": {
@@ -2915,11 +3508,25 @@ const docTemplate = `{
                 "namespace": {
                     "type": "string"
                 },
-                "object": {
+                "summary": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "yaml": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.ReleaseResourceGroupDoc": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.ReleaseRenderedResourceRefDoc"
+                    }
+                },
+                "kind": {
                     "type": "string"
                 }
             }
@@ -3005,6 +3612,34 @@ const docTemplate = `{
                 },
                 "step_name": {
                     "type": "string"
+                }
+            }
+        },
+        "http.ReleaseWorkloadProbesDoc": {
+            "type": "object",
+            "properties": {
+                "liveness": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                },
+                "readiness": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                },
+                "startup": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                }
+            }
+        },
+        "http.ReleaseWorkloadResourceRequirementsDoc": {
+            "type": "object",
+            "properties": {
+                "limits": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+                },
+                "requests": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+                },
+                "size_class": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass"
                 }
             }
         },
@@ -3465,18 +4100,44 @@ const docTemplate = `{
                     }
                 },
                 "probes": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc"
                 },
                 "replicas": {
                     "type": "integer"
                 },
                 "resources": {
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc"
                 },
                 "service_account_name": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_manifest_transport_http.ManifestWorkloadProbesDoc": {
+            "type": "object",
+            "properties": {
+                "liveness": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                },
+                "readiness": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                },
+                "startup": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+                }
+            }
+        },
+        "internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc": {
+            "type": "object",
+            "properties": {
+                "limits": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+                },
+                "requests": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+                },
+                "size_class": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass"
                 }
             }
         },
@@ -3510,6 +4171,33 @@ const docTemplate = `{
                     }
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_release_transport_http.ManifestEnvVarDoc": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_route_transport_http.DeleteRouteRequest": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_service_transport_http.DeleteServiceRequest": {
+            "type": "object",
+            "properties": {
+                "application_id": {
                     "type": "string"
                 }
             }
