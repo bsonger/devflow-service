@@ -384,14 +384,22 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 }
 
 func buildReleaseKubernetesResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) map[string]any {
+	expanded := expandReleaseWorkloadResourceRequirements(resources)
 	out := map[string]any{}
-	if requests := buildReleaseKubernetesResourceList(resources.Requests); len(requests) > 0 {
+	if requests := buildReleaseKubernetesResourceList(expanded.Requests); len(requests) > 0 {
 		out["requests"] = requests
 	}
-	if limits := buildReleaseKubernetesResourceList(resources.Limits); len(limits) > 0 {
+	if limits := buildReleaseKubernetesResourceList(expanded.Limits); len(limits) > 0 {
 		out["limits"] = limits
 	}
 	return out
+}
+
+func expandReleaseWorkloadResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) workloadconfigdomain.WorkloadResourceRequirements {
+	if mapped, ok := workloadconfigdomain.WorkloadSizeClassResources[resources.SizeClass]; ok {
+		return mapped
+	}
+	return resources
 }
 
 func buildReleaseKubernetesResourceList(resources workloadconfigdomain.WorkloadResourceList) map[string]any {

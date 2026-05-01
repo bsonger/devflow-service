@@ -62,20 +62,24 @@ func TestWorkloadConfigContractNoLongerExposesWideMaps(t *testing.T) {
 func TestWorkloadSizeClassResourcesCoversCanonicalClasses(t *testing.T) {
 	want := map[WorkloadSizeClass]WorkloadResourceRequirements{
 		WorkloadSizeClassSmall: {
-			Requests: WorkloadResourceList{CPU: "100m", Memory: "64Mi"},
-			Limits:   WorkloadResourceList{CPU: "500m", Memory: "512Mi"},
+			SizeClass: WorkloadSizeClassSmall,
+			Requests:  WorkloadResourceList{CPU: "100m", Memory: "128Mi"},
+			Limits:    WorkloadResourceList{CPU: "500m", Memory: "512Mi"},
 		},
 		WorkloadSizeClassMedium: {
-			Requests: WorkloadResourceList{CPU: "250m", Memory: "256Mi"},
-			Limits:   WorkloadResourceList{CPU: "1", Memory: "1Gi"},
+			SizeClass: WorkloadSizeClassMedium,
+			Requests:  WorkloadResourceList{CPU: "250m", Memory: "256Mi"},
+			Limits:    WorkloadResourceList{CPU: "1", Memory: "1Gi"},
 		},
 		WorkloadSizeClassLarge: {
-			Requests: WorkloadResourceList{CPU: "500m", Memory: "512Mi"},
-			Limits:   WorkloadResourceList{CPU: "2", Memory: "2Gi"},
+			SizeClass: WorkloadSizeClassLarge,
+			Requests:  WorkloadResourceList{CPU: "500m", Memory: "512Mi"},
+			Limits:    WorkloadResourceList{CPU: "2", Memory: "2Gi"},
 		},
 		WorkloadSizeClassXLarge: {
-			Requests: WorkloadResourceList{CPU: "1", Memory: "1Gi"},
-			Limits:   WorkloadResourceList{CPU: "4", Memory: "4Gi"},
+			SizeClass: WorkloadSizeClassXLarge,
+			Requests:  WorkloadResourceList{CPU: "1", Memory: "1Gi"},
+			Limits:    WorkloadResourceList{CPU: "4", Memory: "4Gi"},
 		},
 	}
 

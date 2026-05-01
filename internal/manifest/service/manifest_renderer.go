@@ -142,14 +142,22 @@ func renderManifestResources(namespace, applicationName, applicationId string, w
 }
 
 func buildKubernetesResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) map[string]any {
+	expanded := expandWorkloadResourceRequirements(resources)
 	out := map[string]any{}
-	if requests := buildKubernetesResourceList(resources.Requests); len(requests) > 0 {
+	if requests := buildKubernetesResourceList(expanded.Requests); len(requests) > 0 {
 		out["requests"] = requests
 	}
-	if limits := buildKubernetesResourceList(resources.Limits); len(limits) > 0 {
+	if limits := buildKubernetesResourceList(expanded.Limits); len(limits) > 0 {
 		out["limits"] = limits
 	}
 	return out
+}
+
+func expandWorkloadResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) workloadconfigdomain.WorkloadResourceRequirements {
+	if mapped, ok := workloadconfigdomain.WorkloadSizeClassResources[resources.SizeClass]; ok {
+		return mapped
+	}
+	return resources
 }
 
 func buildKubernetesResourceList(resources workloadconfigdomain.WorkloadResourceList) map[string]any {
