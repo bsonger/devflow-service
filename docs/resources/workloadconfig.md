@@ -376,6 +376,16 @@ The anti-drift proof surfaces for this contract are:
 - downstream mirror contract tests under `internal/manifest/...` and `internal/release/...`, including frozen manifest snapshot and persisted bundle preview coverage
 - generated OpenAPI in `api/openapi/swagger.yaml`
 - repo verification via `bash scripts/regen-swagger.sh` and `bash scripts/verify.sh`
+- pre-production shared-ingress operator proof via `test/workloadconfig/preprod_workload_config_flow.sh` and `test/workloadconfig/README.md`
+
+The tracked pre-production probe is intentionally collection-aware and captures explicit status/body checkpoints for:
+
+- `GET /api/v1/config/workload-configs?application_id=...`
+- `GET /api/v1/config/workload-configs/{id}`
+- `PUT /api/v1/config/workload-configs/{id}`
+- read-after-write re-fetch and post-update list inspection
+
+Use that script to localize whether a live failure belongs to shared-ingress auth/routing, handler validation (`invalid_argument`, `failed_precondition`), or repository cleanup / missing-row behavior.
 
 When these surfaces disagree, treat that as contract drift and update code, generated artifacts, and docs together.
 
