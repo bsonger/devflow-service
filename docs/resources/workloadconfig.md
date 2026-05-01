@@ -12,17 +12,17 @@
 
 `WorkloadConfig` stores the application-scoped runtime workload contract that downstream manifest and release flows freeze and later translate into Kubernetes container fields.
 
-Current target contract for this slice:
+The active write contract is intentionally constrained:
 
 - one active `WorkloadConfig` per `application_id`
-- workload runtime shape is intentionally constrained
-- `resources` is a typed object with one canonical size-class mapping table
-- `probes` is a typed object with named HTTP probes, not a free-form map
-- `env`, `labels`, and `annotations` remain explicit user inputs
+- `resources` accepts a canonical `size_class` selector on create/update writes
+- caller-supplied `resources.requests` and `resources.limits` are rejected on writes as legacy wide payload fields
+- `probes` is a typed object with only `liveness`, `readiness`, and `startup` slots
+- probe `path` values must start with `/`, and `port` is required whenever a probe `path` is set
+- `env` remains an ordered array of repeated `{name,value}` rows and rejects duplicate `name` entries
+- `labels` and `annotations` remain explicit user inputs
 - rollout strategy is **not** stored here; it belongs to `Release.strategy`
 - render-time expansion into Kubernetes `resources`, `livenessProbe`, `readinessProbe`, `startupProbe`, and similar fields happens downstream during manifest/release rendering
-
-This document freezes the target resource contract for S02/S03/S04. It does **not** claim every validation and legacy-migration mechanic is already fully enforced in the current handlers.
 
 ## Common base fields
 
@@ -40,9 +40,9 @@ This document freezes the target resource contract for S02/S03/S04. It does **no
 | `application_id` | `uuid.UUID` | required | create-only | Owning application ID. One active workload config is allowed per application. |
 | `replicas` | `int` | required | user | Desired replica count. Current contract requires `>= 0`. |
 | `service_account_name` | `string` | optional | user | Pod `serviceAccountName` to apply at render time. |
-| `resources` | `WorkloadResourceRequirements` | optional | user | Constrained resource contract. Preferred input is `size_class`; `requests` / `limits` remain part of the frozen shape for downstream translation and legacy migration handling. |
-| `probes` | `WorkloadProbes` | optional | user | Named probe contract with `liveness`, `readiness`, and `startup` slots. |
-| `env` | `[]EnvVar` | optional | user | Literal environment variable entries. |
+| `resources` | `WorkloadResourceRequirements` | optional | user | Constrained resource selector. Writes must provide a valid `size_class` and must not send `requests` or `limits`. |
+| `probes` | `WorkloadProbes` | optional | user | Typed HTTP probe contract with only `liveness`, `readiness`, and `startup` slots. |
+| `env` | `[]EnvVar` | optional | user | Ordered literal environment variable rows. Duplicate `name` values are rejected on writes. |
 | `labels` | `map[string]string` | optional | user | Labels copied into rendered workload metadata. |
 | `annotations` | `map[string]string` | optional | user | Annotations copied into rendered workload metadata. |
 
@@ -52,10 +52,12 @@ This document freezes the target resource contract for S02/S03/S04. It does **no
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `name` | `string` | required | Environment variable name |
+| `name` | `string` | required | Environment variable name. Must be non-empty and unique within the `env` array. |
 | `value` | `string` | required | Environment variable value |
 
 ### `WorkloadResourceList`
+
+`WorkloadResourceList` remains part of the shared frozen model because downstream manifest and release consumers expand a size class into concrete Kubernetes CPU and memory values. It is **not** a valid create/update write shape.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -66,16 +68,16 @@ This document freezes the target resource contract for S02/S03/S04. It does **no
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `size_class` | `WorkloadSizeClass` | optional | Canonical workload size selector: `small`, `medium`, `large`, `xlarge` |
-| `requests` | `WorkloadResourceList` | optional | Frozen request values used for compatibility, migration, and downstream rendering |
-| `limits` | `WorkloadResourceList` | optional | Frozen limit values used for compatibility, migration, and downstream rendering |
+| `size_class` | `WorkloadSizeClass` | required on write | Canonical workload size selector: `small`, `medium`, `large`, `xlarge` |
+| `requests` | `WorkloadResourceList` | read-only / legacy payload rejection on write | Concrete request values derived downstream from the canonical size-class mapping table |
+| `limits` | `WorkloadResourceList` | read-only / legacy payload rejection on write | Concrete limit values derived downstream from the canonical size-class mapping table |
 
 ### `WorkloadProbe`
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `path` | `string` | optional | HTTP probe path |
-| `port` | `string` | optional | Named or numeric port string |
+| `path` | `string` | optional | HTTP probe path. When set, it must start with `/`. |
+| `port` | `string` | conditionally required | Named or numeric port string. Required whenever `path` is set. |
 | `initial_delay_seconds` | `int` | optional | Delay before first probe |
 | `period_seconds` | `int` | optional | Probe interval |
 | `timeout_seconds` | `int` | optional | Per-probe timeout |
@@ -96,7 +98,7 @@ All downstream validation, migration, docs, and render-time expansion must use t
 
 | Size class | Requests CPU | Requests Memory | Limits CPU | Limits Memory |
 |---|---:|---:|---:|---:|
-| `small` | `100m` | `64Mi` | `500m` | `512Mi` |
+| `small` | `100m` | `128Mi` | `500m` | `512Mi` |
 | `medium` | `250m` | `256Mi` | `1` | `1Gi` |
 | `large` | `500m` | `512Mi` | `2` | `2Gi` |
 | `xlarge` | `1` | `1Gi` | `4` | `4Gi` |
@@ -132,11 +134,11 @@ Required fields:
 
 - `application_id`
 - `replicas`
+- `resources.size_class`
 
 Optional fields:
 
 - `service_account_name`
-- `resources`
 - `probes`
 - `env`
 - `labels`
@@ -175,9 +177,9 @@ Immutable/system-managed fields:
 
 - soft delete through the handler surface
 
-## Recommended payload shape
+## Write payloads
 
-The preferred target payload is the constrained typed model.
+### Accepted write shape
 
 ```json
 {
@@ -185,15 +187,7 @@ The preferred target payload is the constrained typed model.
   "replicas": 1,
   "service_account_name": "default",
   "resources": {
-    "size_class": "medium",
-    "requests": {
-      "cpu": "250m",
-      "memory": "256Mi"
-    },
-    "limits": {
-      "cpu": "1",
-      "memory": "1Gi"
-    }
+    "size_class": "medium"
   },
   "probes": {
     "liveness": {
@@ -223,6 +217,10 @@ The preferred target payload is the constrained typed model.
     {
       "name": "LOG_LEVEL",
       "value": "info"
+    },
+    {
+      "name": "APP_MODE",
+      "value": "worker"
     }
   ],
   "labels": {
@@ -234,41 +232,61 @@ The preferred target payload is the constrained typed model.
 }
 ```
 
+### Rejected legacy wide write shape
+
+The following fields are rejected on create/update writes because they belong to the old wide resource model rather than the constrained backend contract:
+
+```json
+{
+  "application_id": "999c0c88-1f1f-41d1-a67a-8159d07c878c",
+  "replicas": 1,
+  "resources": {
+    "size_class": "medium",
+    "requests": {
+      "cpu": "250m",
+      "memory": "256Mi"
+    },
+    "limits": {
+      "cpu": "1",
+      "memory": "1Gi"
+    }
+  }
+}
+```
+
+Transport behavior distinguishes two failure classes:
+
+- malformed constrained payloads return `invalid_argument`
+- explicit legacy wide resource writes return `failed_precondition`
+
 ## Validation semantics
 
-### Implemented now
-
-The current handler/service contract already documents or enforces these baseline rules:
+The active handler/service contract enforces these write rules:
 
 - invalid UUID path or query parameters return `invalid_argument`
 - missing records return `not_found`
 - duplicate create for the same `application_id` returns `conflict`
 - `replicas` must be `>= 0`
+- `resources.size_class` must be one of `large`, `medium`, `small`, `xlarge`
+- `resources.requests` must not be provided on write
+- `resources.limits` must not be provided on write
+- probe `path` must start with `/` when set
+- probe `port` is required whenever a probe `path` is set
+- duplicate `env[*].name` entries are rejected
+- empty `env[*].name` entries are rejected
 - list endpoints support `application_id` and `include_deleted`
 
-### Frozen target rules for downstream slices
+## Legacy cleanup policy: migrate or reject
 
-The following rules are part of the target contract and should be implemented consistently across validation, migration, and render-time translation as later slices land:
-
-- **size-class alignment**: when `resources.size_class` is present, the effective `requests` and `limits` must match the canonical mapping table above
-- **duplicate env rejection**: writes should reject duplicate `env[*].name` entries after normalization instead of silently choosing a winner
-- **probe path rejection**: writes should reject malformed or empty probe `path` values when a probe block is present
-- **probe slot exclusivity**: only `liveness`, `readiness`, and `startup` are valid top-level probe slots; wide map keys from the legacy shape are not part of the target contract
-- **write rejection over silent coercion**: invalid constrained payloads should fail the write path rather than being partially accepted and normalized invisibly
-
-This is intentional wording, not drift: the contract is frozen now so S02/S04 can build to it, while some enforcement still remains to be implemented.
-
-## Legacy cleanup policy: migrate or delete
-
-Older data may still carry the previous free-form resource/probe shape. The target policy is deterministic:
+Older data may still carry the previous free-form resource or probe shape. The target policy is deterministic:
 
 1. **migrate** legacy records that can be translated losslessly into the constrained contract
-2. **delete or reject** legacy records that cannot be translated without guessing
+2. **reject** legacy create/update writes that depend on wide resource fields or other unsupported shapes
 
 Practical rule:
 
-- if a legacy record cleanly maps to one canonical size class plus named probe slots, it should be migrated into the constrained form
-- if it depends on arbitrary map keys, conflicting env names, ambiguous probe keys, or resource values that do not match a canonical mapping row, the system must not invent a new shape; the record should be removed or the write rejected
+- if a record cleanly maps to one canonical size class plus the named probe slots, it can be preserved in the constrained form
+- if it depends on arbitrary map keys, conflicting env names, ambiguous probe keys, or resource values outside the canonical mapping rows, the system must not invent a new shape
 
 This policy exists to prevent the repo from carrying two equivalent workload contract models indefinitely.
 
@@ -317,9 +335,10 @@ Instead:
 The anti-drift proof surfaces for this contract are:
 
 - `internal/workloadconfig/domain/workload_config_contract_test.go`
+- `internal/workloadconfig/transport/http/handler_test.go`
 - downstream mirror contract tests under `internal/manifest/...` and `internal/release/...`
 - generated OpenAPI in `api/openapi/swagger.yaml`
-- final repo verification via `bash scripts/verify.sh`
+- repo verification via `bash scripts/regen-swagger.sh` and `bash scripts/verify.sh`
 
 When these surfaces disagree, treat that as contract drift and update code, generated artifacts, and docs together.
 
