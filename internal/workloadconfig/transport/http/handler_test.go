@@ -71,7 +71,21 @@ func TestCreateWorkloadConfig(t *testing.T) {
 	h := NewHandler(wlSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{ApplicationID: uuid.New(), Replicas: 1, Labels: map[string]string{"team": "platform"}, Annotations: map[string]string{"sidecar.istio.io/inject": "true"}})
+	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{
+		ApplicationID: uuid.New(),
+		Replicas:      1,
+		Resources: domain.WorkloadResourceRequirements{
+			SizeClass: domain.WorkloadSizeClassMedium,
+			Requests:  domain.WorkloadResourceList{CPU: "250m", Memory: "256Mi"},
+			Limits:    domain.WorkloadResourceList{CPU: "1", Memory: "1Gi"},
+		},
+		Probes: domain.WorkloadProbes{
+			Liveness: &domain.WorkloadProbe{Path: "/healthz", Port: "http", PeriodSeconds: 10},
+		},
+		Env:         []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}},
+		Labels:      map[string]string{"team": "platform"},
+		Annotations: map[string]string{"sidecar.istio.io/inject": "true"},
+	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/workload-configs", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -148,7 +162,15 @@ func TestUpdateWorkloadConfig(t *testing.T) {
 	h := NewHandler(wlSvc)
 	r := setupTestRouter(h)
 
-	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{ApplicationID: uuid.New(), Replicas: 2})
+	reqBody, _ := json.Marshal(domain.WorkloadConfigInput{
+		ApplicationID: uuid.New(),
+		Replicas:      2,
+		Resources: domain.WorkloadResourceRequirements{
+			SizeClass: domain.WorkloadSizeClassSmall,
+			Requests:  domain.WorkloadResourceList{CPU: "100m", Memory: "64Mi"},
+			Limits:    domain.WorkloadResourceList{CPU: "500m", Memory: "512Mi"},
+		},
+	})
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/workload-configs/"+id.String(), bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
