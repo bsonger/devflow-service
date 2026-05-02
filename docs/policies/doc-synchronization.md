@@ -8,6 +8,7 @@ Any code change that affects the public API surface, domain models, or service b
 - `docs/services/*.md` — service-owned endpoints, upstream/downstream contracts, module boundaries
 - `docs/system/*.md` — architecture, recovery, and system-level contracts
 - `docs/policies/*.md` — if the change introduces a new policy or modifies an existing one
+- `api/openapi/*-service.yaml` and `api/openapi/devflow.yaml` — when API-related code changes
 - `AGENTS.md` — if the change affects agent startup contracts, routing, or canonical read sets
 
 ## Trigger conditions
@@ -30,7 +31,8 @@ Before marking a task complete:
 2. for each domain or service touched, open its matching `docs/resources/` or `docs/services/` file
 3. check whether the API surface list, field table, or validation notes are still accurate
 4. update the doc if anything drifted; do not leave stale field tables or missing endpoints
-5. if the change spans multiple services, check `docs/system/architecture.md` for outdated references
+5. if the change touches handlers, DTOs, enums, error envelopes, pagination, auth middleware, or request-id middleware, check the affected OpenAPI files too
+6. if the change spans multiple services, check `docs/system/architecture.md` for outdated references
 
 ## Authority
 

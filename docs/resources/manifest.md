@@ -313,11 +313,13 @@ The current manifest resource does **not** own:
 
 The drift signals for this contract are:
 
-- generated OpenAPI in `api/openapi/swagger.yaml`
+- canonical release-service OpenAPI in `api/openapi/release-service.yaml`
+- aggregate OpenAPI in `api/openapi/devflow.yaml`
+- generated Swagger snapshot in `api/openapi/swagger.yaml`
 - manifest/release/workload contract tests in `internal/manifest/...`, `internal/release/...`, and `internal/workloadconfig/...`
 - final repo verification via `bash scripts/verify.sh`
 
-When the frozen workload snapshot shape changes, update code, generated artifacts, and this document together.
+When the frozen workload snapshot shape changes, update code, OpenAPI contracts, generated artifacts, and this document together.
 
 ## Source pointers
 

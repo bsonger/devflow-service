@@ -105,6 +105,30 @@ Read:
 - Confirm the active service still builds as `meta-service`.
 - Confirm no catch-all `common/`, `util/`, or business-heavy `shared/` directories were reintroduced.
 
+## API contract sync rule
+
+When changing API-related code in `devflow-service`, you must also check whether the affected service OpenAPI file and `api/openapi/devflow.yaml` need to change.
+
+API-related code includes:
+- route registration
+- HTTP handler
+- request DTO
+- response DTO
+- domain enum
+- error format
+- pagination format
+- auth middleware
+- request_id middleware
+
+Rules:
+1. `api/openapi/meta-service.yaml`, `network-service.yaml`, `config-service.yaml`, `release-service.yaml`, and `runtime-service.yaml` are the shared-ingress service contract sources.
+2. `api/openapi/devflow.yaml` is the aggregate contract view.
+3. Backend API changes must sync the relevant OpenAPI contract in the same change cycle.
+4. Do not document endpoints that do not exist in code.
+5. Uncertain details must be recorded in Assumptions.
+6. After API contract changes, run `make openapi-check`.
+7. If `make openapi-check` does not exist yet, add it before handoff.
+
 ## When to go back to devflow-control
 
 Go back to `devflow-control` when the task changes:

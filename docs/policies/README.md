@@ -21,6 +21,7 @@ Read files here when the current task needs a durable repo rule rather than a se
 - `resource-api.md` — list/filter/pagination, soft-delete semantics, and resource-doc contract rules
 - `api-compatibility.md` — API evolution and compatibility expectations
 - `api-directory.md` — `api/` contract layer rules and OpenAPI generation policy
+- `api-contract-policy.md` — when API code must update service-scoped OpenAPI contracts and the aggregate view
 - `new-service-rule.md` — new service and repo-baseline reference rules
 
 ## Notes

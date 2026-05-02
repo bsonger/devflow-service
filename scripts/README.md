@@ -15,6 +15,30 @@ Run this from the repo root before handoff or after changing docs, verification 
 bash scripts/verify.sh
 ```
 
+## OpenAPI sync
+
+For API contract sync work:
+
+```sh
+make openapi-check
+```
+
+That target validates:
+- `api/openapi/meta-service.yaml`
+- `api/openapi/network-service.yaml`
+- `api/openapi/config-service.yaml`
+- `api/openapi/release-service.yaml`
+- `api/openapi/runtime-service.yaml`
+- `api/openapi/devflow.yaml`
+
+For Codex-assisted contract refresh:
+
+```sh
+bash scripts/sync-openapi-with-codex.sh
+```
+
+That helper runs the fixed Codex prompt, then `make openapi-check`, then prints the resulting `git diff`.
+
 This remains the canonical repo-local handoff check while the repository migrates from the older nested shape to the root `cmd/` and `internal/` layout.
 
 ## Proof split

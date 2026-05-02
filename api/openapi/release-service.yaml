@@ -1,0 +1,2881 @@
+---
+basePath: "/"
+definitions:
+  github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment_id:
+        type: string
+      files:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.File"
+        type: array
+      id:
+        type: string
+      latest_revision_id:
+        type: string
+      latest_revision_no:
+        type: integer
+      mount_path:
+        type: string
+      source_commit:
+        type: string
+      source_directory:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfigInput:
+    properties:
+      application_id:
+        type: string
+      environment_id:
+        type: string
+      mount_path:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfigRevision:
+    properties:
+      app_config_id:
+        type: string
+      content_hash:
+        type: string
+      created_at:
+        type: string
+      files:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.File"
+        type: array
+      id:
+        type: string
+      revision_no:
+        type: integer
+      source_commit:
+        type: string
+      source_digest:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_appconfig_domain.File:
+    properties:
+      content:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_application_domain.Application:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      project_id:
+        type: string
+      repo_address:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_application_domain.LabelItem:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_domain.Binding:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment_id:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_domain.BindingInput:
+    properties:
+      environment_id:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_service.BindingDetail:
+    properties:
+      app_configs:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig"
+        type: array
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment"
+      environment_id:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+      workload_configs:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig"
+        type: array
+    type: object
+  github_com_bsonger_devflow-service_internal_applicationenv_service.BindingView:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment"
+      environment_id:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_cluster_domain.Cluster:
+    properties:
+      argocd_cluster_name:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      kubeconfig:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      onboarding_checked_at:
+        type: string
+      onboarding_error:
+        type: string
+      onboarding_ready:
+        type: boolean
+      server:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_environment_domain.Environment:
+    properties:
+      cluster_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_environment_domain.LabelItem:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_platform_httpx.APIError:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties: {}
+        type: object
+      message:
+        type: string
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appconfig_domain_AppConfig
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_appconfig_domain_AppConfigRevision
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfigRevision"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_application_domain_Application
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_cluster_domain_Cluster
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.Cluster"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_environment_domain_Environment
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_project_domain_Project
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Project"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_Route
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.Route"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_route_domain_RouteValidationResult
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.RouteValidationResult"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_service_domain_Service
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.Service"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.DataResponse-github_com_bsonger_devflow-service_internal_workloadconfig_domain_WorkloadConfig
+  : properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig"
+    type: object
+  github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse:
+    properties:
+      error:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.APIError"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_appconfig_domain_AppConfig
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_application_domain_Application
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.Application"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_applicationenv_service_BindingView
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_service.BindingView"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_cluster_domain_Cluster
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.Cluster"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_environment_domain_Environment
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.Environment"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_project_domain_Application
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Application"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_project_domain_Project
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.Project"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_route_domain_Route
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_route_domain.Route"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_service_domain_Service
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.Service"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  ? github_com_bsonger_devflow-service_internal_platform_httpx.ListResponse-github_com_bsonger_devflow-service_internal_workloadconfig_domain_WorkloadConfig
+  : properties:
+      data:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  github_com_bsonger_devflow-service_internal_platform_httpx.Pagination:
+    properties:
+      enabled:
+        type: boolean
+      limit:
+        type: integer
+      offset:
+        type: integer
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_project_domain.Application:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      project_id:
+        type: string
+      repo_address:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_project_domain.LabelItem:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_project_domain.Project:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_route_domain.Route:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      environment_id:
+        type: string
+      host:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      service_name:
+        type: string
+      service_port:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_route_domain.RouteInput:
+    properties:
+      application_id:
+        type: string
+      environment_id:
+        type: string
+      host:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      service_name:
+        type: string
+      service_port:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_route_domain.RouteValidationResult:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      valid:
+        type: boolean
+    type: object
+  github_com_bsonger_devflow-service_internal_service_domain.Service:
+    properties:
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      ports:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServicePort"
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_service_domain.ServiceInput:
+    properties:
+      application_id:
+        type: string
+      name:
+        type: string
+      ports:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_service_domain.ServicePort"
+        type: array
+    type: object
+  github_com_bsonger_devflow-service_internal_service_domain.ServicePort:
+    properties:
+      name:
+        type: string
+      protocol:
+        type: string
+      service_port:
+        type: integer
+      target_port:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfig:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      application_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      env:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar"
+        type: array
+      id:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      probes:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes"
+      replicas:
+        type: integer
+      resources:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements"
+      service_account_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadConfigInput:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      application_id:
+        type: string
+      env:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar"
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      probes:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes"
+      replicas:
+        type: integer
+      resources:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements"
+      service_account_name:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe:
+    properties:
+      failure_threshold:
+        type: integer
+      initial_delay_seconds:
+        type: integer
+      path:
+        type: string
+      period_seconds:
+        type: integer
+      port:
+        type: string
+      timeout_seconds:
+        type: integer
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes:
+    properties:
+      liveness:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+      readiness:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+      startup:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList:
+    properties:
+      cpu:
+        type: string
+      memory:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements:
+    properties:
+      limits:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+      requests:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+      size_class:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass"
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass:
+    enum:
+    - small
+    - medium
+    - large
+    - xlarge
+    type: string
+    x-enum-varnames:
+    - WorkloadSizeClassSmall
+    - WorkloadSizeClassMedium
+    - WorkloadSizeClassLarge
+    - WorkloadSizeClassXLarge
+  http.ArgoEventRequest:
+    properties:
+      external_ref:
+        type: string
+      intent_id:
+        type: string
+      message:
+        type: string
+      release_id:
+        type: string
+      status:
+        type: string
+    required:
+    - release_id
+    - status
+    type: object
+  http.CreateReleaseRequest:
+    properties:
+      environment_id:
+        type: string
+      manifest_id:
+        type: string
+      strategy:
+        type: string
+      type:
+        type: string
+    required:
+    - environment_id
+    - manifest_id
+    - strategy
+    type: object
+  http.IntentListResponse:
+    properties:
+      data:
+        items:
+          "$ref": "#/definitions/internal_intent_transport_http.IntentDoc"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  http.IntentResponse:
+    properties:
+      data:
+        "$ref": "#/definitions/internal_intent_transport_http.IntentDoc"
+    type: object
+  http.ReleaseAppConfigDoc:
+    properties:
+      data:
+        additionalProperties:
+          type: string
+        type: object
+      files:
+        items:
+          "$ref": "#/definitions/http.ReleaseFileDoc"
+        type: array
+      id:
+        type: string
+      mount_path:
+        type: string
+      revision_id:
+        type: string
+      source_commit:
+        type: string
+      source_directory:
+        type: string
+    type: object
+  http.ReleaseArtifactRequest:
+    properties:
+      artifact_digest:
+        type: string
+      artifact_ref:
+        type: string
+      artifact_repository:
+        type: string
+      artifact_tag:
+        type: string
+      message:
+        type: string
+      progress:
+        type: integer
+      release_id:
+        type: string
+      status:
+        type: string
+    required:
+    - release_id
+    type: object
+  http.ReleaseBundleArtifactDoc:
+    properties:
+      digest:
+        type: string
+      ref:
+        type: string
+      repository:
+        type: string
+      tag:
+        type: string
+    type: object
+  http.ReleaseBundleDoc:
+    properties:
+      application_id:
+        type: string
+      artifact:
+        "$ref": "#/definitions/http.ReleaseBundleArtifactDoc"
+      artifact_name:
+        type: string
+      bundle_digest:
+        type: string
+      environment_id:
+        type: string
+      frozen_inputs:
+        "$ref": "#/definitions/http.ReleaseBundleFrozenInputsDoc"
+      manifest_id:
+        type: string
+      namespace:
+        type: string
+      published_at:
+        type: string
+      release_id:
+        type: string
+      rendered_at:
+        type: string
+      rendered_bundle:
+        "$ref": "#/definitions/http.ReleaseRenderedBundleViewDoc"
+      strategy:
+        type: string
+    type: object
+  http.ReleaseBundleFileViewDoc:
+    properties:
+      content:
+        type: string
+      path:
+        type: string
+    type: object
+  http.ReleaseBundleFrozenInputsDoc:
+    properties:
+      app_config:
+        "$ref": "#/definitions/http.ReleaseAppConfigDoc"
+      manifest_summary:
+        "$ref": "#/definitions/http.ReleaseBundleManifestSummaryDoc"
+      routes:
+        items:
+          "$ref": "#/definitions/http.ReleaseRouteDoc"
+        type: array
+      services:
+        items:
+          "$ref": "#/definitions/http.ReleaseFrozenServiceDoc"
+        type: array
+      workload:
+        "$ref": "#/definitions/http.ReleaseFrozenWorkloadDoc"
+    type: object
+  http.ReleaseBundleManifestSummaryDoc:
+    properties:
+      commit_hash:
+        type: string
+      image_digest:
+        type: string
+      image_ref:
+        type: string
+      manifest_id:
+        type: string
+    type: object
+  http.ReleaseBundleResourceCountsDoc:
+    properties:
+      configmaps:
+        type: integer
+      deployments:
+        type: integer
+      rollouts:
+        type: integer
+      services:
+        type: integer
+      total:
+        type: integer
+      virtualservices:
+        type: integer
+    type: object
+  http.ReleaseBundleSummaryDoc:
+    properties:
+      artifact:
+        "$ref": "#/definitions/http.ReleaseBundleArtifactDoc"
+      artifact_name:
+        type: string
+      available:
+        type: boolean
+      bundle_digest:
+        type: string
+      namespace:
+        type: string
+      primary_workload_kind:
+        type: string
+      published_at:
+        type: string
+      rendered_at:
+        type: string
+      resource_counts:
+        "$ref": "#/definitions/http.ReleaseBundleResourceCountsDoc"
+    type: object
+  http.ReleaseDoc:
+    properties:
+      app_config_snapshot:
+        "$ref": "#/definitions/http.ReleaseAppConfigDoc"
+      application_id:
+        type: string
+      argocd_application_name:
+        type: string
+      artifact_digest:
+        type: string
+      artifact_ref:
+        type: string
+      artifact_repository:
+        type: string
+      artifact_tag:
+        type: string
+      bundle_summary:
+        "$ref": "#/definitions/http.ReleaseBundleSummaryDoc"
+      created_at:
+        type: string
+      environment_id:
+        type: string
+      execution_intent_id:
+        type: string
+      external_ref:
+        type: string
+      id:
+        type: string
+      manifest_id:
+        type: string
+      routes_snapshot:
+        items:
+          "$ref": "#/definitions/http.ReleaseRouteDoc"
+        type: array
+      status:
+        type: string
+      steps:
+        items:
+          "$ref": "#/definitions/http.ReleaseStepDoc"
+        type: array
+      strategy:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  http.ReleaseFileDoc:
+    properties:
+      content:
+        type: string
+      name:
+        type: string
+    type: object
+  http.ReleaseFrozenServiceDoc:
+    properties:
+      name:
+        type: string
+      ports:
+        items:
+          "$ref": "#/definitions/http.ReleaseFrozenServicePortDoc"
+        type: array
+    type: object
+  http.ReleaseFrozenServicePortDoc:
+    properties:
+      name:
+        type: string
+      protocol:
+        type: string
+      service_port:
+        type: integer
+      target_port:
+        type: integer
+    type: object
+  http.ReleaseFrozenWorkloadDoc:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      env:
+        items:
+          "$ref": "#/definitions/internal_release_transport_http.ManifestEnvVarDoc"
+        type: array
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      probes:
+        "$ref": "#/definitions/http.ReleaseWorkloadProbesDoc"
+      replicas:
+        type: integer
+      resources:
+        "$ref": "#/definitions/http.ReleaseWorkloadResourceRequirementsDoc"
+      service_account_name:
+        type: string
+    type: object
+  http.ReleaseListResponse:
+    properties:
+      data:
+        items:
+          "$ref": "#/definitions/http.ReleaseDoc"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  http.ReleaseRenderedBundleViewDoc:
+    properties:
+      files:
+        items:
+          "$ref": "#/definitions/http.ReleaseBundleFileViewDoc"
+        type: array
+      rendered_resources:
+        items:
+          "$ref": "#/definitions/http.ReleaseRenderedResourceViewDoc"
+        type: array
+      resource_groups:
+        items:
+          "$ref": "#/definitions/http.ReleaseResourceGroupDoc"
+        type: array
+    type: object
+  http.ReleaseRenderedResourceRefDoc:
+    properties:
+      name:
+        type: string
+      namespace:
+        type: string
+    type: object
+  http.ReleaseRenderedResourceViewDoc:
+    properties:
+      kind:
+        type: string
+      name:
+        type: string
+      namespace:
+        type: string
+      summary:
+        additionalProperties: {}
+        type: object
+      yaml:
+        type: string
+    type: object
+  http.ReleaseResourceGroupDoc:
+    properties:
+      items:
+        items:
+          "$ref": "#/definitions/http.ReleaseRenderedResourceRefDoc"
+        type: array
+      kind:
+        type: string
+    type: object
+  http.ReleaseResponse:
+    properties:
+      data:
+        "$ref": "#/definitions/http.ReleaseDoc"
+    type: object
+  http.ReleaseRouteDoc:
+    properties:
+      host:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      service_name:
+        type: string
+      service_port:
+        type: integer
+    type: object
+  http.ReleaseStepDoc:
+    properties:
+      code:
+        type: string
+      end_time:
+        type: string
+      message:
+        type: string
+      name:
+        type: string
+      progress:
+        type: integer
+      start_time:
+        type: string
+      status:
+        type: string
+    type: object
+  http.ReleaseStepRequest:
+    properties:
+      message:
+        type: string
+      progress:
+        type: integer
+      release_id:
+        type: string
+      status:
+        type: string
+      step_code:
+        type: string
+      step_name:
+        type: string
+    required:
+    - release_id
+    - status
+    type: object
+  http.ReleaseWorkloadProbesDoc:
+    properties:
+      liveness:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+      readiness:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+      startup:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+    type: object
+  http.ReleaseWorkloadResourceRequirementsDoc:
+    properties:
+      limits:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+      requests:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+      size_class:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass"
+    type: object
+  internal_application_transport_http.CreateApplicationRequest:
+    properties:
+      description:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      project_id:
+        type: string
+      repo_address:
+        type: string
+    type: object
+  internal_application_transport_http.UpdateApplicationRequest:
+    properties:
+      description:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      project_id:
+        type: string
+      repo_address:
+        type: string
+    type: object
+  internal_cluster_transport_http.CreateClusterRequest:
+    properties:
+      argocd_cluster_name:
+        type: string
+      description:
+        type: string
+      kubeconfig:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      server:
+        type: string
+    required:
+    - kubeconfig
+    - name
+    - server
+    type: object
+  internal_cluster_transport_http.UpdateClusterRequest:
+    properties:
+      argocd_cluster_name:
+        type: string
+      description:
+        type: string
+      kubeconfig:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
+        type: array
+      name:
+        type: string
+      server:
+        type: string
+    required:
+    - kubeconfig
+    - name
+    - server
+    type: object
+  internal_environment_transport_http.CreateEnvironmentRequest:
+    properties:
+      cluster_id:
+        type: string
+      description:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
+        type: array
+      name:
+        type: string
+    required:
+    - cluster_id
+    - name
+    type: object
+  internal_environment_transport_http.UpdateEnvironmentRequest:
+    properties:
+      cluster_id:
+        type: string
+      description:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
+        type: array
+      name:
+        type: string
+    required:
+    - cluster_id
+    - name
+    type: object
+  internal_intent_transport_http.IntentDoc:
+    properties:
+      attempt_count:
+        type: integer
+      claimed_at:
+        type: string
+      claimed_by:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      kind:
+        type: string
+      last_error:
+        type: string
+      lease_expires_at:
+        type: string
+      message:
+        type: string
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      status:
+        type: string
+      trace_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_manifest_transport_http.CreateManifestRequestDoc:
+    properties:
+      application_id:
+        type: string
+      git_revision:
+        type: string
+    type: object
+  internal_manifest_transport_http.ManifestDoc:
+    properties:
+      application_id:
+        type: string
+      commit_hash:
+        type: string
+      created_at:
+        type: string
+      git_revision:
+        type: string
+      id:
+        type: string
+      image_digest:
+        type: string
+      image_ref:
+        type: string
+      image_tag:
+        type: string
+      pipeline_id:
+        type: string
+      repo_address:
+        type: string
+      services_snapshot:
+        items:
+          "$ref": "#/definitions/internal_manifest_transport_http.ManifestServiceDoc"
+        type: array
+      span_id:
+        type: string
+      status:
+        type: string
+      steps:
+        items:
+          "$ref": "#/definitions/internal_manifest_transport_http.ManifestStepDoc"
+        type: array
+      trace_id:
+        type: string
+      updated_at:
+        type: string
+      workload_config_snapshot:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadConfigDoc"
+    type: object
+  internal_manifest_transport_http.ManifestEnvVarDoc:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  internal_manifest_transport_http.ManifestGroupedResourcesDoc:
+    properties:
+      configmap:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+      deployment:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+      rollout:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+      services:
+        items:
+          "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+        type: array
+      virtualservice:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+    type: object
+  internal_manifest_transport_http.ManifestListResponse:
+    properties:
+      data:
+        items:
+          "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
+        type: array
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+    type: object
+  internal_manifest_transport_http.ManifestRenderedResourceDoc:
+    properties:
+      kind:
+        type: string
+      name:
+        type: string
+      namespace:
+        type: string
+      object:
+        additionalProperties: {}
+        type: object
+      yaml:
+        type: string
+    type: object
+  internal_manifest_transport_http.ManifestResourcesResponse:
+    properties:
+      data:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc"
+    type: object
+  internal_manifest_transport_http.ManifestResourcesViewDoc:
+    properties:
+      application_id:
+        type: string
+      manifest_id:
+        type: string
+      resources:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc"
+    type: object
+  internal_manifest_transport_http.ManifestResponse:
+    properties:
+      data:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
+    type: object
+  internal_manifest_transport_http.ManifestServiceDoc:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      ports:
+        items:
+          "$ref": "#/definitions/internal_manifest_transport_http.ManifestServicePortDoc"
+        type: array
+    type: object
+  internal_manifest_transport_http.ManifestServicePortDoc:
+    properties:
+      name:
+        type: string
+      protocol:
+        type: string
+      service_port:
+        type: integer
+      target_port:
+        type: integer
+    type: object
+  internal_manifest_transport_http.ManifestStepDoc:
+    properties:
+      end_time:
+        type: string
+      message:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      task_name:
+        type: string
+      task_run:
+        type: string
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadConfigDoc:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      env:
+        items:
+          "$ref": "#/definitions/internal_manifest_transport_http.ManifestEnvVarDoc"
+        type: array
+      id:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      probes:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc"
+      replicas:
+        type: integer
+      resources:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc"
+      service_account_name:
+        type: string
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadProbesDoc:
+    properties:
+      liveness:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+      readiness:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+      startup:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe"
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc:
+    properties:
+      limits:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+      requests:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList"
+      size_class:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass"
+    type: object
+  internal_project_transport_http.CreateProjectRequest:
+    properties:
+      description:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.LabelItem"
+        type: array
+      name:
+        type: string
+    type: object
+  internal_project_transport_http.UpdateProjectRequest:
+    properties:
+      description:
+        type: string
+      labels:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_project_domain.LabelItem"
+        type: array
+      name:
+        type: string
+    type: object
+  internal_release_transport_http.ManifestEnvVarDoc:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  internal_route_transport_http.DeleteRouteRequest:
+    properties:
+      application_id:
+        type: string
+    type: object
+  internal_service_transport_http.DeleteServiceRequest:
+    properties:
+      application_id:
+        type: string
+    type: object
+  devflow.StatusResponse:
+    type: object
+    properties:
+      service:
+        type: string
+      environment:
+        type: string
+      version:
+        type: string
+      status:
+        type: string
+      started_at:
+        type: string
+      uptime_sec:
+        type: integer
+      request_id:
+        type: string
+      trace_id:
+        type: string
+      span_id:
+        type: string
+      runtime:
+        type: object
+        properties:
+          pid:
+            type: integer
+          go_version:
+            type: string
+      http:
+        type: object
+        properties:
+          swagger_enabled:
+            type: boolean
+          modules:
+            type: array
+            items:
+              type: string
+      otel:
+        type: object
+        properties:
+          service_name:
+            type: string
+          endpoint_set:
+            type: boolean
+          protocol:
+            type: string
+          resource_attrs:
+            type: boolean
+          sampler:
+            type: string
+          sampler_arg:
+            type: string
+      last_failure:
+        type: object
+  devflow.DataResponseBinding:
+    type: object
+    properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_domain.Binding"
+  devflow.DataResponseBindingDetail:
+    type: object
+    properties:
+      data:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_applicationenv_service.BindingDetail"
+  devflow.RuntimeObservedPodContainer: &1
+    type: object
+    properties:
+      name:
+        type: string
+      image:
+        type: string
+      image_id:
+        type: string
+      ready:
+        type: boolean
+      restart_count:
+        type: integer
+      state:
+        type: string
+  devflow.RuntimeObservedPod:
+    type: object
+    properties:
+      id:
+        type: string
+      runtime_spec_id:
+        type: string
+      application_id:
+        type: string
+      environment:
+        type: string
+      namespace:
+        type: string
+      pod_name:
+        type: string
+      phase:
+        type: string
+      ready:
+        type: boolean
+      restarts:
+        type: integer
+      node_name:
+        type: string
+      pod_ip:
+        type: string
+      host_ip:
+        type: string
+      owner_kind:
+        type: string
+      owner_name:
+        type: string
+      labels:
+        type: object
+        additionalProperties:
+          type: string
+      containers:
+        type: array
+        items:
+          "$ref": "#/definitions/devflow.RuntimeObservedPodContainer"
+      observed_at:
+        type: string
+      deleted_at:
+        type: string
+  devflow.RuntimeObservedWorkloadCondition: &2
+    type: object
+    properties:
+      type:
+        type: string
+      status:
+        type: string
+      reason:
+        type: string
+      message:
+        type: string
+      last_transition_time:
+        type: string
+  devflow.RuntimeObservedWorkload:
+    type: object
+    properties:
+      id:
+        type: string
+      runtime_spec_id:
+        type: string
+      application_id:
+        type: string
+      environment:
+        type: string
+      namespace:
+        type: string
+      workload_kind:
+        type: string
+      workload_name:
+        type: string
+      desired_replicas:
+        type: integer
+      ready_replicas:
+        type: integer
+      updated_replicas:
+        type: integer
+      available_replicas:
+        type: integer
+      unavailable_replicas:
+        type: integer
+      observed_generation:
+        type: integer
+      summary_status:
+        type: string
+      images:
+        type: array
+        items:
+          type: string
+      conditions:
+        type: array
+        items:
+          "$ref": "#/definitions/devflow.RuntimeObservedWorkloadCondition"
+      labels:
+        type: object
+        additionalProperties:
+          type: string
+      annotations:
+        type: object
+        additionalProperties:
+          type: string
+      observed_at:
+        type: string
+      restart_at:
+        type: string
+      deleted_at:
+        type: string
+  devflow.RuntimeActionAcknowledgement:
+    type: object
+    properties:
+      operation_id:
+        type: string
+      runtime_spec_id:
+        type: string
+      application_id:
+        type: string
+      environment:
+        type: string
+      operation_type:
+        type: string
+        enum:
+        - pod_delete
+        - deployment_restart
+      target_kind:
+        type: string
+      target_name:
+        type: string
+      target_namespace:
+        type: string
+      mutation_state:
+        type: string
+        enum:
+        - accepted
+      convergence_state:
+        type: string
+        enum:
+        - pending_observation
+      observed_workload:
+        type: string
+      accepted_at:
+        type: string
+      operator:
+        type: string
+  devflow.DataResponseRuntimeObservedWorkload:
+    type: object
+    properties:
+      data:
+        "$ref": "#/definitions/devflow.RuntimeObservedWorkload"
+  devflow.RuntimeObservedPodListResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          "$ref": "#/definitions/devflow.RuntimeObservedPod"
+      pagination:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+  devflow.DataResponseRuntimeActionAcknowledgement:
+    type: object
+    properties:
+      data:
+        "$ref": "#/definitions/devflow.RuntimeActionAcknowledgement"
+  devflow.DeleteRuntimePodRequest:
+    type: object
+    properties:
+      application_id:
+        type: string
+      environment_id:
+        type: string
+      operator:
+        type: string
+  devflow.RolloutRequest:
+    type: object
+    properties:
+      application_id:
+        type: string
+      environment_id:
+        type: string
+      deployment_name:
+        type: string
+      operator:
+        type: string
+  devflow.ObservedPodContainerRequest: *1
+  devflow.SyncObservedPodRequest:
+    type: object
+    properties:
+      application_id:
+        type: string
+      environment:
+        type: string
+      namespace:
+        type: string
+      pod_name:
+        type: string
+      phase:
+        type: string
+      ready:
+        type: boolean
+      restarts:
+        type: integer
+      node_name:
+        type: string
+      pod_ip:
+        type: string
+      host_ip:
+        type: string
+      owner_kind:
+        type: string
+      owner_name:
+        type: string
+      labels:
+        type: object
+        additionalProperties:
+          type: string
+      containers:
+        type: array
+        items:
+          "$ref": "#/definitions/devflow.ObservedPodContainerRequest"
+      observed_at:
+        type: string
+  devflow.DeleteObservedPodRequest:
+    type: object
+    properties:
+      application_id:
+        type: string
+      environment:
+        type: string
+      namespace:
+        type: string
+      pod_name:
+        type: string
+      observed_at:
+        type: string
+  devflow.ObservedWorkloadConditionRequest: *2
+  devflow.SyncObservedWorkloadRequest:
+    type: object
+    properties:
+      application_id:
+        type: string
+      environment:
+        type: string
+      namespace:
+        type: string
+      workload_kind:
+        type: string
+      workload_name:
+        type: string
+      desired_replicas:
+        type: integer
+      ready_replicas:
+        type: integer
+      updated_replicas:
+        type: integer
+      available_replicas:
+        type: integer
+      unavailable_replicas:
+        type: integer
+      observed_generation:
+        type: integer
+      summary_status:
+        type: string
+      images:
+        type: array
+        items:
+          type: string
+      conditions:
+        type: array
+        items:
+          "$ref": "#/definitions/devflow.ObservedWorkloadConditionRequest"
+      labels:
+        type: object
+        additionalProperties:
+          type: string
+      annotations:
+        type: object
+        additionalProperties:
+          type: string
+      observed_at:
+        type: string
+      restart_at:
+        type: string
+  devflow.DeleteObservedWorkloadRequest:
+    type: object
+    properties:
+      application_id:
+        type: string
+      environment:
+        type: string
+      namespace:
+        type: string
+      workload_kind:
+        type: string
+      workload_name:
+        type: string
+      observed_at:
+        type: string
+  devflow.ManifestTektonStatusRequest:
+    type: object
+    required:
+    - manifest_id
+    - status
+    properties:
+      manifest_id:
+        type: string
+      pipeline_id:
+        type: string
+      status:
+        type: string
+        enum:
+        - Pending
+        - Running
+        - Available
+        - Unavailable
+      message:
+        type: string
+  devflow.ManifestTektonTaskRequest:
+    type: object
+    required:
+    - manifest_id
+    - task_name
+    - status
+    properties:
+      manifest_id:
+        type: string
+      pipeline_id:
+        type: string
+      task_name:
+        type: string
+      task_run:
+        type: string
+      status:
+        type: string
+        enum:
+        - Pending
+        - Running
+        - Succeeded
+        - Failed
+      message:
+        type: string
+      start_time:
+        type: string
+      end_time:
+        type: string
+  devflow.ManifestTektonResultRequest:
+    type: object
+    required:
+    - manifest_id
+    properties:
+      manifest_id:
+        type: string
+      pipeline_id:
+        type: string
+      commit_hash:
+        type: string
+      image_ref:
+        type: string
+      image_tag:
+        type: string
+      image_digest:
+        type: string
+info:
+  contact: {}
+  description: Shared-ingress external HTTP contract for release-service. Paths use
+    the /api/v1/release/... edge prefix.
+  title: DevFlow Release Service API
+  version: '1.0'
+paths:
+  "/api/v1/release/manifests":
+    get:
+      parameters:
+      - description: Application ID
+        in: query
+        name: application_id
+        type: string
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - name: include_deleted
+        in: query
+        description: Include deleted items
+        required: false
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/internal_manifest_transport_http.ManifestListResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: List manifests
+      tags:
+      - Manifest
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Manifest create request
+        in: body
+        name: data
+        required: true
+        schema:
+          "$ref": "#/definitions/internal_manifest_transport_http.CreateManifestRequestDoc"
+      produces:
+      - application/json
+      responses:
+        '201':
+          description: Created
+          schema:
+            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '409':
+          description: Conflict
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Create manifest
+      tags:
+      - Manifest
+  "/api/v1/release/manifests/{id}":
+    delete:
+      parameters:
+      - description: Manifest ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Delete manifest
+      tags:
+      - Manifest
+    get:
+      parameters:
+      - description: Manifest ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Get manifest
+      tags:
+      - Manifest
+  "/api/v1/release/manifests/{id}/resources":
+    get:
+      parameters:
+      - description: Manifest ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Get manifest frozen resources
+      tags:
+      - Manifest
+  "/api/v1/release/manifests/tekton/status":
+    post:
+      summary: Handle manifest Tekton status callback
+      tags:
+      - Manifest
+      consumes:
+      - application/json
+      parameters:
+      - name: data
+        in: body
+        description: Manifest status payload
+        required: true
+        schema:
+          "$ref": "#/definitions/devflow.ManifestTektonStatusRequest"
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema: &3
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '401':
+          description: Unauthorized
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      security:
+      - ObserverToken: []
+      - VerifyToken: []
+  "/api/v1/release/manifests/tekton/tasks":
+    post:
+      summary: Handle manifest Tekton task callback
+      tags:
+      - Manifest
+      consumes:
+      - application/json
+      parameters:
+      - name: data
+        in: body
+        description: Manifest task payload
+        required: true
+        schema:
+          "$ref": "#/definitions/devflow.ManifestTektonTaskRequest"
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '401':
+          description: Unauthorized
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      security:
+      - ObserverToken: []
+      - VerifyToken: []
+  "/api/v1/release/manifests/tekton/result":
+    post:
+      summary: Handle manifest Tekton result callback
+      tags:
+      - Manifest
+      consumes:
+      - application/json
+      parameters:
+      - name: data
+        in: body
+        description: Manifest result payload
+        required: true
+        schema:
+          "$ref": "#/definitions/devflow.ManifestTektonResultRequest"
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '401':
+          description: Unauthorized
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      security:
+      - ObserverToken: []
+      - VerifyToken: []
+  "/api/v1/release/intents":
+    get:
+      description: 按 kind、status、resource 等维度查询 execution intents
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/http.IntentListResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 获取执行意图列表
+      tags:
+      - Intent
+      parameters:
+      - name: kind
+        in: query
+        description: Kind
+        required: false
+        type: string
+      - name: status
+        in: query
+        description: Status
+        required: false
+        type: string
+      - name: resource_type
+        in: query
+        description: Intent resource type
+        required: false
+        type: string
+      - name: claimed_by
+        in: query
+        description: Intent claimed_by filter
+        required: false
+        type: string
+      - name: resource_id
+        in: query
+        description: Intent resource ID
+        required: false
+        type: string
+      - name: page
+        in: query
+        description: Page
+        required: false
+        type: integer
+      - name: page_size
+        in: query
+        description: Page size
+        required: false
+        type: integer
+  "/api/v1/release/intents/{id}":
+    get:
+      parameters:
+      - description: Intent ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/http.IntentResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 获取执行意图
+      tags:
+      - Intent
+  "/api/v1/release/releases":
+    get:
+      parameters:
+      - description: Application ID
+        in: query
+        name: application_id
+        required: true
+        type: string
+      - description: Environment ID
+        in: query
+        name: environment_id
+        required: true
+        type: string
+      - description: Manifest ID
+        in: query
+        name: manifest_id
+        type: string
+      - description: Status
+        in: query
+        name: status
+        type: string
+      - description: Type
+        in: query
+        name: type
+        type: string
+      - description: Include deleted items
+        in: query
+        name: include_deleted
+        type: boolean
+      - name: page
+        in: query
+        description: Page
+        required: false
+        type: integer
+      - name: page_size
+        in: query
+        description: Page size
+        required: false
+        type: integer
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/http.ReleaseListResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 获取Release列表
+      tags:
+      - Release
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的Release
+      parameters:
+      - description: Release Data
+        in: body
+        name: data
+        required: true
+        schema:
+          "$ref": "#/definitions/http.CreateReleaseRequest"
+      produces:
+      - application/json
+      responses:
+        '201':
+          description: Created
+          schema:
+            "$ref": "#/definitions/http.ReleaseResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 创建Release
+      tags:
+      - Release
+  "/api/v1/release/releases/{id}":
+    delete:
+      parameters:
+      - description: Release ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Delete release
+      tags:
+      - Release
+    get:
+      parameters:
+      - description: Release ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/http.ReleaseResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 获取Release
+      tags:
+      - Release
+  "/api/v1/release/releases/{id}/bundle-preview":
+    get:
+      parameters:
+      - description: Release ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: OK
+          schema:
+            "$ref": "#/definitions/http.ReleaseBundleDoc"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '409':
+          description: Conflict
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 获取Release bundle preview
+      tags:
+      - Release
+  "/api/v1/release/verify/argo/events":
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Argo event payload
+        in: body
+        name: data
+        required: true
+        schema:
+          "$ref": "#/definitions/http.ArgoEventRequest"
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '401':
+          description: Unauthorized
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Handle Argo CD event callback
+      tags:
+      - Release
+      security:
+      - ObserverToken: []
+      - VerifyToken: []
+  "/api/v1/release/verify/release/steps":
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Release step payload
+        in: body
+        name: data
+        required: true
+        schema:
+          "$ref": "#/definitions/http.ReleaseStepRequest"
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '401':
+          description: Unauthorized
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Handle release step status callback
+      tags:
+      - Release
+      security:
+      - ObserverToken: []
+      - VerifyToken: []
+  "/api/v1/release/verify/release/artifact":
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Release artifact payload
+        in: body
+        name: data
+        required: true
+        schema:
+          "$ref": "#/definitions/http.ReleaseArtifactRequest"
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '400':
+          description: Bad Request
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '500':
+          description: Internal Server Error
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '401':
+          description: Unauthorized
+          schema: *3
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: Handle release artifact callback
+      tags:
+      - Release
+      security:
+      - ObserverToken: []
+      - VerifyToken: []
+swagger: '2.0'
+securityDefinitions:
+  ObserverToken:
+    type: apiKey
+    name: X-Devflow-Observer-Token
+    in: header
+  VerifyToken:
+    type: apiKey
+    name: X-Devflow-Verify-Token
+    in: header

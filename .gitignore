@@ -30,3 +30,5 @@ vendor/
 *.log
 coverage/
 tmp/
+.claude
+.github

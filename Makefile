@@ -63,6 +63,21 @@ docker-build:
 verify:
 	bash scripts/verify.sh
 
+.PHONY: openapi-lint
+openapi-lint:
+	ruby -e 'require "yaml"; Dir["api/openapi/*service.yaml", "api/openapi/devflow.yaml"].sort.each { |path| YAML.load_file(path) }'
+
+.PHONY: openapi-validate
+openapi-validate:
+	mkdir -p $(GOCACHE)
+	$(GO_RUN_ENV) go test ./api/openapi -run TestDevflowOpenAPIContract -count=1
+
+.PHONY: openapi-check
+openapi-check:
+	bash scripts/regen-swagger.sh
+	$(MAKE) openapi-lint
+	$(MAKE) openapi-validate
+
 .PHONY: ci
 ci: fmt-check vet lint test build-all verify
 

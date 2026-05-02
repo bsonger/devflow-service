@@ -9,6 +9,6 @@ Use it for externally consumed schemas only, such as:
 
 Do not move service-private application code here.
 
-For the current OpenAPI generation contract and backend-local route caveats, read:
+For the current OpenAPI contract split, aggregate view, generation rules, and backend-local route caveats, read:
 
 - `api/openapi/README.md`

@@ -64,9 +64,19 @@ For resource CRUD behavior, list/filter/pagination rules, and resource-doc contr
 
 - `docs/policies/resource-api.md`
 
-For generated OpenAPI artifacts and their relationship to handler annotations and resource docs, start with:
+For service-scoped OpenAPI contracts, the aggregate repo-local contract, and generated annotation snapshots, start with:
 
 - `api/openapi/README.md`
+
+Important nuance:
+
+- the service OpenAPI files are shared-ingress frontend route contracts
+- the generated `swagger.yaml` / `swagger.json` snapshot remains backend-local
+- `docs/system/ingress-routing.md` is the authority for the prefix and rewrite mapping between those two surfaces
+
+For the durable policy that governs when API code changes must update those contracts, start with:
+
+- `docs/policies/api-contract-policy.md`
 
 For current service extraction reality, including which boundaries still use same-repo implementation paths, start with:
 
