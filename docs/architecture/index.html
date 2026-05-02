@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevFlow Architecture</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --text: #212529;
+    --muted: #6c757d;
+    --border: #dee2e6;
+    --accent: #2563eb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 24px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  header {
+    text-align: center;
+    padding: 40px 0 32px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 40px;
+  }
+  header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+  header p { color: var(--muted); font-size: 1.05rem; }
+  header .repo { font-family: monospace; color: var(--accent); font-size: 0.9rem; margin-top: 4px; }
+
+  /* Service summary cards */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+  .summary .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .summary .card .name { font-weight: 700; font-size: 0.95rem; }
+  .summary .card .port { color: var(--muted); font-size: 0.8rem; }
+  .summary .card .owns { font-size: 0.82rem; color: #555; margin-top: 6px; }
+
+  /* Diagram sections */
+  .diagram-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+  .diagram-section h2 {
+    background: #f1f5f9;
+    padding: 14px 20px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .diagram-section h2 .num {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    width: 24px; height: 24px;
+    text-align: center; line-height: 24px;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    margin-right: 8px;
+  }
+  .diagram-section .desc {
+    padding: 10px 20px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    background: #fafbfc;
+    border-bottom: 1px solid var(--border);
+  }
+  .mermaid {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+  }
+
+  /* Concepts table */
+  .concepts {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+  .concepts h2 {
+    background: #f1f5f9;
+    padding: 14px 20px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .concepts table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .concepts th, .concepts td {
+    padding: 10px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .concepts th { background: #fafbfc; font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
+  .concepts tr:last-child td { border-bottom: none; }
+
+  /* Assumptions */
+  .assumptions {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 32px;
+    padding: 20px 24px;
+  }
+  .assumptions h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; }
+  .assumptions ol { padding-left: 20px; font-size: 0.9rem; color: #555; }
+  .assumptions li { margin-bottom: 6px; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.82rem;
+    padding: 24px 0;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>DevFlow Architecture</h1>
+  <p>A clear, newcomer-friendly overview of the DevFlow platform backend</p>
+  <p class="repo">repo: devflow-service</p>
+</header>
+
+<!-- ── Service Summary ── -->
+<section class="summary">
+  <div class="card">
+    <div class="name">meta-service</div>
+    <div class="port">:8081</div>
+    <div class="owns">Project, Application, Environment, Cluster, ApplicationEnv</div>
+  </div>
+  <div class="card">
+    <div class="name">config-service</div>
+    <div class="port">:8082</div>
+    <div class="owns">AppConfig, WorkloadConfig</div>
+  </div>
+  <div class="card">
+    <div class="name">network-service</div>
+    <div class="port">:8086</div>
+    <div class="owns">Service (network), Route</div>
+  </div>
+  <div class="card">
+    <div class="name">release-service</div>
+    <div class="port">:8083</div>
+    <div class="owns">Manifest, Release, Bundle, Intent</div>
+  </div>
+  <div class="card">
+    <div class="name">runtime-service</div>
+    <div class="port">:8084</div>
+    <div class="owns">RuntimeSpec, ObservedWorkload, ObservedPod, Actions</div>
+  </div>
+</section>
+
+<!-- ── Diagram 1: Overall Architecture ── -->
+<section class="diagram-section">
+  <h2><span class="num">1</span> Overall Architecture</h2>
+  <div class="desc">Users, frontend, API gateway, backend services, database, CI/CD, and observability — how they connect.</div>
+  <div class="mermaid">
+graph TB
+  User(["👤 User / Operator"])
+  Frontend["DevFlow Platform Web"]
+  Gateway["Istio Gateway<br/>devflow-pre-production.bei.com"]
+
+  subgraph Services["Backend Services"]
+    Meta["meta-service :8081"]
+    Config["config-service :8082"]
+    Network["network-service :8086"]
+    Release["release-service :8083"]
+    Runtime["runtime-service :8084"]
+  end
+
+  DB[("PostgreSQL 18<br/>CloudNativePG")]
+  Tekton["Tekton Pipelines"]
+  OCI["OCI Registry (zot)"]
+  K8s["Kubernetes Cluster"]
+  ArgoCD["Argo CD"]
+
+  subgraph Obs["Observability"]
+    OTel["OpenTelemetry"]
+    Prom["Prometheus"]
+    Pyro["Pyroscope"]
+  end
+
+  Telemetry["telemetry-service 🚧 planned"]
+
+  User --> Frontend
+  Frontend --> Gateway
+  Gateway -->|"/api/v1/meta/*"| Meta
+  Gateway -->|"/api/v1/config/*"| Config
+  Gateway -->|"/api/v1/network/*"| Network
+  Gateway -->|"/api/v1/release/*"| Release
+  Gateway -->|"/api/v1/runtime/*"| Runtime
+
+  Release -->|"read metadata"| Meta
+  Release -->|"read config"| Config
+  Release -->|"read topology"| Network
+
+  Meta --> DB
+  Config --> DB
+  Network --> DB
+  Release --> DB
+
+  Release -->|"submit build"| Tekton
+  Tekton -->|"push image"| OCI
+  Release -->|"publish bundle"| OCI
+  Release -->|"create Application"| ArgoCD
+  ArgoCD -->|"sync"| K8s
+
+  Runtime -->|"observe workloads"| K8s
+  Runtime -->|"writeback status"| Release
+
+  Services -.->|"traces / metrics"| OTel
+  OTel -.-> Prom
+  Services -.-> Pyro
+  Telemetry -.->|"planned"| Obs
+  </div>
+</section>
+
+<!-- ── Diagram 2: Release Flow ── -->
+<section class="diagram-section">
+  <h2><span class="num">2</span> Release Flow</h2>
+  <div class="desc">How an Application progresses through Manifest, Release, Bundle, deploy, observe, and verify — with environment differences injected via overlay.</div>
+  <div class="mermaid">
+graph LR
+  App["Application<br/>meta-service"]
+  Cfg["AppConfig + WorkloadConfig<br/>config-service"]
+  Topo["Service + Route<br/>network-service"]
+
+  Manifest["📦 Manifest<br/>immutable snapshot<br/>├ image_ref, commit_hash<br/>├ services_snapshot<br/>└ workload_config_snapshot"]
+
+  Release["🚀 Release<br/>immutable snapshot<br/>├ env / strategy / steps<br/>├ app_config_snapshot<br/>└ routes_snapshot"]
+
+  Bundle["Bundle Render + Publish<br/>├ render K8s YAML<br/>└ push OCI artifact"]
+
+  Argo["Argo CD sync to cluster"]
+  Observe["runtime-service<br/>observe rollout → writeback"]
+  Verify["✅ Succeeded / ❌ Failed"]
+
+  App -->|"app + env metadata"| Manifest
+  Cfg -->|"workload config"| Manifest
+  Topo -->|"service topology"| Manifest
+
+  Manifest -->|"deployable manifest"| Release
+  Cfg -->|"app config"| Release
+  Topo -->|"route config"| Release
+  App -->|"deploy target"| Release
+
+  Release -->|"frozen inputs"| Bundle
+  Bundle -->|"OCI artifact"| Argo
+  Argo -->|"workloads running"| Observe
+  Observe -->|"rollout status"| Verify
+
+  EnvNote["🔧 Env Overlay<br/>per-environment ConfigMap /<br/>EnvConfig from config-repo"]
+  EnvNote -.->|"injects env-specific values"| Bundle
+  </div>
+</section>
+
+<!-- ── Diagram 3: CI Build Flow ── -->
+<section class="diagram-section">
+  <h2><span class="num">3</span> CI Build Flow</h2>
+  <div class="desc">How a git push triggers image build in Tekton, pushes to OCI Registry, and updates the Manifest via writeback.</div>
+  <div class="mermaid">
+graph LR
+  Trigger["Git Push / API Request"]
+
+  CreateManifest["release-service<br/>create Manifest<br/>status: pending"]
+
+  subgraph TektonPipeline["Tekton PipelineRun"]
+    Clone["git clone<br/>checkout revision"]
+    Build["Build Image<br/>Buildah"]
+    Push["Push Image<br/>to OCI Registry"]
+  end
+
+  Registry[("OCI Registry<br/>zot.zot.svc:5000")]
+
+  Observe["runtime-service<br/>Tekton observer<br/>poll PipelineRun"]
+
+  Writeback["POST /api/v1/manifests/tekton/*<br/>status / tasks / result"]
+
+  ManifestDone["📦 Manifest<br/>status: succeeded<br/>image_ref, digest ready"]
+
+  Trigger -->|"POST /api/v1/manifests"| CreateManifest
+  CreateManifest -->|"submit PipelineRun"| Clone
+  Clone --> Build
+  Build --> Push
+  Push --> Registry
+
+  Observe -->|"poll status"| TektonPipeline
+  Observe -->|"callback"| Writeback
+  Writeback -->|"update manifest"| ManifestDone
+
+  ManifestDone -->|"ready for release"| Next["→ Release Flow"]
+  </div>
+</section>
+
+<!-- ── Diagram 4: Service Boundaries ── -->
+<section class="diagram-section">
+  <h2><span class="num">4</span> Service Boundaries</h2>
+  <div class="desc">Which service owns which resources, storage backends, and external integrations.</div>
+  <div class="mermaid">
+graph TB
+  subgraph Meta["meta-service :8081"]
+    M1["Project"]
+    M2["Application"]
+    M3["Environment"]
+    M4["Cluster"]
+    M5["ApplicationEnv"]
+  end
+
+  subgraph Config["config-service :8082"]
+    C1["AppConfig"]
+    C2["WorkloadConfig"]
+  end
+
+  subgraph Network["network-service :8086"]
+    N1["Service"]
+    N2["Route"]
+  end
+
+  subgraph Rel["release-service :8083"]
+    R1["Manifest"]
+    R2["Release"]
+    R3["Bundle"]
+    R4["Intent"]
+  end
+
+  subgraph Run["runtime-service :8084"]
+    RT1["RuntimeSpec"]
+    RT2["ObservedWorkload"]
+    RT3["ObservedPod"]
+    RT4["Operator Actions"]
+  end
+
+  Rel -->|"reads"| Meta
+  Rel -->|"reads"| Config
+  Rel -->|"reads"| Network
+  Run -->|"writeback"| Rel
+
+  Meta --- PSQL1["PostgreSQL"]
+  Config --- PSQL2["PostgreSQL"]
+  Network --- PSQL3["PostgreSQL"]
+  Rel --- PSQL4["PostgreSQL"]
+  Run --- MEM["In-Memory (K8s-backed)"]
+
+  TK["Tekton"] --- Rel
+  ARGO["ArgoCD"] --- Rel
+  OCI2["OCI Registry"] --- Rel
+  K8S["Kubernetes API"] --- Run
+  </div>
+</section>
+
+<!-- ── Core Concepts ── -->
+<section class="concepts">
+  <h2>Core Concepts</h2>
+  <table>
+    <tr><th>Concept</th><th>Owner</th><th>Description</th></tr>
+    <tr>
+      <td><strong>Manifest</strong></td>
+      <td>release-service</td>
+      <td>Immutable build-side snapshot: git revision, image ref, service/workload snapshots. Created once, never mutated.</td>
+    </tr>
+    <tr>
+      <td><strong>Release</strong></td>
+      <td>release-service</td>
+      <td>Immutable deploy-side snapshot: environment, strategy, steps, app config, routes. Progresses through ordered steps.</td>
+    </tr>
+    <tr>
+      <td><strong>Bundle</strong></td>
+      <td>release-service</td>
+      <td>Rendered K8s manifests (Deployment, Service, ConfigMap, VirtualService) published as an OCI artifact.</td>
+    </tr>
+    <tr>
+      <td><strong>Env Overlay</strong></td>
+      <td>config-service</td>
+      <td>Per-environment ConfigMap values from git config-repo, injected at bundle render time.</td>
+    </tr>
+    <tr>
+      <td><strong>Intent</strong></td>
+      <td>release-service</td>
+      <td>Async execution queue for release steps, with lease-based worker competition.</td>
+    </tr>
+    <tr>
+      <td><strong>Runtime observer</strong></td>
+      <td>runtime-service</td>
+      <td>Polls Kubernetes workload/pod state; writes rollout progress back to release-service. PostgreSQL-free by design.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ── Release Strategies ── -->
+<section class="concepts">
+  <h2>Release Strategies</h2>
+  <table>
+    <tr><th>Strategy</th><th>Post-Argo Steps</th><th>Use Case</th></tr>
+    <tr><td>Rolling</td><td>start_deployment → observe_rollout</td><td>Standard gradual update</td></tr>
+    <tr><td>Blue-Green</td><td>deploy_preview → observe_preview → switch_traffic → verify_active</td><td>Zero-downtime, instant rollback</td></tr>
+    <tr><td>Canary</td><td>deploy_canary → canary_10 → canary_30 → canary_60 → canary_100</td><td>Progressive traffic shifting</td></tr>
+  </table>
+</section>
+
+<!-- ── Assumptions ── -->
+<section class="assumptions">
+  <h2>Assumptions</h2>
+  <ol>
+    <li><strong>Pre-production environment only</strong> — committed manifests target a single pre-production cluster. Production topology may differ.</li>
+    <li><strong>telemetry-service is planned, not implemented</strong> — shown as a future concern only.</li>
+    <li><strong>Single PostgreSQL cluster</strong> — all stateful services share one CloudNativePG cluster.</li>
+    <li><strong>runtime-service is PostgreSQL-free</strong> — in-memory state rebuilt from K8s observation. Empty after restart until sync completes.</li>
+    <li><strong>OCI registry is in-cluster zot</strong> — pre-production only. Production may use an external registry.</li>
+    <li><strong>Rollout observer watches Deployments only</strong> — Rollout (Argo Rollouts) support is planned but not yet implemented.</li>
+    <li><strong>ArgoCD Application source is OCI artifact</strong> — not a git repository. The published bundle is the deployment source of truth.</li>
+    <li><strong>Service-to-service HTTP</strong> uses shared <code>downstreamhttp</code> client with OTel trace propagation.</li>
+  </ol>
+</section>
+
+<footer>
+  <p>DevFlow Architecture · <a href="README.md">README.md</a> · <a href="../../docs/system/architecture.md">system/architecture.md</a></p>
+</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'neutral',
+    themeVariables: {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '14px',
+      primaryColor: '#e8f0fe',
+      primaryBorderColor: '#2563eb',
+      primaryTextColor: '#1e293b',
+      secondaryColor: '#f1f5f9',
+      secondaryBorderColor: '#cbd5e1',
+      lineColor: '#64748b',
+    },
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true,
+      curve: 'basis',
+      padding: 16,
+    },
+  });
+</script>
+
+</body>
+</html>

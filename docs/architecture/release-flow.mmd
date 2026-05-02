@@ -1,0 +1,42 @@
+graph LR
+  %% ── Stage 1: 输入源 ──
+  App["Application<br/>meta-service"]
+  Cfg["AppConfig + WorkloadConfig<br/>config-service"]
+  Topo["Service + Route<br/>network-service"]
+
+  %% ── Stage 2: Manifest 冻结 (构建侧) ──
+  Manifest["📦 Manifest<br/>immutable snapshot<br/>├ image_ref, commit_hash<br/>├ services_snapshot<br/>└ workload_config_snapshot"]
+
+  %% ── Stage 3: Release 冻结 (部署侧) ──
+  Release["🚀 Release<br/>immutable snapshot<br/>├ env / strategy / steps<br/>├ app_config_snapshot<br/>└ routes_snapshot"]
+
+  %% ── Stage 4-5: Bundle 渲染与发布 ──
+  Bundle["Bundle Render + Publish<br/>release-service<br/>├ render K8s YAML<br/>└ push OCI artifact"]
+
+  %% ── Stage 6: Argo 部署 ──
+  Argo["Argo CD<br/>sync to cluster"]
+
+  %% ── Stage 7: 运行时观察 ──
+  Observe["runtime-service<br/>observe rollout → writeback"]
+
+  %% ── Stage 8: 验证完成 ──
+  Verify["✅ Release Succeeded<br/>or ❌ Failed / Rolled Back"]
+
+  %% ── 连线 ──
+  App -->|"app + env metadata"| Manifest
+  Cfg -->|"workload config"| Manifest
+  Topo -->|"service topology"| Manifest
+
+  Manifest -->|"deployable manifest"| Release
+  Cfg -->|"app config"| Release
+  Topo -->|"route config"| Release
+  App -->|"deploy target"| Release
+
+  Release -->|"frozen inputs"| Bundle
+  Bundle -->|"OCI artifact"| Argo
+  Argo -->|"workloads running"| Observe
+  Observe -->|"rollout status"| Verify
+
+  %% ── 环境差异说明 ──
+  EnvNote["🔧 Env Overlay<br/>per-environment ConfigMap /<br/>EnvConfig from config-repo"]
+  EnvNote -.->|"injects env-specific values"| Bundle

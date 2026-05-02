@@ -1,0 +1,37 @@
+graph LR
+  %% ── 触发 ──
+  Trigger["Git Push /<br/>API Request"]
+
+  %% ── Manifest 创建 ──
+  CreateManifest["release-service<br/>create Manifest<br/>status: pending"]
+
+  %% ── Tekton 构建 ──
+  subgraph TektonPipeline["Tekton PipelineRun"]
+    Clone["git clone<br/>checkout revision"]
+    Build["Build Image<br/>Buildah"]
+    Push["Push Image<br/>to OCI Registry"]
+  end
+
+  %% ── Registry ──
+  Registry[("OCI Registry<br/>zot.zot.svc:5000")]
+
+  %% ── Writeback ──
+  Observe["runtime-service<br/>Tekton observer<br/>poll PipelineRun"]
+
+  Writeback["POST /api/v1/manifests/tekton/*<br/>status / tasks / result"]
+
+  ManifestDone["📦 Manifest<br/>status: succeeded<br/>image_ref, digest ready"]
+
+  %% ── 连线 ──
+  Trigger -->|"POST /api/v1/manifests"| CreateManifest
+  CreateManifest -->|"submit PipelineRun"| Clone
+  Clone --> Build
+  Build --> Push
+  Push --> Registry
+
+  Observe -->|"poll status"| TektonPipeline
+  Observe -->|"callback"| Writeback
+  Writeback -->|"update manifest"| ManifestDone
+
+  %% ── 产出说明 ──
+  ManifestDone -->|"ready for release creation"| Next["→ Release Flow"]

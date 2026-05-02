@@ -1,0 +1,67 @@
+graph TB
+  %% ── meta-service ──
+  subgraph Meta["meta-service :8081"]
+    direction LR
+    M1["Project"]
+    M2["Application"]
+    M3["Environment"]
+    M4["Cluster"]
+    M5["ApplicationEnv<br/>binding"]
+  end
+
+  %% ── config-service ──
+  subgraph Config["config-service :8082"]
+    direction LR
+    C1["AppConfig<br/>per-app/env files"]
+    C2["WorkloadConfig<br/>replicas / resources / probes"]
+  end
+
+  %% ── network-service ──
+  subgraph Network["network-service :8086"]
+    direction LR
+    N1["Service<br/>ports / exposure"]
+    N2["Route<br/>host / path / TLS"]
+  end
+
+  %% ── release-service ──
+  subgraph Release["release-service :8083"]
+    direction LR
+    R1["Manifest<br/>build-side freeze"]
+    R2["Release<br/>deploy-side freeze"]
+    R3["Bundle<br/>render + publish"]
+    R4["Intent<br/>async execution"]
+  end
+
+  %% ── runtime-service ──
+  subgraph Runtime["runtime-service :8084"]
+    direction LR
+    RT1["RuntimeSpec"]
+    RT2["ObservedWorkload"]
+    RT3["ObservedPod"]
+    RT4["Operator Actions"]
+  end
+
+  %% ── 跨服务读取关系 ──
+  Release -->|"reads"| Meta
+  Release -->|"reads"| Config
+  Release -->|"reads"| Network
+  Runtime -->|"writeback"| Release
+
+  %% ── 存储说明 ──
+  MetaStore["PostgreSQL"]
+  ConfigStore["PostgreSQL"]
+  NetworkStore["PostgreSQL"]
+  ReleaseStore["PostgreSQL"]
+  RuntimeStore["In-Memory<br/>rebuilt from K8s"]
+
+  Meta --- MetaStore
+  Config --- ConfigStore
+  Network --- NetworkStore
+  Release --- ReleaseStore
+  Runtime --- RuntimeStore
+
+  %% ── 外部集成 ──
+  TektonInt["Tekton"] --- Release
+  ArgoInt["ArgoCD"] --- Release
+  OciInt["OCI Registry"] --- Release
+  K8sInt["Kubernetes API"] --- Runtime

@@ -1,0 +1,76 @@
+graph TB
+  %% ── 用户与前端 ──
+  User(["👤 User / Operator"])
+  Frontend["DevFlow Platform Web"]
+
+  %% ── 网关层 ──
+  Gateway["Istio Gateway<br/>devflow-pre-production.bei.com"]
+
+  %% ── 后端服务 ──
+  subgraph Services["Backend Services"]
+    Meta["meta-service<br/>:8081"]
+    Config["config-service<br/>:8082"]
+    Network["network-service<br/>:8086"]
+    Release["release-service<br/>:8083"]
+    Runtime["runtime-service<br/>:8084"]
+  end
+
+  %% ── 数据层 ──
+  DB[("PostgreSQL 18<br/>CloudNativePG")]
+
+  %% ── CI / Registry / K8s ──
+  Tekton["Tekton Pipelines"]
+  OCI["OCI Registry<br/>(zot)"]
+  K8s["Kubernetes Cluster"]
+  ArgoCD["Argo CD"]
+
+  %% ── 可观测性 ──
+  subgraph Obs["Observability"]
+    OTel["OpenTelemetry"]
+    Prom["Prometheus"]
+    Pyroscope["Pyroscope"]
+  end
+
+  %% ── Planned ──
+  Telemetry["telemetry-service<br/>🚧 planned"]
+
+  %% ── 连线：用户到前端到网关 ──
+  User --> Frontend
+  Frontend --> Gateway
+
+  %% ── 网关到后端服务 ──
+  Gateway -->|"/api/v1/meta/*"| Meta
+  Gateway -->|"/api/v1/config/*"| Config
+  Gateway -->|"/api/v1/network/*"| Network
+  Gateway -->|"/api/v1/release/*"| Release
+  Gateway -->|"/api/v1/runtime/*"| Runtime
+
+  %% ── 服务依赖 ──
+  Release -->|"read metadata"| Meta
+  Release -->|"read config"| Config
+  Release -->|"read topology"| Network
+
+  %% ── 服务到数据库 ──
+  Meta --> DB
+  Config --> DB
+  Network --> DB
+  Release --> DB
+
+  %% ── Release 到 CI/Registry/K8s ──
+  Release -->|"submit build"| Tekton
+  Tekton -->|"push image"| OCI
+  Release -->|"publish bundle"| OCI
+  Release -->|"create Application"| ArgoCD
+  ArgoCD -->|"sync"| K8s
+
+  %% ── Runtime 到 K8s ──
+  Runtime -->|"observe workloads"| K8s
+  Runtime -->|"writeback status"| Release
+
+  %% ── 可观测性 ──
+  Services -.->|"traces / metrics"| OTel
+  OTel -.-> Prom
+  Services -.-> Pyroscope
+
+  %% ── Telemetry (planned) ──
+  Telemetry -.->|"planned"| Obs
