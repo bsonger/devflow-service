@@ -1,5 +1,31 @@
 # Meta Service
 
+## 这个文档解决什么问题
+
+这份文档说明当前 `meta-service` 的职责边界。
+
+读完后，读者应该能回答：
+
+- `meta-service` 当前到底拥有哪些元数据资源
+- 它和讨论中的 `application-service` 是什么关系
+- 哪些下游服务依赖它
+- 哪些能力不应该继续塞回 `meta-service`
+
+## Reader routing
+
+如果你要看字段和接口明细，继续跳到：
+
+- `docs/resources/project.md`
+- `docs/resources/application.md`
+- `docs/resources/application-environment.md`
+- `docs/resources/cluster.md`
+- `docs/resources/environment.md`
+
+如果你要看目标命名和资源关系，继续跳到：
+
+- `docs/system/architecture.md`
+- `docs/system/domain-model.md`
+
 ## Purpose
 
 `meta-service` is the current active service being migrated into the root `devflow-service` layout.
@@ -122,6 +148,12 @@ flowchart LR
 - render deployment bundles
 
 That separation is important because `meta-service` is the metadata source of truth, not the deployment executor.
+
+## Naming note
+
+- 当前仓库没有独立可运行的 `application-service`
+- 如果设计讨论提到 `application-service`，当前应理解为 `meta-service` 所承载的应用元数据边界
+- 在代码和本地文档没有落地之前，不要把 `application-service` 写成当前事实
 
 ## Entrypoint
 

@@ -1,109 +1,98 @@
 # Docs
 
-## Purpose
+## 这个文档解决什么问题
 
-Use this page as the repo-local docs landing page.
-It is navigation-first and does not replace `AGENTS.md` as the startup contract.
+这份文档是 `devflow-service` 的文档入口页。
+它只做导航，不替代 `AGENTS.md`、`docs/system/*` 或具体资源文档。
 
-## Canonical starts
+读完后，读者应该能立刻知道：
 
-- canonical agent start -> `AGENTS.md`
-- canonical docs navigation start -> `docs/index/getting-started.md`
+- 先从哪份文档开始
+- 当前事实、API 契约、开发指南、长期规则分别在哪一层
+- 哪些目录是当前事实，哪些目录只是图示、生成产物或历史材料
 
-## Navigation order
+## 从哪里开始
 
-Use these surfaces in roughly this order when navigating the doc set:
+- Agent 启动入口：[AGENTS.md](../AGENTS.md)
+- 人类读者入口：`docs/index/getting-started.md`
 
-- `docs/index/getting-started.md` — human-first navigation path
-- `AGENTS.md` — canonical agent startup contract
-- `docs/index/agent-path.md` — compact agent route map back to `AGENTS.md`
-- `docs/index/agent-recipes.md` — compact task recipes for common repo-local changes
-- `docs/system/` — current repo-local execution truth
-- `docs/services/` — current service ownership, ingress boundaries, diagnostics, and verification
-- `docs/resources/` — current resource contracts, API behavior, and validation rules
-- `docs/policies/` — durable repo rules such as layout, Docker, and verification
-- `docs/generated/` — generated artifacts only
-- `docs/archive/` — historical material only
-- `docs/superpowers/README.md` — design specs, plans, and other pre-implementation artifacts
+## 文档结构
 
-## Common starting points by topic
+按用途区分：
 
-For the detailed Go monorepo directory and dependency rules used by this repo, start with:
+- `docs/index/`：导航，不承载实现事实
+- `docs/system/`：当前实现事实与系统级说明
+- `docs/services/`：服务边界、依赖和诊断
+- `docs/resources/`：资源字段、API surface、校验规则
+- `docs/api/`：API 统一契约说明、兼容性与 breaking changes
+- `docs/guides/`：本地开发、扩展模块、更新 OpenAPI 等操作指南
+- `docs/policies/`：长期规则和必须遵守的约束
+- `docs/architecture/`：架构图和 Mermaid 图示，只做视觉辅助
+- `docs/generated/`：生成产物
+- `docs/archive/`：历史资料
+- `docs/superpowers/`：历史设计稿、计划稿，不作为当前事实
 
-- `docs/policies/go-monorepo-layout.md`
+## 推荐阅读顺序
 
-For structured logging, metric-label, and trace-correlation rules, start with:
+1. `docs/index/getting-started.md`
+2. `AGENTS.md`
+3. `docs/system/recovery.md`
+4. `docs/system/architecture.md`
+5. `docs/system/domain-model.md`
+6. `docs/services/README.md`
+7. `docs/resources/README.md`
+8. `docs/api/README.md`
+9. `docs/guides/README.md`
+10. `docs/policies/README.md`
 
-- `docs/policies/observability-logging.md`
+## 按主题跳转
 
-For stable HTTP error envelopes and handler error-code mapping, start with:
+想看当前架构和服务边界：
 
-- `docs/policies/error-handling.md`
+- `docs/system/architecture.md`
+- `docs/system/current-service-extraction-reality.md`
+- `docs/services/README.md`
 
-For shared Gin handler conventions such as pagination, response helpers, and HTTP-edge parsing, start with:
+想看核心资源关系：
 
-- `docs/policies/http-handler.md`
+- `docs/system/domain-model.md`
+- `docs/resources/README.md`
 
-For use-case orchestration boundaries inside `internal/*/service`, start with:
+想看 API 契约和 OpenAPI：
 
-- `docs/policies/service-layer.md`
-
-For downstream runtime-boundary clients, shared HTTP client reuse, and typed downstream status handling, start with:
-
-- `docs/policies/downstream-client.md`
-
-For persistence ownership, repository constructor shape, and storage boundary rules, start with:
-
-- `docs/policies/repository-layer.md`
-
-For background execution, lease-driven worker semantics, and runtime helper boundaries, start with:
-
-- `docs/policies/worker-runtime.md`
-
-For resource CRUD behavior, list/filter/pagination rules, and resource-doc contract shape, start with:
-
-- `docs/policies/resource-api.md`
-
-For service-scoped OpenAPI contracts, the aggregate repo-local contract, and generated annotation snapshots, start with:
-
+- `docs/api/README.md`
+- `docs/api/contract-guide.md`
 - `api/openapi/README.md`
-
-Important nuance:
-
-- the service OpenAPI files are shared-ingress frontend route contracts
-- the generated `swagger.yaml` / `swagger.json` snapshot remains backend-local
-- `docs/system/ingress-routing.md` is the authority for the prefix and rewrite mapping between those two surfaces
-
-For the durable policy that governs when API code changes must update those contracts, start with:
-
 - `docs/policies/api-contract-policy.md`
 
-For current service extraction reality, including which boundaries still use same-repo implementation paths, start with:
+想看本地开发和如何改代码：
 
-- `docs/system/current-service-extraction-reality.md`
+- `docs/guides/local-development.md`
+- `docs/guides/backend-change-playbook.md`
+- `docs/guides/openapi-workflow.md`
 
-For architecture and service/resource flow diagrams, start with:
+想看目录、分层和工程规则：
 
-- `docs/system/diagrams.md`
-- `docs/system/flow-overview.md`
+- `docs/policies/go-monorepo-layout.md`
+- `docs/policies/verification.md`
+- `docs/policies/doc-synchronization.md`
 
-For shared ingress routing, backend-local route paths, and Istio rewrite behavior, start with:
+想看资源 API、service layer、repository、downstream client、worker runtime 这些通用规则：
 
-- `docs/system/ingress-routing.md`
+- `docs/policies/resource-api.md`
+- `docs/policies/service-layer.md`
+- `docs/policies/repository-layer.md`
+- `docs/policies/downstream-client.md`
+- `docs/policies/worker-runtime.md`
 
-For runtime workload / pod display model, observer writeback, and the read-vs-action split, start with:
+## 需要特别注意的目录
 
-- `docs/system/runtime-observer.md`
-
-For runtime-service memory, observer, action, cold-start rebuild behavior, and the runtime-domain no-Postgres guardrail, start with:
-
-- `docs/system/runtime-storage-model.md`
-
-For the shortest frontend runtime integration checklist, start with:
-
-- `docs/resources/runtime-frontend-checklist.md`
+- `docs/system/` 才是当前事实层
+- `docs/architecture/` 只提供图，不单独定义事实
+- `docs/generated/` 不应该手工编辑
+- 根目录下的 `docs/architecture.md`、`docs/recovery.md`、`docs/docker.md`、`docs/observability.md`、`docs/constraints.md` 都只是迁移后的兼容跳转页
 
 ## Notes
 
-- directory `README.md` files under `docs/index/`, `docs/services/`, `docs/resources/`, `docs/policies/`, `docs/generated/`, and `docs/archive/` are orientation aids only
-- the owning docs in `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/` hold the current facts
+- 各目录下的 `README.md` 负责回答“这个目录用来解决什么问题”
+- 真正的事实仍然由对应正文文档负责，不要只看目录索引就下结论

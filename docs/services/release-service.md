@@ -1,28 +1,61 @@
 # Release Service
 
+## 这个文档解决什么问题
+
+这份文档说明 `release-service` 当前拥有哪些发布边界，以及它和 `Manifest`、`Release`、runtime writeback 的关系。
+
+读完后，读者应该能回答：
+
+- 哪些阶段属于 `release-service`
+- 为什么 `Manifest` 和 `Release` 都归这个服务，但职责不同
+- 历史上的 `verify-service` 现在去了哪里
+
 ## Reader routing
 
-Start with `docs/system/flow-overview.md` when you need the authoritative stage contract for the end-to-end release lifecycle.
-Use this document after that to inspect the service that owns stages 2 through 6 and the release-side callback surface for stage 7:
+如果你要先建立完整发布链路，先看 `docs/system/flow-overview.md`。
 
-- stage 2 — manifest freeze and build dispatch
-- stage 3 — release freeze
-- stage 4 — release bundle render
-- stage 5 — bundle publish
-- stage 6 — release execution handoff / Argo deployment
-- stage 7 — release-owned writeback surface and release truth persistence after runtime observation
+这份服务文档聚焦的是 `release-service` 自己拥有的阶段，主要是：
 
-This service doc is intentionally not the top-level lifecycle explainer. It is the owner/diagnostics guide for the release-owned stages.
+- stage 2：`Manifest` 冻结与构建派发
+- stage 3：`Release` 冻结
+- stage 4：release bundle render
+- stage 5：bundle publish
+- stage 6：Argo handoff / deployment start
+- stage 7：release 侧 callback surface 与 release truth 持久化
+
+这不是总生命周期总览页。
+它是 release-owned stages 的 owner / diagnostics guide。
 
 ## Purpose
 
-`release-service` owns the build-to-deploy handoff records and the deployment execution flow: it creates the build-side `Manifest` record, creates the deploy-side `Release` record, and owns the callback surface that updates deploy progress.
+`release-service` 负责从 build 到 deploy 的交接记录和执行流程。
 
-It is also the main cross-service orchestration boundary for build and deploy.
-It does not own upstream resource truth such as application metadata, app config, workload config, services, or routes, but it composes those facts into two different release-owned freeze points:
+它会：
+
+- 创建 build-side 的 `Manifest`
+- 创建 deploy-side 的 `Release`
+- 暴露 callback / writeback surface，用来接收部署进度更新
+
+它也是当前仓库里最重要的跨服务 orchestration boundary。
+
+它不拥有上游资源真相，例如：
+
+- application metadata
+- app config
+- workload config
+- services
+- routes
+
+但它会把这些上游事实组合成两个 release-owned freeze point：
 
 - `Manifest` for the build-side record and image-delivery trace
 - `Release` for the deploy-side environment bind, bundle publication, and rollout state
+
+## Naming note
+
+- `verify-service` 不是当前独立可运行服务
+- 当前 verify ingress / writeback contract 已并入 `release-service`
+- 所以 callback 路由、鉴权和 writeback 文档都应优先归到 `release-service`
 
 ## Owns
 
@@ -51,7 +84,10 @@ It does not own upstream resource truth such as application metadata, app config
 
 ## Dependency model
 
-`release-service` depends on both persisted release data and upstream service truth.
+`release-service` 同时依赖两类输入：
+
+- 自己持久化的 release data
+- 其他服务提供的上游事实
 
 ### Control-plane and persistence dependencies
 
@@ -61,7 +97,7 @@ It does not own upstream resource truth such as application metadata, app config
 - Kubernetes API
 - OCI registry for deploy-side bundle publication in pre-production (`zot`)
 
-Historical naming note:
+历史命名说明：
 
 - the runtime/config surface still uses the legacy `manifest_registry` key and helper names
 - in the current code path that naming refers to the registry target for release deployment bundle publication, not ownership of the `Manifest` API resource
@@ -84,7 +120,7 @@ Historical naming note:
 
 ### Manifest create path
 
-When creating a manifest, `release-service` composes these upstream facts:
+创建 `Manifest` 时，`release-service` 会组合这些上游事实：
 
 1. read application projection from `meta-service`
 2. read workload config from `config-service`
@@ -92,12 +128,21 @@ When creating a manifest, `release-service` composes these upstream facts:
 4. derive image target and submit Tekton build
 5. persist one frozen build-side manifest record in PostgreSQL
 
-This means `Manifest` is a release-owned build-side record, but some of its frozen inputs come from other services.
-It is the inspection surface for build identity, frozen workload/service inputs, Tekton progress writeback, and final workload image output.
+这说明：
+
+- `Manifest` 是 release-owned 的 build-side record
+- 但它冻结的部分输入来自其他服务
+
+它承担的观察面包括：
+
+- build identity
+- 冻结后的 workload / service 输入
+- Tekton progress writeback
+- 最终 workload image 输出
 
 ### Release create path
 
-When creating a release, `release-service` composes these upstream facts:
+创建 `Release` 时，`release-service` 会组合这些上游事实：
 
 1. read frozen manifest from release-owned persistence
 2. read app config from `config-service`
@@ -106,14 +151,23 @@ When creating a release, `release-service` composes these upstream facts:
 5. freeze those live inputs onto the release row
 6. render, publish, and deploy the release bundle
 
-This means `Release` is the release-owned deploy-side record.
-It is the inspection surface for environment binding, rendered deployment bundle facts, published OCI artifact metadata, Argo CD handoff, and rollout/writeback status.
+这说明：
+
+- `Release` 是 release-owned 的 deploy-side record
+
+它承担的观察面包括：
+
+- environment binding
+- rendered deployment bundle facts
+- published OCI artifact metadata
+- Argo CD handoff
+- rollout / writeback status
 
 ## Rollout observation boundary
 
-`release-service` should be understood as the deployment initiator and release-truth owner, not the rollout observer.
+`release-service` 应该被理解为 deployment initiator 和 release-truth owner，而不是 rollout observer。
 
-Target boundary:
+目标边界应当这样理解：
 
 1. `release-service` creates or updates the Argo CD `Application`
 2. Argo CD syncs the release-owned OCI bundle into Kubernetes
@@ -122,7 +176,7 @@ Target boundary:
 5. rollout progress writeback, when used, comes through release-owned writeback routes
 6. those writeback routes are part of the release boundary, not a public runtime API surface
 
-Operational reminders carried forward from the system lifecycle docs:
+从系统生命周期文档延续下来的关键提醒：
 
 - `start_deployment` remains the release-service-owned handoff step for rolling releases.
 - `observe_rollout` and `finalize_release` remain callback-owned follow-up steps after that handoff.
@@ -130,7 +184,7 @@ Operational reminders carried forward from the system lifecycle docs:
 - the release metadata and inspection contract stays compatible with both `Deployment` and `Rollout` primary workloads even though the active in-tree runtime observer still derives live rollout progress from `Deployment` objects only today.
 - once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
 
-See also:
+继续深入时，优先看：
 
 - `docs/system/release-writeback.md` for the callback contract
 - `docs/services/runtime-service.md` for the runtime observer/read-model side of the same seam
@@ -189,7 +243,7 @@ Runtime endpoints:
 
 ## Pre-production OCI deployment bundle flow
 
-The current pre-production deployment path for release execution is:
+当前 pre-production 的 release execution 路径是：
 
 1. `release-service` renders one canonical deployment bundle for the release.
 2. `publish_bundle` packages that bundle as a single OCI tar.gz layer and pushes it to the configured OCI registry.
@@ -197,7 +251,7 @@ The current pre-production deployment path for release execution is:
 4. `create_argocd_application` creates an Argo CD `Application` whose source points at the published OCI artifact.
 5. Argo CD pulls the OCI artifact and syncs it into the target namespace.
 
-The committed pre-production config now expects:
+当前提交到仓库里的 pre-production 配置要求：
 
 - `manifest_registry.registry = zot.zot.svc.cluster.local:5000`
 - `manifest_registry.namespace = devflow`
@@ -205,13 +259,13 @@ The committed pre-production config now expects:
 - `manifest_registry.plain_http = true`
 - `manifest_registry.mode = oras`
 
-Historical naming note:
+历史命名说明：
 
 - `manifest_registry` is the legacy config block name kept for compatibility
 - in the active code path it configures release deployment bundle publication
 - it does not mean the registry owns or stores the `Manifest` resource contract itself
 
-Because release bundle repository paths are application-scoped under the `releases/` prefix, Argo CD should be configured with a repo-creds prefix secret rather than a single fixed repository entry.
+由于 release bundle repository path 是 application-scoped、并且挂在 `releases/` 前缀下，Argo CD 更适合使用 repo-creds prefix secret，而不是单条固定 repository 配置。
 
 ## Verification
 

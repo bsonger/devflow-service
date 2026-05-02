@@ -1,5 +1,15 @@
 # Manifest
 
+## 这个文档解决什么问题
+
+这份文档说明 `Manifest` 这个资源为什么存在，以及它到底冻结了什么、没有冻结什么。
+
+读完后，读者应该能回答：
+
+- `Manifest` 为什么是 build-side freeze point
+- 哪些输入会被冻结到 `Manifest`
+- 为什么环境差异不属于 `Manifest`
+
 ## Ownership
 
 - active service boundary: `release-service`
@@ -10,19 +20,27 @@
 
 ## Purpose
 
-`Manifest` is the build-time snapshot and image-delivery record for one application revision.
-It freezes service and workload snapshots, triggers the Tekton image build, records the image result, and remains the durable traceable record after `PipelineRun` / `TaskRun` resources are garbage-collected.
+`Manifest` 是一个 application revision 对应的 build-time snapshot，也是 image-delivery record。
+
+它负责：
+
+- 冻结 service snapshot
+- 冻结 workload snapshot
+- 触发 Tekton image build
+- 记录最终 image result
+
+即使后续 `PipelineRun` / `TaskRun` 被回收，`Manifest` 仍然是持久可追踪的 build record。
 
 ## Quick reader guide
 
-Use this document when you need to answer build-side questions such as:
+当你要回答下面这些 build-side 问题时，看这篇文档：
 
 - what exactly was frozen before image build started
 - which source revision was actually built
 - what image was produced
 - how Tekton progress maps back to one durable system record
 
-If your question is instead about:
+如果你要问的是下面这些 deploy-side 问题：
 
 - target environment
 - app config used for deployment
@@ -30,7 +48,11 @@ If your question is instead about:
 - Argo CD deployment state
 - published OCI deployment bundle
 
-then the owning resource is `Release`, not `Manifest`.
+那就应该去看 `Release`，而不是 `Manifest`。
+
+For repo-wide API envelope, pagination, and compatibility rules, also see:
+
+- `docs/api/contract-guide.md`
 
 ## Common base fields
 
@@ -67,14 +89,14 @@ then the owning resource is `Release`, not `Manifest`.
 - `Available`
 - `Unavailable`
 
-Current manifest status semantics are:
+当前 `Manifest.status` 语义：
 
 - `Pending`: the manifest record has been frozen and the build has been dispatched, but `release-service` has not yet received the first runtime / observer status writeback
 - `Running`: runtime writeback reports that the build execution is in progress
 - `Available`: runtime writeback reports that the manifest is deployable and can be consumed by release creation
 - `Unavailable`: runtime writeback reports a terminal non-consumable outcome for this manifest
 
-Important boundary rule:
+最重要的边界规则：
 
 - manifest status is driven by runtime / observer writeback
 - `steps[*].status` are per-task observation details only
@@ -96,12 +118,14 @@ Pre-production shared ingress external surface:
 - `GET /api/v1/release/manifests/{id}`
 - `DELETE /api/v1/release/manifests/{id}`
 
-`GET /api/v1/manifests/{id}/resources` returns a derived inspection view built from frozen snapshots plus `image_ref`.
-The manifest record itself does not persist release-owned bundle payloads.
+`GET /api/v1/manifests/{id}/resources` 返回的是一个 derived inspection view。
+它由 frozen snapshot 和 `image_ref` 组合而成。
+
+`Manifest` 本身并不持久化 release-owned bundle payload。
 
 ## Frozen boundary
 
-The key contract of `Manifest` is that it freezes build-time inputs before release happens.
+`Manifest` 的关键契约，是在 release 发生前冻结 build-time 输入。
 
 Frozen on manifest:
 
@@ -118,12 +142,13 @@ Not frozen on manifest:
 - release deployment artifact metadata
 - rendered deployment YAML for one environment
 
-Those later deployment facts belong to `Release`.
+这些后续 deployment facts 都属于 `Release`。
 
 ## Manifest workload snapshot
 
-`workload_config_snapshot` reuses the same constrained workload contract frozen in `config-service`.
-It is not a wide compatibility map and should not become a second contract family.
+`workload_config_snapshot` 复用了 `config-service` 那套 constrained workload contract。
+
+它不是一个宽泛兼容层，也不应该演化成第二套并行契约。
 
 ### `ManifestWorkloadConfig`
 
@@ -140,7 +165,7 @@ It is not a wide compatibility map and should not become a second contract famil
 
 ### Snapshot meaning
 
-The snapshot is build-side durable evidence of what `release-service` read from `config-service` at manifest creation time.
+这个 snapshot 是 build-side 的 durable evidence，表示 `release-service` 在创建 `Manifest` 时到底从 `config-service` 读到了什么。
 
 It is intentionally:
 
@@ -167,8 +192,9 @@ It is intentionally:
 }
 ```
 
-The canonical size-class mapping table lives in `internal/workloadconfig/domain.WorkloadSizeClassResources` and is documented in `docs/resources/workloadconfig.md`.
-Manifest snapshots must preserve that shared contract rather than translating it into a manifest-local default table.
+canonical size-class mapping table 定义在 `internal/workloadconfig/domain.WorkloadSizeClassResources`，并记录在 `docs/resources/workloadconfig.md`。
+
+`Manifest` snapshot 必须保留这套共享契约，不能擅自翻译成 manifest-local 默认表。
 
 ### Snapshot probe shape
 
@@ -203,19 +229,19 @@ Manifest snapshots must preserve that shared contract rather than translating it
 
 ### Render-time translation boundary
 
-The snapshot does **not** mean manifest persistence stores Kubernetes-native fields such as:
+这个 snapshot **不表示** `Manifest` 持久化了 Kubernetes-native 字段，例如：
 
 - `livenessProbe`
 - `readinessProbe`
 - `startupProbe`
 - container `resources`
 
-Instead:
+真正的边界是：
 
 - `Manifest` stores the frozen constrained workload snapshot
 - manifest/release renderers later translate that snapshot into Kubernetes-shaped output for inspection views and release bundles
 
-This is an important anti-drift rule for downstream slices:
+这是一个很重要的 anti-drift 规则：
 
 - freeze once in the constrained contract
 - translate later at the rendering seam
@@ -223,7 +249,7 @@ This is an important anti-drift rule for downstream slices:
 
 ## Create request contract
 
-The recommended create request stays intentionally small.
+当前推荐的 create request 故意保持很小。
 
 ### Required request fields
 

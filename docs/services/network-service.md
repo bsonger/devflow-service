@@ -1,5 +1,22 @@
 # Network Service
 
+## 这个文档解决什么问题
+
+这份文档说明 `network-service` 当前拥有哪些网络资源，以及它在发布链路里提供哪些冻结前输入。
+
+读完后，读者应该能回答：
+
+- `Service` 和 `Route` 的归属边界是什么
+- 当前实现中哪些校验已经落地，哪些还没有通过下游 HTTP 调用隔离
+- `release-service` 会从这里读取哪些输入
+
+## Reader routing
+
+如果你要看资源字段和 API 细节，继续跳到：
+
+- `docs/resources/service.md`
+- `docs/resources/route.md`
+
 ## Purpose
 
 `network-service` owns application-facing network definitions and route validation.

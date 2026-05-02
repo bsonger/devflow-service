@@ -22,6 +22,7 @@ After reading it, a fresh engineer or agent should know:
 - Active release migration: `release-service` now boots from `cmd/release-service` and owns the verify ingress/writeback paths that were previously modeled as `verify-service`
 - Active runtime migration: `runtime-service` now boots from `cmd/runtime-service` and owns the extracted runtime inspection, runtime operation, and internal observer/index API surface
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
+- Active doc layering: `docs/api/` now owns API-wide contract guidance, and `docs/guides/` now owns developer workflow guides
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
 - Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`, while non-default service image selection is hardcoded in committed Tekton manifests for `config-service`, `network-service`, `release-service`, and `runtime-service`
 - Active database baseline: Kubernetes PostgreSQL now targets the parallel `database/pg18-next` cluster, with repo-managed bootstrap artifacts under `deployments/pre-production/database/`
@@ -74,8 +75,10 @@ Inspect next:
 4. `docs/system/`
 5. `docs/services/`
 6. `docs/resources/`
-7. `docs/policies/`
-8. `scripts/README.md`
+7. `docs/api/`
+8. `docs/guides/`
+9. `docs/policies/`
+10. `scripts/README.md`
 
 ### If Docker policy checks fail
 

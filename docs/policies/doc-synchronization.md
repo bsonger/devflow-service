@@ -7,6 +7,8 @@ Any code change that affects the public API surface, domain models, or service b
 - `docs/resources/*.md` — resource field tables, API surface, validation rules
 - `docs/services/*.md` — service-owned endpoints, upstream/downstream contracts, module boundaries
 - `docs/system/*.md` — architecture, recovery, and system-level contracts
+- `docs/api/*.md` — API-wide contract vocabulary, compatibility notes, and breaking-change records
+- `docs/guides/*.md` — developer workflows when the implementation or repo process changes
 - `docs/policies/*.md` — if the change introduces a new policy or modifies an existing one
 - `api/openapi/*-service.yaml` and `api/openapi/devflow.yaml` — when API-related code changes
 - `AGENTS.md` — if the change affects agent startup contracts, routing, or canonical read sets

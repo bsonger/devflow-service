@@ -18,6 +18,16 @@ The repo currently has five runnable service entrypoints:
 Those entrypoints and shared-ingress routes are real.
 Some implementation paths are still transitional because the code lives in one Go module and can still share repository code, service code, and database access.
 
+## Naming reality
+
+When older plans or newer discussions use different names, read them like this:
+
+- current runnable metadata boundary: `meta-service`
+- target/concept metadata boundary name sometimes used in docs or discussion: `application-service`
+- historical standalone verify boundary name: `verify-service`
+- current owner of verify ingress and writeback: `release-service`
+- `telemetry-service`: planned only, not a current runnable service in this repo
+
 ## Implementation reality matrix
 
 | Service | Current boundary state | Important current reality |

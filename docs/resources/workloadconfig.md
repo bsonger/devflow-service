@@ -1,5 +1,15 @@
 # WorkloadConfig
 
+## 这个文档解决什么问题
+
+这份文档说明 `WorkloadConfig` 如何表达应用级 workload 基线，以及它如何进入 `Manifest.workload_config_snapshot`。
+
+读完后，读者应该能回答：
+
+- `WorkloadConfig` 为什么是 application-scoped
+- 它和 `AppConfig` 的边界是什么
+- 为什么 release render 会消费它，但不会把它变成环境级资源
+
 ## Ownership
 
 - active service boundary: `config-service`

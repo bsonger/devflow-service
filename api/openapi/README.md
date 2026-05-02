@@ -1,85 +1,96 @@
 # OpenAPI
 
-This directory contains edge-facing OpenAPI contracts plus generated backend-local Swagger annotation snapshots for HTTP handlers.
+## 这个文档解决什么问题
 
-## Current artifacts
+这份文档解释 `api/openapi/` 里每个文件的职责，以及它们和代码、shared ingress、生成产物之间的关系。
+
+如果你要回答下面这些问题，从这里开始：
+
+- 哪个 OpenAPI 文件才是对外契约
+- `devflow.yaml` 和 `*-service.yaml` 分别是什么
+- 什么时候要改 OpenAPI
+- 为什么 `swagger.yaml` 不能直接当作完整路由清单
+
+## 当前文件
 
 - `meta-service.yaml`
-- `network-service.yaml`
 - `config-service.yaml`
+- `network-service.yaml`
 - `release-service.yaml`
 - `runtime-service.yaml`
 - `devflow.yaml`
-- `docs.go`
-- `swagger.json`
 - `swagger.yaml`
+- `swagger.json`
+- `docs.go`
 
-The `*-service.yaml` files are the canonical shared-ingress service-scoped contracts.
-`devflow.yaml` is the aggregate shared-ingress HTTP contract across services.
-`swagger.yaml` and `swagger.json` remain generated annotation snapshots so API consumers can inspect the annotation-backed view without rebuilding the project.
-They are not a complete list of every registered HTTP route unless every handler has current Swagger annotations.
+## 契约分层
 
-## Frontend boundary
+按优先级理解：
 
-The canonical OpenAPI files in this directory describe shared-ingress external routes.
+1. 路由注册和 handler 代码决定后端真实能提供什么
+2. `docs/system/ingress-routing.md` 决定 shared ingress 的前缀和 rewrite
+3. `*-service.yaml` 是按服务划分的对外 OpenAPI 契约
+4. `devflow.yaml` 是聚合后的对外 OpenAPI 契约
+5. `swagger.yaml` / `swagger.json` 是从注解生成的后端本地快照
 
-That means:
+## 外部路径约定
 
-- `basePath` stays `/`
-- `meta-service.yaml` uses `/api/v1/meta/...`
-- `config-service.yaml` uses `/api/v1/config/...`
-- `network-service.yaml` uses `/api/v1/network/...`
-- `release-service.yaml` uses `/api/v1/release/...`
-- `runtime-service.yaml` uses `/api/v1/runtime/...`
-- the files do not pin a deployment `host` or environment-specific base URL
+对外契约描述的是 shared ingress 路径，不是服务内部路径。
 
-Frontend callers may treat these files as the direct edge-routing contract for the shared ingress path layer.
+因此：
 
-Backend-local routes still exist in code and are reflected by the generated `swagger.yaml` / `swagger.json` snapshot, but those generated artifacts are not the primary frontend contract.
+- `meta-service.yaml` 使用 `/api/v1/meta/...`
+- `config-service.yaml` 使用 `/api/v1/config/...`
+- `network-service.yaml` 使用 `/api/v1/network/...`
+- `release-service.yaml` 使用 `/api/v1/release/...`
+- `runtime-service.yaml` 使用 `/api/v1/runtime/...`
 
-## Generation
+注意：
 
-Regenerate from the repo root with:
+- `runtime-service` 的对外路径和内部路径相同
+- 其他服务的内部路径通常仍是 `/api/v1/...`
+
+## 当前范围
+
+当前 canonical OpenAPI 只覆盖对外公开或 shared-ingress 暴露的 API。
+
+这意味着：
+
+- `/api/v1/release/verify/...` 和 `/api/v1/release/manifests/tekton/...` 这类受 token 保护的对外 callback 路径应该出现在契约里
+- `/api/v1/internal/runtime-pods/...` 和 `/api/v1/internal/runtime-workloads/...` 这类内部 observer 路径不是当前 canonical OpenAPI 的主体
+
+## 与代码的一致性规则
+
+当前仓库要求：
+
+- 改了 route registration、handler、DTO、错误格式、分页格式、枚举、认证或 request-id 行为，就要检查 OpenAPI
+- 先修 `*-service.yaml`
+- 再同步 `devflow.yaml`
+- 如果注解快照也受影响，再更新 `swagger.yaml` / `swagger.json`
+
+## 生成与检查
+
+从仓库根目录执行：
 
 ```sh
 bash scripts/regen-swagger.sh
+make openapi-check
 ```
 
-The script uses `swag init` when the `swag` CLI is installed.
-If `swag` is missing, the script exits successfully after printing a skip message.
+说明：
 
-Current generator entrypoint:
+- `regen-swagger.sh` 依赖 `swag` CLI；没安装时会跳过生成
+- `make openapi-check` 会跑 regenerate、YAML 解析和契约测试
 
-```text
-cmd/meta-service/main.go
-```
+## 容易混淆的地方
 
-Important nuance:
+- `swagger.yaml` 不是完整路由真相，因为它只覆盖有 Swagger 注解的 handler
+- `devflow.yaml` 不是手工发明接口的地方，它只能聚合已经在代码里存在、并且应该对外暴露的路径
+- 资源行为、校验细节和错误语义不能只看 OpenAPI，还要看 `docs/resources/*` 和 `docs/api/contract-guide.md`
 
-- the generator scans internal handler annotations across the repo
-- generated artifacts only include routes that have Swagger annotations
-- runtime-service routes are registered in code but are not currently present in `swagger.json` / `swagger.yaml`
-- generated paths are backend-local service routes such as `/api/v1/projects`, `/api/v1/app-configs`, and `/api/v1/releases`
-- the canonical `*-service.yaml` and `devflow.yaml` files rewrite those paths into shared-ingress external paths such as `/api/v1/meta/projects` or `/api/v1/config/app-configs`
+## 相关文档
 
-For shared ingress route rewriting, read:
-
-```text
-docs/system/ingress-routing.md
-```
-
-## Truth order
-
-Use these sources together:
-
-1. handler code and route registration own what the backend can actually serve
-2. `docs/system/ingress-routing.md` owns the shared-ingress prefix and rewrite rules
-3. `docs/resources/*.md` own resource behavior, validation notes, and shared-ingress examples
-4. `api/openapi/meta-service.yaml`, `network-service.yaml`, `config-service.yaml`, `release-service.yaml`, and `runtime-service.yaml` are the canonical shared-ingress service-scoped contracts
-5. `api/openapi/devflow.yaml` is the aggregate shared-ingress contract view
-6. `api/openapi/swagger.yaml` and `api/openapi/swagger.json` are generated backend-local annotation snapshots
-
-When a service OpenAPI file and handler code disagree, fix the affected service file to match the current ingress-mapped contract implied by code plus ingress routing.
-When `devflow.yaml` and the service files disagree, fix the aggregate file in the same change.
-When the generated Swagger snapshot and handler code disagree, fix the annotations and regenerate the generated artifacts.
-When contract docs and code disagree on behavior, inspect the code and update both surfaces in the same change.
+- `docs/api/README.md`
+- `docs/api/contract-guide.md`
+- `docs/policies/api-contract-policy.md`
+- `docs/system/ingress-routing.md`

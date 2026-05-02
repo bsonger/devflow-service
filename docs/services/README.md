@@ -1,54 +1,14 @@
 # Services
 
-## Purpose
+## 这个文档解决什么问题
 
-This directory contains the current service-boundary docs for `devflow-service`.
-Use these docs to answer one question first: which service owns which resource and runtime responsibility today?
+`docs/services/` 用来回答一个核心问题：
 
-## Standard service doc format
+- 现在到底是哪个服务拥有哪个资源和哪段运行时职责
 
-Most service docs now use this core structure:
+它不是资源字段手册，也不是 API 总览。
 
-1. `# <Service Name>`
-2. `## Purpose`
-3. `## Owns`
-4. `## Does Not Own`
-5. `## Dependency model`
-6. `## Current implementation reality` when the service boundary differs from the target architecture or still uses same-repo implementation access
-7. `## Downstream Consumers` when that section is separate
-8. `## Entrypoint`
-9. `## Registered Domains`
-10. `## Pre-production Shared Ingress`
-11. `## Resource Contracts`
-12. `## Diagnostics`
-13. `## Verification`
-
-Some services also add service-specific sections such as:
-
-- dependency detail by workflow
-- dependency view diagrams
-- operator flow descriptions
-- pre-production delivery-path notes
-
-The important rule is that dependency information should now live under `## Dependency model` rather than the older `## Upstream Dependencies` heading.
-
-## Current fact requirements
-
-Each service doc must make these distinctions explicit when they matter:
-
-- target service boundary: the ownership model the repo is moving toward
-- current implementation reality: what the code in this repo actually does today
-- backend-local route surface: paths registered by the service router
-- pre-production shared ingress surface: edge-facing paths exposed through `deployments/pre-production/istio/shared-ingress.yaml`
-- not yet implemented behavior: planned or desired behavior that should not be read as current capability
-
-Do not describe downstream HTTP validation, isolated storage, or runtime dependencies as current behavior unless the code path exists in this repo.
-
-For shared ingress rewrite rules, use:
-
-- `docs/system/ingress-routing.md`
-
-## Current service docs
+## 当前服务清单
 
 - `meta-service.md`
 - `config-service.md`
@@ -56,18 +16,38 @@ For shared ingress rewrite rules, use:
 - `release-service.md`
 - `runtime-service.md`
 
-## Ownership rule
+## 必须先搞清楚的命名映射
 
-One resource belongs to exactly one active service boundary.
-If a resource contract and a service doc disagree, fix the docs in the same change rather than leaving split ownership behind.
+当前仓库里最容易让新人和 Agent 混淆的，是“当前实现名”和“目标边界名”不是一套词。
 
-## Related docs
+请按下面理解：
 
-- `docs/resources/` for resource contracts, API behavior, and validation rules
-- `docs/system/` for current repo-local execution truth
-- `docs/policies/` for durable repo rules
+- 当前实际可运行服务仍然是 `meta-service`
+- 当设计讨论提到 `application-service` 时，应理解为“应用元数据边界的目标命名或概念边界”；当前实现事实仍由 `meta-service` 文档负责
+- `verify-service` 不再是当前独立可运行服务；它的 verify ingress / writeback contract 已经归入 `release-service`
+- `telemetry-service` 不是当前实现服务，只能标记为 planned
 
-## Notes
+## 每篇服务文档至少要回答什么
 
-- These docs should describe the current code in this repo.
-- Do not treat migrated material from sibling repos as authoritative if it conflicts with the current implementation here.
+每篇服务文档都应该明确写清楚：
+
+- 这个服务解决什么问题
+- 它拥有哪些资源
+- 它不拥有哪些资源
+- 它依赖哪些上游事实或外部系统
+- 当前实现和目标边界是否仍有差距
+- 后端本地路由和 shared ingress 路由分别是什么
+- 改动这个服务时应该去看哪些资源文档、系统文档和验证命令
+
+## 使用规则
+
+- 看当前事实，优先相信这里和 `docs/system/*`
+- 看具体字段和 API，再跳到 `docs/resources/*` 或 `docs/api/*`
+- 如果服务文档和资源文档冲突，必须在同一次改动里一起修
+
+## 相关文档
+
+- `docs/system/architecture.md`
+- `docs/system/current-service-extraction-reality.md`
+- `docs/resources/README.md`
+- `docs/api/README.md`

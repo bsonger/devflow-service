@@ -19,6 +19,13 @@ These service-scoped files are the canonical shared-ingress frontend/backend HTT
 
 Any change touching API-related code must re-check and, when needed, update the affected service OpenAPI file and the aggregate `api/openapi/devflow.yaml`.
 
+API-wide wording should stay aligned across:
+
+- `api/openapi/*-service.yaml`
+- `api/openapi/devflow.yaml`
+- `docs/api/contract-guide.md`
+- the affected `docs/resources/*.md`
+
 API-related code includes:
 
 - route registration

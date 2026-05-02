@@ -1,5 +1,15 @@
 # Service
 
+## 这个文档解决什么问题
+
+这份文档说明 `Service` 这个资源如何表达应用级服务拓扑。
+
+读完后，读者应该能回答：
+
+- `Service` 为什么是 application-scoped
+- 它和 `Route` 的边界是什么
+- 它怎样进入 `Manifest.services_snapshot`
+
 ## Ownership
 
 - active service boundary: `network-service`
@@ -14,6 +24,12 @@
 One application can own multiple services, and each service is identified by `name` within the application boundary.
 The current resource models a simple Kubernetes-style internal service and is rendered as a `ClusterIP` Service by default.
 It stores the logical service name plus the exposed service ports and target ports used by route validation and release-time manifest assembly.
+
+## Relationship note
+
+- `Service` 是应用级网络基线
+- `Route` 是环境级流量入口
+- `Manifest` 会冻结 `Service` 快照，但不会在这里引入环境级路由差异
 
 ## Common base fields
 

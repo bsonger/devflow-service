@@ -31,6 +31,11 @@ That target validates:
 - `api/openapi/runtime-service.yaml`
 - `api/openapi/devflow.yaml`
 
+Before changing those files, read:
+- `docs/api/contract-guide.md`
+- `docs/guides/openapi-workflow.md`
+- `api/openapi/README.md`
+
 For Codex-assisted contract refresh:
 
 ```sh
@@ -40,6 +45,10 @@ bash scripts/sync-openapi-with-codex.sh
 That helper runs the fixed Codex prompt, then `make openapi-check`, then prints the resulting `git diff`.
 
 This remains the canonical repo-local handoff check while the repository migrates from the older nested shape to the root `cmd/` and `internal/` layout.
+
+For broader local development command order, also read:
+- `docs/guides/local-development.md`
+- `docs/guides/backend-change-playbook.md`
 
 ## Proof split
 

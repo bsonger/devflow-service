@@ -1,5 +1,15 @@
 # Release
 
+## 这个文档解决什么问题
+
+这份文档说明 `Release` 这个资源为什么存在，以及它怎样消费 `Manifest`、冻结环境差异并记录发布过程。
+
+读完后，读者应该能回答：
+
+- 为什么 `Release` 是 deploy-side freeze point
+- 它和 `Manifest` 的边界到底怎么分
+- rollout 观察与 writeback 为什么不能反过来改写资源归属
+
 ## Ownership
 
 - active service boundary: `release-service`
@@ -10,9 +20,11 @@
 
 ## Purpose
 
-`Release` is an environment-specific deployment execution record derived from one manifest plus rollout-time environment inputs.
+`Release` 是一个 environment-specific 的 deployment execution record。
+它来自一个 `Manifest`，再叠加 rollout-time 的环境输入。
 
-Its job is not to build an image. Its job is to:
+它的职责不是构建镜像。
+它的职责是：
 
 - choose one `manifest`
 - choose one target `environment`
@@ -26,7 +38,7 @@ Its job is not to build an image. Its job is to:
 
 ## Quick reader guide
 
-Use this document when you need to answer deploy-side questions such as:
+当你要回答下面这些 deploy-side 问题时，看这篇文档：
 
 - which manifest was deployed
 - which environment was targeted
@@ -35,14 +47,18 @@ Use this document when you need to answer deploy-side questions such as:
 - what Argo CD external reference was created
 - how rollout steps and status progressed
 
-If your question is instead about:
+如果你要问的是下面这些 build-side 问题：
 
 - which source revision was built
 - what image was produced
 - what Tekton pipeline ran
 - which workload and service snapshots were frozen for build
 
-then the owning resource is `Manifest`, not `Release`.
+那就应该去看 `Manifest`，而不是 `Release`。
+
+For repo-wide API envelope, pagination, compatibility, and observer-token wording, also see:
+
+- `docs/api/contract-guide.md`
 
 For the current emitted/consumed metadata inventory across release-rendered workloads, pod templates, Argo CD `Application`, Tekton `PipelineRun`, and runtime observers, use:
 
@@ -58,20 +74,22 @@ Use the docs in this order so lifecycle wording stays aligned:
 
 ## Lifecycle boundary reminder
 
-For the authoritative release lifecycle boundaries, start with `docs/system/flow-overview.md`.
-Use this resource doc to understand the deploy-side `Release` contract after stage ownership is already clear.
-In particular:
+要先看清 release lifecycle 的归属边界，请先读 `docs/system/flow-overview.md`。
+
+在已经知道 stage ownership 之后，再用这篇资源文档理解 deploy-side `Release` contract。
+
+尤其要抓住这几点：
 
 - stage 3 (`Release` freeze), stage 4 (deployment bundle render), stage 5 (bundle publish), and stage 6 (Argo handoff) are release-owned stages
 - stage 7 (runtime observation and release writeback) is split: `runtime-service` may observe and send callbacks, but `release-service` remains the owner of release truth and the callback surface
 - release metadata labels, rendered workload identity, and Argo handoff inspection are intentionally compatible with both `Deployment` and `Rollout` primary workloads so future strategy work is not blocked on a Deployment-only dead end
 - the stable release `steps[*].code` set is the compatibility boundary, and each code keeps one advancing owner even when other components send supporting writeback facts
 
-If rollout/writeback behavior looks wrong, route next to `docs/system/release-writeback.md` instead of treating this resource page as the callback owner.
+如果 rollout / writeback 行为看起来不对，下一步应跳到 `docs/system/release-writeback.md`，而不是把这篇资源页当作 callback owner。
 
 ## Boundary summary
 
-`Release` is the deploy-side freeze point.
+`Release` 是 deploy-side freeze point。
 
 It owns:
 
@@ -91,7 +109,7 @@ It does not own:
 
 ## Relationship with Manifest
 
-`Manifest` and `Release` have different responsibilities and should stay separate.
+`Manifest` 和 `Release` 职责不同，必须保持分离。
 
 ### Manifest owns
 
@@ -112,7 +130,7 @@ It does not own:
 - Argo CD `Application` creation
 - rollout status tracking
 
-Conclusion:
+结论：
 
 - `Manifest` should not own release artifact packaging
 - `Manifest` should not own environment-specific rendered YAML
@@ -120,7 +138,7 @@ Conclusion:
 
 ## Create request contract
 
-Current recommended create request:
+当前推荐的 create request：
 
 ```json
 {
@@ -131,7 +149,7 @@ Current recommended create request:
 }
 ```
 
-Rules:
+规则：
 
 - required:
   - `manifest_id`
@@ -185,7 +203,7 @@ They should not be treated as the same field:
 
 ## Dependency inputs
 
-`Release` is release-owned, but it composes frozen and live inputs from multiple sources.
+`Release` 归 `release-service` 所有，但它组合了多来源的 frozen input 和 live input。
 
 ### Manifest-side frozen inputs
 
@@ -221,7 +239,7 @@ From `meta-service`:
 
 ## Frozen boundary
 
-The key contract of `Release` is that it freezes deployment-time inputs for one target environment.
+`Release` 的关键契约，是为一个目标环境冻结 deployment-time 输入。
 
 Frozen on release:
 

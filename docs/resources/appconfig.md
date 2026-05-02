@@ -1,5 +1,15 @@
 # AppConfig
 
+## 这个文档解决什么问题
+
+这份文档说明 `AppConfig` 这个资源如何表达环境级配置差异。
+
+读完后，读者应该能回答：
+
+- `AppConfig` 为什么是 environment-scoped
+- 它和 `WorkloadConfig` 的边界是什么
+- 它怎样进入后续 release freeze 和 render
+
 ## Ownership
 
 - active service boundary: `config-service`
@@ -14,6 +24,12 @@
 Its configuration source is synchronized from the fixed GitHub config repository.
 The repository location is system-configured, while the effective repository directory is system-derived from project, application, and environment identity.
 The resource tracks the mount directory plus the latest synced revision, synced files, source repository directory, and source commit.
+
+## Relationship note
+
+- `AppConfig` 表达环境级配置差异
+- 它不会替代 `WorkloadConfig`
+- 它也不是最终渲染后的 ConfigMap；release render 才负责那一步
 
 ## Common base fields
 

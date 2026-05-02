@@ -1,5 +1,28 @@
 # Config Service
 
+## 这个文档解决什么问题
+
+这份文档说明 `config-service` 当前拥有哪些配置资源，以及它和 `meta-service`、`release-service` 的边界如何配合。
+
+读完后，读者应该能回答：
+
+- `AppConfig` 和 `WorkloadConfig` 分别解决什么问题
+- 哪些配置是应用级，哪些是环境级
+- 当前实现还有哪些同仓过渡态
+
+## Reader routing
+
+如果你要看资源字段、API surface 和写规则，继续跳到：
+
+- `docs/resources/appconfig.md`
+- `docs/resources/workloadconfig.md`
+
+如果你要看环境差异与 release freeze 的关系，继续跳到：
+
+- `docs/system/domain-model.md`
+- `docs/resources/manifest.md`
+- `docs/resources/release.md`
+
 ## Purpose
 
 `config-service` owns application configuration state and workload runtime shape.

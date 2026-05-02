@@ -1,129 +1,138 @@
 # DevFlow Service
 
-`devflow-service` is the backend monorepo destination for the current DevFlow backend consolidation work.
-The active local migration still focuses on `meta-service`, while the repo contract is aligned to a root-level Go monorepo layout and now also carries runnable `config-service`, `network-service`, `release-service`, and `runtime-service` entrypoints for extracted config/network/runtime boundaries.
+## 这个文档解决什么问题
 
-## Purpose
+这份 `README` 给第一次进入仓库的工程师或 AI Agent 一个最短入口，用来快速回答 6 个问题：
 
-This repo gives a fresh engineer or agent one place to answer:
-- what the current repo-local layout contract is
-- how docs are layered and where current truth lives
-- which service is actively being migrated
-- which verification and packaging rules must hold during the migration
-- which command to rerun first after interruption
+- 这个仓库现在到底承载哪些服务
+- 当前实现事实和目标边界应该去哪里确认
+- 核心资源之间是什么关系
+- 代码目录应该怎么理解
+- 本地最常用的开发与验证命令是什么
+- 文档应该从哪里开始读
 
-## Current state
+## 当前状态
 
-Today this repo is in a transition state:
-- the current active service name remains `meta-service`
-- `config-service` now also boots from the root layout at `cmd/config-service` and owns the extracted config API surface for `AppConfig` and `WorkloadConfig`
-- `network-service` now also boots from the root layout at `cmd/network-service` and owns the extracted network API surface for `Service` and `Route`
-- `release-service` now also boots from the root layout at `cmd/release-service` with verify ingress folded into its release-owned HTTP surface
-- `runtime-service` now also boots from the root layout at `cmd/runtime-service` and owns the extracted runtime inspection, runtime operation, and internal observer/index API surface
-- `runtime-service` is Kubernetes-first in the active contract: startup/request handling no longer require PostgreSQL, and runtime state is rebuilt in-process by observers after restart
-- release-owned resource domains are split into `internal/manifest` and `internal/intent`, with release-specific orchestration remaining in `internal/release`
-- the target code layout is root `cmd/` plus root `internal/`
-- business code follows `internal/<domain>/{service,domain,repository,transport}`
-- the docs have moved to a layered structure under `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
-- the canonical repo-local verification entrypoint remains `bash scripts/verify.sh`
+`devflow-service` 是 DevFlow 后端的 Go monorepo。
 
-This repo does **not** treat `modules/` as a valid end-state structure.
-`internal/shared/` is allowed only as a small, controlled area for stable cross-domain helpers such as errors, response helpers, middleware, or id generation.
-It is not a place for business logic, private models, or generic `common`/`util` dumping grounds.
+当前仓库已经有 5 个可运行入口：
 
-## Kubernetes Database Baseline
+- `meta-service`：元数据边界，当前迁移主线仍然围绕它
+- `config-service`：配置边界，拥有 `AppConfig` 和 `WorkloadConfig`
+- `network-service`：网络边界，拥有 `Service` 和 `Route`
+- `release-service`：发布边界，拥有 `Manifest`、`Release`、`Intent`，并吸收了原 `verify-service` 的 writeback / callback 路由
+- `runtime-service`：运行时读写边界，负责 runtime read model、operator action、observer callback
 
-Pre-production service manifests in this repo currently share one PostgreSQL 18 cluster in the Kubernetes `database` namespace for `meta-service`, `config-service`, `network-service`, and `release-service`:
+关键约束：
 
-- cluster: `pg18-next`
-- writer endpoint: `pg18-next-rw.database:5432`
-- database: `app`
-- owner: `app`
+- 当前可运行服务名仍然是 `meta-service`，不要把未来命名当成当前事实
+- `telemetry-service` 目前只能视为 planned，不是当前代码的强依赖
+- 仓库目标布局是根目录 `cmd/ + internal/`，不是旧的 `modules/`
+- `internal/shared/` 只能放小而稳定的跨域 helper，不能重新变成 `common/` 或 `util/`
 
-The repo-managed install and bootstrap artifacts for that database now live under:
+## 核心资源关系
 
-```text
-deployments/pre-production/database/
-```
+从业务关系上看，当前仓库里的主要资源链路是：
 
-`runtime-service` is intentionally outside this active PostgreSQL dependency contract.
+1. `Project` 下面有多个 `Application`
+2. `Application` 通过 `ApplicationEnvironment` 绑定到多个 `Environment`
+3. `Application` 维度维护应用级配置与网络基线：
+   - `WorkloadConfig`
+   - `Service`
+4. `Application + Environment` 维度维护环境差异：
+   - `AppConfig`
+   - `Route`
+5. `Manifest` 是发布前的 build-side freeze point：
+   - 冻结 `git_revision / commit_hash`
+   - 冻结 `WorkloadConfig`
+   - 冻结 `Service`
+   - 记录镜像构建结果
+6. `Release` 是 deploy-side freeze point：
+   - 绑定一个 `Manifest`
+   - 绑定一个目标 `Environment`
+   - 冻结 `AppConfig`
+   - 冻结 `Route`
+   - 渲染并发布部署 bundle
 
-The repo-local operational reference for this contract is:
+最重要的边界规则：
 
-```text
-docs/system/postgresql.md
-```
+- `Manifest` 是发布前冻结的不可变快照
+- `Release` 消费 `Manifest`，但不会回写或重定义 `Manifest`
+- 环境差异通过 `AppConfig`、`Route` 和 release render 时的 Overlay / EnvConfig 表达，不应该通过业务代码里的环境分支硬编码
 
-## Build baseline
+## 仓库结构
 
-The target repository baseline is:
-- module path: `github.com/bsonger/devflow-service`
-- target Go version: `1.26.2`
-- target builder/runtime contract: controlled base images with all installation behavior moved out of service Dockerfiles
+当前根目录结构按职责分层：
 
-Service Dockerfiles should use thin multi-stage builds and keep installation behavior inside controlled base images only.
-The root `Dockerfile` defaults to building `meta-service`.
-Non-default service image selection for `config-service`, `network-service`, `release-service`, and `runtime-service` is a committed cluster-build concern and must be expressed through checked-in Tekton manifests under `deployments/tekton/` rather than ad-hoc local Docker commands.
+- `cmd/`：可运行进程入口
+- `internal/`：业务实现
+- `internal/platform/`：基础设施能力
+- `internal/shared/`：少量稳定共享 helper
+- `api/`：稳定契约，当前主要是 OpenAPI
+- `deployments/`：部署与环境清单
+- `docs/`：分层文档
+- `scripts/`：验证和辅助脚本
+- `test/`：集成或端到端验证面
 
-## Repo shape
+业务代码约定为：
 
-The active target top-level layout is:
-- `cmd/` — runnable process entrypoints only
-- `internal/` — repo-private implementation
-- `internal/platform/` — infrastructure-only capabilities
-- `internal/shared/` — optional, tightly-scoped shared helpers only
-- `api/` — stable contracts such as OpenAPI or protobuf
-- `deployments/` — deployment artifacts that belong in-repo
-- `test/` — integration and e2e verification surfaces
-- `docs/` — layered repo-local docs
-- `scripts/` — repo-level verification and support scripts
+- `internal/<domain>/domain`
+- `internal/<domain>/service`
+- `internal/<domain>/repository`
+- `internal/<domain>/transport`
 
-For directory, layering, naming, and dependency decisions, the primary policy is:
+目录、命名和依赖方向以 `docs/policies/go-monorepo-layout.md` 为准。
 
-```text
-docs/policies/go-monorepo-layout.md
-```
+## 文档地图
 
-## Read this first
+推荐阅读顺序：
 
-If you are landing here cold, read in this order:
-1. `AGENTS.md`
+1. [AGENTS.md](AGENTS.md)
 2. `docs/system/recovery.md`
 3. `docs/system/architecture.md`
-4. `docs/policies/go-monorepo-layout.md`
-5. `docs/services/meta-service.md`
-6. `docs/resources/` only if the task needs current resource contracts
-7. `docs/system/postgresql.md` only if the task touches PostgreSQL, Kubernetes database bootstrap, or service DSNs
-8. `docs/policies/docker-baseline.md` only if the task touches packaging, Docker, or CI
-9. `docs/policies/verification.md` and `scripts/README.md` only if the task touches verification
-10. `../devflow-control/docs/target-architecture/devflow-service.md` only if local docs are not enough for a migration-boundary question
+4. `docs/system/domain-model.md`
+5. `docs/services/README.md`
+6. `docs/resources/README.md`
+7. `docs/api/README.md`
+8. `docs/guides/README.md`
+9. `docs/policies/go-monorepo-layout.md`
 
-## Docs layout
+文档目录按用途分层：
 
-Use the docs tree by purpose:
-- `docs/index/` — navigation only
-- `docs/system/` — current repo-local truth
-- `docs/services/` — current service-specific behavior and diagnostics
-- `docs/resources/` — current resource contracts and API behavior
-- `docs/policies/` — durable repo rules, including Go monorepo layout policy
-- `docs/generated/` — generated artifacts only
-- `docs/archive/` — historical material only
+- `docs/index/`：导航入口
+- `docs/system/`：当前实现事实
+- `docs/services/`：服务边界
+- `docs/resources/`：资源契约
+- `docs/api/`：API 统一约定与 breaking changes
+- `docs/guides/`：开发者操作指南
+- `docs/policies/`：长期规则
+- `docs/architecture/`：图示材料，只做可视化补充，不是当前事实源
+- `docs/generated/`：生成产物
+- `docs/archive/`：历史材料
 
-## Verification and recovery
+## 本地开发与验证
 
-Use `docs/system/recovery.md` as the single repository-local recovery authority.
-Use `docs/policies/verification.md` for the target verification stack.
-Use `docs/policies/docker-baseline.md` for the base-image and packaging rules.
-
-The first command to rerun after interruption is:
+最常用命令：
 
 ```sh
+make fmt-check
+go test ./...
+make build-all
+make openapi-check
 bash scripts/verify.sh
 ```
 
-That verifier is also the mechanical anti-regression guard against reintroducing runtime-domain PostgreSQL access under `internal/runtime/**` while the rest of the repository may still legitimately use PostgreSQL.
+运行单个服务：
 
-The target verification stack from the repo root is:
+```sh
+make run APP=meta-service
+make run APP=config-service
+make run APP=network-service
+make run APP=release-service
+make run APP=runtime-service
+```
+
+当前验证基线：
 
 ```sh
 make fmt-check
@@ -138,18 +147,28 @@ go build -o bin/runtime-service ./cmd/runtime-service
 bash scripts/verify.sh
 ```
 
-Local ad-hoc Docker image builds are intentionally **not** part of that proof stack.
-When packaging work is involved, validate the root `Dockerfile` and Docker policy instead.
-
-The repo-level convenience entrypoint for the same stack is:
+如果改了 API 相关代码，还必须运行：
 
 ```sh
-make ci
+make openapi-check
 ```
 
+## 数据与运行时说明
 
-For the detailed Go monorepo layout contract, read:
+当前 pre-production 基线中：
 
-```text
-docs/policies/go-monorepo-layout.md
-```
+- `meta-service`、`config-service`、`network-service`、`release-service` 共享 Kubernetes 里的 PostgreSQL 18 集群
+- `runtime-service` 的 active runtime-domain 路径是 PostgreSQL-free
+- release bundle 通过 OCI registry + Argo CD 下发
+
+相关当前事实文档：
+
+- `docs/system/postgresql.md`
+- `docs/system/flow-overview.md`
+- `docs/services/release-service.md`
+- `docs/services/runtime-service.md`
+
+## Assumptions
+
+- 仓库外部的 `devflow-control` 目标架构文档当前不在本地 workspace 中，所以这份 `README` 只以本仓库当前实现和本仓库现有文档为准
+- 当文档提到 `application-service` 时，指的是“元数据边界的目标命名或概念边界”；当前实际可运行服务名仍然是 `meta-service`
