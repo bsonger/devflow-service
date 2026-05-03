@@ -37,6 +37,7 @@ Build-dispatch selection rule in `release-service`:
 
 - the manifest build trigger does not hardcode the Tekton target in service code anymore
 - `release-service` reads the build dispatch target from its runtime config `tekton.namespace`, `tekton.build_pipeline`, and `tekton.pvc_generate_name`
+- `release-service` no longer uses the historical `repo.address` / `repo.path` config block for manifest build dispatch
 - the pre-production example lives in `deployments/pre-production/release-service.yaml`
 
 Monorepo service-selection rule inside that active chain:

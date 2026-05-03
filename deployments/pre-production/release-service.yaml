@@ -24,9 +24,6 @@ data:
       service_name: "release-service"
       resource_attributes: "deployment.environment=pre-production,service.version=preproduction-release-20260425"
       sample_ratio: 0.1
-    repo:
-      address: "https://github.com/bsonger/manifests.git"
-      path: "manifests"
     runtime:
       base_url: "http://runtime-service.devflow-pre-production.svc.cluster.local:8084"
     observer:

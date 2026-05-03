@@ -101,6 +101,7 @@ The committed repo contract is:
 - `meta-service` is the default runnable image from the root `Dockerfile`
 - `config-service`, `network-service`, `release-service`, and `runtime-service` are selected explicitly through committed Tekton `SERVICE_NAME` params in cluster build manifests
 - manifest-created build dispatch inside `release-service` reads its Tekton target from `deployments/pre-production/release-service.yaml` via `tekton.namespace`, `tekton.build_pipeline`, and `tekton.pvc_generate_name`
+- the historical `repo.address` / `repo.path` block is no longer part of the active `release-service` runtime config
 
 The committed Tekton manifests that make this explicit are:
 - `deployments/tekton/meta-service-preproduction-build-pipelinerun.yaml`

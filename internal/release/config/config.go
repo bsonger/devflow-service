@@ -35,7 +35,6 @@ type Config struct {
 	Postgres      *model.PostgresConfig             `mapstructure:"postgres" json:"postgres" yaml:"postgres"`
 	Log           *model.LogConfig                  `mapstructure:"log" json:"log" yaml:"log"`
 	Otel          *model.OtelConfig                 `mapstructure:"otel" json:"otel" yaml:"otel"`
-	Repo          *model.Repo                       `mapstructure:"repo" json:"repo" yaml:"repo"`
 	Runtime       *model.RuntimeServiceConfig       `mapstructure:"runtime" json:"runtime" yaml:"runtime"`
 	Observer      *model.ObserverConfig             `mapstructure:"observer" json:"observer" yaml:"observer"`
 	Worker        *model.WorkerConfig               `mapstructure:"worker" json:"worker" yaml:"worker"`
@@ -149,7 +148,6 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 			ConfigServiceBaseURL:        stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.ConfigServiceBaseURL }),
 		},
 	})
-	model.InitConfigRepo(config.Repo)
 	if runtime.IsIntentMode() {
 		workerCfg := runtime.ReleaseIntentWorkerConfigFromModel(config.Worker)
 		runtime.StartReleaseIntentWorker(runtimeCtx, workerCfg, service.ReleaseService)

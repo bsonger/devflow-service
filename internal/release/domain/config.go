@@ -33,11 +33,6 @@ type OtelConfig struct {
 	SampleRatio        float64 `mapstructure:"sample_ratio" json:"sample_ratio" yaml:"sample_ratio"`
 }
 
-type Repo struct {
-	Address string `mapstructure:"address" json:"address" yaml:"address"`
-	Path    string `mapstructure:"path" json:"path" yaml:"path"`
-}
-
 type RuntimeServiceConfig struct {
 	BaseURL string `mapstructure:"base_url" json:"base_url" yaml:"base_url"`
 }
