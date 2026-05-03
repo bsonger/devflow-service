@@ -559,7 +559,6 @@ require_literal "$ROOT_DIR/docs/services/release-service.md" "release-service ve
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker builder base" "FROM registry.cn-hangzhou.aliyuncs.com/devflow/golang-builder:1.26.2-alpine3.22 AS builder"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker scratch base" "FROM scratch"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker default service arg" "ARG SERVICE_NAME=meta-service"
-require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker default port arg" "ARG SERVICE_PORT=8081"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker build target" 'go build -o /out/service ./cmd/${SERVICE_NAME}'
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker copied binary" "COPY --from=builder /out/service ./service"
 require_literal "$ROOT_DIR/Dockerfile" "meta-service Docker copied certs" "COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt"

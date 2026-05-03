@@ -21,6 +21,8 @@ spec:
       value: meta-service
     - name: image-tag
       value: "IMAGE_TAG_PLACEHOLDER"
+    - name: SERVICE_NAME
+      value: meta-service
     - name: DOCKERFILE
       value: Dockerfile
   workspaces:

@@ -179,6 +179,19 @@ func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest,
 }
 
 func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageRegistry string, target oci.ImageTarget) *tknv1.PipelineRun {
+	params := []tknv1.Param{
+		{Name: "git-url", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.RepoAddress}},
+		{Name: "git-revision", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.GitRevision}},
+		{Name: "image-registry", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: imageRegistry}},
+		{Name: "name", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: target.Name}},
+		{Name: "image-tag", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: target.Tag}},
+	}
+	if serviceName := strings.TrimSpace(target.Name); serviceName != "" {
+		params = append(params, tknv1.Param{
+			Name:  "SERVICE_NAME",
+			Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: serviceName},
+		})
+	}
 	return &tknv1.PipelineRun{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PipelineRun",
@@ -195,13 +208,7 @@ func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageR
 		},
 		Spec: tknv1.PipelineRunSpec{
 			PipelineRef: &tknv1.PipelineRef{Name: manifestTektonBuildPipeline},
-			Params: []tknv1.Param{
-				{Name: "git-url", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.RepoAddress}},
-				{Name: "git-revision", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.GitRevision}},
-				{Name: "image-registry", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: imageRegistry}},
-				{Name: "name", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: target.Name}},
-				{Name: "image-tag", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: target.Tag}},
-			},
+			Params:      params,
 			Workspaces: []tknv1.WorkspaceBinding{
 				{
 					Name: "source",

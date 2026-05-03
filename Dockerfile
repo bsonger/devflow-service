@@ -1,5 +1,4 @@
 ARG SERVICE_NAME=meta-service
-ARG SERVICE_PORT=8081
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG GOPROXY=https://goproxy.cn,direct
@@ -27,7 +26,6 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 FROM scratch
 
-ARG SERVICE_PORT
 
 WORKDIR /app
 
@@ -35,6 +33,5 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifi
 COPY --from=builder /out/service ./service
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-EXPOSE ${SERVICE_PORT}
 USER 65532:65532
 ENTRYPOINT ["/app/service"]

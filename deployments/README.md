@@ -16,6 +16,7 @@ Current local pre-production flow:
 - use `deployments/tekton/network-service-preproduction-build-pipelinerun.yaml` to build and push `network-service:preproduction`
 - use `deployments/tekton/release-service-preproduction-build-pipelinerun.yaml` to build and push `release-service:preproduction`
 - use `deployments/tekton/runtime-service-preproduction-build-pipelinerun.yaml` to build and push `runtime-service:preproduction`
+- the active Tekton contract now passes `SERVICE_NAME` as the monorepo service-selection source of truth; `BUILD_ARGS` is optional extra build customization only
 - use `kubectl apply -f deployments/pre-production/meta-service.yaml` to deploy namespace `devflow-pre-production`, configmap, service, and deployment for `meta-service`
 - use `kubectl apply -f deployments/pre-production/config-service.yaml` to deploy `config-service`
 - use `kubectl apply -f deployments/pre-production/network-service.yaml` to deploy `network-service`
@@ -24,6 +25,7 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
 - pre-production runtime observation is now owned by the in-process observer inside `runtime-service`; there is no separate `resource-observer.yaml` deployment artifact in the active contract
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
+- use `kubectl apply -f deployments/pre-production/istio/signoz-virtualservice.yaml` to expose Signoz through `signoz.bei.com`
 
 ## Canonical pre-production operator proof route
 
@@ -91,6 +93,7 @@ Docker build note for this monorepo:
 - the root `Dockerfile` still defaults to `meta-service`
 - do **not** treat ad-hoc local Docker builds as the deployment contract for service-boundary extraction work
 - non-default service image selection must be hardcoded in committed Tekton manifests
+- non-default service image selection must set a dedicated Tekton `SERVICE_NAME` param; do not rely on a free-form `BUILD_ARGS` string to pick the entrypoint
 - only repo entrypoints under `cmd/` are buildable
 - `config-service`, `network-service`, `release-service`, and `runtime-service` are now separate runnable images in this repo
 
@@ -111,9 +114,9 @@ The committed Tekton manifests that make this explicit are:
 
 Tekton task note:
 - `deployments/tekton/devflow-tekton-image-build-and-push.yaml` accepts an optional `BUILD_ARGS` param
-- `deployments/tekton/devflow-tekton-image-build-push-only.yaml` must also forward `BUILD_ARGS` into the build task
-- the committed service manifests already hardcode the non-default build selection, for example:
-  - `SERVICE_NAME=config-service --build-arg SERVICE_PORT=8082`
-  - `SERVICE_NAME=network-service --build-arg SERVICE_PORT=8086`
-  - `SERVICE_NAME=release-service --build-arg SERVICE_PORT=8083`
-  - `SERVICE_NAME=runtime-service --build-arg SERVICE_PORT=8084`
+- `deployments/tekton/devflow-tekton-image-build-push-only.yaml` must forward `SERVICE_NAME` and `BUILD_ARGS` into the build task
+- the committed service manifests now hardcode monorepo service selection with dedicated Tekton params, for example:
+  - `SERVICE_NAME=config-service`
+  - `SERVICE_NAME=network-service`
+  - `SERVICE_NAME=release-service`
+  - `SERVICE_NAME=runtime-service`

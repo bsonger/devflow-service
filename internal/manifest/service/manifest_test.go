@@ -20,8 +20,8 @@ import (
 	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	"github.com/google/uuid"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
-	corev1 "k8s.io/api/core/v1"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	_ "modernc.org/sqlite"
 )
 
@@ -145,8 +145,8 @@ func TestBuildManifestFreezesCanonicalizedWorkloadSnapshot(t *testing.T) {
 		Probes: appconfigdownstream.WorkloadProbes{
 			Readiness: &appconfigdownstream.WorkloadProbe{Path: "/readyz", Port: "http", PeriodSeconds: 5},
 		},
-		Env: []appconfigdownstream.EnvVar{{Name: "LOG_LEVEL", Value: "debug"}},
-		Labels: map[string]string{"team": "platform"},
+		Env:         []appconfigdownstream.EnvVar{{Name: "LOG_LEVEL", Value: "debug"}},
+		Labels:      map[string]string{"team": "platform"},
 		Annotations: map[string]string{"example.com/revision": "migrated"},
 	}
 	target := oci.ImageTarget{
@@ -268,6 +268,9 @@ func TestBuildManifestPipelineRunUsesGitRevisionAndAnnotations(t *testing.T) {
 	}
 	if params["image-registry"] != "registry.example.com/devflow" {
 		t.Fatalf("image-registry = %q", params["image-registry"])
+	}
+	if params["SERVICE_NAME"] != target.Name {
+		t.Fatalf("SERVICE_NAME = %q", params["SERVICE_NAME"])
 	}
 	if run.Annotations["devflow.manifest/id"] != manifest.ID.String() {
 		t.Fatalf("annotation manifest id = %q", run.Annotations["devflow.manifest/id"])

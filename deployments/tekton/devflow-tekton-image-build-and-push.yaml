@@ -16,6 +16,9 @@ spec:
     - name: GIT_TAG
       type: string
       default: ""
+    - name: SERVICE_NAME
+      type: string
+      default: ""
     - name: DOCKERFILE
       type: string
       default: Dockerfile
@@ -53,6 +56,7 @@ spec:
         echo "param.IMAGE_REPOSITORY=$(params.IMAGE_REPOSITORY)"
         echo "param.IMAGE_TAG=$(params.IMAGE_TAG)"
         echo "param.GIT_TAG=$(params.GIT_TAG)"
+        echo "param.SERVICE_NAME=$(params.SERVICE_NAME)"
         echo "param.DOCKERFILE=$(params.DOCKERFILE)"
         echo "param.BUILD_ARGS=$(params.BUILD_ARGS)"
 
@@ -63,10 +67,21 @@ spec:
 
         IMAGE="$(params.IMAGE_REPOSITORY):${TAG}"
         SRC="$(workspaces.source.path)"
+        SERVICE_NAME="$(params.SERVICE_NAME)"
         DOCKERFILE_REL="$(params.DOCKERFILE)"
         BUILD_ARGS="$(params.BUILD_ARGS)"
         SSH_DIR="${SRC}/.tekton-ssh"
         DEFAULT_BUILD_ARGS="--build-arg GOPROXY=${GOPROXY}"
+
+        if [ -z "${SERVICE_NAME}" ]; then
+          SERVICE_NAME="$(basename "$(params.IMAGE_REPOSITORY)")"
+          echo "SERVICE_NAME param empty, falling back to IMAGE_REPOSITORY basename: ${SERVICE_NAME}"
+        fi
+
+        if [ -n "${SERVICE_NAME}" ]; then
+          DEFAULT_BUILD_ARGS="${DEFAULT_BUILD_ARGS} --build-arg SERVICE_NAME=${SERVICE_NAME}"
+        fi
+
 
         cleanup() {
           rm -rf "${SSH_DIR}"
@@ -109,6 +124,8 @@ spec:
 
         echo "Resolved build context: ${CONTEXT}"
         echo "Resolved dockerfile: ${DOCKERFILE_PATH}"
+        echo "Resolved service selection: ${SERVICE_NAME}"
+        echo "Resolved default build args: ${DEFAULT_BUILD_ARGS}"
         echo "Resolved final image tag: ${TAG}"
         echo "Resolved final image ref: ${IMAGE}"
         echo "Listing build context root:"

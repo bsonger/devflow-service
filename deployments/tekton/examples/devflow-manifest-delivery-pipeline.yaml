@@ -20,6 +20,9 @@ spec:
     - name: image-tag
       type: string
       default: latest
+    - name: service-name
+      type: string
+      default: ""
     - name: dockerfile
       type: string
       default: Dockerfile
@@ -64,6 +67,8 @@ spec:
           value: $(params.image-tag)
         - name: GIT_TAG
           value: $(tasks.git-clone.results.git-tag)
+        - name: SERVICE_NAME
+          value: $(params.service-name)
         - name: DOCKERFILE
           value: $(params.dockerfile)
         - name: BUILD_ARGS

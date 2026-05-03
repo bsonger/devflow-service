@@ -33,6 +33,12 @@ Authoritative committed files:
 - `deployments/tekton/devflow-tekton-image-build-and-push.yaml`
 - `deployments/tekton/devflow-tekton-image-build-push-only.yaml`
 
+Monorepo service-selection rule inside that active chain:
+
+- non-default `cmd/<service>` selection must travel through a dedicated Tekton `SERVICE_NAME` param
+- `BUILD_ARGS` remains optional for extra Docker build customization, but it is not the primary selector for which service entrypoint gets compiled
+- this avoids accidentally compiling the root Dockerfile default (`meta-service`) when a service-specific PipelineRun omits or mangles free-form build args
+
 Important reader guardrail:
 
 - this current committed state is a **build-side** Tekton pipeline truth

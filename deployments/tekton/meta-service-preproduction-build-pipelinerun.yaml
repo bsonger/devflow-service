@@ -22,6 +22,8 @@ spec:
       value: "meta-service"
     - name: image-tag
       value: "preproduction"
+    - name: SERVICE_NAME
+      value: "meta-service"
     - name: DOCKERFILE
       value: "Dockerfile"
   workspaces:
