@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -35,13 +36,13 @@ type ReleaseRolloutObserverConfig struct {
 }
 
 type releaseRolloutContext struct {
-	ReleaseID             uuid.UUID
-	ApplicationID         uuid.UUID
-	EnvironmentID         string
-	Namespace             string
-	PrimaryWorkloadName   string
-	ObservedWorkloadKind  string
-	ObservedWorkloadName  string
+	ReleaseID            uuid.UUID
+	ApplicationID        uuid.UUID
+	EnvironmentID        string
+	Namespace            string
+	PrimaryWorkloadName  string
+	ObservedWorkloadKind string
+	ObservedWorkloadName string
 }
 
 type ReleaseRolloutObserver struct {
@@ -52,6 +53,27 @@ type ReleaseRolloutObserver struct {
 	store       repository.Store
 	mu          sync.Mutex
 	processed   map[string]string
+}
+
+type releaseRolloutWritebackError struct {
+	Path       string
+	StatusCode int
+}
+
+func (e *releaseRolloutWritebackError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("release rollout writeback failed: path=%s status=%d", e.Path, e.StatusCode)
+}
+
+func (e *releaseRolloutWritebackError) NotFound() bool {
+	return e != nil && e.StatusCode == http.StatusNotFound
+}
+
+func isReleaseRolloutWritebackNotFound(err error) bool {
+	var target *releaseRolloutWritebackError
+	return errors.As(err, &target) && target.NotFound()
 }
 
 func StartReleaseRolloutObserver(ctx context.Context, restCfg *rest.Config, cfg ReleaseRolloutObserverConfig) error {
@@ -162,6 +184,20 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 		return nil
 	}
 	if err := o.writeReleaseSteps(ctx, rollout, phase, progress, message); err != nil {
+		if isReleaseRolloutWritebackNotFound(err) {
+			log.Warn("skip stale release rollout writeback because release was not found",
+				zap.String("release_id", rollout.ReleaseID.String()),
+				zap.String("application_id", rollout.ApplicationID.String()),
+				zap.String("environment_id", rollout.EnvironmentID),
+				zap.String("observed_workload_kind", rollout.ObservedWorkloadKind),
+				zap.String("observed_workload_name", rollout.ObservedWorkloadName),
+				zap.String("namespace", rollout.Namespace),
+				zap.String("phase", string(phase)),
+				zap.String("state_key", stateKey),
+			)
+			o.markProcessed(rollout.ReleaseID.String(), stateKey)
+			return nil
+		}
 		log.Warn("release rollout writeback failed",
 			zap.String("release_id", rollout.ReleaseID.String()),
 			zap.String("observed_workload_kind", rollout.ObservedWorkloadKind),
@@ -374,7 +410,7 @@ func (o *ReleaseRolloutObserver) postJSON(ctx context.Context, path string, payl
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	return fmt.Errorf("release rollout writeback failed: path=%s status=%d", path, resp.StatusCode)
+	return &releaseRolloutWritebackError{Path: path, StatusCode: resp.StatusCode}
 }
 
 func (o *ReleaseRolloutObserver) isProcessed(releaseID, stateKey string) bool {

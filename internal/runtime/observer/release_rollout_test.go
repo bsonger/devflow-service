@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,6 +63,27 @@ func TestDeriveReleaseRolloutContext(t *testing.T) {
 	}
 }
 
+func TestPostJSONReturnsTypedNotFoundError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, `{"error":{"code":"not_found","message":"not found"}}`)
+	}))
+	defer server.Close()
+
+	observer := &ReleaseRolloutObserver{
+		httpClient:  server.Client(),
+		releaseBase: server.URL,
+	}
+
+	err := observer.postJSON(context.Background(), "/api/v1/verify/release/steps", map[string]any{"release_id": uuid.NewString()})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !isReleaseRolloutWritebackNotFound(err) {
+		t.Fatalf("expected typed not-found writeback error, got %v", err)
+	}
+}
+
 func TestDeriveReleaseRolloutContextFallsBackToWorkloadEnvironment(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()
@@ -95,7 +117,7 @@ func TestDeriveReleaseRolloutContextPrefersReleaseLabelsOverRuntimeFields(t *tes
 			releasedomain.ReleaseIDLabel:          releaseID.String(),
 			releasedomain.ReleaseApplicationLabel: applicationID.String(),
 			releasedomain.ReleaseEnvironmentLabel: "prod-release",
-			"app.kubernetes.io/name":            "demo-api-shadow",
+			"app.kubernetes.io/name":              "demo-api-shadow",
 		},
 	}
 
@@ -126,7 +148,7 @@ func TestDeriveReleaseRolloutContextKeepsRolloutMetadataCompatibleButObservation
 			releasedomain.ReleaseIDLabel:          releaseID.String(),
 			releasedomain.ReleaseApplicationLabel: applicationID.String(),
 			releasedomain.ReleaseEnvironmentLabel: "prod",
-			"app.kubernetes.io/name":            "demo-api",
+			"app.kubernetes.io/name":              "demo-api",
 		},
 	}
 
