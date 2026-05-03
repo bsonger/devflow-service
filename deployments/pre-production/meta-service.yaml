@@ -36,7 +36,7 @@ data:
       level: info
       format: json
     otel:
-      endpoint: ""
+      endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
       service_name: meta-service
     pyroscope: ""
 ---

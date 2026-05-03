@@ -19,7 +19,7 @@ data:
       level: "info"
       format: "json"
     otel:
-      endpoint: "http://otel-collector.observability.svc.cluster.local:4318"
+      endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
       protocol: "http/protobuf"
       service_name: "network-service"
       resource_attributes: "deployment.environment=pre-production,service.version=preproduction-network-20260425"
