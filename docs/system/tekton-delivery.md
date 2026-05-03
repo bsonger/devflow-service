@@ -33,6 +33,12 @@ Authoritative committed files:
 - `deployments/tekton/devflow-tekton-image-build-and-push.yaml`
 - `deployments/tekton/devflow-tekton-image-build-push-only.yaml`
 
+Build-dispatch selection rule in `release-service`:
+
+- the manifest build trigger does not hardcode the Tekton target in service code anymore
+- `release-service` reads the build dispatch target from its runtime config `tekton.namespace`, `tekton.build_pipeline`, and `tekton.pvc_generate_name`
+- the pre-production example lives in `deployments/pre-production/release-service.yaml`
+
 Monorepo service-selection rule inside that active chain:
 
 - non-default `cmd/<service>` selection must travel through a dedicated Tekton `SERVICE_NAME` param

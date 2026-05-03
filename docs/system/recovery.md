@@ -24,7 +24,7 @@ After reading it, a fresh engineer or agent should know:
 - Active doc migration: move repo docs from a flat `docs/` layout into `docs/index/`, `docs/system/`, `docs/services/`, `docs/resources/`, and `docs/policies/`
 - Active doc layering: `docs/api/` now owns API-wide contract guidance, and `docs/guides/` now owns developer workflow guides
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
-- Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`, while non-default service image selection is hardcoded in committed Tekton manifests for `config-service`, `network-service`, `release-service`, and `runtime-service`
+- Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`; service-specific image selection still uses committed Tekton `SERVICE_NAME` params, while manifest-triggered build dispatch now reads its Tekton namespace/pipeline/PVC target from `release-service` runtime config
 - Active database baseline: Kubernetes PostgreSQL now targets the parallel `database/pg18-next` cluster, with repo-managed bootstrap artifacts under `deployments/pre-production/database/`
 
 This repository is in an intentional transition state.

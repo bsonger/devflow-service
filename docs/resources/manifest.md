@@ -283,7 +283,7 @@ The intended manifest lifecycle is:
 3. service resolves build context and source metadata:
    - `repo_address`
    - target code revision / commit
-4. service creates a Tekton `PipelineRun`
+4. service uses the configured release-service Tekton target and creates a Tekton `PipelineRun`
 5. service persists:
    - `pipeline_id`
    - `trace_id`

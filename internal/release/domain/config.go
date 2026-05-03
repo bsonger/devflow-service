@@ -60,6 +60,12 @@ type DownstreamConfig struct {
 	ConfigServiceBaseURL        string `mapstructure:"config_service_base_url" json:"config_service_base_url" yaml:"config_service_base_url"`
 }
 
+type TektonConfig struct {
+	Namespace       string `mapstructure:"namespace" json:"namespace" yaml:"namespace"`
+	BuildPipeline   string `mapstructure:"build_pipeline" json:"build_pipeline" yaml:"build_pipeline"`
+	PVCGenerateName string `mapstructure:"pvc_generate_name" json:"pvc_generate_name" yaml:"pvc_generate_name"`
+}
+
 type ImageRegistryRuntimeConfig struct {
 	Registry  string `mapstructure:"registry" json:"registry" yaml:"registry"`
 	Namespace string `mapstructure:"namespace" json:"namespace" yaml:"namespace"`

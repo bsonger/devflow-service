@@ -251,9 +251,9 @@ func TestBuildManifestPipelineRunUsesGitRevisionAndAnnotations(t *testing.T) {
 		Ref:  "registry.example.com/devflow/demo-api:20260427-120000",
 	}
 
-	run := buildManifestPipelineRun(manifest, "pvc-1", "registry.example.com/devflow", target)
+	run := buildManifestPipelineRun(manifest, "pvc-1", "registry.example.com/devflow", target, releasesupport.ManifestBuildTektonConfig{})
 
-	if run.Spec.PipelineRef == nil || run.Spec.PipelineRef.Name != manifestTektonBuildPipeline {
+	if run.Spec.PipelineRef == nil || run.Spec.PipelineRef.Name != "devflow-tekton-image-build-push-only" {
 		t.Fatalf("pipeline ref = %+v", run.Spec.PipelineRef)
 	}
 	params := map[string]string{}
@@ -274,6 +274,31 @@ func TestBuildManifestPipelineRunUsesGitRevisionAndAnnotations(t *testing.T) {
 	}
 	if run.Annotations["devflow.manifest/id"] != manifest.ID.String() {
 		t.Fatalf("annotation manifest id = %q", run.Annotations["devflow.manifest/id"])
+	}
+}
+
+func TestBuildManifestPipelineRunUsesConfiguredTektonPipeline(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:   model.BaseModel{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111")},
+		GitRevision: "feature/demo",
+		RepoAddress: "git@github.com:example/demo.git",
+	}
+	target := oci.ImageTarget{
+		Name: "demo-api",
+		Tag:  "20260427-120000",
+		Ref:  "registry.example.com/devflow/demo-api:20260427-120000",
+	}
+
+	run := buildManifestPipelineRun(manifest, "pvc-1", "registry.example.com/devflow", target, releasesupport.ManifestBuildTektonConfig{
+		BuildPipeline:   "custom-build-pipeline",
+		PVCGenerateName: "custom-build-pipeline",
+	})
+
+	if run.Spec.PipelineRef == nil || run.Spec.PipelineRef.Name != "custom-build-pipeline" {
+		t.Fatalf("pipeline ref = %+v", run.Spec.PipelineRef)
+	}
+	if run.GenerateName != "custom-build-pipeline-run-" {
+		t.Fatalf("generate name = %q", run.GenerateName)
 	}
 }
 

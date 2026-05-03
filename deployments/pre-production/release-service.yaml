@@ -36,6 +36,10 @@ data:
       meta_service_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
       network_service_base_url: "http://network-service.devflow-pre-production.svc.cluster.local:8086"
       config_service_base_url: "http://config-service.devflow-pre-production.svc.cluster.local:8082"
+    tekton:
+      namespace: "tekton-pipelines"
+      build_pipeline: "devflow-tekton-image-build-push-only"
+      pvc_generate_name: "devflow-tekton-image-build-push-only"
     image_registry:
       registry: "registry.cn-hangzhou.aliyuncs.com"
       namespace: "devflow"

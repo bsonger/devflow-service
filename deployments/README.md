@@ -92,14 +92,15 @@ Pre-production manifest note:
 Docker build note for this monorepo:
 - the root `Dockerfile` still defaults to `meta-service`
 - do **not** treat ad-hoc local Docker builds as the deployment contract for service-boundary extraction work
-- non-default service image selection must be hardcoded in committed Tekton manifests
+- non-default service image selection must be carried by committed Tekton `SERVICE_NAME` params
 - non-default service image selection must set a dedicated Tekton `SERVICE_NAME` param; do not rely on a free-form `BUILD_ARGS` string to pick the entrypoint
 - only repo entrypoints under `cmd/` are buildable
 - `config-service`, `network-service`, `release-service`, and `runtime-service` are now separate runnable images in this repo
 
 The committed repo contract is:
 - `meta-service` is the default runnable image from the root `Dockerfile`
-- `config-service`, `network-service`, `release-service`, and `runtime-service` are selected explicitly through committed `BUILD_ARGS` in cluster build manifests
+- `config-service`, `network-service`, `release-service`, and `runtime-service` are selected explicitly through committed Tekton `SERVICE_NAME` params in cluster build manifests
+- manifest-created build dispatch inside `release-service` reads its Tekton target from `deployments/pre-production/release-service.yaml` via `tekton.namespace`, `tekton.build_pipeline`, and `tekton.pvc_generate_name`
 
 The committed Tekton manifests that make this explicit are:
 - `deployments/tekton/meta-service-preproduction-build-pipelinerun.yaml`

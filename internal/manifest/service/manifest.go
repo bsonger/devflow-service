@@ -27,12 +27,6 @@ import (
 
 var ErrManifestWorkloadConfigMissing = sharederrs.FailedPrecondition("effective workload config is missing")
 
-const (
-	manifestTektonNamespace       = "tekton-pipelines"
-	manifestTektonBuildPipeline   = "devflow-tekton-image-build-push-only"
-	manifestTektonPVCGenerateName = "devflow-tekton-image-build-push-only"
-)
-
 var (
 	manifestCreatePVC         = localtekton.CreatePVC
 	manifestCreatePipelineRun = localtekton.CreatePipelineRun
@@ -136,8 +130,9 @@ func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest,
 	if manifest == nil {
 		return sharederrs.Required("manifest")
 	}
+	tektonCfg := releasesupport.CurrentRuntimeConfig().Tekton.WithDefaults()
 
-	pvc, err := manifestCreatePVC(ctx, manifestTektonNamespace, manifestTektonPVCGenerateName, "local-path", "1Gi")
+	pvc, err := manifestCreatePVC(ctx, tektonCfg.Namespace, tektonCfg.PVCGenerateName, "local-path", "1Gi")
 	if err != nil {
 		return err
 	}
@@ -145,7 +140,7 @@ func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest,
 	pctx, span := observability.StartServiceSpan(ctx, "Tekton.CreateManifestPipelineRun")
 	defer span.End()
 
-	pr := buildManifestPipelineRun(manifest, pvc.Name, imageRegistry, target)
+	pr := buildManifestPipelineRun(manifest, pvc.Name, imageRegistry, target, tektonCfg)
 	sc := trace.SpanContextFromContext(pctx)
 	if pr.Annotations == nil {
 		pr.Annotations = map[string]string{}
@@ -153,7 +148,7 @@ func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest,
 	pr.Annotations[oci.TraceIDAnnotation] = sc.TraceID().String()
 	pr.Annotations[oci.SpanAnnotation] = sc.SpanID().String()
 
-	pr, err = manifestCreatePipelineRun(pctx, manifestTektonNamespace, pr)
+	pr, err = manifestCreatePipelineRun(pctx, tektonCfg.Namespace, pr)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -178,7 +173,8 @@ func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest,
 	return nil
 }
 
-func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageRegistry string, target oci.ImageTarget) *tknv1.PipelineRun {
+func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageRegistry string, target oci.ImageTarget, tektonCfg releasesupport.ManifestBuildTektonConfig) *tknv1.PipelineRun {
+	tektonCfg = tektonCfg.WithDefaults()
 	params := []tknv1.Param{
 		{Name: "git-url", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.RepoAddress}},
 		{Name: "git-revision", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.GitRevision}},
@@ -198,7 +194,7 @@ func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageR
 			APIVersion: "tekton.dev/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: manifestTektonBuildPipeline + "-run-",
+			GenerateName: tektonCfg.BuildPipeline + "-run-",
 			Labels: map[string]string{
 				"devflow.manifest/id": manifest.ID.String(),
 			},
@@ -207,7 +203,7 @@ func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageR
 			},
 		},
 		Spec: tknv1.PipelineRunSpec{
-			PipelineRef: &tknv1.PipelineRef{Name: manifestTektonBuildPipeline},
+			PipelineRef: &tknv1.PipelineRef{Name: tektonCfg.BuildPipeline},
 			Params:      params,
 			Workspaces: []tknv1.WorkspaceBinding{
 				{

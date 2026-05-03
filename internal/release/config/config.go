@@ -31,16 +31,17 @@ import (
 )
 
 type Config struct {
-	Server           *model.ServerConfig                  `mapstructure:"server" json:"server" yaml:"server"`
-	Postgres         *model.PostgresConfig                `mapstructure:"postgres" json:"postgres" yaml:"postgres"`
-	Log              *model.LogConfig                     `mapstructure:"log" json:"log" yaml:"log"`
-	Otel             *model.OtelConfig                    `mapstructure:"otel" json:"otel" yaml:"otel"`
-	Repo             *model.Repo                          `mapstructure:"repo" json:"repo" yaml:"repo"`
-	Runtime          *model.RuntimeServiceConfig          `mapstructure:"runtime" json:"runtime" yaml:"runtime"`
-	Observer         *model.ObserverConfig                `mapstructure:"observer" json:"observer" yaml:"observer"`
-	Worker           *model.WorkerConfig                  `mapstructure:"worker" json:"worker" yaml:"worker"`
-	Downstream       *model.DownstreamConfig              `mapstructure:"downstream" json:"downstream" yaml:"downstream"`
-	ImageRegistry    *model.ImageRegistryRuntimeConfig    `mapstructure:"image_registry" json:"image_registry" yaml:"image_registry"`
+	Server        *model.ServerConfig               `mapstructure:"server" json:"server" yaml:"server"`
+	Postgres      *model.PostgresConfig             `mapstructure:"postgres" json:"postgres" yaml:"postgres"`
+	Log           *model.LogConfig                  `mapstructure:"log" json:"log" yaml:"log"`
+	Otel          *model.OtelConfig                 `mapstructure:"otel" json:"otel" yaml:"otel"`
+	Repo          *model.Repo                       `mapstructure:"repo" json:"repo" yaml:"repo"`
+	Runtime       *model.RuntimeServiceConfig       `mapstructure:"runtime" json:"runtime" yaml:"runtime"`
+	Observer      *model.ObserverConfig             `mapstructure:"observer" json:"observer" yaml:"observer"`
+	Worker        *model.WorkerConfig               `mapstructure:"worker" json:"worker" yaml:"worker"`
+	Downstream    *model.DownstreamConfig           `mapstructure:"downstream" json:"downstream" yaml:"downstream"`
+	Tekton        *model.TektonConfig               `mapstructure:"tekton" json:"tekton" yaml:"tekton"`
+	ImageRegistry *model.ImageRegistryRuntimeConfig `mapstructure:"image_registry" json:"image_registry" yaml:"image_registry"`
 	// ManifestRegistry keeps the historical external config key used for release deployment bundle publication.
 	// The runtime wiring still reads `manifest_registry` for compatibility even though the active behavior is deploy-side bundle publication.
 	ManifestRegistry *model.ManifestRegistryRuntimeConfig `mapstructure:"manifest_registry" json:"manifest_registry" yaml:"manifest_registry"`
@@ -140,6 +141,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		ManifestRegistry:        bundlePublicationRegistryCfg,
 		ManifestRegistryEnabled: bundlePublicationEnabled,
 		ManifestPublisherMode:   stringValue(config.ManifestRegistry, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Mode }),
+		Tekton:                  releasesupport.ManifestBuildTektonConfigFromModel(config.Tekton),
 		Downstream: model.DownstreamConfig{
 			PlatformOrchestratorBaseURL: stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.PlatformOrchestratorBaseURL }),
 			MetaServiceBaseURL:          stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.MetaServiceBaseURL }),
