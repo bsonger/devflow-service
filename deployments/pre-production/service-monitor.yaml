@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: devflow-services
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: devflow-services
+    app.kubernetes.io/part-of: devflow
+    environment: pre-production
+spec:
+  namespaceSelector:
+    matchNames:
+      - devflow-pre-production
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: devflow
+      observability.devflow.io/scrape: "true"
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: false

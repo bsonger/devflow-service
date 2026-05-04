@@ -34,6 +34,7 @@ metadata:
   labels:
     app.kubernetes.io/name: network-service
     app.kubernetes.io/part-of: devflow
+    observability.devflow.io/scrape: "true"
 spec:
   type: ClusterIP
   selector:
@@ -42,6 +43,10 @@ spec:
     - name: http
       port: 8086
       targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
       protocol: TCP
 ---
 apiVersion: apps/v1
@@ -73,9 +78,15 @@ spec:
         - name: network-service
           image: registry.cn-hangzhou.aliyuncs.com/devflow/network-service:preproduction
           imagePullPolicy: Always
+          env:
+            - name: NETWORK_SERVICE_METRICS_PORT
+              value: "9090"
           ports:
             - name: http
               containerPort: 8086
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
               protocol: TCP
           livenessProbe:
             httpGet:

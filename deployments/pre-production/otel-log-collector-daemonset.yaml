@@ -1,0 +1,232 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    app.kubernetes.io/part-of: devflow
+    observability.devflow.io/role: telemetry
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: devflow-otel-log-collector
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: devflow-otel-log-collector
+    app.kubernetes.io/part-of: devflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: devflow-otel-log-collector
+  labels:
+    app.kubernetes.io/name: devflow-otel-log-collector
+    app.kubernetes.io/part-of: devflow
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: devflow-otel-log-collector
+  labels:
+    app.kubernetes.io/name: devflow-otel-log-collector
+    app.kubernetes.io/part-of: devflow
+subjects:
+  - kind: ServiceAccount
+    name: devflow-otel-log-collector
+    namespace: observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: devflow-otel-log-collector
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devflow-otel-log-collector-config
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: devflow-otel-log-collector
+    app.kubernetes.io/part-of: devflow
+data:
+  relay.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      file_storage:
+        directory: /var/lib/otelcol/file_storage
+
+    receivers:
+      filelog/devflow:
+        include:
+          - /var/log/pods/devflow-pre-production_*/*/*.log
+        start_at: end
+        include_file_path: true
+        include_file_name: false
+        storage: file_storage
+        operators:
+          - id: container-parser
+            type: container
+          - id: parse-zap-json
+            type: json_parser
+            parse_from: body
+            parse_to: attributes
+            if: 'body matches "^\\s*\\{"'
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.node.name
+            - k8s.container.name
+          labels:
+            - tag_name: app.kubernetes.io/name
+              key: app.kubernetes.io/name
+              from: pod
+            - tag_name: app.kubernetes.io/part-of
+              key: app.kubernetes.io/part-of
+              from: pod
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.name
+              - from: resource_attribute
+                name: k8s.namespace.name
+      resource/devflow:
+        attributes:
+          - key: deployment.environment
+            value: pre-production
+            action: upsert
+          - key: service.namespace
+            value: devflow
+            action: upsert
+      batch:
+        timeout: 5s
+        send_batch_size: 1024
+
+    exporters:
+      otlphttp/signoz:
+        endpoint: http://signoz-otel-collector.observability.svc.cluster.local:4318
+        timeout: 10s
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 2048
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
+
+    service:
+      extensions: [health_check, file_storage]
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        logs/devflow:
+          receivers: [filelog/devflow]
+          processors: [memory_limiter, k8sattributes, resource/devflow, batch]
+          exporters: [otlphttp/signoz]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: devflow-otel-log-collector
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: devflow-otel-log-collector
+    app.kubernetes.io/part-of: devflow
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: devflow-otel-log-collector
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: devflow-otel-log-collector
+        app.kubernetes.io/part-of: devflow
+    spec:
+      serviceAccountName: devflow-otel-log-collector
+      containers:
+        - name: otelcol
+          image: otel/opentelemetry-collector-contrib:0.151.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config=/conf/relay.yaml
+          ports:
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+              readOnly: true
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: storage
+              mountPath: /var/lib/otelcol
+      volumes:
+        - name: config
+          configMap:
+            name: devflow-otel-log-collector-config
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+            type: Directory
+        - name: storage
+          emptyDir: {}
+      terminationGracePeriodSeconds: 30

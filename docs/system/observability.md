@@ -28,6 +28,31 @@ The active HTTP services expose small runtime inspection endpoints:
 - `/readyz` for readiness
 - `/internal/status` for a compact operator-facing status summary
 
+The active Go services can also expose Prometheus metrics on `/metrics` through
+their service-specific `*_METRICS_PORT` environment variable. The committed
+pre-production manifests enable that sidecar-style HTTP listener on the named
+`metrics` port `9090` for `meta-service`, `config-service`, `network-service`,
+`release-service`, and `runtime-service`.
+
+Pre-production Prometheus Operator discovery is represented by one committed
+manifest:
+
+- `deployments/pre-production/service-monitor.yaml`
+
+That `ServiceMonitor` selects only pre-production Services labeled
+`observability.devflow.io/scrape=true`, then scrapes their named `metrics` port
+at `/metrics`.
+
+Pre-production log collection is also represented by one committed manifest:
+
+- `deployments/pre-production/otel-log-collector-daemonset.yaml`
+
+That DaemonSet runs a node-local OpenTelemetry Collector in namespace
+`observability`, tails only `devflow-pre-production` pod stdout logs from
+`/var/log/pods`, parses the container envelope plus structured JSON application
+log body, enriches the records with Kubernetes metadata, and exports them over
+OTLP HTTP to the existing Signoz collector endpoint.
+
 `/internal/status` should stay lightweight and safe.
 It is the place for:
 

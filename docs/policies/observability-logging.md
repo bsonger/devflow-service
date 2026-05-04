@@ -20,6 +20,17 @@ This policy governs:
 
 This policy complements the system-level observability overview and the verification policy.
 
+## Signal pipeline contract
+
+Application logs, metrics, and traces intentionally use different transport paths:
+
+- Logs: services write structured JSON logs to stdout; the Kubernetes-local OpenTelemetry Collector DaemonSet tails pod logs from `/var/log/pods` and exports them through the logs pipeline.
+- Metrics: services expose `/metrics`; Prometheus scrapes the named `metrics` service port.
+- Traces: services export OTLP traces to the configured OpenTelemetry Collector endpoint.
+
+The application logger should not bypass stdout with a second ad-hoc log sink unless the policy is updated in the same change.
+The deployment-side logs collector must avoid scraping its own collector logs and should scope collection to the intended DevFlow namespaces.
+
 ## Core rules
 
 1. Logs must be structured.
