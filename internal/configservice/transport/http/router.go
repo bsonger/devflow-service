@@ -44,9 +44,9 @@ func NewRouterWithOptions(opts Options) *gin.Engine {
 	r.Use(
 		otelgin.Middleware(serviceName(opts), otelgin.WithFilter(routercore.OtelFilter)),
 		routercore.LoggerMiddleware(),
+		routercore.GinMetricsMiddleware(),
 		routercore.GinZapRecovery(),
 		routercore.PyroscopeMiddleware(),
-		routercore.GinMetricsMiddleware(),
 		routercore.GinZapLogger(),
 		cors.New(cors.Config{
 			AllowOrigins:     []string{"*"},

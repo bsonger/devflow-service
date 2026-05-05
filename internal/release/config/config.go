@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
@@ -239,13 +238,6 @@ func wrapK8sTransport() func(http.RoundTripper) http.RoundTripper {
 			otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
 				// 更清晰的 span 名称
 				return fmt.Sprintf("k8s.api %s %s", r.Method, r.URL.Path)
-			}),
-			otelhttp.WithFilter(func(r *http.Request) bool {
-				if r.Method == http.MethodPost &&
-					strings.HasSuffix(r.URL.Path, "/pipelineruns") {
-					return false
-				}
-				return true
 			}),
 		)
 	}

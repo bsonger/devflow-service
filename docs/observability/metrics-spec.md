@@ -81,10 +81,21 @@ retention decisions to the OpenTelemetry Collector. Collector-side tail sampling
 or filtering should keep every 5xx trace and may downsample low-value successful
 traffic.
 
-The application must not path-filter trace creation for low-value HTTP paths.
-Probe and scrape noise should be removed by Collector-side trace policy, while
-application log and metric filters may still suppress fast successful low-value
-requests.
+The application may path-filter trace creation for low-value HTTP paths such as
+health probes, metrics scrapes, pprof, swagger, favicon, and internal status.
+This is route filtering, not trace downsampling. The application must not apply
+ratio-based trace sampling to the remaining traffic.
+
+Recommended Collector policy:
+
+- keep all traces received from the services where any server span has
+  `http.response.status_code >= 500`
+- keep slow traces above the incident latency threshold
+- sample ordinary successful 2xx API traffic based on storage budget
+
+Low-value paths filtered by the application will still keep incident logs and
+metrics according to the low-value path policy, but they will not have trace
+exemplars because no trace is created for those paths.
 
 ## Release workflow metrics
 

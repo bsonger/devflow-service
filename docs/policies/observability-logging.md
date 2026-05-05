@@ -242,9 +242,14 @@ samples, not as metric labels on the time series.
 Application code should not use in-process trace sampling to decide which traces
 survive. Export all SDK traces and apply retention policy in the OpenTelemetry
 Collector, where 5xx traces must be kept.
-Do not path-filter HTTP trace creation in the Gin middleware; low-value health,
-readiness, metrics, and static-path traces should be dropped by Collector policy
-after the Collector has had a chance to keep failures.
+Application middleware may path-filter trace creation for low-value health,
+readiness, metrics, internal status, pprof, swagger, and static routes. That is
+route filtering, not downsampling. Application code must not apply ratio-based
+trace sampling to the remaining traffic; downsampling belongs in the
+OpenTelemetry Collector.
+This is slightly different from logs and metrics: low-value path failures still
+produce logs and metrics, but they do not have trace exemplars when the route was
+filtered before trace creation.
 
 Legacy metric labels such as `service`, `environment`, `method`, `route`, and `status_code`
 may appear in dashboards during rollout compatibility windows, but new application metrics must use the canonical labels above.

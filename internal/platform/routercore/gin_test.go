@@ -15,12 +15,17 @@ func TestShouldIgnorePathIncludesLowValueProbePaths(t *testing.T) {
 	}
 }
 
-func TestOtelFilterKeepsLowValuePathsForCollectorSideFiltering(t *testing.T) {
-	for _, path := range []string{"/healthz", "/readyz", "/livez", "/favicon.ico", "/api/v1/projects"} {
+func TestOtelFilterSkipsLowValuePathsWithoutSamplingOtherRoutes(t *testing.T) {
+	for _, path := range []string{"/healthz", "/readyz", "/livez", "/favicon.ico"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
-		if !OtelFilter(req) {
-			t.Fatalf("OtelFilter(%q) = false, want true", path)
+		if OtelFilter(req) {
+			t.Fatalf("OtelFilter(%q) = true, want false", path)
 		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil)
+	if !OtelFilter(req) {
+		t.Fatal("OtelFilter(/api/v1/projects) = false, want true")
 	}
 }
 

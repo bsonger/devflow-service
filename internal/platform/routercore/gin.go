@@ -34,7 +34,7 @@ func ShouldIgnorePath(path string) bool {
 }
 
 func OtelFilter(req *http.Request) bool {
-	return true
+	return !ShouldIgnorePath(req.URL.Path)
 }
 
 func routeLabel(c *gin.Context) string {
