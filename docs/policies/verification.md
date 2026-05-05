@@ -39,6 +39,9 @@ make ci
 - metadata proof docs under `docs/resources/metadata-*.md` are tracked evidence artifacts, not alternate authorities; they should route readers back to the canonical system docs for normative semantics
 - focused Go seam tests prove behavioral seams such as callback ownership, rollout-writeback normalization, and finalized-release terminality; `bash scripts/verify-metadata-audit.sh` proves metadata/doc routing consistency only; `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
+- trace retention changes must keep `deployments/pre-production/otel-trace-gateway.yaml` aligned with `docs/observability/trace-retention-policy.md`; application SDK sampling remains `always_on` and Collector-side tail sampling owns downsampling
+- pre-production service manifests must not encode static calendar `service.version` values in service config; common OTEL resource labels should come from Deployment environment variables such as `OTEL_SERVICE_NAME`, `OTEL_SERVICE_NAMESPACE`, `DEPLOYMENT_ENVIRONMENT`, `SERVICE_VERSION`, and `OTEL_RESOURCE_ATTRIBUTES`
+- live exemplar verification uses `scripts/verify-exemplars.sh` when Prometheus has recent 5xx samples; repo-local `scripts/verify.sh` checks the script and exemplar policy surfaces but does not depend on live Prometheus data
 - API error envelope and handler mapping changes must follow `docs/policies/error-handling.md`
 - HTTP transport behavior changes must follow `docs/policies/http-handler.md`
 - `GET` may use query filters, but `POST` and `DELETE` business selectors must not be carried on query strings; follow `docs/policies/resource-api.md`

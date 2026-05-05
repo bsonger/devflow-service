@@ -93,6 +93,10 @@ Recommended Collector policy:
 - keep slow traces above the incident latency threshold
 - sample ordinary successful 2xx API traffic based on storage budget
 
+The committed pre-production gateway policy lives in
+`deployments/pre-production/otel-trace-gateway.yaml`; the rationale lives in
+`docs/observability/trace-retention-policy.md`.
+
 Low-value paths filtered by the application will still keep incident logs and
 metrics according to the low-value path policy, but they will not have trace
 exemplars because no trace is created for those paths.

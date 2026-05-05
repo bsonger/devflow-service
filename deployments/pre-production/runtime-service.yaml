@@ -14,10 +14,8 @@ data:
       level: "info"
       format: "json"
     otel:
-      endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
+      endpoint: "http://devflow-otel-trace-gateway.observability.svc.cluster.local:4318"
       protocol: "http/protobuf"
-      service_name: "runtime-service"
-      resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-runtime-20260425"
       sample_ratio: 1.0
     downstream:
       release_service_base_url: "http://release-service.devflow-pre-production.svc.cluster.local:8083"
@@ -151,6 +149,18 @@ spec:
           image: registry.cn-hangzhou.aliyuncs.com/devflow/runtime-service:preproduction
           imagePullPolicy: Always
           env:
+            - name: SERVICE_NAME
+              value: runtime-service
+            - name: OTEL_SERVICE_NAME
+              value: runtime-service
+            - name: OTEL_SERVICE_NAMESPACE
+              value: devflow
+            - name: DEPLOYMENT_ENVIRONMENT
+              value: pre-production
+            - name: SERVICE_VERSION
+              value: preproduction
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)"
             - name: RUNTIME_SERVICE_METRICS_PORT
               value: "9090"
           ports:

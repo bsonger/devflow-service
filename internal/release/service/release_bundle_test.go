@@ -84,6 +84,14 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if !ok || len(containerSpec) == 0 {
 		t.Fatalf("deployment containers missing: %#v", bundle.Resources.Deployment.Object)
 	}
+	env := containerSpec[0]["env"].([]map[string]any)
+	assertEnvContains(t, env, "APP_ENV", "prod")
+	assertEnvContains(t, env, "SERVICE_NAME", "demo-api")
+	assertEnvContains(t, env, "OTEL_SERVICE_NAME", "demo-api")
+	assertEnvContains(t, env, "OTEL_SERVICE_NAMESPACE", "devflow")
+	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "production")
+	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
+	assertEnvContains(t, env, "OTEL_RESOURCE_ATTRIBUTES", "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)")
 	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
 		assertRequiredIdentityLabels(t, labels, releaseID.String(), manifest.ApplicationID.String(), "production", "demo-api")
 		if got := labels["team"]; got != "payments" {
@@ -307,12 +315,47 @@ func TestBuildReleaseBundleUsesFrozenManifestSnapshotWithoutLiveWorkloadReads(t 
 	if got := limits["memory"]; got != "2Gi" {
 		t.Fatalf("limits memory = %#v", got)
 	}
-	if env := container["env"].([]map[string]any); len(env) != 1 || env[0]["name"] != "SNAPSHOT_ONLY" {
-		t.Fatalf("deployment env = %#v", env)
-	}
+	env := container["env"].([]map[string]any)
+	assertEnvContains(t, env, "SNAPSHOT_ONLY", "true")
+	assertEnvContains(t, env, "SERVICE_NAME", "demo-api")
+	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
+	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
 	if !strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "SNAPSHOT_ONLY") {
 		t.Fatalf("bundle.yaml missing frozen env entry: %s", bundle.Files[len(bundle.Files)-1].Content)
 	}
+}
+
+func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api:latest",
+		CommitHash:    "deadbeef",
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas: 1,
+			Env: []model.EnvVar{
+				{Name: "OTEL_SERVICE_NAMESPACE", Value: "custom-ns"},
+				{Name: "SERVICE_VERSION", Value: "custom-version"},
+			},
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "staging",
+	}
+
+	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	container := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)[0]
+	env := container["env"].([]map[string]any)
+
+	assertEnvContains(t, env, "OTEL_SERVICE_NAMESPACE", "custom-ns")
+	assertEnvContains(t, env, "SERVICE_VERSION", "custom-version")
+	assertEnvContains(t, env, "OTEL_SERVICE_NAME", "demo-api")
+	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
 }
 
 func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
@@ -374,4 +417,17 @@ func assertRequiredIdentityLabels(t *testing.T, labels map[string]any, releaseID
 	if got := labels["app.kubernetes.io/name"]; got != name {
 		t.Fatalf("app label = %#v", got)
 	}
+}
+
+func assertEnvContains(t *testing.T, env []map[string]any, name, want string) {
+	t.Helper()
+	for _, entry := range env {
+		if entry["name"] == name {
+			if entry["value"] != want {
+				t.Fatalf("%s value = %#v want %q", name, entry["value"], want)
+			}
+			return
+		}
+	}
+	t.Fatalf("env missing %s: %#v", name, env)
 }

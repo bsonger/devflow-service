@@ -174,6 +174,81 @@ run_metrics_label_policy_check() {
   [[ -z "$legacy_matches" ]] || fail "metrics attributes must use canonical Prometheus-safe labels such as service_name, deployment_environment_name, http_route, and http_response_status_code:\n$legacy_matches"
 }
 
+run_observability_deployment_policy_check() {
+  info "Running observability deployment policy checks"
+
+  local static_version_matches
+  local direct_signoz_matches
+  local env_missing
+  local nested_template_matches
+  local config_resource_matches
+
+  static_version_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'service\.version=preproduction-[^",]+' deployments/pre-production --glob '*-service.yaml' || true
+  )"
+  [[ -z "$static_version_matches" ]] || fail "pre-production service.version must come from SERVICE_VERSION / rollout metadata, not static calendar strings:
+$static_version_matches"
+
+  direct_signoz_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'endpoint: "http://signoz-otel-collector\.observability\.svc\.cluster\.local:4318"' deployments/pre-production --glob '*-service.yaml' || true
+  )"
+  [[ -z "$direct_signoz_matches" ]] || fail "pre-production services must send traces to devflow-otel-trace-gateway so Collector-side retention is applied:
+$direct_signoz_matches"
+
+  env_missing="$(
+    cd "$ROOT_DIR"
+    for file in deployments/pre-production/*-service.yaml; do
+      if [[ "$file" == *otel-* || "$file" == *service-monitor* ]]; then
+        continue
+      fi
+      grep -Fq 'name: SERVICE_NAME' "$file" || printf '%s\n' "$file"
+      grep -Fq 'name: OTEL_SERVICE_NAME' "$file" || printf '%s\n' "$file"
+      grep -Fq 'name: OTEL_SERVICE_NAMESPACE' "$file" || printf '%s\n' "$file"
+      grep -Fq 'name: DEPLOYMENT_ENVIRONMENT' "$file" || printf '%s\n' "$file"
+      grep -Fq 'name: SERVICE_VERSION' "$file" || printf '%s\n' "$file"
+      grep -Fq 'name: OTEL_RESOURCE_ATTRIBUTES' "$file" || printf '%s\n' "$file"
+      grep -Fq 'devflow-otel-trace-gateway.observability.svc.cluster.local:4318' "$file" || printf '%s\n' "$file"
+    done
+  )"
+  [[ -z "$env_missing" ]] || fail "pre-production services must declare OTEL public resource env vars and trace gateway endpoint:
+$env_missing"
+
+  config_resource_matches="$(
+    cd "$ROOT_DIR"
+    rg -n '^\s+(service_name|resource_attributes):' deployments/pre-production --glob '*-service.yaml' || true
+  )"
+  [[ -z "$config_resource_matches" ]] || fail "OTEL public resource labels must come from Deployment env vars, not service config.yaml:
+$config_resource_matches"
+
+  nested_template_matches="$(
+    cd "$ROOT_DIR"
+    rg -n '^    template:' deployments/pre-production --glob '*-service.yaml' || true
+  )"
+  [[ -z "$nested_template_matches" ]] || fail "Deployment spec.template must be a sibling of strategy, not nested below strategy:
+$nested_template_matches"
+
+  grep -Fq 'name: DEPLOYMENT_ENVIRONMENT' "$ROOT_DIR/deployments/pre-production/release-service.yaml" || fail "release-service deployment must expose DEPLOYMENT_ENVIRONMENT"
+  grep -Fq 'name: OTEL_SERVICE_NAMESPACE' "$ROOT_DIR/deployments/pre-production/release-service.yaml" || fail "release-service deployment must expose OTEL_SERVICE_NAMESPACE"
+}
+
+run_preproduction_manifest_syntax_check() {
+  info "Running pre-production manifest syntax checks"
+  command -v kubectl >/dev/null 2>&1 || fail "kubectl is required for pre-production manifest syntax checks"
+  (
+    cd "$ROOT_DIR"
+    kubectl apply --dry-run=client --validate=false \
+      -f deployments/pre-production/meta-service.yaml \
+      -f deployments/pre-production/config-service.yaml \
+      -f deployments/pre-production/network-service.yaml \
+      -f deployments/pre-production/release-service.yaml \
+      -f deployments/pre-production/runtime-service.yaml \
+      -f deployments/pre-production/otel-trace-gateway.yaml \
+      -f deployments/pre-production/service-monitor.yaml
+  )
+}
+
 run_http_handler_uuid_policy_check() {
   info "Running HTTP handler UUID parsing checks"
 
@@ -384,6 +459,11 @@ require_file "$ROOT_DIR/deployments/pre-production/meta-service.yaml" "meta-serv
 require_file "$ROOT_DIR/deployments/pre-production/config-service.yaml" "config-service pre-production deployment manifest"
 require_file "$ROOT_DIR/deployments/pre-production/network-service.yaml" "network-service pre-production deployment manifest"
 require_file "$ROOT_DIR/deployments/pre-production/runtime-service.yaml" "runtime-service pre-production deployment manifest"
+require_file "$ROOT_DIR/deployments/pre-production/otel-trace-gateway.yaml" "pre-production trace gateway manifest"
+require_file "$ROOT_DIR/deployments/pre-production/grafana/README.md" "pre-production Grafana README"
+require_file "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "pre-production Grafana dashboard"
+require_file "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace retention policy doc"
+require_file "$ROOT_DIR/scripts/verify-exemplars.sh" "exemplar verifier"
 require_file "$ROOT_DIR/deployments/pre-production/istio/shared-ingress.yaml" "shared Istio pre-production ingress manifest"
 require_file "$ROOT_DIR/gateway/README.md" "gateway README"
 require_dir "$ROOT_DIR/docs/generated" "generated docs directory"
@@ -517,6 +597,13 @@ require_literal "$ROOT_DIR/docs/system/recovery.md" "system recovery verifier co
 require_literal "$ROOT_DIR/docs/system/recovery.md" "system recovery migration target" "repository root layout"
 require_literal "$ROOT_DIR/docs/system/observability.md" "system observability build proof" './cmd/meta-service'
 require_literal "$ROOT_DIR/docs/system/observability.md" "system observability internal status" "/internal/status"
+require_literal "$ROOT_DIR/docs/system/observability.md" "system observability trace gateway" "deployments/pre-production/otel-trace-gateway.yaml"
+require_literal "$ROOT_DIR/deployments/README.md" "deployments README trace gateway" "deployments/pre-production/otel-trace-gateway.yaml"
+require_literal "$ROOT_DIR/scripts/README.md" "scripts README exemplar verifier" "scripts/verify-exemplars.sh"
+require_literal "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace retention keeps errors" "keep traces with error status"
+require_literal "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace retention service version source" "SERVICE_VERSION"
+require_literal "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "Grafana dashboard UID" '"uid": "devflow-preprod-services"'
+require_literal "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "Grafana dashboard service label" "service_name"
 require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy verifier command" "bash scripts/verify.sh"
 require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy observability policy reference" "docs/policies/observability-logging.md"
 require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy error handling policy reference" "docs/policies/error-handling.md"
@@ -583,6 +670,8 @@ run_worker_runtime_policy_check
 run_no_mongo_remnants_check
 run_observability_logging_policy_check
 run_metrics_label_policy_check
+run_observability_deployment_policy_check
+run_preproduction_manifest_syntax_check
 run_http_handler_uuid_policy_check
 run_http_handler_helper_policy_check
 run_http_api_selector_policy_check

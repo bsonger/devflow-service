@@ -12,6 +12,7 @@ Use these files as the primary repo-local observability surfaces:
 - `docs/system/recovery.md` for current recovery and failure routing
 - `docs/system/architecture.md` for current repo-local structure
 - `docs/policies/observability-logging.md` for structured logging, metric-label, and trace-correlation rules
+- `docs/observability/trace-retention-policy.md` for trace retention and Collector-side sampling boundaries
 - `docs/system/release-writeback.md` for token-gated release observer callback behavior
 - `docs/services/meta-service.md` for current service-specific behavior and diagnostics
 - `docs/resources/` for current resource contracts and API behavior
@@ -52,6 +53,23 @@ That DaemonSet runs a node-local OpenTelemetry Collector in namespace
 `/var/log/pods`, parses the container envelope plus structured JSON application
 log body, enriches the records with Kubernetes metadata, and exports them over
 OTLP HTTP to the existing Signoz collector endpoint.
+
+Pre-production trace retention is represented by one committed gateway manifest:
+
+- `deployments/pre-production/otel-trace-gateway.yaml`
+
+The five DevFlow services export all non-filtered application traces to that
+gateway. The gateway applies Collector-side tail sampling, keeps error and slow
+traces, samples ordinary successful traces, and forwards retained traces to the
+existing Signoz collector. Application code must not do ratio-based trace
+sampling.
+
+Pre-production Grafana dashboard-as-code assets live under:
+
+- `deployments/pre-production/grafana/`
+
+Use `scripts/verify-exemplars.sh` for a live Prometheus exemplar smoke test when
+there has been recent 5xx traffic.
 
 `/internal/status` should stay lightweight and safe.
 It is the place for:

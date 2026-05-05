@@ -14,6 +14,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+const defaultOTELServiceNamespace = "devflow"
+
 // buildReleaseBundle materializes the release-owned deployable bundle from manifest-frozen inputs plus release-time freeze inputs.
 // Unlike manifest resource inspection views, this output is the publishable deployment payload used for bundle preview, OCI publication, and Argo delivery.
 func buildReleaseBundle(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) (*model.ReleaseBundle, error) {
@@ -268,10 +270,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	if namespace != "" {
 		metadata["namespace"] = namespace
 	}
-	env := make([]map[string]any, 0, len(workload.Env))
-	for _, entry := range workload.Env {
-		env = append(env, map[string]any{"name": entry.Name, "value": entry.Value})
-	}
+	env := buildReleaseWorkloadEnv(applicationName, manifest, release)
 	container := map[string]any{
 		"name":                     applicationName,
 		"image":                    manifest.ImageRef,
@@ -381,6 +380,72 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		}
 		return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
 	}
+}
+
+func buildReleaseWorkloadEnv(applicationName string, manifest *manifestdomain.Manifest, release *model.Release) []map[string]any {
+	baseEnv := workloadEnv(manifest)
+	env := make([]map[string]any, 0, len(baseEnv)+6)
+	seen := map[string]struct{}{}
+	appendEnv := func(name, value string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		if _, exists := seen[name]; exists {
+			return
+		}
+		seen[name] = struct{}{}
+		env = append(env, map[string]any{"name": name, "value": value})
+	}
+
+	for _, entry := range baseEnv {
+		appendEnv(entry.Name, entry.Value)
+	}
+
+	serviceName := strings.TrimSpace(applicationName)
+	deploymentEnvironment := strings.TrimSpace(firstNonEmptyString(releaseEnvironmentID(release), "unknown"))
+	serviceVersion := strings.TrimSpace(releaseServiceVersion(manifest))
+
+	appendEnv("SERVICE_NAME", serviceName)
+	appendEnv("OTEL_SERVICE_NAME", serviceName)
+	appendEnv("OTEL_SERVICE_NAMESPACE", defaultOTELServiceNamespace)
+	appendEnv("DEPLOYMENT_ENVIRONMENT", deploymentEnvironment)
+	appendEnv("SERVICE_VERSION", serviceVersion)
+	appendEnv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)")
+
+	return env
+}
+
+func workloadEnv(manifest *manifestdomain.Manifest) []model.EnvVar {
+	if manifest == nil {
+		return nil
+	}
+	return manifest.WorkloadConfigSnapshot.Env
+}
+
+func releaseEnvironmentID(release *model.Release) string {
+	if release == nil {
+		return ""
+	}
+	return strings.TrimSpace(release.EnvironmentID)
+}
+
+func releaseServiceVersion(manifest *manifestdomain.Manifest) string {
+	if manifest == nil {
+		return "unknown"
+	}
+	if digest := strings.TrimSpace(manifest.ImageDigest); digest != "" {
+		return digest
+	}
+	if imageRef := strings.TrimSpace(manifest.ImageRef); imageRef != "" {
+		if _, digest, ok := strings.Cut(imageRef, "@"); ok && strings.TrimSpace(digest) != "" {
+			return strings.TrimSpace(digest)
+		}
+	}
+	if commitHash := strings.TrimSpace(manifest.CommitHash); commitHash != "" {
+		return commitHash
+	}
+	return "unknown"
 }
 
 func buildReleaseKubernetesResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) map[string]any {

@@ -24,6 +24,7 @@ Current local pre-production flow:
 - use `kubectl apply -f deployments/pre-production/release-service.yaml` to deploy `release-service`
 - use `kubectl apply -f deployments/pre-production/runtime-service.yaml` to deploy `runtime-service`
 - use `kubectl apply -f deployments/pre-production/service-monitor.yaml` to let Prometheus Operator scrape `/metrics` from all pre-production DevFlow services that carry `observability.devflow.io/scrape=true`
+- use `kubectl apply -f deployments/pre-production/otel-trace-gateway.yaml` to run the pre-production trace gateway that keeps 5xx and slow traces before forwarding retained traces to Signoz
 - use `kubectl apply -f deployments/pre-production/otel-log-collector-daemonset.yaml` to run a node-local OpenTelemetry Collector that tails `devflow-pre-production` pod stdout logs from `/var/log/pods` and forwards them to the existing Signoz OTLP HTTP collector
 - pre-production runtime observation is now owned by the in-process observer inside `runtime-service`; there is no separate `resource-observer.yaml` deployment artifact in the active contract
 - use `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml` to expose shared pre-production HTTP routes through `devflow-pre-production.bei.com`
@@ -86,7 +87,10 @@ Pre-production manifest note:
 - `deployments/pre-production/release-service.yaml` uses a `ConfigMap` named `release-service-config`
 - `deployments/pre-production/runtime-service.yaml` uses a `ConfigMap` named `runtime-service-config`
 - `deployments/pre-production/service-monitor.yaml` is one unified `ServiceMonitor` for the pre-production service set; the five current Service manifests expose a named `metrics` port on `9090` and enable the matching service-specific `*_METRICS_PORT` environment variable
+- `deployments/pre-production/otel-trace-gateway.yaml` owns pre-production trace retention; service manifests send traces to this gateway, application SDK sampling stays `always_on`, and non-incident downsampling happens in the Collector
 - `deployments/pre-production/otel-log-collector-daemonset.yaml` owns the pre-production logs pipeline: DevFlow services keep writing JSON logs to stdout, and the DaemonSet-local OpenTelemetry Collector collects only `devflow-pre-production` pod logs before exporting them over OTLP HTTP
+- `deployments/pre-production/grafana/dashboards/devflow-preprod-services.json` is the committed dashboard-as-code source for the pre-production services dashboard
+- service manifests provide common OpenTelemetry resource labels through container environment variables: `SERVICE_NAME`, `OTEL_SERVICE_NAME`, `OTEL_SERVICE_NAMESPACE`, `DEPLOYMENT_ENVIRONMENT`, `SERVICE_VERSION`, and `OTEL_RESOURCE_ATTRIBUTES`; rollout automation should patch `SERVICE_VERSION` to the git SHA, image digest, or CI build identifier when it updates the image
 - `deployments/pre-production/runtime-service.yaml` also carries the RBAC needed for runtime pod/deployment operations and Tekton build observation
 - `deployments/pre-production/runtime-service.yaml` no longer carries PostgreSQL config in the active contract
 - runtime-service currently rebuilds its runtime workload/pod index through in-process observers after startup rather than loading runtime state from PostgreSQL

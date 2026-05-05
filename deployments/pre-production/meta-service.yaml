@@ -36,10 +36,8 @@ data:
       level: info
       format: json
     otel:
-      endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
+      endpoint: "http://devflow-otel-trace-gateway.observability.svc.cluster.local:4318"
       protocol: "http/protobuf"
-      service_name: meta-service
-      resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-meta-20260425"
       sample_ratio: 1.0
     pyroscope: ""
 ---
@@ -97,6 +95,18 @@ spec:
           image: registry.cn-hangzhou.aliyuncs.com/devflow/meta-service:preproduction
           imagePullPolicy: Always
           env:
+            - name: SERVICE_NAME
+              value: meta-service
+            - name: OTEL_SERVICE_NAME
+              value: meta-service
+            - name: OTEL_SERVICE_NAMESPACE
+              value: devflow
+            - name: DEPLOYMENT_ENVIRONMENT
+              value: pre-production
+            - name: SERVICE_VERSION
+              value: preproduction
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)"
             - name: META_SERVICE_METRICS_PORT
               value: "9090"
           ports:

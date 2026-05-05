@@ -60,7 +60,7 @@ including `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`.
 | `trace_flags` | Current span context from OpenTelemetry instrumentation. |
 | `service.name` | `OTEL_SERVICE_NAME`, then `service.name` in `OTEL_RESOURCE_ATTRIBUTES`, then service bootstrap fallback. |
 | `service.namespace` | `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES`, then `OTEL_SERVICE_NAMESPACE`, then `devflow`. |
-| `service.version` | `service.version` in `OTEL_RESOURCE_ATTRIBUTES`, then `SERVICE_VERSION` / `VERSION`. |
+| `service.version` | `service.version` in `OTEL_RESOURCE_ATTRIBUTES`, then `SERVICE_VERSION` / `VERSION`. Pre-production service manifests set this through environment variables instead of service config. |
 | `deployment.environment.name` | `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES`; legacy `deployment.environment` is accepted only as fallback. |
 
 `trace_id` and `span_id` are the key join columns for Trace -> Log correlation:

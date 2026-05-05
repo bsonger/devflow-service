@@ -242,6 +242,9 @@ samples, not as metric labels on the time series.
 Application code should not use in-process trace sampling to decide which traces
 survive. Export all SDK traces and apply retention policy in the OpenTelemetry
 Collector, where 5xx traces must be kept.
+The pre-production Collector-side retention contract is documented in
+`docs/observability/trace-retention-policy.md` and deployed through
+`deployments/pre-production/otel-trace-gateway.yaml`.
 Application middleware may path-filter trace creation for low-value health,
 readiness, metrics, internal status, pprof, swagger, and static routes. That is
 route filtering, not downsampling. Application code must not apply ratio-based

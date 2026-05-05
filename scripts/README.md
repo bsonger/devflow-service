@@ -15,6 +15,19 @@ Run this from the repo root before handoff or after changing docs, verification 
 bash scripts/verify.sh
 ```
 
+## Exemplar smoke test
+
+When Prometheus has recent pre-production 5xx samples, run:
+
+```sh
+PROMETHEUS_URL=https://prometheus.bei.com bash scripts/verify-exemplars.sh
+```
+
+This live check queries `/api/v1/query_exemplars` and verifies that matching
+HTTP 5xx metric samples carry `trace_id` and `span_id` exemplar labels. It is
+not part of `scripts/verify.sh` because it depends on live Prometheus data and
+recent incident traffic.
+
 ## OpenAPI sync
 
 For API contract sync work:
