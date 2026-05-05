@@ -65,7 +65,7 @@ func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 	port := resolveConfiguredPort(cfg, opts.DefaultPort, opts.PortEnv, opts.ResolveConfigPort)
 
 	logger.Logger.Info("starting service",
-		zap.String("service", opts.Name),
+		zap.String("component", "service_runtime"),
 		zap.String("result", "starting"),
 		zap.Int("listen_port", port),
 		zap.Int("metrics_listen_port", metricsPort),

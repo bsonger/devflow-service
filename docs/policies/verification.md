@@ -52,7 +52,7 @@ make ci
 - service and repository generic validation errors should prefer `internal/shared/errs` over repeated ad-hoc `errors.New(...)` strings
 - worker, runtime, or background execution changes must follow `docs/policies/worker-runtime.md`
 - resource-facing HTTP behavior and `docs/resources/*.md` changes must follow `docs/policies/resource-api.md`
-- new structured log fields must use `snake_case`
+- new application-owned structured log fields must use `snake_case`; approved OpenTelemetry semantic log fields such as `service.name`, `deployment.environment.name`, `http.request.method`, and `devflow.application.id` are allowed
 - new metrics labels must stay low-cardinality and must not include identifiers such as `trace_id`, `request_id`, `release_id`, or user-specific values
 - production code under `internal/*/service` must not call `db.Postgres()` or `store.DB()` directly; repository-owned persistence must stay in `internal/*/repository`
 - production code under `internal/*/service` must not depend on Gin, `internal/platform/httpx`, or `internal/*/transport/http`

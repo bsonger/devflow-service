@@ -141,9 +141,10 @@ run_observability_logging_policy_check() {
 
   dotted_matches="$(
     cd "$ROOT_DIR"
-    rg -n "$dotted_pattern" internal cmd --glob '!**/*_test.go' || true
+    rg -n "$dotted_pattern" internal cmd --glob '!**/*_test.go' \
+      | grep -Ev 'zap\.(String|Int|Int32|Int64|Bool|Duration|Float64|Any)\("(trace_id|span_id|trace_flags|service\.name|service\.namespace|service\.version|deployment\.environment\.name|logger\.name|event\.outcome|http\.request\.method|http\.route|url\.path|http\.response\.status_code|http\.response\.status_class|http\.request\.body\.size|http\.response\.body\.size|http\.server\.request\.duration|client\.address|user_agent\.original|devflow\.(project|application|service|environment|release|manifest)\.id)"' || true
   )"
-  [[ -z "$dotted_matches" ]] || fail "structured log field names must not use dotted keys; use snake_case instead:\n$dotted_matches"
+  [[ -z "$dotted_matches" ]] || fail "structured log field names must use snake_case unless they are approved OpenTelemetry semantic log keys:\n$dotted_matches"
 
   camel_matches="$(
     cd "$ROOT_DIR"
@@ -156,13 +157,21 @@ run_metrics_label_policy_check() {
   info "Running metrics label policy checks"
 
   local forbidden_metric_label_pattern='attribute\.String\("(trace_id|request_id|user_id|email|phone|order_id|release_id|session_id|token|authorization|cookie)"'
+  local legacy_metric_label_pattern='attribute\.String\("(service|environment|method|route|status_code)"'
   local matches
+  local legacy_matches
 
   matches="$(
     cd "$ROOT_DIR"
     rg -n "$forbidden_metric_label_pattern" internal cmd --glob '!**/*_test.go' || true
   )"
   [[ -z "$matches" ]] || fail "metrics attributes must not use high-cardinality or sensitive identifier labels:\n$matches"
+
+  legacy_matches="$(
+    cd "$ROOT_DIR"
+    rg -n "$legacy_metric_label_pattern" internal/platform/routercore internal/platform/runtime/observability internal/release/service/metrics.go --glob '!**/*_test.go' || true
+  )"
+  [[ -z "$legacy_matches" ]] || fail "metrics attributes must use canonical Prometheus-safe labels such as service_name, deployment_environment_name, http_route, and http_response_status_code:\n$legacy_matches"
 }
 
 run_http_handler_uuid_policy_check() {

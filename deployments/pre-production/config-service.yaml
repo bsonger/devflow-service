@@ -22,7 +22,7 @@ data:
       endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
       protocol: "http/protobuf"
       service_name: "config-service"
-      resource_attributes: "deployment.environment=pre-production,service.version=preproduction-config-20260425"
+      resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-config-20260425"
       sample_ratio: 0.1
     config_repo:
       root_dir: "/tmp/devflow-config-repo"

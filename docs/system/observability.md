@@ -107,3 +107,6 @@ As the migration proceeds, this observability surface should become simpler, not
 The end state should be one honest startup contract, one honest verification contract, and one honest root build path.
 
 Application-level observability naming and correlation rules now live in the observability logging policy.
+The log-field ownership contract lives in `docs/observability/logging-spec.md`;
+use it to decide whether a field belongs in application code, OpenTelemetry SDK
+resource configuration, or Collector-side Kubernetes/host/cloud enrichment.

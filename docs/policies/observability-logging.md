@@ -34,7 +34,7 @@ The deployment-side logs collector must avoid scraping its own collector logs an
 ## Core rules
 
 1. Logs must be structured.
-2. Field names must use `snake_case`.
+2. Application-owned field names should use `snake_case` unless the field is an approved OpenTelemetry semantic key.
 3. Request, workflow, and dependency logs must prefer stable low-cardinality keys.
 4. Metrics must not use high-cardinality labels.
 5. Logs and traces must be correlatable through shared identifiers.
@@ -42,15 +42,29 @@ The deployment-side logs collector must avoid scraping its own collector logs an
 
 ## Structured log contract
 
+The detailed source-of-truth for log field ownership is `docs/observability/logging-spec.md`.
+In short:
+
+- application middleware writes request facts and DevFlow resource identifiers
+- OpenTelemetry SDK / instrumentation supplies trace identifiers and service resource attributes from context and OTEL environment variables
+- the OpenTelemetry Collector enriches logs with Kubernetes, host, and cloud resource attributes
+
+Do not copy Collector-owned Kubernetes fields into business code.
+
 ### Required baseline fields
 
 Service runtime logs should carry these fields whenever available:
-- `service`
-- `environment`
-- `service_version`
+- `service.name`
+- `service.namespace`
+- `service.version`
+- `deployment.environment.name`
 - `trace_id`
 - `span_id`
+- `trace_flags`
 - `request_id`
+
+Legacy fields such as `service`, `environment`, and `service_version` may still appear in older logs or metric labels.
+They are compatibility fields, not recommended structured-log fields for new application log events.
 
 ### Preferred operation fields
 
@@ -69,13 +83,16 @@ Use them to answer:
 ### Resource-specific fields
 
 After the baseline fields, add domain-specific stable identifiers such as:
-- `application_id`
-- `project_id`
-- `environment_id`
-- `cluster_id`
-- `manifest_id`
-- `release_id`
+- `devflow.application.id`
+- `devflow.project.id`
+- `devflow.environment.id`
+- `devflow.service.id`
+- `devflow.manifest.id`
+- `devflow.release.id`
 - `intent_id`
+
+Legacy snake_case identifiers such as `application_id`, `project_id`, `environment_id`, `manifest_id`, and `release_id`
+may remain in existing business logs, but new HTTP request middleware logs should prefer the `devflow.*.id` keys.
 
 Prefer explicit names such as `cluster_server`, `pipeline_run_id`, `listen_port`, and `filter_name` over ambiguous names such as `server`, `name`, `count`, or `addr`.
 
@@ -84,30 +101,37 @@ Prefer explicit names such as `cluster_server`, `pipeline_run_id`, `listen_port`
 ### Allowed
 
 - `snake_case` field names
+- approved OpenTelemetry semantic log keys such as `service.name`, `deployment.environment.name`, `http.request.method`, and `devflow.application.id`
 - explicit identifiers such as `release_id`
 - explicit counters such as `project_count`
 - explicit filter names such as `filter_project_id`
 
 ### Disallowed
 
-- dotted field names such as `release.id` or `error.message`
+- unapproved dotted field names such as `release.id` or `error.message`
 - camelCase field names such as `pipelineRun`
 - generic names when a stable explicit name is available
 
 ## Metrics policy
 
+The detailed source-of-truth for metric label naming is `docs/observability/metrics-spec.md`.
+Metrics must describe the same facts as logs and traces, but use Prometheus-safe label names instead of dotted OpenTelemetry keys.
+
 ### Required low-cardinality dimensions
 
 For HTTP and service metrics, prefer labels like:
-- `service`
-- `environment`
-- `method`
-- `route`
-- `status_code`
+- `service_name`
+- `service_namespace`
+- `deployment_environment_name`
+- `http_request_method`
+- `http_route`
+- `http_response_status_code`
+- `http_response_status_class`
 
 For release and workflow metrics, prefer stable labels such as:
-- `service`
-- `environment`
+- `service_name`
+- `service_namespace`
+- `deployment_environment_name`
 - `release_type`
 
 ### Forbidden high-cardinality labels
@@ -132,37 +156,43 @@ Prefer a small stable set over a large expressive set.
 #### HTTP server metrics
 
 Recommended labels:
-- `service`
-- `environment`
-- `method`
-- `route`
-- `status_code`
+- `service_name`
+- `service_namespace`
+- `deployment_environment_name`
+- `http_request_method`
+- `http_route`
+- `http_response_status_code`
+- `http_response_status_class`
 
 Example:
 
 ```text
 http_server_requests_total{
-  service="meta-service",
-  environment="prod",
-  method="GET",
-  route="/api/v1/applications/:id",
-  status_code="200"
+  service_name="meta-service",
+  service_namespace="devflow",
+  deployment_environment_name="pre-production",
+  http_request_method="GET",
+  http_route="/api/v1/applications/:id",
+  http_response_status_code="200",
+  http_response_status_class="2xx"
 }
 ```
 
 #### Release workflow metrics
 
 Recommended labels:
-- `service`
-- `environment`
+- `service_name`
+- `service_namespace`
+- `deployment_environment_name`
 - `release_type`
 
 Example:
 
 ```text
 release_total{
-  service="release-service",
-  environment="prod",
+  service_name="release-service",
+  service_namespace="devflow",
+  deployment_environment_name="pre-production",
   release_type="upgrade"
 }
 ```
@@ -170,7 +200,9 @@ release_total{
 #### Dependency metrics
 
 Recommended labels:
-- `service`
+- `service_name`
+- `service_namespace`
+- `deployment_environment_name`
 - `dependency`
 - `action`
 - `result`
@@ -179,7 +211,9 @@ Example:
 
 ```text
 devflow_dependency_calls_total{
-  service="release-service",
+  service_name="release-service",
+  service_namespace="devflow",
+  deployment_environment_name="pre-production",
   dependency="runtime_service",
   action="get_runtime_spec",
   result="ok"
@@ -202,6 +236,9 @@ pipeline_run_id="..."
 These values are too high-cardinality or too sensitive for metric labels.
 Put them in logs or trace attributes instead.
 
+Legacy metric labels such as `service`, `environment`, `method`, `route`, and `status_code`
+may appear in dashboards during rollout compatibility windows, but new application metrics must use the canonical labels above.
+
 ### Generic metric label anti-patterns
 
 Avoid generic labels when a stable explicit name is available.
@@ -218,9 +255,9 @@ status="..."
 Prefer:
 
 ```text
-route="..."
+http_route="..."
 release_type="..."
-status_code="200"
+http_response_status_code="200"
 result="success"
 dependency="runtime_service"
 ```
@@ -305,7 +342,7 @@ When adding a new log statement, check:
 2. does it need `resource`
 3. does it need `resource_id`
 4. is `result` explicit
-5. are all field names `snake_case`
+5. are all application-owned field names `snake_case`, or is the field an approved OpenTelemetry semantic key
 6. did I avoid sensitive values
 7. did I avoid introducing a high-cardinality metric label
 
@@ -320,36 +357,53 @@ Use for request summary logs emitted by HTTP middleware.
 
 Recommended fields:
 - `component`
+- `event.outcome`
 - `result`
-- `method`
-- `route`
-- `path`
-- `status_code`
+- `http.request.method`
+- `http.route`
+- `url.path`
+- `http.response.status_code`
+- `http.response.status_class`
 - `duration_ms`
-- `request_size_bytes`
-- `response_size_bytes`
-- `client_ip`
-- `user_agent`
+- `http.server.request.duration`
+- `http.request.body.size`
+- `http.response.body.size`
+- `client.address`
+- `user_agent.original`
 - `trace_id`
+- `span_id`
+- `trace_flags`
 - `request_id`
+- `devflow.project.id`
+- `devflow.application.id`
+- `devflow.service.id`
+- `devflow.environment.id`
+- `devflow.release.id`
+- `devflow.manifest.id`
 
 Example:
 
 ```text
-message="http request"
+body="http request"
 component="http_server"
+event.outcome="success"
 result="2xx"
-method="POST"
-route="/api/v1/releases"
-path="/api/v1/releases"
-status_code=201
+http.request.method="POST"
+http.route="/api/v1/releases"
+url.path="/api/v1/releases"
+http.response.status_code=201
+http.response.status_class="2xx"
 duration_ms=143
-request_size_bytes=512
-response_size_bytes=244
-client_ip="10.0.0.8"
-user_agent="curl/8.7.1"
+http.server.request.duration=0.143
+http.request.body.size=512
+http.response.body.size=244
+client.address="10.0.0.8"
+user_agent.original="curl/8.7.1"
 trace_id="..."
+span_id="..."
+trace_flags="01"
 request_id="..."
+devflow.release.id="..."
 ```
 
 ### Repository read or write
@@ -445,8 +499,8 @@ Recommended fields:
 Example:
 
 ```text
-message="starting service"
-service="release-service"
+body="starting service"
+service.name="release-service"
 operation="service_start"
 resource="service"
 result="starting"

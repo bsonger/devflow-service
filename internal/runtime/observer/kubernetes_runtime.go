@@ -97,10 +97,10 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 		if err := o.syncRuntimeSpec(ctx, spec, appName, deployment.Namespace); err != nil {
 			log.Warn("sync runtime deployment from kubernetes failed",
 				zap.String("runtime_spec_id", spec.ID.String()),
-				zap.String("application_id", spec.ApplicationID.String()),
-				zap.String("environment", spec.Environment),
-				zap.String("namespace", deployment.Namespace),
-				zap.String("deployment", deployment.Name),
+				zap.String("devflow.application.id", spec.ApplicationID.String()),
+				zap.String("devflow.environment.id", spec.Environment),
+				zap.String("observed_workload_namespace", deployment.Namespace),
+				zap.String("observed_workload_name", deployment.Name),
 				zap.Error(err),
 			)
 		}

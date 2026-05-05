@@ -742,8 +742,8 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 		oci.SpanAnnotation:    sc.SpanID().String(),
 	}
 	application.Labels = map[string]string{
-		"status":                     string(model.ReleaseRunning),
-		"app.kubernetes.io/name":     application.Name,
+		"status":                      string(model.ReleaseRunning),
+		"app.kubernetes.io/name":      application.Name,
 		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: releaseTargetEnvironment(release),
@@ -936,11 +936,11 @@ func annotateReleaseSpan(ctx context.Context, release *model.Release) {
 		return
 	}
 	attrs := []attribute.KeyValue{
-		attribute.String("release.id", release.ID.String()),
-		attribute.String("release.type", release.Type),
-		attribute.String("application.id", release.ApplicationID.String()),
-		attribute.String("manifest.id", release.ManifestID.String()),
-		attribute.String("deployment.environment", strings.TrimSpace(release.EnvironmentID)),
+		attribute.String("devflow.release.id", release.ID.String()),
+		attribute.String("devflow.release.type", release.Type),
+		attribute.String("devflow.application.id", release.ApplicationID.String()),
+		attribute.String("devflow.manifest.id", release.ManifestID.String()),
+		attribute.String("devflow.environment.id", strings.TrimSpace(release.EnvironmentID)),
 	}
 	span.SetAttributes(attrs...)
 }

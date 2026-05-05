@@ -38,6 +38,7 @@ data:
     otel:
       endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
       service_name: meta-service
+      resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-meta-20260425"
     pyroscope: ""
 ---
 apiVersion: v1

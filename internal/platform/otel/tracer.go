@@ -64,7 +64,7 @@ func InitOtel(ctx context.Context, config *Config) (func(context.Context) error,
 
 	logger.Logger.Info(
 		"OpenTelemetry tracing initialized",
-		zap.String("service", cfg.ServiceName),
+		zap.String("service.name", cfg.ServiceName),
 		zap.String("endpoint", cfg.Endpoint),
 		zap.String("protocol", cfg.Protocol),
 		zap.Float64("sample_ratio", sampleRatio(cfg.SampleRatio)),
@@ -86,14 +86,9 @@ func Start(ctx context.Context, tracerName, spanName string, opts ...trace.SpanS
 func buildResource(ctx context.Context, cfg *Config) (*resource.Resource, error) {
 	attrs := []attribute.KeyValue{
 		semconv.ServiceName(cfg.ServiceName),
-		semconv.ServiceNamespace(getEnv("POD_NAMESPACE", "default")),
+		semconv.ServiceNamespace(logger.ServiceNamespace()),
 		semconv.ServiceVersion(logger.ServiceVersion()),
 		semconv.DeploymentEnvironmentName(logger.Environment()),
-		attribute.String("k8s.cluster.name", getEnv("CLUSTER_NAME", "unknown")),
-		attribute.String("k8s.namespace.name", getEnv("POD_NAMESPACE", "default")),
-		attribute.String("k8s.pod.name", getEnv("POD_NAME", "unknown")),
-		attribute.String("k8s.container.name", getEnv("CONTAINER_NAME", "unknown")),
-		attribute.String("k8s.node.name", getEnv("NODE_NAME", "unknown")),
 	}
 	attrs = append(attrs, parseResourceAttributes(cfg.ResourceAttributes)...)
 
@@ -103,13 +98,6 @@ func buildResource(ctx context.Context, cfg *Config) (*resource.Resource, error)
 		resource.WithTelemetrySDK(),
 		resource.WithAttributes(attrs...),
 	)
-}
-
-func getEnv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
 }
 
 func sampleRatio(value float64) float64 {

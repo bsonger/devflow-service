@@ -26,6 +26,7 @@
 - `docs/resources/`：资源字段、API surface、校验规则
 - `docs/api/`：API 统一契约说明、兼容性与 breaking changes
 - `docs/guides/`：本地开发、扩展模块、更新 OpenAPI 等操作指南
+- `docs/observability/`：日志、指标、链路追踪字段归属和信号管道细则
 - `docs/policies/`：长期规则和必须遵守的约束
 - `docs/architecture/`：架构图和 Mermaid 图示，只做视觉辅助
 - `docs/generated/`：生成产物
@@ -84,6 +85,12 @@
 - `docs/policies/repository-layer.md`
 - `docs/policies/downstream-client.md`
 - `docs/policies/worker-runtime.md`
+
+想看日志字段归属和 Trace → Log 关联：
+
+- `docs/observability/logging-spec.md`
+- `docs/observability/metrics-spec.md`
+- `docs/policies/observability-logging.md`
 
 ## 需要特别注意的目录
 

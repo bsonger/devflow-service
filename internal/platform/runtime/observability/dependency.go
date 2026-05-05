@@ -2,7 +2,6 @@ package observability
 
 import (
 	"context"
-	"os"
 	"sync"
 	"time"
 
@@ -125,11 +124,11 @@ func initDependencyMetrics() {
 
 func dependencyAttributes(call DependencyCall) []attribute.KeyValue {
 	return []attribute.KeyValue{
-		attribute.String("service", serviceName()),
+		attribute.String("service_name", logger.ServiceName()),
+		attribute.String("service_namespace", logger.ServiceNamespace()),
+		attribute.String("deployment_environment_name", logger.Environment()),
 		attribute.String("dependency", safeDependency(call.Target)),
 		attribute.String("action", safeAction(call.Operation)),
-		attribute.String("devflow.dependency", safeDependency(call.Target)),
-		attribute.String("devflow.action", safeAction(call.Operation)),
 	}
 }
 
@@ -142,13 +141,6 @@ func dependencySpanName(call DependencyCall) string {
 		return name + "." + call.Operation
 	}
 	return name
-}
-
-func serviceName() string {
-	if v := os.Getenv("SERVICE_NAME"); v != "" {
-		return v
-	}
-	return "devflow"
 }
 
 func safeDependency(value string) string {

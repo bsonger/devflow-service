@@ -24,7 +24,9 @@ func ShouldIgnorePath(path string) bool {
 	return path == "/metrics" ||
 		path == "/health" ||
 		path == "/healthz" ||
+		path == "/livez" ||
 		path == "/readyz" ||
+		path == "/favicon.ico" ||
 		path == "/internal/status" ||
 		strings.HasPrefix(path, "/debug/pprof") ||
 		strings.HasPrefix(path, "/swagger")
@@ -70,19 +72,16 @@ func GinMetricsMiddleware() gin.HandlerFunc {
 	httpMetricsOnce.Do(initHTTPMetrics)
 
 	return func(c *gin.Context) {
-		if ShouldIgnorePath(c.Request.URL.Path) {
-			c.Next()
-			return
-		}
-
 		start := time.Now()
+		path := c.Request.URL.Path
 		requestSize := c.Request.ContentLength
 		if requestSize < 0 {
 			requestSize = 0
 		}
 		ctx := c.Request.Context()
 		startAttrs := httpMetricAttributes(c, 0)
-		if httpMetricsInitErr == nil {
+		trackInFlight := !ShouldIgnorePath(path)
+		if httpMetricsInitErr == nil && trackInFlight {
 			httpRequestsInFlight.Add(ctx, 1, metric.WithAttributes(startAttrs...))
 			defer httpRequestsInFlight.Add(ctx, -1, metric.WithAttributes(startAttrs...))
 		}
@@ -94,9 +93,13 @@ func GinMetricsMiddleware() gin.HandlerFunc {
 		}
 
 		status := c.Writer.Status()
+		latency := time.Since(start)
+		if shouldSkipHTTPMetric(path, status, latency) {
+			return
+		}
 		attrs := httpMetricAttributes(c, status)
 		httpRequestsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-		httpRequestLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
+		httpRequestLatency.Record(ctx, latency.Seconds(), metric.WithAttributes(attrs...))
 		httpRequestSize.Record(ctx, requestSize, metric.WithAttributes(attrs...))
 		httpResponseSize.Record(ctx, int64(maxInt(c.Writer.Size(), 0)), metric.WithAttributes(attrs...))
 	}
@@ -152,6 +155,9 @@ func GinZapLogger() gin.HandlerFunc {
 
 		latency := time.Since(start)
 		status := c.Writer.Status()
+		if shouldSkipHTTPRequestLog(path, status, latency) {
+			return
+		}
 		route := c.FullPath()
 		if route == "" {
 			route = "unknown"
@@ -159,17 +165,21 @@ func GinZapLogger() gin.HandlerFunc {
 
 		fields := []zap.Field{
 			zap.String("component", "http_server"),
+			zap.String("event.outcome", httpEventOutcome(status)),
 			zap.String("result", httpResult(status)),
-			zap.String("method", req.Method),
-			zap.String("route", route),
-			zap.String("path", path),
-			zap.Int("status_code", status),
-			zap.Int64("request_size_bytes", maxInt64(req.ContentLength, 0)),
-			zap.Int("response_size_bytes", maxInt(c.Writer.Size(), 0)),
+			zap.String("http.request.method", req.Method),
+			zap.String("http.route", route),
+			zap.String("url.path", path),
+			zap.Int("http.response.status_code", status),
+			zap.String("http.response.status_class", httpStatusClass(status)),
+			zap.Int64("http.request.body.size", maxInt64(req.ContentLength, 0)),
+			zap.Int("http.response.body.size", maxInt(c.Writer.Size(), 0)),
 			zap.Int64("duration_ms", latency.Milliseconds()),
-			zap.String("client_ip", c.ClientIP()),
-			zap.String("user_agent", req.UserAgent()),
+			zap.Float64("http.server.request.duration", latency.Seconds()),
+			zap.String("client.address", c.ClientIP()),
+			zap.String("user_agent.original", req.UserAgent()),
 		}
+		fields = append(fields, devflowIdentityFields(c, route)...)
 
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last()
@@ -198,11 +208,12 @@ func GinZapRecovery() gin.HandlerFunc {
 				log := logger.LoggerFromContext(c.Request.Context())
 				log.Error("panic recovered",
 					zap.String("component", "http_server"),
+					zap.String("event.outcome", "failure"),
 					zap.String("result", "panic"),
 					zap.Any("panic", rec),
-					zap.String("method", c.Request.Method),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("client_ip", c.ClientIP()),
+					zap.String("http.request.method", c.Request.Method),
+					zap.String("url.path", c.Request.URL.Path),
+					zap.String("client.address", c.ClientIP()),
 				)
 				httpx.WriteError(c, http.StatusInternalServerError, "internal", "internal server error", nil)
 				c.Abort()
@@ -251,11 +262,13 @@ func maxInt64(value, fallback int64) int64 {
 
 func httpMetricAttributes(c *gin.Context, status int) []attribute.KeyValue {
 	return []attribute.KeyValue{
-		attribute.String("service", logger.ServiceName()),
-		attribute.String("environment", logger.Environment()),
-		attribute.String("method", c.Request.Method),
-		attribute.String("route", routeLabel(c)),
-		attribute.String("status_code", httpStatusCodeLabel(status)),
+		attribute.String("service_name", logger.ServiceName()),
+		attribute.String("service_namespace", logger.ServiceNamespace()),
+		attribute.String("deployment_environment_name", logger.Environment()),
+		attribute.String("http_request_method", c.Request.Method),
+		attribute.String("http_route", routeLabel(c)),
+		attribute.String("http_response_status_code", httpStatusCodeLabel(status)),
+		attribute.String("http_response_status_class", httpStatusClass(status)),
 	}
 }
 
@@ -277,4 +290,82 @@ func httpResult(status int) string {
 	default:
 		return "2xx"
 	}
+}
+
+func httpEventOutcome(status int) string {
+	if status >= 400 {
+		return "failure"
+	}
+	return "success"
+}
+
+func httpStatusClass(status int) string {
+	if status <= 0 {
+		return "in_flight"
+	}
+	return strconv.Itoa(status/100) + "xx"
+}
+
+func shouldSkipHTTPMetric(path string, status int, latency time.Duration) bool {
+	return shouldSkipHTTPRequestLog(path, status, latency)
+}
+
+func shouldSkipHTTPRequestLog(path string, status int, latency time.Duration) bool {
+	if !ShouldIgnorePath(path) {
+		return false
+	}
+	if status >= 400 {
+		return false
+	}
+	return latency < time.Second
+}
+
+func devflowIdentityFields(c *gin.Context, route string) []zap.Field {
+	values := map[string]string{
+		"devflow.project.id":     firstRequestValue(c, "X-Devflow-Project-Id", "project_id", "project_id"),
+		"devflow.application.id": firstRequestValue(c, "X-Devflow-Application-Id", "application_id", "application_id"),
+		"devflow.service.id":     firstRequestValue(c, "X-Devflow-Service-Id", "service_id", "service_id"),
+		"devflow.environment.id": firstRequestValue(c, "X-Devflow-Environment-Id", "environment_id", "environment_id"),
+		"devflow.release.id":     firstRequestValue(c, "X-Devflow-Release-Id", "release_id", "release_id"),
+		"devflow.manifest.id":    firstRequestValue(c, "X-Devflow-Manifest-Id", "manifest_id", "manifest_id"),
+	}
+
+	if id := strings.TrimSpace(c.Param("id")); id != "" {
+		switch {
+		case strings.Contains(route, "/projects/:id"):
+			values["devflow.project.id"] = id
+		case strings.Contains(route, "/applications/:id"):
+			values["devflow.application.id"] = id
+		case strings.Contains(route, "/services/:id"):
+			values["devflow.service.id"] = id
+		case strings.Contains(route, "/environments/:id"):
+			values["devflow.environment.id"] = id
+		case strings.Contains(route, "/releases/:id"):
+			values["devflow.release.id"] = id
+		case strings.Contains(route, "/manifests/:id"):
+			values["devflow.manifest.id"] = id
+		}
+	}
+
+	fields := make([]zap.Field, 0, len(values))
+	for key, value := range values {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		fields = append(fields, zap.String(key, strings.TrimSpace(value)))
+	}
+	return fields
+}
+
+func firstRequestValue(c *gin.Context, headerName, queryName, paramName string) string {
+	for _, value := range []string{
+		c.GetHeader(headerName),
+		c.Query(queryName),
+		c.Param(paramName),
+	} {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

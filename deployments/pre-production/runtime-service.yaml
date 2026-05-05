@@ -17,7 +17,7 @@ data:
       endpoint: "http://signoz-otel-collector.observability.svc.cluster.local:4318"
       protocol: "http/protobuf"
       service_name: "runtime-service"
-      resource_attributes: "deployment.environment=pre-production,service.version=preproduction-runtime-20260425"
+      resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-runtime-20260425"
       sample_ratio: 0.1
     downstream:
       release_service_base_url: "http://release-service.devflow-pre-production.svc.cluster.local:8083"

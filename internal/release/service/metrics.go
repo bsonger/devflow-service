@@ -81,8 +81,9 @@ func releaseMetricAttributes(release *model.Release) []attribute.KeyValue {
 		releaseType = release.Type
 	}
 	return []attribute.KeyValue{
-		attribute.String("service", logger.ServiceName()),
-		attribute.String("environment", logger.Environment()),
+		attribute.String("service_name", logger.ServiceName()),
+		attribute.String("service_namespace", logger.ServiceNamespace()),
+		attribute.String("deployment_environment_name", logger.Environment()),
 		attribute.String("release_type", releaseType),
 	}
 }

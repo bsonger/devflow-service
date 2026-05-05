@@ -39,6 +39,10 @@ func InitZapLogger(config *Config) {
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	cfg.EncoderConfig.TimeKey = "timestamp"
+	cfg.EncoderConfig.LevelKey = "severity_text"
+	cfg.EncoderConfig.MessageKey = "body"
+	cfg.EncoderConfig.NameKey = "logger.name"
 	cfg.EncoderConfig.StacktraceKey = "stacktrace"
 
 	level := zapcore.InfoLevel
@@ -60,7 +64,7 @@ func InitZapLogger(config *Config) {
 		panic(err)
 	}
 
-	Logger = withEnvFields(logger)
+	Logger = withResourceFields(logger.Named(ServiceName()))
 }
 
 func InjectLogger(ctx context.Context, base *zap.Logger) context.Context {
@@ -77,6 +81,7 @@ func InjectLogger(ctx context.Context, base *zap.Logger) context.Context {
 		log = log.With(
 			zap.String("trace_id", sc.TraceID().String()),
 			zap.String("span_id", sc.SpanID().String()),
+			zap.String("trace_flags", sc.TraceFlags().String()),
 		)
 	}
 	if requestID := RequestIDFromContext(ctx); requestID != "" {
@@ -98,23 +103,39 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 
 func ServiceName() string {
 	return firstNonEmpty(
-		os.Getenv("SERVICE_NAME"),
 		os.Getenv("OTEL_SERVICE_NAME"),
+		resourceAttribute("service.name"),
+		os.Getenv("SERVICE_NAME"),
+		"devflow",
+	)
+}
+
+func ServiceNamespace() string {
+	return firstNonEmpty(
+		resourceAttribute("service.namespace"),
+		os.Getenv("OTEL_SERVICE_NAMESPACE"),
 		"devflow",
 	)
 }
 
 func Environment() string {
+	return DeploymentEnvironmentName()
+}
+
+func DeploymentEnvironmentName() string {
 	return firstNonEmpty(
-		os.Getenv("ENV"),
-		os.Getenv("ENVIRONMENT"),
+		resourceAttribute("deployment.environment.name"),
+		resourceAttribute("deployment.environment"),
 		os.Getenv("DEPLOYMENT_ENVIRONMENT"),
+		os.Getenv("ENVIRONMENT"),
+		os.Getenv("ENV"),
 		"unknown",
 	)
 }
 
 func ServiceVersion() string {
 	return firstNonEmpty(
+		resourceAttribute("service.version"),
 		os.Getenv("SERVICE_VERSION"),
 		os.Getenv("VERSION"),
 		"unknown",
@@ -172,16 +193,12 @@ func (z *ZapAdapter) Errorf(msg string, args ...interface{}) {
 	z.sugar.Errorf(msg, args...)
 }
 
-func withEnvFields(l *zap.Logger) *zap.Logger {
+func withResourceFields(l *zap.Logger) *zap.Logger {
 	fields := []zap.Field{
-		zap.String("service", ServiceName()),
-		zap.String("environment", Environment()),
-		zap.String("service_version", ServiceVersion()),
-		hostField(),
-		envField("pod", "POD_NAME"),
-		envField("namespace", "POD_NAMESPACE"),
-		envField("node", "NODE_NAME"),
-		envField("cluster", "CLUSTER_NAME"),
+		zap.String("service.name", ServiceName()),
+		zap.String("service.namespace", ServiceNamespace()),
+		zap.String("service.version", ServiceVersion()),
+		zap.String("deployment.environment.name", DeploymentEnvironmentName()),
 	}
 
 	out := l
@@ -193,23 +210,6 @@ func withEnvFields(l *zap.Logger) *zap.Logger {
 	return out
 }
 
-func hostField() zap.Field {
-	if v := os.Getenv("HOSTNAME"); v != "" {
-		return zap.String("host", v)
-	}
-	if v := os.Getenv("NODE_NAME"); v != "" {
-		return zap.String("host", v)
-	}
-	return zap.Field{}
-}
-
-func envField(key, envKey string) zap.Field {
-	if v := os.Getenv(envKey); v != "" {
-		return zap.String(key, v)
-	}
-	return zap.Field{}
-}
-
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -217,4 +217,26 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func resourceAttribute(key string) string {
+	attrs := parseResourceAttributes(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"))
+	return attrs[key]
+}
+
+func parseResourceAttributes(value string) map[string]string {
+	attrs := map[string]string{}
+	for _, part := range strings.Split(value, ",") {
+		key, raw, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		raw = strings.TrimSpace(raw)
+		if key == "" || raw == "" {
+			continue
+		}
+		attrs[key] = raw
+	}
+	return attrs
 }

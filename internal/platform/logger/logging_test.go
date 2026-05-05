@@ -33,3 +33,36 @@ func TestNewZapAdapterFallsBackToGlobalLogger(t *testing.T) {
 		t.Fatal("expected adapter with logger")
 	}
 }
+
+func TestResourceFieldsPreferOTELResourceAttributes(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "")
+	t.Setenv("SERVICE_NAME", "")
+	t.Setenv("OTEL_SERVICE_NAMESPACE", "")
+	t.Setenv("SERVICE_VERSION", "")
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.name=config-service,service.namespace=devflow,service.version=v1,deployment.environment.name=pre-production")
+
+	if got := ServiceName(); got != "config-service" {
+		t.Fatalf("ServiceName() = %q, want config-service", got)
+	}
+	if got := ServiceNamespace(); got != "devflow" {
+		t.Fatalf("ServiceNamespace() = %q, want devflow", got)
+	}
+	if got := ServiceVersion(); got != "v1" {
+		t.Fatalf("ServiceVersion() = %q, want v1", got)
+	}
+	if got := DeploymentEnvironmentName(); got != "pre-production" {
+		t.Fatalf("DeploymentEnvironmentName() = %q, want pre-production", got)
+	}
+}
+
+func TestDeploymentEnvironmentAcceptsLegacyResourceAttributeFallback(t *testing.T) {
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=pre-production")
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "")
+	t.Setenv("ENVIRONMENT", "")
+	t.Setenv("ENV", "")
+
+	if got := DeploymentEnvironmentName(); got != "pre-production" {
+		t.Fatalf("DeploymentEnvironmentName() = %q, want pre-production", got)
+	}
+}
