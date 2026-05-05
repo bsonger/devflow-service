@@ -46,7 +46,7 @@ type WorkloadResourceList struct {
 
 // WorkloadResourceRequirements is the constrained API-facing replacement for the legacy free-form resources map.
 type WorkloadResourceRequirements struct {
-	SizeClass WorkloadSizeClass   `json:"size_class,omitempty"`
+	SizeClass WorkloadSizeClass    `json:"size_class,omitempty"`
 	Requests  WorkloadResourceList `json:"requests,omitempty"`
 	Limits    WorkloadResourceList `json:"limits,omitempty"`
 }
@@ -68,6 +68,20 @@ type WorkloadProbes struct {
 	Startup   *WorkloadProbe `json:"startup,omitempty"`
 }
 
+type WorkloadMetricsScrapeProfile string
+
+const (
+	WorkloadMetricsScrapeProfileDefault WorkloadMetricsScrapeProfile = "default"
+	WorkloadMetricsScrapeProfileFast    WorkloadMetricsScrapeProfile = "fast"
+	WorkloadMetricsScrapeProfileSlow    WorkloadMetricsScrapeProfile = "slow"
+)
+
+type WorkloadMetrics struct {
+	Enabled       bool                         `json:"enabled,omitempty"`
+	Port          int                          `json:"port,omitempty"`
+	ScrapeProfile WorkloadMetricsScrapeProfile `json:"scrape_profile,omitempty"`
+}
+
 // WorkloadConfig stores the application-scoped runtime workload contract used by config-service handlers.
 type WorkloadConfig struct {
 	BaseModel
@@ -77,6 +91,7 @@ type WorkloadConfig struct {
 	ServiceAccountName string                       `json:"service_account_name,omitempty" db:"service_account_name"`
 	Resources          WorkloadResourceRequirements `json:"resources,omitempty" db:"resources"`
 	Probes             WorkloadProbes               `json:"probes,omitempty" db:"probes"`
+	Metrics            WorkloadMetrics              `json:"metrics,omitempty" db:"metrics"`
 	Env                []EnvVar                     `json:"env,omitempty" db:"env"`
 	Labels             map[string]string            `json:"labels,omitempty" db:"labels"`
 	Annotations        map[string]string            `json:"annotations,omitempty" db:"annotations"`
@@ -89,6 +104,7 @@ type WorkloadConfigInput struct {
 	ServiceAccountName string                       `json:"service_account_name,omitempty"`
 	Resources          WorkloadResourceRequirements `json:"resources,omitempty"`
 	Probes             WorkloadProbes               `json:"probes,omitempty"`
+	Metrics            WorkloadMetrics              `json:"metrics,omitempty"`
 	Env                []EnvVar                     `json:"env,omitempty"`
 	Labels             map[string]string            `json:"labels,omitempty"`
 	Annotations        map[string]string            `json:"annotations,omitempty"`

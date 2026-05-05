@@ -1,7 +1,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: devflow-services
+  name: devflow-services-default
   namespace: devflow-pre-production
   labels:
     app.kubernetes.io/name: devflow-services
@@ -13,11 +13,59 @@ spec:
       - devflow-pre-production
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: devflow
       observability.devflow.io/scrape: "true"
+      observability.devflow.io/scrape-profile: "default"
   endpoints:
     - port: metrics
       path: /metrics
       interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: false
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: devflow-services-fast
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: devflow-services
+    app.kubernetes.io/part-of: devflow
+    environment: pre-production
+spec:
+  namespaceSelector:
+    matchNames:
+      - devflow-pre-production
+  selector:
+    matchLabels:
+      observability.devflow.io/scrape: "true"
+      observability.devflow.io/scrape-profile: "fast"
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 5s
+      honorLabels: false
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: devflow-services-slow
+  namespace: devflow-pre-production
+  labels:
+    app.kubernetes.io/name: devflow-services
+    app.kubernetes.io/part-of: devflow
+    environment: pre-production
+spec:
+  namespaceSelector:
+    matchNames:
+      - devflow-pre-production
+  selector:
+    matchLabels:
+      observability.devflow.io/scrape: "true"
+      observability.devflow.io/scrape-profile: "slow"
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s
       scrapeTimeout: 10s
       honorLabels: false

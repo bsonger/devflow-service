@@ -512,6 +512,7 @@ CREATE TABLE public.workload_configs (
     replicas integer DEFAULT 1 NOT NULL,
     resources jsonb DEFAULT '{}'::jsonb NOT NULL,
     probes jsonb DEFAULT '{}'::jsonb NOT NULL,
+    metrics jsonb DEFAULT '{}'::jsonb NOT NULL,
     env jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,

@@ -39,7 +39,7 @@ func main() {
 		StartPprofServer:   observability.StartPprofServer,
 		PortEnv:            "RUNTIME_SERVICE_PORT",
 		DefaultPort:        8084,
-		MetricsPortEnv:     "RUNTIME_SERVICE_METRICS_PORT",
+		MetricsPortEnv:     "METRICS_PORT",
 		PprofPortEnv:       "RUNTIME_SERVICE_PPROF_PORT",
 	})
 	if err != nil {

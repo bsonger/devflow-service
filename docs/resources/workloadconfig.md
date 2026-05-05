@@ -30,6 +30,7 @@ The active write contract is intentionally constrained:
 - `probes` is a typed object with only `liveness`, `readiness`, and `startup` slots
 - probe `path` values must start with `/`, and `port` is required whenever a probe `path` is set
 - `env` remains an ordered array of repeated `{name,value}` rows and rejects duplicate `name` entries
+- `metrics` is a typed contract with `enabled`, `port`, and `scrape_profile`
 - `labels` and `annotations` remain explicit user inputs
 - rollout strategy is **not** stored here; it belongs to `Release.strategy`
 - render-time expansion into Kubernetes `resources`, `livenessProbe`, `readinessProbe`, `startupProbe`, and similar fields happens downstream during manifest/release rendering
@@ -52,6 +53,7 @@ The active write contract is intentionally constrained:
 | `service_account_name` | `string` | optional | user | Pod `serviceAccountName` to apply at render time. |
 | `resources` | `WorkloadResourceRequirements` | optional | user | Constrained resource selector. Writes must provide a valid `size_class` and must not send `requests` or `limits`. |
 | `probes` | `WorkloadProbes` | optional | user | Typed HTTP probe contract with only `liveness`, `readiness`, and `startup` slots. |
+| `metrics` | `WorkloadMetrics` | optional | user | Typed metrics exposure contract. `enabled=true` requires `port > 0`. `scrape_profile` defaults to `default` and is constrained to `default`, `fast`, or `slow`. |
 | `env` | `[]EnvVar` | optional | user | Ordered literal environment variable rows. Duplicate `name` values are rejected on writes. |
 | `labels` | `map[string]string` | optional | user | Labels copied into rendered workload metadata. |
 | `annotations` | `map[string]string` | optional | user | Annotations copied into rendered workload metadata. |
@@ -100,6 +102,14 @@ The active write contract is intentionally constrained:
 | `liveness` | `*WorkloadProbe` | optional | Liveness probe contract |
 | `readiness` | `*WorkloadProbe` | optional | Readiness probe contract |
 | `startup` | `*WorkloadProbe` | optional | Startup probe contract |
+
+### `WorkloadMetrics`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `enabled` | `bool` | optional | Whether the workload exposes a Prometheus metrics listener. |
+| `port` | `int` | required when `enabled=true` | Metrics listener port. Must be `> 0` when metrics are enabled. |
+| `scrape_profile` | `WorkloadMetricsScrapeProfile` | optional | Shared `ServiceMonitor` profile. Allowed values: `default`, `fast`, `slow`. Defaults to `default` when metrics are enabled. |
 
 ## Fixed size-class mapping table
 
@@ -150,6 +160,7 @@ Optional fields:
 
 - `service_account_name`
 - `probes`
+- `metrics`
 - `env`
 - `labels`
 - `annotations`
@@ -172,6 +183,7 @@ Mutable fields:
 - `service_account_name`
 - `resources`
 - `probes`
+- `metrics`
 - `env`
 - `labels`
 - `annotations`
@@ -222,6 +234,11 @@ Immutable/system-managed fields:
       "period_seconds": 5,
       "failure_threshold": 12
     }
+  },
+  "metrics": {
+    "enabled": true,
+    "port": 9090,
+    "scrape_profile": "default"
   },
   "env": [
     {
@@ -284,6 +301,8 @@ The active handler/service contract enforces these write rules:
 - probe `port` is required whenever a probe `path` is set
 - duplicate `env[*].name` entries are rejected
 - empty `env[*].name` entries are rejected
+- `metrics.port` must be `> 0` when `metrics.enabled=true`
+- `metrics.scrape_profile` must be `default`, `fast`, or `slow`
 - list endpoints support `application_id` and `include_deleted`
 
 ## Legacy cleanup policy: migrate or delete on read
@@ -370,11 +389,13 @@ It also does **not** directly store rendered Kubernetes field names such as:
 - `readinessProbe`
 - `startupProbe`
 - container `resources`
+- Service `metrics` port
+- `observability.devflow.io/scrape*` labels
 
 Instead:
 
 - this resource stores the frozen typed contract
-- manifest/release renderers translate that contract into Kubernetes-shaped output later
+- manifest/release renderers translate that contract into Kubernetes-shaped output later, including `METRICS_PORT`, the Service `metrics` port, and shared `ServiceMonitor` selection labels
 
 ## Observability and drift checks
 

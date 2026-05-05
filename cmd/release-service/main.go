@@ -43,7 +43,7 @@ func main() {
 		},
 		PortEnv:        "RELEASE_SERVICE_PORT",
 		DefaultPort:    8083,
-		MetricsPortEnv: "RELEASE_SERVICE_METRICS_PORT",
+		MetricsPortEnv: "METRICS_PORT",
 		PprofPortEnv:   "RELEASE_SERVICE_PPROF_PORT",
 	})
 	if err != nil {

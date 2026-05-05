@@ -134,14 +134,17 @@ type ReleaseWorkloadProbeDoc = workloadconfigdomain.WorkloadProbe
 
 type ReleaseWorkloadProbesDoc = workloadconfigdomain.WorkloadProbes
 
+type ReleaseWorkloadMetricsDoc = workloadconfigdomain.WorkloadMetrics
+
 type ReleaseFrozenWorkloadDoc struct {
-	Replicas           int                                  `json:"replicas"`
-	ServiceAccountName string                               `json:"service_account_name,omitempty"`
+	Replicas           int                                    `json:"replicas"`
+	ServiceAccountName string                                 `json:"service_account_name,omitempty"`
 	Resources          ReleaseWorkloadResourceRequirementsDoc `json:"resources,omitempty"`
-	Probes             ReleaseWorkloadProbesDoc            `json:"probes,omitempty"`
-	Env                []ManifestEnvVarDoc                 `json:"env,omitempty"`
-	Labels             map[string]string                   `json:"labels,omitempty"`
-	Annotations        map[string]string                   `json:"annotations,omitempty"`
+	Probes             ReleaseWorkloadProbesDoc               `json:"probes,omitempty"`
+	Metrics            ReleaseWorkloadMetricsDoc              `json:"metrics,omitempty"`
+	Env                []ManifestEnvVarDoc                    `json:"env,omitempty"`
+	Labels             map[string]string                      `json:"labels,omitempty"`
+	Annotations        map[string]string                      `json:"annotations,omitempty"`
 }
 
 type ReleaseBundleFrozenInputsDoc struct {
@@ -255,12 +258,15 @@ type ManifestWorkloadProbeDoc = workloadconfigdomain.WorkloadProbe
 
 type ManifestWorkloadProbesDoc = workloadconfigdomain.WorkloadProbes
 
+type ManifestWorkloadMetricsDoc = workloadconfigdomain.WorkloadMetrics
+
 type ManifestWorkloadConfigDoc struct {
 	ID                 string                                  `json:"id,omitempty"`
 	Replicas           int                                     `json:"replicas"`
 	ServiceAccountName string                                  `json:"service_account_name,omitempty"`
 	Resources          ManifestWorkloadResourceRequirementsDoc `json:"resources,omitempty"`
 	Probes             ManifestWorkloadProbesDoc               `json:"probes,omitempty"`
+	Metrics            ManifestWorkloadMetricsDoc              `json:"metrics,omitempty"`
 	Env                []ManifestEnvVarDoc                     `json:"env,omitempty"`
 	Labels             map[string]string                       `json:"labels,omitempty"`
 	Annotations        map[string]string                       `json:"annotations,omitempty"`

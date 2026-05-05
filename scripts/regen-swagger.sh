@@ -12,4 +12,6 @@ fi
 OUTPUT_DIR="${SWAGGER_OUTPUT_DIR:-$ROOT_DIR/api/openapi}"
 mkdir -p "$OUTPUT_DIR"
 export GOROOT="$(go env GOROOT)"
-swag init -g cmd/meta-service/main.go -d . --exclude .build,.cache,bin --parseDependency --parseInternal -o "$OUTPUT_DIR"
+export GOCACHE="${GOCACHE:-$ROOT_DIR/.cache/go-build}"
+mkdir -p "$GOCACHE"
+swag init -g cmd/meta-service/main.go -d . --exclude .build,.cache,bin --parseDependency --parseInternal --parseGoList=false -o "$OUTPUT_DIR"

@@ -37,9 +37,9 @@ func NewPostgresStore() Store {
 func (s *PostgresStore) Create(ctx context.Context, item *domain.WorkloadConfig) (uuid.UUID, error) {
 	_, err := db.Postgres().ExecContext(ctx, `
 		insert into workload_configs (
-			id, application_id, replicas, service_account_name, resources, probes, env, labels, annotations, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-	`, item.ID, item.ApplicationID, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), item.CreatedAt, item.UpdatedAt, item.DeletedAt)
+			id, application_id, replicas, service_account_name, resources, probes, metrics, env, labels, annotations, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+	`, item.ID, item.ApplicationID, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Metrics, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), item.CreatedAt, item.UpdatedAt, item.DeletedAt)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -48,7 +48,7 @@ func (s *PostgresStore) Create(ctx context.Context, item *domain.WorkloadConfig)
 
 func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*domain.WorkloadConfig, error) {
 	item, normalized, err := scanWorkloadConfig(db.Postgres().QueryRowContext(ctx, `
-		select id, application_id, replicas, service_account_name, resources, probes, env, labels, annotations, created_at, updated_at, deleted_at
+		select id, application_id, replicas, service_account_name, resources, probes, metrics, env, labels, annotations, created_at, updated_at, deleted_at
 		from workload_configs where id=$1 and deleted_at is null
 	`, id))
 	if err != nil {
@@ -71,9 +71,9 @@ func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*domain.Workload
 func (s *PostgresStore) Update(ctx context.Context, item *domain.WorkloadConfig) error {
 	result, err := db.Postgres().ExecContext(ctx, `
 		update workload_configs
-		set application_id=$2, replicas=$3, service_account_name=$4, resources=$5, probes=$6, env=$7, labels=$8, annotations=$9, updated_at=$10
+		set application_id=$2, replicas=$3, service_account_name=$4, resources=$5, probes=$6, metrics=$7, env=$8, labels=$9, annotations=$10, updated_at=$11
 		where id=$1 and deleted_at is null
-	`, item.ID, item.ApplicationID, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), item.UpdatedAt)
+	`, item.ID, item.ApplicationID, item.Replicas, dbsql.EmptyToNull(item.ServiceAccountName), dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Metrics, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), item.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]domain.WorkloadConfig, error) {
 	query := `
-		select id, application_id, replicas, service_account_name, resources, probes, env, labels, annotations, created_at, updated_at, deleted_at
+		select id, application_id, replicas, service_account_name, resources, probes, metrics, env, labels, annotations, created_at, updated_at, deleted_at
 		from workload_configs
 	`
 	clauses := make([]string, 0, 4)
@@ -157,6 +157,7 @@ type workloadConfigRow struct {
 	serviceAccountName sql.NullString
 	resourcesJSON      []byte
 	probesJSON         []byte
+	metricsJSON        []byte
 	envJSON            []byte
 	labelsJSON         []byte
 	annotationsJSON    []byte
@@ -188,7 +189,7 @@ func scanWorkloadConfig(scanner interface{ Scan(dest ...any) error }) (*domain.W
 
 func scanWorkloadConfigRow(scanner interface{ Scan(dest ...any) error }) (*workloadConfigRow, error) {
 	var row workloadConfigRow
-	if err := scanner.Scan(&row.item.ID, &row.item.ApplicationID, &row.item.Replicas, &row.serviceAccountName, &row.resourcesJSON, &row.probesJSON, &row.envJSON, &row.labelsJSON, &row.annotationsJSON, &row.item.CreatedAt, &row.item.UpdatedAt, &row.deletedAt); err != nil {
+	if err := scanner.Scan(&row.item.ID, &row.item.ApplicationID, &row.item.Replicas, &row.serviceAccountName, &row.resourcesJSON, &row.probesJSON, &row.metricsJSON, &row.envJSON, &row.labelsJSON, &row.annotationsJSON, &row.item.CreatedAt, &row.item.UpdatedAt, &row.deletedAt); err != nil {
 		return nil, err
 	}
 	if row.serviceAccountName.Valid {
@@ -222,6 +223,18 @@ func normalizeWorkloadConfigRow(row *workloadConfigRow) (*domain.WorkloadConfig,
 		return &item, normalizationDecision{keep: false}, nil
 	}
 	item.Probes = probes
+	if changed {
+		normalized.requiresRewrite = true
+	}
+
+	metrics, changed, keep, err := decodeLegacyMetrics(row.metricsJSON)
+	if err != nil {
+		return nil, normalizationDecision{}, scanWorkloadConfigLegacyError(item.ID, "metrics")
+	}
+	if !keep {
+		return &item, normalizationDecision{keep: false}, nil
+	}
+	item.Metrics = metrics
 	if changed {
 		normalized.requiresRewrite = true
 	}
@@ -314,6 +327,32 @@ func decodeLegacyProbes(payload []byte) (domain.WorkloadProbes, bool, bool, erro
 	return domain.WorkloadProbes{}, false, false, nil
 }
 
+func decodeLegacyMetrics(payload []byte) (domain.WorkloadMetrics, bool, bool, error) {
+	if isEmptyJSONObject(payload) {
+		return domain.WorkloadMetrics{}, false, true, nil
+	}
+	var metrics domain.WorkloadMetrics
+	if err := json.Unmarshal(payload, &metrics); err != nil {
+		return domain.WorkloadMetrics{}, false, false, nil
+	}
+	if !metrics.Enabled {
+		return domain.WorkloadMetrics{}, metrics.Port != 0 || metrics.ScrapeProfile != "", true, nil
+	}
+	if metrics.Port <= 0 {
+		return domain.WorkloadMetrics{}, false, false, nil
+	}
+	if metrics.ScrapeProfile == "" {
+		metrics.ScrapeProfile = domain.WorkloadMetricsScrapeProfileDefault
+		return metrics, true, true, nil
+	}
+	switch metrics.ScrapeProfile {
+	case domain.WorkloadMetricsScrapeProfileDefault, domain.WorkloadMetricsScrapeProfileFast, domain.WorkloadMetricsScrapeProfileSlow:
+		return metrics, false, true, nil
+	default:
+		return domain.WorkloadMetrics{}, false, false, nil
+	}
+}
+
 func decodeLegacyEnv(payload []byte) ([]domain.EnvVar, bool, bool, error) {
 	if isEmptyJSONArray(payload) {
 		return nil, false, true, nil
@@ -358,9 +397,9 @@ func persistNormalizedWorkloadConfig(ctx context.Context, item *domain.WorkloadC
 	// observe the constrained model or a missing row, never ad-hoc compatibility branches.
 	result, err := db.Postgres().ExecContext(ctx, `
 		update workload_configs
-		set resources=$2, probes=$3, env=$4, labels=$5, annotations=$6, updated_at=$7
+		set resources=$2, probes=$3, metrics=$4, env=$5, labels=$6, annotations=$7, updated_at=$8
 		where id=$1 and deleted_at is null
-	`, item.ID, dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), updatedAt)
+	`, item.ID, dbsql.MustMarshalJSON(item.Resources, "{}"), dbsql.MustMarshalJSON(item.Probes, "{}"), dbsql.MustMarshalJSON(item.Metrics, "{}"), dbsql.MustMarshalJSON(item.Env, "[]"), dbsql.MustMarshalJSON(item.Labels, "{}"), dbsql.MustMarshalJSON(item.Annotations, "{}"), updatedAt)
 	if err != nil {
 		return err
 	}

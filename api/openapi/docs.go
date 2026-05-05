@@ -841,7 +841,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestListResponse"
+                            "$ref": "#/definitions/http.ManifestListResponse"
                         }
                     },
                     "400": {
@@ -884,7 +884,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResponse"
+                            "$ref": "#/definitions/http.ManifestResponse"
                         }
                     },
                     "400": {
@@ -936,7 +936,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResponse"
+                            "$ref": "#/definitions/http.ManifestResponse"
                         }
                     },
                     "400": {
@@ -1020,7 +1020,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesResponse"
+                            "$ref": "#/definitions/http.ManifestResourcesResponse"
                         }
                     },
                     "400": {
@@ -2866,6 +2866,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "metrics": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics"
+                },
                 "probes": {
                     "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes"
                 },
@@ -2907,6 +2910,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "metrics": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics"
+                },
                 "probes": {
                     "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes"
                 },
@@ -2920,6 +2926,33 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "scrape_profile": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile": {
+            "type": "string",
+            "enum": [
+                "default",
+                "fast",
+                "slow"
+            ],
+            "x-enum-varnames": [
+                "WorkloadMetricsScrapeProfileDefault",
+                "WorkloadMetricsScrapeProfileFast",
+                "WorkloadMetricsScrapeProfileSlow"
+            ]
         },
         "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe": {
             "type": "object",
@@ -3063,6 +3096,36 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/internal_intent_transport_http.IntentDoc"
+                }
+            }
+        },
+        "http.ManifestListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
+                }
+            }
+        },
+        "http.ManifestResourcesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc"
+                }
+            }
+        },
+        "http.ManifestResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
                 }
             }
         },
@@ -3434,6 +3497,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "metrics": {
+                    "$ref": "#/definitions/http.ReleaseWorkloadMetricsDoc"
+                },
                 "probes": {
                     "$ref": "#/definitions/http.ReleaseWorkloadProbesDoc"
                 },
@@ -3612,6 +3678,20 @@ const docTemplate = `{
                 },
                 "step_name": {
                     "type": "string"
+                }
+            }
+        },
+        "http.ReleaseWorkloadMetricsDoc": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "scrape_profile": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile"
                 }
             }
         },
@@ -3953,20 +4033,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination"
-                }
-            }
-        },
         "internal_manifest_transport_http.ManifestRenderedResourceDoc": {
             "type": "object",
             "properties": {
@@ -3988,14 +4054,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestResourcesResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc"
-                }
-            }
-        },
         "internal_manifest_transport_http.ManifestResourcesViewDoc": {
             "type": "object",
             "properties": {
@@ -4007,14 +4065,6 @@ const docTemplate = `{
                 },
                 "resources": {
                     "$ref": "#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc"
-                }
-            }
-        },
-        "internal_manifest_transport_http.ManifestResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
                 }
             }
         },
@@ -4099,6 +4149,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "metrics": {
+                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadMetricsDoc"
+                },
                 "probes": {
                     "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc"
                 },
@@ -4110,6 +4163,20 @@ const docTemplate = `{
                 },
                 "service_account_name": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_manifest_transport_http.ManifestWorkloadMetricsDoc": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "scrape_profile": {
+                    "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile"
                 }
             }
         },

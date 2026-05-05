@@ -38,7 +38,7 @@ func main() {
 		StartPprofServer:   observability.StartPprofServer,
 		PortEnv:            "NETWORK_SERVICE_PORT",
 		DefaultPort:        8086,
-		MetricsPortEnv:     "NETWORK_SERVICE_METRICS_PORT",
+		MetricsPortEnv:     "METRICS_PORT",
 		PprofPortEnv:       "NETWORK_SERVICE_PPROF_PORT",
 	})
 	if err != nil {

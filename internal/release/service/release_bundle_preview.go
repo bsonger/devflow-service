@@ -112,6 +112,7 @@ func buildFrozenInputs(release *model.Release, manifest *manifestdomain.Manifest
 			ServiceAccountName: strings.TrimSpace(manifest.WorkloadConfigSnapshot.ServiceAccountName),
 			Resources:          manifest.WorkloadConfigSnapshot.Resources,
 			Probes:             manifest.WorkloadConfigSnapshot.Probes,
+			Metrics:            manifest.WorkloadConfigSnapshot.Metrics,
 			Env:                manifest.WorkloadConfigSnapshot.Env,
 			Labels:             manifest.WorkloadConfigSnapshot.Labels,
 			Annotations:        manifest.WorkloadConfigSnapshot.Annotations,

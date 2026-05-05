@@ -8,13 +8,21 @@ import (
 	"strings"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
-	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"sigs.k8s.io/yaml"
 )
 
 const defaultOTELServiceNamespace = "devflow"
+
+const (
+	releaseMetricsPortName      = "metrics"
+	releaseMetricsPortEnv       = "METRICS_PORT"
+	releaseScrapeLabel          = "observability.devflow.io/scrape"
+	releaseScrapeProfileLabel   = "observability.devflow.io/scrape-profile"
+	releaseDefaultScrapeProfile = "default"
+)
 
 // buildReleaseBundle materializes the release-owned deployable bundle from manifest-frozen inputs plus release-time freeze inputs.
 // Unlike manifest resource inspection views, this output is the publishable deployment payload used for bundle preview, OCI publication, and Argo delivery.
@@ -93,7 +101,7 @@ func renderReleaseBundleResources(namespace, applicationName string, manifest *m
 		objects = append(objects, item)
 	}
 
-	serviceResources, err := buildReleaseServiceResources(namespace, manifest.ServicesSnapshot, release)
+	serviceResources, err := buildReleaseServiceResources(namespace, manifest, release)
 	if err != nil {
 		return nil, err
 	}
@@ -171,24 +179,21 @@ func buildReleaseConfigMap(namespace, applicationName string, release *model.Rel
 	}
 }
 
-func buildReleaseServiceResources(namespace string, services []manifestdomain.ManifestService, release *model.Release) ([]model.ReleaseRenderedResource, error) {
+func buildReleaseServiceResources(namespace string, manifest *manifestdomain.Manifest, release *model.Release) ([]model.ReleaseRenderedResource, error) {
+	services := manifest.ServicesSnapshot
 	extras := 0
 	switch model.ReleaseStrategyToType(release.Strategy) {
 	case model.BlueGreen, model.Canary:
 		extras = 1
 	}
 	out := make([]model.ReleaseRenderedResource, 0, len(services)+extras)
+	metrics := releaseWorkloadMetrics(manifest)
 	for i, service := range services {
-		ports := make([]map[string]any, 0, len(service.Ports))
-		for _, port := range service.Ports {
-			ports = append(ports, map[string]any{
-				"name":       port.Name,
-				"port":       port.ServicePort,
-				"targetPort": port.TargetPort,
-				"protocol":   releaseDefaultProtocol(port.Protocol),
-			})
-		}
+		ports := buildReleaseServicePorts(service, i == 0, metrics)
 		metadata := map[string]any{"name": service.Name}
+		if labels := buildReleaseServiceLabels(i == 0, metrics); len(labels) > 0 {
+			metadata["labels"] = labels
+		}
 		if namespace != "" {
 			metadata["namespace"] = namespace
 		}
@@ -280,7 +285,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 		"terminationMessagePath":   "/dev/termination-log",
 		"terminationMessagePolicy": "File",
 	}
-	if ports := buildReleaseContainerPorts(manifest.ServicesSnapshot); len(ports) > 0 {
+	if ports := buildReleaseContainerPorts(manifest.ServicesSnapshot, workload.Metrics); len(ports) > 0 {
 		container["ports"] = ports
 	}
 	applyReleaseWorkloadProbes(container, workload.Probes)
@@ -384,7 +389,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 
 func buildReleaseWorkloadEnv(applicationName string, manifest *manifestdomain.Manifest, release *model.Release) []map[string]any {
 	baseEnv := workloadEnv(manifest)
-	env := make([]map[string]any, 0, len(baseEnv)+6)
+	env := make([]map[string]any, 0, len(baseEnv)+7)
 	seen := map[string]struct{}{}
 	appendEnv := func(name, value string) {
 		name = strings.TrimSpace(name)
@@ -412,6 +417,9 @@ func buildReleaseWorkloadEnv(applicationName string, manifest *manifestdomain.Ma
 	appendEnv("DEPLOYMENT_ENVIRONMENT", deploymentEnvironment)
 	appendEnv("SERVICE_VERSION", serviceVersion)
 	appendEnv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)")
+	if metrics := releaseWorkloadMetrics(manifest); metrics.Enabled && metrics.Port > 0 {
+		appendEnv(releaseMetricsPortEnv, fmt.Sprintf("%d", metrics.Port))
+	}
 
 	return env
 }
@@ -421,6 +429,13 @@ func workloadEnv(manifest *manifestdomain.Manifest) []model.EnvVar {
 		return nil
 	}
 	return manifest.WorkloadConfigSnapshot.Env
+}
+
+func releaseWorkloadMetrics(manifest *manifestdomain.Manifest) workloadconfigdomain.WorkloadMetrics {
+	if manifest == nil {
+		return workloadconfigdomain.WorkloadMetrics{}
+	}
+	return manifest.WorkloadConfigSnapshot.Metrics
 }
 
 func releaseEnvironmentID(release *model.Release) string {
@@ -562,9 +577,16 @@ func releaseSupplementaryAnnotations(workloadAnnotations map[string]string) map[
 	return annotations
 }
 
-func buildReleaseContainerPorts(services []manifestdomain.ManifestService) []map[string]any {
+func buildReleaseContainerPorts(services []manifestdomain.ManifestService, metrics workloadconfigdomain.WorkloadMetrics) []map[string]any {
 	if len(services) == 0 {
-		return nil
+		if !metrics.Enabled || metrics.Port <= 0 {
+			return nil
+		}
+		return []map[string]any{{
+			"name":          releaseMetricsPortName,
+			"containerPort": metrics.Port,
+			"protocol":      "TCP",
+		}}
 	}
 	ports := make([]map[string]any, 0)
 	seen := map[string]struct{}{}
@@ -585,10 +607,67 @@ func buildReleaseContainerPorts(services []manifestdomain.ManifestService) []map
 			ports = append(ports, item)
 		}
 	}
+	if metrics.Enabled && metrics.Port > 0 {
+		key := fmt.Sprintf("%s/%d/%s", releaseMetricsPortName, metrics.Port, "TCP")
+		if _, ok := seen[key]; !ok {
+			ports = append(ports, map[string]any{
+				"name":          releaseMetricsPortName,
+				"containerPort": metrics.Port,
+				"protocol":      "TCP",
+			})
+		}
+	}
 	if len(ports) == 0 {
 		return nil
 	}
 	return ports
+}
+
+func buildReleaseServicePorts(service manifestdomain.ManifestService, isPrimary bool, metrics workloadconfigdomain.WorkloadMetrics) []map[string]any {
+	ports := make([]map[string]any, 0, len(service.Ports)+1)
+	seen := map[string]struct{}{}
+	for _, port := range service.Ports {
+		key := fmt.Sprintf("%s/%d/%d/%s", strings.TrimSpace(port.Name), port.ServicePort, port.TargetPort, releaseDefaultProtocol(port.Protocol))
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		ports = append(ports, map[string]any{
+			"name":       port.Name,
+			"port":       port.ServicePort,
+			"targetPort": port.TargetPort,
+			"protocol":   releaseDefaultProtocol(port.Protocol),
+		})
+	}
+	if !isPrimary || !metrics.Enabled || metrics.Port <= 0 {
+		return ports
+	}
+	for _, existing := range ports {
+		if existing["name"] == releaseMetricsPortName || (existing["port"] == metrics.Port && existing["targetPort"] == metrics.Port) {
+			return ports
+		}
+	}
+	ports = append(ports, map[string]any{
+		"name":       releaseMetricsPortName,
+		"port":       metrics.Port,
+		"targetPort": metrics.Port,
+		"protocol":   "TCP",
+	})
+	return ports
+}
+
+func buildReleaseServiceLabels(isPrimary bool, metrics workloadconfigdomain.WorkloadMetrics) map[string]any {
+	if !isPrimary || !metrics.Enabled || metrics.Port <= 0 {
+		return nil
+	}
+	profile := strings.TrimSpace(string(metrics.ScrapeProfile))
+	if profile == "" {
+		profile = releaseDefaultScrapeProfile
+	}
+	return map[string]any{
+		releaseScrapeLabel:        "true",
+		releaseScrapeProfileLabel: profile,
+	}
 }
 
 func buildReleaseVirtualService(namespace, applicationName string, routes []model.ReleaseRoute) map[string]any {

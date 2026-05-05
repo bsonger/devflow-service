@@ -29,6 +29,11 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
 			Replicas:           2,
 			ServiceAccountName: "demo-api",
+			Metrics: workloadconfigdomain.WorkloadMetrics{
+				Enabled:       true,
+				Port:          9090,
+				ScrapeProfile: workloadconfigdomain.WorkloadMetricsScrapeProfileFast,
+			},
 			Labels: map[string]string{
 				"team":                        "payments",
 				model.ReleaseIDLabel:          "user-overridden-release",
@@ -92,6 +97,7 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "production")
 	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
 	assertEnvContains(t, env, "OTEL_RESOURCE_ATTRIBUTES", "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)")
+	assertEnvContains(t, env, "METRICS_PORT", "9090")
 	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
 		assertRequiredIdentityLabels(t, labels, releaseID.String(), manifest.ApplicationID.String(), "production", "demo-api")
 		if got := labels["team"]; got != "payments" {
@@ -118,11 +124,32 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		t.Fatalf("terminationGracePeriodSeconds = %#v", got)
 	}
 	ports, ok := containerSpec[0]["ports"].([]map[string]any)
-	if !ok || len(ports) != 1 {
+	if !ok || len(ports) != 2 {
 		t.Fatalf("deployment ports missing: %#v", containerSpec[0])
 	}
 	if ports[0]["name"] != "http" || ports[0]["containerPort"] != 8080 {
 		t.Fatalf("deployment port = %#v", ports[0])
+	}
+	if ports[1]["name"] != "metrics" || ports[1]["containerPort"] != 9090 {
+		t.Fatalf("metrics port = %#v", ports[1])
+	}
+	if len(bundle.Resources.Services) != 1 {
+		t.Fatalf("services len = %d, want 1", len(bundle.Resources.Services))
+	}
+	serviceMetadata := bundle.Resources.Services[0].Object["metadata"].(map[string]any)
+	serviceLabels := serviceMetadata["labels"].(map[string]any)
+	if got := serviceLabels[releaseScrapeLabel]; got != "true" {
+		t.Fatalf("service scrape label = %#v", got)
+	}
+	if got := serviceLabels[releaseScrapeProfileLabel]; got != "fast" {
+		t.Fatalf("service scrape profile label = %#v", got)
+	}
+	servicePorts := bundle.Resources.Services[0].Object["spec"].(map[string]any)["ports"].([]map[string]any)
+	if len(servicePorts) != 2 {
+		t.Fatalf("service ports = %#v", servicePorts)
+	}
+	if servicePorts[1]["name"] != "metrics" || servicePorts[1]["port"] != 9090 || servicePorts[1]["targetPort"] != 9090 {
+		t.Fatalf("service metrics port = %#v", servicePorts[1])
 	}
 	if len(bundle.Files) < 2 {
 		t.Fatalf("expected bundle files, got %d", len(bundle.Files))
@@ -275,13 +302,17 @@ func TestBuildReleaseBundleUsesFrozenManifestSnapshotWithoutLiveWorkloadReads(t 
 		ApplicationID: uuid.New(),
 		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
 		ServicesSnapshot: []manifestdomain.ManifestService{{
-			Name: "demo-api",
+			Name:  "demo-api",
 			Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"}},
 		}},
 		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
 			Replicas: 4,
 			Resources: workloadconfigdomain.WorkloadResourceRequirements{
 				SizeClass: workloadconfigdomain.WorkloadSizeClassLarge,
+			},
+			Metrics: workloadconfigdomain.WorkloadMetrics{
+				Enabled: true,
+				Port:    9100,
 			},
 			Env: []model.EnvVar{{Name: "SNAPSHOT_ONLY", Value: "true"}},
 		},
@@ -320,6 +351,7 @@ func TestBuildReleaseBundleUsesFrozenManifestSnapshotWithoutLiveWorkloadReads(t 
 	assertEnvContains(t, env, "SERVICE_NAME", "demo-api")
 	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
 	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
+	assertEnvContains(t, env, "METRICS_PORT", "9100")
 	if !strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "SNAPSHOT_ONLY") {
 		t.Fatalf("bundle.yaml missing frozen env entry: %s", bundle.Files[len(bundle.Files)-1].Content)
 	}
@@ -336,6 +368,11 @@ func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.
 			Env: []model.EnvVar{
 				{Name: "OTEL_SERVICE_NAMESPACE", Value: "custom-ns"},
 				{Name: "SERVICE_VERSION", Value: "custom-version"},
+				{Name: "METRICS_PORT", Value: "19090"},
+			},
+			Metrics: workloadconfigdomain.WorkloadMetrics{
+				Enabled: true,
+				Port:    9090,
 			},
 		},
 	}
@@ -356,6 +393,7 @@ func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.
 	assertEnvContains(t, env, "SERVICE_VERSION", "custom-version")
 	assertEnvContains(t, env, "OTEL_SERVICE_NAME", "demo-api")
 	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
+	assertEnvContains(t, env, "METRICS_PORT", "19090")
 }
 
 func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {

@@ -209,10 +209,11 @@ $direct_signoz_matches"
       grep -Fq 'name: DEPLOYMENT_ENVIRONMENT' "$file" || printf '%s\n' "$file"
       grep -Fq 'name: SERVICE_VERSION' "$file" || printf '%s\n' "$file"
       grep -Fq 'name: OTEL_RESOURCE_ATTRIBUTES' "$file" || printf '%s\n' "$file"
+      grep -Fq 'name: METRICS_PORT' "$file" || printf '%s\n' "$file"
       grep -Fq 'devflow-otel-trace-gateway.observability.svc.cluster.local:4318' "$file" || printf '%s\n' "$file"
     done
   )"
-  [[ -z "$env_missing" ]] || fail "pre-production services must declare OTEL public resource env vars and trace gateway endpoint:
+  [[ -z "$env_missing" ]] || fail "pre-production services must declare OTEL public resource env vars, METRICS_PORT, and trace gateway endpoint:
 $env_missing"
 
   config_resource_matches="$(
@@ -231,6 +232,7 @@ $nested_template_matches"
 
   grep -Fq 'name: DEPLOYMENT_ENVIRONMENT' "$ROOT_DIR/deployments/pre-production/release-service.yaml" || fail "release-service deployment must expose DEPLOYMENT_ENVIRONMENT"
   grep -Fq 'name: OTEL_SERVICE_NAMESPACE' "$ROOT_DIR/deployments/pre-production/release-service.yaml" || fail "release-service deployment must expose OTEL_SERVICE_NAMESPACE"
+  grep -Fq 'observability.devflow.io/scrape-profile: "default"' "$ROOT_DIR/deployments/pre-production/release-service.yaml" || fail "release-service Service must expose observability.devflow.io/scrape-profile=default"
 }
 
 run_preproduction_manifest_syntax_check() {
@@ -247,6 +249,43 @@ run_preproduction_manifest_syntax_check() {
       -f deployments/pre-production/otel-trace-gateway.yaml \
       -f deployments/pre-production/service-monitor.yaml
   )
+}
+
+run_workload_metrics_contract_check() {
+  info "Running workload metrics contract checks"
+
+  local schema_matches
+  local annotation_matches
+  local profile_matches
+  local monitor_matches
+
+  schema_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'type WorkloadMetrics struct|ScrapeProfile WorkloadMetricsScrapeProfile|Metrics +WorkloadMetrics' \
+      internal/workloadconfig/domain/workload_config.go \
+      internal/manifest/domain/manifest.go \
+      internal/release/domain/bundle_preview.go || true
+  )"
+  [[ -n "$schema_matches" ]] || fail "structured WorkloadMetrics contract is missing from workload, manifest, or release frozen models"
+
+  annotation_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'observability\.devflow\.io/(port|interval|scrape-timeout)' internal/release/service internal/workloadconfig --glob '!**/*_test.go' || true
+  )"
+  [[ -z "$annotation_matches" ]] || fail "metrics scrape contract must come from structured WorkloadMetrics fields, not render-time port/interval annotations:
+$annotation_matches"
+
+  profile_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'observability\.devflow\.io/scrape-profile: "(default|fast|slow)"' deployments/pre-production/*-service.yaml || true
+  )"
+  [[ -n "$profile_matches" ]] || fail "pre-production Service manifests must declare observability.devflow.io/scrape-profile labels"
+
+  monitor_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'name: devflow-services-(default|fast|slow)|observability\.devflow\.io/scrape-profile: "(default|fast|slow)"' deployments/pre-production/service-monitor.yaml || true
+  )"
+  [[ -n "$monitor_matches" ]] || fail "service-monitor.yaml must define default/fast/slow ServiceMonitor profiles"
 }
 
 run_http_handler_uuid_policy_check() {
@@ -671,6 +710,7 @@ run_no_mongo_remnants_check
 run_observability_logging_policy_check
 run_metrics_label_policy_check
 run_observability_deployment_policy_check
+run_workload_metrics_contract_check
 run_preproduction_manifest_syntax_check
 run_http_handler_uuid_policy_check
 run_http_handler_helper_policy_check

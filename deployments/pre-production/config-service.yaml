@@ -37,6 +37,7 @@ metadata:
     app.kubernetes.io/name: config-service
     app.kubernetes.io/part-of: devflow
     observability.devflow.io/scrape: "true"
+    observability.devflow.io/scrape-profile: "default"
 spec:
   type: ClusterIP
   selector:
@@ -93,7 +94,7 @@ spec:
               value: preproduction
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)"
-            - name: CONFIG_SERVICE_METRICS_PORT
+            - name: METRICS_PORT
               value: "9090"
           ports:
             - name: http

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/url"
 
-	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/bsonger/devflow-service/internal/shared/downstreamhttp"
+	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 )
 
 type EnvVar = workloadconfigdomain.EnvVar
@@ -18,6 +18,8 @@ type WorkloadResourceRequirements = workloadconfigdomain.WorkloadResourceRequire
 type WorkloadProbe = workloadconfigdomain.WorkloadProbe
 
 type WorkloadProbes = workloadconfigdomain.WorkloadProbes
+
+type WorkloadMetrics = workloadconfigdomain.WorkloadMetrics
 
 type ManifestFile struct {
 	Name    string `json:"name"`
@@ -35,15 +37,16 @@ type AppConfig struct {
 }
 
 type WorkloadConfig struct {
-	ID                 string                      `json:"id"`
-	ApplicationID      string                      `json:"application_id"`
-	Replicas           int                         `json:"replicas"`
-	ServiceAccountName string                      `json:"service_account_name,omitempty"`
+	ID                 string                       `json:"id"`
+	ApplicationID      string                       `json:"application_id"`
+	Replicas           int                          `json:"replicas"`
+	ServiceAccountName string                       `json:"service_account_name,omitempty"`
 	Resources          WorkloadResourceRequirements `json:"resources,omitempty"`
-	Probes             WorkloadProbes              `json:"probes,omitempty"`
-	Env                []EnvVar                    `json:"env,omitempty"`
-	Labels             map[string]string           `json:"labels,omitempty"`
-	Annotations        map[string]string           `json:"annotations,omitempty"`
+	Probes             WorkloadProbes               `json:"probes,omitempty"`
+	Metrics            WorkloadMetrics              `json:"metrics,omitempty"`
+	Env                []EnvVar                     `json:"env,omitempty"`
+	Labels             map[string]string            `json:"labels,omitempty"`
+	Annotations        map[string]string            `json:"annotations,omitempty"`
 }
 
 type Client struct{ *downstreamhttp.Client }

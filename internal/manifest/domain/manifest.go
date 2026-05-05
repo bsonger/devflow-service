@@ -73,14 +73,15 @@ type ManifestAppConfig struct {
 }
 
 type ManifestWorkloadConfig struct {
-	ID                 string                                       `json:"id,omitempty"`
-	Replicas           int                                          `json:"replicas"`
-	ServiceAccountName string                                       `json:"service_account_name,omitempty"`
+	ID                 string                                            `json:"id,omitempty"`
+	Replicas           int                                               `json:"replicas"`
+	ServiceAccountName string                                            `json:"service_account_name,omitempty"`
 	Resources          workloadconfigdomain.WorkloadResourceRequirements `json:"resources,omitempty"`
-	Probes             workloadconfigdomain.WorkloadProbes          `json:"probes,omitempty"`
-	Env                []model.EnvVar                               `json:"env,omitempty"`
-	Labels             map[string]string                            `json:"labels,omitempty"`
-	Annotations        map[string]string                            `json:"annotations,omitempty"`
+	Probes             workloadconfigdomain.WorkloadProbes               `json:"probes,omitempty"`
+	Metrics            workloadconfigdomain.WorkloadMetrics              `json:"metrics,omitempty"`
+	Env                []model.EnvVar                                    `json:"env,omitempty"`
+	Labels             map[string]string                                 `json:"labels,omitempty"`
+	Annotations        map[string]string                                 `json:"annotations,omitempty"`
 }
 
 type ManifestRenderedResource struct {

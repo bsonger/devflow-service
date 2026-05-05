@@ -18,11 +18,18 @@ func TestValidateWorkloadConfigAcceptsConstrainedWriteShape(t *testing.T) {
 		Probes: domain.WorkloadProbes{
 			Liveness: &domain.WorkloadProbe{Path: "/healthz", Port: "http", PeriodSeconds: 10},
 		},
+		Metrics: domain.WorkloadMetrics{
+			Enabled: true,
+			Port:    9090,
+		},
 		Env: []domain.EnvVar{{Name: "LOG_LEVEL", Value: ""}, {Name: "FEATURE_FLAG", Value: "enabled"}},
 	}
 
 	if err := validateWorkloadConfig(item); err != nil {
 		t.Fatalf("validateWorkloadConfig returned error: %v", err)
+	}
+	if item.Metrics.ScrapeProfile != domain.WorkloadMetricsScrapeProfileDefault {
+		t.Fatalf("metrics.scrape_profile = %q, want %q", item.Metrics.ScrapeProfile, domain.WorkloadMetricsScrapeProfileDefault)
 	}
 }
 
@@ -35,6 +42,11 @@ func TestValidateWorkloadConfigRejectsInvalidContractDrift(t *testing.T) {
 		},
 		Probes: domain.WorkloadProbes{
 			Readiness: &domain.WorkloadProbe{Path: "readyz", Port: ""},
+		},
+		Metrics: domain.WorkloadMetrics{
+			Enabled:       true,
+			Port:          0,
+			ScrapeProfile: "burst",
 		},
 		Env: []domain.EnvVar{{Name: " "}, {Name: "LOG_LEVEL", Value: "info"}, {Name: "LOG_LEVEL", Value: "debug"}},
 	}
@@ -54,6 +66,8 @@ func TestValidateWorkloadConfigRejectsInvalidContractDrift(t *testing.T) {
 		"resources.requests must not be provided on write",
 		"probes.readiness.path must start with '/'",
 		"probes.readiness.port is required when probes.readiness.path is set",
+		"metrics.port must be > 0 when metrics.enabled is true",
+		"metrics.scrape_profile must be one of:",
 		"env[0].name is required",
 		"env[2].name duplicates env[1].name \"LOG_LEVEL\"",
 	} {

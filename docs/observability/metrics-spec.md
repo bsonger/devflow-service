@@ -101,6 +101,41 @@ Low-value paths filtered by the application will still keep incident logs and
 metrics according to the low-value path policy, but they will not have trace
 exemplars because no trace is created for those paths.
 
+## Workload metrics exposure contract
+
+Application workload configuration now exposes a structured metrics contract:
+
+- `metrics.enabled`
+- `metrics.port`
+- `metrics.scrape_profile`
+
+`metrics.scrape_profile` is constrained to:
+
+- `default`
+- `fast`
+- `slow`
+
+Rules:
+
+- `metrics.enabled=false` means the workload does not expose a metrics listener
+  and must not be selected by the shared `ServiceMonitor`
+- `metrics.enabled=true` requires `metrics.port > 0`
+- `metrics.enabled=true` with an empty `metrics.scrape_profile` defaults to
+  `default`
+- `/metrics` remains the fixed scrape path; it is not workload-configurable
+
+Release rendering projects that structured contract into Kubernetes objects:
+
+- container env `METRICS_PORT=<metrics.port>`
+- container port `metrics`
+- the primary Service port `metrics`
+- Service labels:
+  - `observability.devflow.io/scrape=true`
+  - `observability.devflow.io/scrape-profile=<metrics.scrape_profile>`
+
+The shared pre-production `ServiceMonitor` uses those Service labels to select
+targets. Metrics scrape contract must not be sourced from ad-hoc annotations.
+
 ## Release workflow metrics
 
 Release workflow metrics must use this label set:

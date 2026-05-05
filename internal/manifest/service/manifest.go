@@ -464,6 +464,7 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, r
 		ServiceAccountName: workload.ServiceAccountName,
 		Resources:          workload.Resources,
 		Probes:             workload.Probes,
+		Metrics:            workload.Metrics,
 		Env:                toModelEnvVars(workload.Env),
 		Labels:             workload.Labels,
 		Annotations:        workload.Annotations,

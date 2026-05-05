@@ -97,6 +97,10 @@ func TestCreateWorkloadConfig(t *testing.T) {
 		Probes: domain.WorkloadProbes{
 			Liveness: &domain.WorkloadProbe{Path: "/healthz", Port: "http", PeriodSeconds: 10},
 		},
+		Metrics: domain.WorkloadMetrics{
+			Enabled: true,
+			Port:    9090,
+		},
 		Env:         []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}},
 		Labels:      map[string]string{"team": "platform"},
 		Annotations: map[string]string{"sidecar.istio.io/inject": "true"},
@@ -117,6 +121,9 @@ func TestCreateWorkloadConfig(t *testing.T) {
 	if created.Resources.SizeClass != domain.WorkloadSizeClassMedium {
 		t.Fatalf("size_class = %q, want %q", created.Resources.SizeClass, domain.WorkloadSizeClassMedium)
 	}
+	if !created.Metrics.Enabled || created.Metrics.Port != 9090 {
+		t.Fatalf("unexpected metrics payload: %#v", created.Metrics)
+	}
 	if len(created.Env) != 1 || created.Env[0].Name != "LOG_LEVEL" || created.Env[0].Value != "info" {
 		t.Fatalf("unexpected env payload: %#v", created.Env)
 	}
@@ -133,8 +140,8 @@ func TestCreateWorkloadConfigMapsWriteErrors(t *testing.T) {
 		wantBody   string
 	}{
 		{
-			name: "malformed body",
-			body: `{"application_id":`,
+			name:       "malformed body",
+			body:       `{"application_id":`,
 			wantStatus: http.StatusBadRequest,
 			wantCode:   "invalid_argument",
 			wantBody:   "invalid request body",
@@ -144,8 +151,8 @@ func TestCreateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			body: string(mustJSON(t, domain.WorkloadConfigInput{
 				ApplicationID: applicationID,
 				Replicas:      1,
-				Resources: domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
-				Env: []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}, {Name: "LOG_LEVEL", Value: "debug"}},
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Env:           []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}, {Name: "LOG_LEVEL", Value: "debug"}},
 			})),
 			serviceErr: sharederrs.InvalidArgument(`env[1].name duplicates env[0].name "LOG_LEVEL"`),
 			wantStatus: http.StatusBadRequest,
@@ -157,12 +164,12 @@ func TestCreateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			body: string(mustJSON(t, domain.WorkloadConfigInput{
 				ApplicationID: applicationID,
 				Replicas:      1,
-				Resources: domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
 				Probes: domain.WorkloadProbes{
 					Readiness: &domain.WorkloadProbe{Path: "readyz", Port: "http"},
 				},
 			})),
-			serviceErr: sharederrs.InvalidArgument("probes.readiness.path must start with '/'") ,
+			serviceErr: sharederrs.InvalidArgument("probes.readiness.path must start with '/'"),
 			wantStatus: http.StatusBadRequest,
 			wantCode:   "invalid_argument",
 			wantBody:   "probes.readiness.path must start with '/'",
@@ -182,14 +189,31 @@ func TestCreateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			wantBody:   "resources.size_class must be one of:",
 		},
 		{
+			name: "invalid metrics profile remains invalid_argument",
+			body: string(mustJSON(t, domain.WorkloadConfigInput{
+				ApplicationID: applicationID,
+				Replicas:      1,
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Metrics: domain.WorkloadMetrics{
+					Enabled:       true,
+					Port:          9090,
+					ScrapeProfile: "burst",
+				},
+			})),
+			serviceErr: sharederrs.InvalidArgument("metrics.scrape_profile must be one of: default, fast, slow"),
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_argument",
+			wantBody:   "metrics.scrape_profile must be one of:",
+		},
+		{
 			name: "legacy wide resources become failed_precondition",
 			body: string(mustJSON(t, map[string]any{
 				"application_id": applicationID.String(),
 				"replicas":       1,
 				"resources": map[string]any{
 					"size_class": "small",
-					"requests": map[string]any{"cpu": "100m", "memory": "128Mi"},
-					"limits":   map[string]any{"cpu": "500m", "memory": "512Mi"},
+					"requests":   map[string]any{"cpu": "100m", "memory": "128Mi"},
+					"limits":     map[string]any{"cpu": "500m", "memory": "512Mi"},
 				},
 			})),
 			serviceErr: sharederrs.InvalidArgument("resources.requests must not be provided on write; resources.limits must not be provided on write"),
@@ -202,7 +226,7 @@ func TestCreateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			body: string(mustJSON(t, domain.WorkloadConfigInput{
 				ApplicationID: applicationID,
 				Replicas:      1,
-				Resources: domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
 			})),
 			serviceErr: sharederrs.Conflict("workload config already exists for application"),
 			wantStatus: http.StatusConflict,
@@ -348,8 +372,8 @@ func TestUpdateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			body: string(mustJSON(t, domain.WorkloadConfigInput{
 				ApplicationID: applicationID,
 				Replicas:      2,
-				Resources: domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
-				Env: []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}, {Name: "LOG_LEVEL", Value: "debug"}},
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Env:           []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}, {Name: "LOG_LEVEL", Value: "debug"}},
 			})),
 			serviceErr: sharederrs.InvalidArgument(`env[1].name duplicates env[0].name "LOG_LEVEL"`),
 			wantStatus: http.StatusBadRequest,
@@ -361,12 +385,12 @@ func TestUpdateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			body: string(mustJSON(t, domain.WorkloadConfigInput{
 				ApplicationID: applicationID,
 				Replicas:      2,
-				Resources: domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
 				Probes: domain.WorkloadProbes{
 					Startup: &domain.WorkloadProbe{Path: "startupz", Port: "http"},
 				},
 			})),
-			serviceErr: sharederrs.InvalidArgument("probes.startup.path must start with '/'") ,
+			serviceErr: sharederrs.InvalidArgument("probes.startup.path must start with '/'"),
 			wantStatus: http.StatusBadRequest,
 			wantCode:   "invalid_argument",
 			wantBody:   "probes.startup.path must start with '/'",
@@ -392,7 +416,7 @@ func TestUpdateWorkloadConfigMapsWriteErrors(t *testing.T) {
 				"replicas":       2,
 				"resources": map[string]any{
 					"size_class": "small",
-					"requests": map[string]any{"cpu": "100m", "memory": "128Mi"},
+					"requests":   map[string]any{"cpu": "100m", "memory": "128Mi"},
 				},
 				"probes": map[string]any{
 					"readiness": map[string]any{"path": "/readyz", "port": "http"},
@@ -409,7 +433,7 @@ func TestUpdateWorkloadConfigMapsWriteErrors(t *testing.T) {
 			body: string(mustJSON(t, domain.WorkloadConfigInput{
 				ApplicationID: applicationID,
 				Replicas:      2,
-				Resources: domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
+				Resources:     domain.WorkloadResourceRequirements{SizeClass: domain.WorkloadSizeClassSmall},
 			})),
 			serviceErr: sql.ErrNoRows,
 			wantStatus: http.StatusNotFound,

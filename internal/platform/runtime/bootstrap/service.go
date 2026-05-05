@@ -33,6 +33,8 @@ type Options[C any, R any, E ~string] struct {
 	DefaultPprof       int
 }
 
+const genericMetricsPortEnv = "METRICS_PORT"
+
 func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 	cfg, err := opts.Load()
 	if err != nil {
@@ -51,7 +53,7 @@ func Run[C any, R any, E ~string](opts Options[C, R, E]) error {
 		_ = shutdown(context.Background())
 	}()
 
-	metricsPort := resolvePort(opts.DefaultMetrics, opts.MetricsPortEnv)
+	metricsPort := resolveObservabilityPort(opts.DefaultMetrics, opts.MetricsPortEnv, genericMetricsPortEnv)
 	if metricsPort > 0 && opts.StartMetricsServer != nil {
 		opts.StartMetricsServer(fmt.Sprintf(":%d", metricsPort))
 	}
@@ -95,6 +97,20 @@ func resolvePort(defaultPort int, envKey string) int {
 	if value := os.Getenv(envKey); value != "" {
 		port, err := strconv.Atoi(value)
 		if err == nil && port > 0 {
+			return port
+		}
+	}
+	return defaultPort
+}
+
+func resolveObservabilityPort(defaultPort int, preferredEnvKey, fallbackEnvKey string) int {
+	if preferredEnvKey != "" {
+		if port := resolvePort(0, preferredEnvKey); port > 0 {
+			return port
+		}
+	}
+	if fallbackEnvKey != "" {
+		if port := resolvePort(0, fallbackEnvKey); port > 0 {
 			return port
 		}
 	}

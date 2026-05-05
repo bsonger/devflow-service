@@ -30,19 +30,22 @@ The active HTTP services expose small runtime inspection endpoints:
 - `/internal/status` for a compact operator-facing status summary
 
 The active Go services can also expose Prometheus metrics on `/metrics` through
-their service-specific `*_METRICS_PORT` environment variable. The committed
-pre-production manifests enable that sidecar-style HTTP listener on the named
-`metrics` port `9090` for `meta-service`, `config-service`, `network-service`,
-`release-service`, and `runtime-service`.
+the shared `METRICS_PORT` environment variable. The runtime bootstrap still
+accepts older service-specific `*_METRICS_PORT` values as a compatibility
+fallback, but new manifests and release rendering should use `METRICS_PORT`.
 
 Pre-production Prometheus Operator discovery is represented by one committed
 manifest:
 
 - `deployments/pre-production/service-monitor.yaml`
 
-That `ServiceMonitor` selects only pre-production Services labeled
-`observability.devflow.io/scrape=true`, then scrapes their named `metrics` port
-at `/metrics`.
+That manifest now contains three `ServiceMonitor` objects for scrape profiles
+`default`, `fast`, and `slow`. They select Services labeled with:
+
+- `observability.devflow.io/scrape=true`
+- `observability.devflow.io/scrape-profile=<profile>`
+
+and scrape the named `metrics` port at `/metrics`.
 
 Pre-production log collection is also represented by one committed manifest:
 

@@ -84,6 +84,7 @@ func validateWorkloadConfig(item *domain.WorkloadConfig) error {
 	}
 	messages = append(messages, validateWorkloadResources(item.Resources)...)
 	messages = append(messages, validateWorkloadProbes(item.Probes)...)
+	messages = append(messages, validateWorkloadMetrics(&item.Metrics)...)
 	messages = append(messages, validateWorkloadEnv(item.Env)...)
 	return sharederrs.JoinInvalid(messages)
 }
@@ -146,6 +147,29 @@ func validateWorkloadEnv(env []domain.EnvVar) []string {
 	return messages
 }
 
+func validateWorkloadMetrics(metrics *domain.WorkloadMetrics) []string {
+	if metrics == nil {
+		return nil
+	}
+	if !metrics.Enabled {
+		*metrics = domain.WorkloadMetrics{}
+		return nil
+	}
+
+	var messages []string
+	if metrics.Port <= 0 {
+		messages = append(messages, "metrics.port must be > 0 when metrics.enabled is true")
+	}
+	switch metrics.ScrapeProfile {
+	case "":
+		metrics.ScrapeProfile = domain.WorkloadMetricsScrapeProfileDefault
+	case domain.WorkloadMetricsScrapeProfileDefault, domain.WorkloadMetricsScrapeProfileFast, domain.WorkloadMetricsScrapeProfileSlow:
+	default:
+		messages = append(messages, fmt.Sprintf("metrics.scrape_profile must be one of: %s", strings.Join(validWorkloadMetricsScrapeProfiles(), ", ")))
+	}
+	return messages
+}
+
 func hasWorkloadResourceList(resources domain.WorkloadResourceList) bool {
 	return strings.TrimSpace(resources.CPU) != "" || strings.TrimSpace(resources.Memory) != ""
 }
@@ -154,6 +178,16 @@ func validWorkloadSizeClasses() []string {
 	values := make([]string, 0, len(domain.WorkloadSizeClassResources))
 	for sizeClass := range domain.WorkloadSizeClassResources {
 		values = append(values, string(sizeClass))
+	}
+	sort.Strings(values)
+	return values
+}
+
+func validWorkloadMetricsScrapeProfiles() []string {
+	values := []string{
+		string(domain.WorkloadMetricsScrapeProfileDefault),
+		string(domain.WorkloadMetricsScrapeProfileFast),
+		string(domain.WorkloadMetricsScrapeProfileSlow),
 	}
 	sort.Strings(values)
 	return values

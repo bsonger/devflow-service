@@ -564,6 +564,8 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      metrics:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics'
       probes:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes'
       replicas:
@@ -591,6 +593,8 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      metrics:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics'
       probes:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbes'
       replicas:
@@ -600,6 +604,25 @@ definitions:
       service_account_name:
         type: string
     type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics:
+    properties:
+      enabled:
+        type: boolean
+      port:
+        type: integer
+      scrape_profile:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile'
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile:
+    enum:
+    - default
+    - fast
+    - slow
+    type: string
+    x-enum-varnames:
+    - WorkloadMetricsScrapeProfileDefault
+    - WorkloadMetricsScrapeProfileFast
+    - WorkloadMetricsScrapeProfileSlow
   github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe:
     properties:
       failure_threshold:
@@ -696,6 +719,25 @@ definitions:
     properties:
       data:
         $ref: '#/definitions/internal_intent_transport_http.IntentDoc'
+    type: object
+  http.ManifestListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
+        type: array
+      pagination:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
+    type: object
+  http.ManifestResourcesResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc'
+    type: object
+  http.ManifestResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
     type: object
   http.ReleaseAppConfigDoc:
     properties:
@@ -938,6 +980,8 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      metrics:
+        $ref: '#/definitions/http.ReleaseWorkloadMetricsDoc'
       probes:
         $ref: '#/definitions/http.ReleaseWorkloadProbesDoc'
       replicas:
@@ -1055,6 +1099,15 @@ definitions:
     required:
     - release_id
     - status
+    type: object
+  http.ReleaseWorkloadMetricsDoc:
+    properties:
+      enabled:
+        type: boolean
+      port:
+        type: integer
+      scrape_profile:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile'
     type: object
   http.ReleaseWorkloadProbesDoc:
     properties:
@@ -1279,15 +1332,6 @@ definitions:
       virtualservice:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
     type: object
-  internal_manifest_transport_http.ManifestListResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
-        type: array
-      pagination:
-        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
-    type: object
   internal_manifest_transport_http.ManifestRenderedResourceDoc:
     properties:
       kind:
@@ -1302,11 +1346,6 @@ definitions:
       yaml:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestResourcesResponse:
-    properties:
-      data:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc'
-    type: object
   internal_manifest_transport_http.ManifestResourcesViewDoc:
     properties:
       application_id:
@@ -1315,11 +1354,6 @@ definitions:
         type: string
       resources:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc'
-    type: object
-  internal_manifest_transport_http.ManifestResponse:
-    properties:
-      data:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
     type: object
   internal_manifest_transport_http.ManifestServiceDoc:
     properties:
@@ -1374,6 +1408,8 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      metrics:
+        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadMetricsDoc'
       probes:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc'
       replicas:
@@ -1382,6 +1418,15 @@ definitions:
         $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc'
       service_account_name:
         type: string
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadMetricsDoc:
+    properties:
+      enabled:
+        type: boolean
+      port:
+        type: integer
+      scrape_profile:
+        $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile'
     type: object
   internal_manifest_transport_http.ManifestWorkloadProbesDoc:
     properties:
@@ -1983,7 +2028,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_manifest_transport_http.ManifestListResponse'
+            $ref: '#/definitions/http.ManifestListResponse'
         "400":
           description: Bad Request
           schema:
@@ -2011,7 +2056,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_manifest_transport_http.ManifestResponse'
+            $ref: '#/definitions/http.ManifestResponse'
         "400":
           description: Bad Request
           schema:
@@ -2070,7 +2115,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_manifest_transport_http.ManifestResponse'
+            $ref: '#/definitions/http.ManifestResponse'
         "400":
           description: Bad Request
           schema:
@@ -2100,7 +2145,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesResponse'
+            $ref: '#/definitions/http.ManifestResourcesResponse'
         "400":
           description: Bad Request
           schema:
