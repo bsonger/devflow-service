@@ -14,6 +14,7 @@ func InitMetricProvider() error {
 
 	provider := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(exporter),
+		sdkmetric.WithExemplarFilter(metricExemplarFilter),
 		sdkmetric.WithView(sdkmetric.NewView(
 			sdkmetric.Instrument{
 				Name: "http_server_request_duration_seconds",

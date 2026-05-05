@@ -18,7 +18,7 @@ data:
       protocol: "http/protobuf"
       service_name: "runtime-service"
       resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-runtime-20260425"
-      sample_ratio: 0.1
+      sample_ratio: 1.0
     downstream:
       release_service_base_url: "http://release-service.devflow-pre-production.svc.cluster.local:8083"
     observer:

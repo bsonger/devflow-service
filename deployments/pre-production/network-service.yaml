@@ -23,7 +23,7 @@ data:
       protocol: "http/protobuf"
       service_name: "network-service"
       resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-network-20260425"
-      sample_ratio: 0.1
+      sample_ratio: 1.0
     pyroscope: ""
 ---
 apiVersion: v1

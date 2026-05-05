@@ -58,8 +58,8 @@ func statusPayload(c *gin.Context, opts StatusOptions, status string) gin.H {
 			"endpoint_set":   strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")) != "",
 			"protocol":       strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")),
 			"resource_attrs": strings.TrimSpace(os.Getenv("OTEL_RESOURCE_ATTRIBUTES")) != "",
-			"sampler":        strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER")),
-			"sampler_arg":    strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER_ARG")),
+			"sampler":        "always_on",
+			"sampling_owner": "otel_collector",
 		},
 	}
 

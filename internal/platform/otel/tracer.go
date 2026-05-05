@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +66,7 @@ func InitOtel(ctx context.Context, config *Config) (func(context.Context) error,
 		zap.String("service.name", cfg.ServiceName),
 		zap.String("endpoint", cfg.Endpoint),
 		zap.String("protocol", cfg.Protocol),
-		zap.Float64("sample_ratio", sampleRatio(cfg.SampleRatio)),
+		zap.String("sampler", "always_on"),
 	)
 
 	shutdown := func(ctx context.Context) error {
@@ -100,16 +99,6 @@ func buildResource(ctx context.Context, cfg *Config) (*resource.Resource, error)
 	)
 }
 
-func sampleRatio(value float64) float64 {
-	if value <= 0 {
-		return 0.1
-	}
-	if value > 1 {
-		return 1.0
-	}
-	return value
-}
-
 func resolveConfig(cfg *Config) *Config {
 	if cfg == nil {
 		cfg = &Config{}
@@ -133,9 +122,6 @@ func resolveConfig(cfg *Config) *Config {
 	}
 	if resolved.ResourceAttributes == "" {
 		resolved.ResourceAttributes = strings.TrimSpace(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"))
-	}
-	if resolved.SampleRatio == 0 {
-		resolved.SampleRatio = envFloat64("OTEL_TRACES_SAMPLER_ARG")
 	}
 
 	return &resolved
@@ -169,17 +155,8 @@ func newExporter(ctx context.Context, cfg *Config) (sdktrace.SpanExporter, error
 	}
 }
 
-func newSampler(cfg *Config) sdktrace.Sampler {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER"))) {
-	case "", "parentbased_traceidratio":
-		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampleRatio(cfg.SampleRatio)))
-	case "always_on":
-		return sdktrace.AlwaysSample()
-	case "always_off":
-		return sdktrace.NeverSample()
-	default:
-		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampleRatio(cfg.SampleRatio)))
-	}
+func newSampler(*Config) sdktrace.Sampler {
+	return sdktrace.AlwaysSample()
 }
 
 func parseResourceAttributes(value string) []attribute.KeyValue {
@@ -202,18 +179,6 @@ func parseResourceAttributes(value string) []attribute.KeyValue {
 		attrs = append(attrs, attribute.String(key, raw))
 	}
 	return attrs
-}
-
-func envFloat64(key string) float64 {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return 0
-	}
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return 0
-	}
-	return parsed
 }
 
 func normalizeGRPCEndpoint(raw string) (string, bool) {

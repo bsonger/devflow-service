@@ -10,6 +10,7 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/platform/httpx"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformotel "github.com/bsonger/devflow-service/internal/platform/otel"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/grafana/pyroscope-go"
@@ -33,7 +34,7 @@ func ShouldIgnorePath(path string) bool {
 }
 
 func OtelFilter(req *http.Request) bool {
-	return !ShouldIgnorePath(req.URL.Path)
+	return true
 }
 
 func routeLabel(c *gin.Context) string {
@@ -96,6 +97,9 @@ func GinMetricsMiddleware() gin.HandlerFunc {
 		latency := time.Since(start)
 		if shouldSkipHTTPMetric(path, status, latency) {
 			return
+		}
+		if status >= 500 {
+			ctx = platformotel.WithMetricExemplar(ctx)
 		}
 		attrs := httpMetricAttributes(c, status)
 		httpRequestsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))

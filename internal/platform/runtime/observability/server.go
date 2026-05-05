@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
@@ -18,7 +19,9 @@ func StartMetricsServer(addr string) {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	}))
 	go serve("metrics", addr, mux)
 }
 

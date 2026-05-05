@@ -23,7 +23,7 @@ data:
       protocol: "http/protobuf"
       service_name: "config-service"
       resource_attributes: "deployment.environment.name=pre-production,service.namespace=devflow,service.version=preproduction-config-20260425"
-      sample_ratio: 0.1
+      sample_ratio: 1.0
     config_repo:
       root_dir: "/tmp/devflow-config-repo"
       default_ref: "main"

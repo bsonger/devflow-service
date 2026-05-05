@@ -1,6 +1,8 @@
 package routercore
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -9,6 +11,15 @@ func TestShouldIgnorePathIncludesLowValueProbePaths(t *testing.T) {
 	for _, path := range []string{"/healthz", "/readyz", "/livez", "/metrics", "/favicon.ico"} {
 		if !ShouldIgnorePath(path) {
 			t.Fatalf("ShouldIgnorePath(%q) = false, want true", path)
+		}
+	}
+}
+
+func TestOtelFilterKeepsLowValuePathsForCollectorSideFiltering(t *testing.T) {
+	for _, path := range []string{"/healthz", "/readyz", "/livez", "/favicon.ico", "/api/v1/projects"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if !OtelFilter(req) {
+			t.Fatalf("OtelFilter(%q) = false, want true", path)
 		}
 	}
 }

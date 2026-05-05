@@ -13,7 +13,8 @@ same physical field syntax:
 - Prometheus metrics use Prometheus-safe label names such as `service_name`
 
 Do not add high-cardinality identifiers such as `trace_id`, `request_id`, or
-`release_id` to metric labels. Use logs and traces for those joins.
+`release_id` to metric labels. Use logs, traces, and Prometheus exemplars for
+those joins.
 
 ## Canonical field mapping
 
@@ -67,6 +68,24 @@ http_server_requests_total{
 
 `http_route` must be the route template, not a raw path containing IDs.
 
+HTTP 5xx measurements should force an exemplar offer so the emitted Prometheus
+sample can carry the active `trace_id` and `span_id` without turning either one
+into a metric label. Normal sampled trace contexts may also produce exemplars.
+
+Exemplars are correlation metadata attached to an individual sample. They are
+not part of the metric time-series identity and must not be used as labels in
+queries or dashboards.
+
+Application SDK tracing is configured to offer/export all traces and leave
+retention decisions to the OpenTelemetry Collector. Collector-side tail sampling
+or filtering should keep every 5xx trace and may downsample low-value successful
+traffic.
+
+The application must not path-filter trace creation for low-value HTTP paths.
+Probe and scrape noise should be removed by Collector-side trace policy, while
+application log and metric filters may still suppress fast successful low-value
+requests.
+
 ## Release workflow metrics
 
 Release workflow metrics must use this label set:
@@ -78,7 +97,8 @@ Release workflow metrics must use this label set:
 
 Do not add `release_id`, `manifest_id`, `application_id`, or `environment_id` to
 release metric labels. Those are high-cardinality identifiers and belong in logs
-or traces.
+or traces. If a release metric needs sample-level debugging context in the
+future, use exemplars instead of labels.
 
 ## Dependency metrics
 

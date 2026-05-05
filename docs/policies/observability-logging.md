@@ -147,6 +147,8 @@ Do not use identifiers like these as metric labels:
 - any raw token, session, or secret value
 
 If a value is needed for debugging, put it in a structured log or trace attribute instead of a metric label.
+For HTTP 5xx samples, attach the active trace context as a Prometheus exemplar
+instead of adding `trace_id` or `span_id` as labels.
 
 ### Recommended metric label templates
 
@@ -235,6 +237,14 @@ pipeline_run_id="..."
 
 These values are too high-cardinality or too sensitive for metric labels.
 Put them in logs or trace attributes instead.
+`trace_id` and `span_id` may appear only as exemplar labels on individual
+samples, not as metric labels on the time series.
+Application code should not use in-process trace sampling to decide which traces
+survive. Export all SDK traces and apply retention policy in the OpenTelemetry
+Collector, where 5xx traces must be kept.
+Do not path-filter HTTP trace creation in the Gin middleware; low-value health,
+readiness, metrics, and static-path traces should be dropped by Collector policy
+after the Collector has had a chance to keep failures.
 
 Legacy metric labels such as `service`, `environment`, `method`, `route`, and `status_code`
 may appear in dashboards during rollout compatibility windows, but new application metrics must use the canonical labels above.
