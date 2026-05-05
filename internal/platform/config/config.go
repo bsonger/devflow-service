@@ -3,15 +3,11 @@ package config
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	platformconfigrepo "github.com/bsonger/devflow-service/internal/platform/configrepo"
 	"github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
-	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
-	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
 	"github.com/spf13/viper"
-	"k8s.io/client-go/rest"
 )
 
 const (
@@ -126,18 +122,6 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	db.InitPostgres(conn)
 	initConfigRepo(config)
 
-	if err := startTektonManifestObserver(ctx, config); err != nil {
-		_ = conn.Close()
-		return shutdown, err
-	}
-	if err := startKubernetesRuntimeObserver(ctx, config); err != nil {
-		_ = conn.Close()
-		return shutdown, err
-	}
-	if err := startReleaseRolloutObserver(ctx, config); err != nil {
-		_ = conn.Close()
-		return shutdown, err
-	}
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)
@@ -191,44 +175,5 @@ func initConfigRepo(config *Config) {
 		RootDir:    rootDir,
 		DefaultRef: defaultRef,
 		SSHKeyPath: stringValue(config.ConfigRepo, func(v *ConfigRepoConfig) string { return v.SSHKeyPath }),
-	})
-}
-
-func startTektonManifestObserver(ctx context.Context, config *Config) error {
-	runtimehttp.ObserverSharedToken = stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken })
-	restCfg, err := rest.InClusterConfig()
-	if err != nil {
-		return nil
-	}
-	return runtimeobserver.StartTektonManifestObserver(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
-		Enabled:               true,
-		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
-		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
-		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
-		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
-	})
-}
-
-func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
-	restCfg, err := rest.InClusterConfig()
-	if err != nil {
-		return nil
-	}
-	return runtimeobserver.StartKubernetesRuntimeObserver(ctx, restCfg, runtimeobserver.KubernetesRuntimeObserverConfig{
-		Enabled:      true,
-		PollInterval: time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
-	})
-}
-
-func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
-	restCfg, err := rest.InClusterConfig()
-	if err != nil {
-		return nil
-	}
-	return runtimeobserver.StartReleaseRolloutObserver(ctx, restCfg, runtimeobserver.ReleaseRolloutObserverConfig{
-		Enabled:               true,
-		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
-		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
-		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
 	})
 }
