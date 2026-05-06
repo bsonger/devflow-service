@@ -32,6 +32,12 @@ func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error
 			_ = os.Setenv("OTEL_SERVICE_NAME", serviceName)
 		}
 	}
+	if strings.TrimSpace(opts.OtelEndpoint) != "" && strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")) == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", opts.OtelEndpoint)
+	}
+	if strings.TrimSpace(opts.OtelProtocol) != "" && strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")) == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", opts.OtelProtocol)
+	}
 	if strings.TrimSpace(opts.OtelResourceAttributes) != "" && strings.TrimSpace(os.Getenv("OTEL_RESOURCE_ATTRIBUTES")) == "" {
 		_ = os.Setenv("OTEL_RESOURCE_ATTRIBUTES", opts.OtelResourceAttributes)
 	}
