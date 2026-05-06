@@ -63,7 +63,6 @@ func InitOtel(ctx context.Context, config *Config) (func(context.Context) error,
 
 	logger.Logger.Info(
 		"OpenTelemetry tracing initialized",
-		zap.String("service.name", cfg.ServiceName),
 		zap.String("endpoint", cfg.Endpoint),
 		zap.String("protocol", cfg.Protocol),
 		zap.String("sampler", "always_on"),
