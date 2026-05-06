@@ -208,13 +208,20 @@ $direct_signoz_matches"
       grep -Fq 'name: OTEL_SERVICE_NAMESPACE' "$file" || printf '%s\n' "$file"
       grep -Fq 'name: DEPLOYMENT_ENVIRONMENT' "$file" || printf '%s\n' "$file"
       grep -Fq 'name: SERVICE_VERSION' "$file" || printf '%s\n' "$file"
-      grep -Fq 'name: OTEL_RESOURCE_ATTRIBUTES' "$file" || printf '%s\n' "$file"
       grep -Fq 'name: METRICS_PORT' "$file" || printf '%s\n' "$file"
       grep -Fq 'devflow-otel-trace-gateway.observability.svc.cluster.local:4318' "$file" || printf '%s\n' "$file"
     done
   )"
   [[ -z "$env_missing" ]] || fail "pre-production services must declare OTEL public resource env vars, METRICS_PORT, and trace gateway endpoint:
 $env_missing"
+
+  local otel_resource_attribute_matches
+  otel_resource_attribute_matches="$(
+    cd "$ROOT_DIR"
+    rg -n 'name: OTEL_RESOURCE_ATTRIBUTES' deployments/pre-production --glob '*-service.yaml' || true
+  )"
+  [[ -z "$otel_resource_attribute_matches" ]] || fail "pre-production services should not duplicate OTEL_RESOURCE_ATTRIBUTES when service env vars already define service.namespace/service.version/deployment.environment.name:
+$otel_resource_attribute_matches"
 
   config_resource_matches="$(
     cd "$ROOT_DIR"

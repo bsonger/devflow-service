@@ -92,8 +92,6 @@ spec:
               value: pre-production
             - name: SERVICE_VERSION
               value: preproduction
-            - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)"
             - name: METRICS_PORT
               value: "9090"
           ports:

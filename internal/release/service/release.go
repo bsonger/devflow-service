@@ -684,7 +684,7 @@ func (s *releaseService) renderDeploymentBundle(ctx context.Context, release *mo
 	if app != nil {
 		applicationName = app.Name
 	}
-	bundle, err := buildReleaseBundle(target.Namespace, applicationName, manifest, release)
+	bundle, err := buildReleaseBundle(target.Namespace, applicationName, target.EnvironmentName, manifest, release)
 	if err != nil {
 		_ = s.UpdateStep(ctx, release.ID, "render_deployment_bundle", model.StepFailed, 100, err.Error(), nil, nil)
 		return err

@@ -65,7 +65,7 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		}},
 	}
 
-	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "production", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
@@ -96,7 +96,6 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	assertEnvContains(t, env, "OTEL_SERVICE_NAMESPACE", "devflow")
 	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "production")
 	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
-	assertEnvContains(t, env, "OTEL_RESOURCE_ATTRIBUTES", "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)")
 	assertEnvContains(t, env, "METRICS_PORT", "9090")
 	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
 		assertRequiredIdentityLabels(t, labels, releaseID.String(), manifest.ApplicationID.String(), "production", "demo-api")
@@ -181,7 +180,7 @@ func TestBuildReleaseBundleFallsBackToApplicationIDWithoutServiceName(t *testing
 		EnvironmentID: "staging",
 	}
 
-	bundle, err := buildReleaseBundle("", "", manifest, release)
+	bundle, err := buildReleaseBundle("", "", "staging", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
@@ -232,7 +231,7 @@ func TestBuildReleaseBundleRendersRolloutForBlueGreenStrategy(t *testing.T) {
 		Strategy:      string(model.ReleaseStrategyBlueGreen),
 	}
 
-	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "production", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
@@ -273,7 +272,7 @@ func TestBuildReleaseBundleStripsDriftProneAnnotations(t *testing.T) {
 		EnvironmentID: "production",
 	}
 
-	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "production", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
@@ -323,7 +322,7 @@ func TestBuildReleaseBundleUsesFrozenManifestSnapshotWithoutLiveWorkloadReads(t 
 		EnvironmentID: "staging",
 	}
 
-	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "staging", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
@@ -382,7 +381,7 @@ func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.
 		EnvironmentID: "staging",
 	}
 
-	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "staging", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}
@@ -394,6 +393,31 @@ func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.
 	assertEnvContains(t, env, "OTEL_SERVICE_NAME", "demo-api")
 	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
 	assertEnvContains(t, env, "METRICS_PORT", "19090")
+}
+
+func TestBuildReleaseBundleUsesEnvironmentNameForDeploymentEnvironment(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas: 1,
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
+	}
+
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "pre-production", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	container := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)[0]
+	env := container["env"].([]map[string]any)
+
+	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "pre-production")
 }
 
 func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
@@ -423,7 +447,7 @@ func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
 		Strategy:      string(model.ReleaseStrategyCanary),
 	}
 
-	bundle, err := buildReleaseBundle("checkout", "demo-api", manifest, release)
+	bundle, err := buildReleaseBundle("checkout", "demo-api", "production", manifest, release)
 	if err != nil {
 		t.Fatalf("buildReleaseBundle failed: %v", err)
 	}

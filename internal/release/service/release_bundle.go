@@ -26,7 +26,7 @@ const (
 
 // buildReleaseBundle materializes the release-owned deployable bundle from manifest-frozen inputs plus release-time freeze inputs.
 // Unlike manifest resource inspection views, this output is the publishable deployment payload used for bundle preview, OCI publication, and Argo delivery.
-func buildReleaseBundle(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) (*model.ReleaseBundle, error) {
+func buildReleaseBundle(namespace, applicationName, deploymentEnvironmentName string, manifest *manifestdomain.Manifest, release *model.Release) (*model.ReleaseBundle, error) {
 	if manifest == nil {
 		return nil, sharederrs.Required("manifest")
 	}
@@ -37,7 +37,7 @@ func buildReleaseBundle(namespace, applicationName string, manifest *manifestdom
 		applicationName = deriveReleaseApplicationName(manifest)
 	}
 
-	rendered, err := renderReleaseBundleResources(namespace, applicationName, manifest, release)
+	rendered, err := renderReleaseBundleResources(namespace, applicationName, deploymentEnvironmentName, manifest, release)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func buildReleaseBundle(namespace, applicationName string, manifest *manifestdom
 	return bundle, nil
 }
 
-func renderReleaseBundleResources(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) ([]model.ReleaseRenderedResource, error) {
+func renderReleaseBundleResources(namespace, applicationName, deploymentEnvironmentName string, manifest *manifestdomain.Manifest, release *model.Release) ([]model.ReleaseRenderedResource, error) {
 	objects := make([]model.ReleaseRenderedResource, 0, len(manifest.ServicesSnapshot)+4)
 	if configMap := buildReleaseConfigMap(namespace, applicationName, release); configMap != nil {
 		item, err := marshalReleaseRenderedObject("ConfigMap", applicationName, namespace, configMap)
@@ -107,7 +107,7 @@ func renderReleaseBundleResources(namespace, applicationName string, manifest *m
 	}
 	objects = append(objects, serviceResources...)
 
-	workloadResource, err := buildReleaseWorkloadResource(namespace, applicationName, manifest, release)
+	workloadResource, err := buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironmentName, manifest, release)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +257,7 @@ func buildDerivedReleaseServiceResource(namespace string, service manifestdomain
 	return marshalReleaseRenderedObject("Service", derivedName, namespace, obj)
 }
 
-func buildReleaseWorkloadResource(namespace, applicationName string, manifest *manifestdomain.Manifest, release *model.Release) (model.ReleaseRenderedResource, error) {
+func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironmentName string, manifest *manifestdomain.Manifest, release *model.Release) (model.ReleaseRenderedResource, error) {
 	workload := manifest.WorkloadConfigSnapshot
 	selectorName := applicationName
 	if len(manifest.ServicesSnapshot) > 0 && strings.TrimSpace(manifest.ServicesSnapshot[0].Name) != "" {
@@ -275,7 +275,7 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	if namespace != "" {
 		metadata["namespace"] = namespace
 	}
-	env := buildReleaseWorkloadEnv(applicationName, manifest, release)
+	env := buildReleaseWorkloadEnv(applicationName, deploymentEnvironmentName, manifest)
 	container := map[string]any{
 		"name":                     applicationName,
 		"image":                    manifest.ImageRef,
@@ -387,9 +387,9 @@ func buildReleaseWorkloadResource(namespace, applicationName string, manifest *m
 	}
 }
 
-func buildReleaseWorkloadEnv(applicationName string, manifest *manifestdomain.Manifest, release *model.Release) []map[string]any {
+func buildReleaseWorkloadEnv(applicationName, deploymentEnvironmentName string, manifest *manifestdomain.Manifest) []map[string]any {
 	baseEnv := workloadEnv(manifest)
-	env := make([]map[string]any, 0, len(baseEnv)+7)
+	env := make([]map[string]any, 0, len(baseEnv)+6)
 	seen := map[string]struct{}{}
 	appendEnv := func(name, value string) {
 		name = strings.TrimSpace(name)
@@ -408,7 +408,7 @@ func buildReleaseWorkloadEnv(applicationName string, manifest *manifestdomain.Ma
 	}
 
 	serviceName := strings.TrimSpace(applicationName)
-	deploymentEnvironment := strings.TrimSpace(firstNonEmptyString(releaseEnvironmentID(release), "unknown"))
+	deploymentEnvironment := strings.TrimSpace(firstNonEmptyString(deploymentEnvironmentName, "unknown"))
 	serviceVersion := strings.TrimSpace(releaseServiceVersion(manifest))
 
 	appendEnv("SERVICE_NAME", serviceName)
@@ -416,7 +416,6 @@ func buildReleaseWorkloadEnv(applicationName string, manifest *manifestdomain.Ma
 	appendEnv("OTEL_SERVICE_NAMESPACE", defaultOTELServiceNamespace)
 	appendEnv("DEPLOYMENT_ENVIRONMENT", deploymentEnvironment)
 	appendEnv("SERVICE_VERSION", serviceVersion)
-	appendEnv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=$(OTEL_SERVICE_NAMESPACE),service.version=$(SERVICE_VERSION),deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)")
 	if metrics := releaseWorkloadMetrics(manifest); metrics.Enabled && metrics.Port > 0 {
 		appendEnv(releaseMetricsPortEnv, fmt.Sprintf("%d", metrics.Port))
 	}
@@ -436,13 +435,6 @@ func releaseWorkloadMetrics(manifest *manifestdomain.Manifest) workloadconfigdom
 		return workloadconfigdomain.WorkloadMetrics{}
 	}
 	return manifest.WorkloadConfigSnapshot.Metrics
-}
-
-func releaseEnvironmentID(release *model.Release) string {
-	if release == nil {
-		return ""
-	}
-	return strings.TrimSpace(release.EnvironmentID)
 }
 
 func releaseServiceVersion(manifest *manifestdomain.Manifest) string {

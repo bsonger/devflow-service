@@ -51,7 +51,9 @@ state transitions. It should not add Kubernetes, host, or cloud fields.
 
 The SDK and instrumentation own trace correlation and service resource facts.
 They read from the active context and OTEL environment/configuration values,
-including `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`.
+including `OTEL_SERVICE_NAME`. `OTEL_RESOURCE_ATTRIBUTES` remains an optional
+legacy compatibility fallback, not the recommended primary source for the core
+service resource fields below.
 
 | Field | Source |
 |---|---|
@@ -59,9 +61,9 @@ including `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES`.
 | `span_id` | Current span context from OpenTelemetry instrumentation. |
 | `trace_flags` | Current span context from OpenTelemetry instrumentation. |
 | `service.name` | `OTEL_SERVICE_NAME`, then `service.name` in `OTEL_RESOURCE_ATTRIBUTES`, then service bootstrap fallback. |
-| `service.namespace` | `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES`, then `OTEL_SERVICE_NAMESPACE`, then `devflow`. |
-| `service.version` | `service.version` in `OTEL_RESOURCE_ATTRIBUTES`, then `SERVICE_VERSION` / `VERSION`. Pre-production service manifests set this through environment variables instead of service config. |
-| `deployment.environment.name` | `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES`; legacy `deployment.environment` is accepted only as fallback. |
+| `service.namespace` | `OTEL_SERVICE_NAMESPACE`, then `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES`, then `devflow`. |
+| `service.version` | `SERVICE_VERSION` / `VERSION`, then `service.version` in `OTEL_RESOURCE_ATTRIBUTES`. Pre-production service manifests set this through environment variables instead of service config. |
+| `deployment.environment.name` | `DEPLOYMENT_ENVIRONMENT` (environment name, not environment ID), then `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES`; legacy `deployment.environment` is accepted only as fallback. |
 
 `trace_id` and `span_id` are the key join columns for Trace -> Log correlation:
 when an operator opens a slow or failed trace, the same identifiers let them find

@@ -80,7 +80,16 @@ through container environment variables:
 - `OTEL_SERVICE_NAMESPACE`
 - `DEPLOYMENT_ENVIRONMENT`
 - `SERVICE_VERSION`
-- `OTEL_RESOURCE_ATTRIBUTES`
+
+`DEPLOYMENT_ENVIRONMENT` must carry the human-readable environment name such as
+`pre-production`, not the DevFlow environment UUID. If a workflow also needs
+the environment ID, keep it in business labels/fields such as
+`devflow.environment.id` instead of overloading `deployment.environment.name`.
+
+`OTEL_RESOURCE_ATTRIBUTES` is optional legacy compatibility only. New manifests
+should not duplicate `service.namespace`, `service.version`, and
+`deployment.environment.name` there when the dedicated environment variables
+already define those values.
 
 Rollout automation should patch `SERVICE_VERSION` to a git SHA, image digest,
 or CI build identifier in the same change that updates the image.
