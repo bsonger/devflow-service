@@ -130,6 +130,7 @@ func initHTTPMetrics() {
 	httpRequestLatency, httpMetricsInitErr = meter.Float64Histogram(
 		"http_server_request_duration_seconds",
 		metric.WithUnit("s"),
+		metric.WithDescription("Duration of HTTP server requests."),
 	)
 	if httpMetricsInitErr != nil {
 		return

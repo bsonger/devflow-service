@@ -499,6 +499,7 @@ require_file "$ROOT_DIR/deployments/pre-production/config-service.yaml" "config-
 require_file "$ROOT_DIR/deployments/pre-production/network-service.yaml" "network-service pre-production deployment manifest"
 require_file "$ROOT_DIR/deployments/pre-production/runtime-service.yaml" "runtime-service pre-production deployment manifest"
 require_file "$ROOT_DIR/deployments/pre-production/otel-trace-gateway.yaml" "pre-production trace gateway manifest"
+require_file "$ROOT_DIR/deployments/pre-production/database/workloadconfig-metrics-cutover.sql" "workloadconfig metrics cutover SQL"
 require_file "$ROOT_DIR/deployments/pre-production/grafana/README.md" "pre-production Grafana README"
 require_file "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "pre-production Grafana dashboard"
 require_file "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace retention policy doc"
@@ -717,6 +718,15 @@ run_http_handler_helper_policy_check
 run_http_api_selector_policy_check
 run_layout_refactor_policy_check
 run_runtime_no_postgres_policy_check
+
+if ! grep -q "metrics jsonb DEFAULT '{}'::jsonb NOT NULL" "$ROOT_DIR/deployments/pre-production/database/init.sql"; then
+  fail "database init.sql must include the workload_configs.metrics bootstrap column"
+fi
+
+if ! grep -q "ADD COLUMN IF NOT EXISTS metrics jsonb DEFAULT '{}'::jsonb NOT NULL;" "$ROOT_DIR/deployments/pre-production/database/workloadconfig-metrics-cutover.sql"; then
+  fail "workloadconfig metrics cutover SQL must add the metrics jsonb column"
+fi
+
 run_go_test
 run_go_build_targets
 

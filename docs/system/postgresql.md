@@ -70,13 +70,26 @@ That cutover script consolidates legacy per-`name` AppConfig rows into one activ
 
 Detailed execution and rollback steps live in `docs/system/appconfig-cutover.md`.
 
+`WorkloadConfig` has an additional schema cutover for the typed `metrics` contract. Existing databases created before that column landed must also run:
+
+```sh
+psql "$DATABASE_URL" -f deployments/pre-production/database/workloadconfig-metrics-cutover.sql
+```
+
+If this cutover is skipped, the current `config-service` workload-config list/create/update endpoints fail with:
+
+```text
+ERROR: column "metrics" does not exist (SQLSTATE 42703)
+```
+
 Recommended rollout order:
 
 1. stop or pause writes to legacy AppConfig APIs
 2. run `deployments/pre-production/database/appconfig-hard-cutover.sql` against the target database
-3. roll out `config-service`, `release-service`, and any process reading config files from `/etc/config`
-4. trigger AppConfig repo sync again for active application/environment pairs
-5. create one release smoke test and verify rendered workload mounts `/etc/config`
+3. run `deployments/pre-production/database/workloadconfig-metrics-cutover.sql` when the target database predates the typed metrics contract
+4. roll out `config-service`, `release-service`, and any process reading config files from `/etc/config`
+5. trigger AppConfig repo sync again for active application/environment pairs
+6. create one release smoke test and verify rendered workload mounts `/etc/config`
 
 ## Init SQL source of truth
 

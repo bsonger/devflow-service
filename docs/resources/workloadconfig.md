@@ -420,6 +420,18 @@ The tracked pre-production probe is intentionally collection-aware and captures 
 
 Use that script to localize whether a live failure belongs to shared-ingress auth/routing, handler validation (`invalid_argument`, `failed_precondition`), or repository cleanup / missing-row behavior.
 
+For existing databases created before the typed `metrics` contract landed, run:
+
+```sh
+psql "$DATABASE_URL" -f deployments/pre-production/database/workloadconfig-metrics-cutover.sql
+```
+
+Fresh bootstrap from `deployments/pre-production/database/init.sql` already includes the `metrics` column. Without the cutover on older databases, `config-service` returns:
+
+```text
+ERROR: column "metrics" does not exist (SQLSTATE 42703)
+```
+
 When these surfaces disagree, treat that as contract drift and update code, OpenAPI contracts, generated artifacts, and docs together.
 
 ## Source pointers
