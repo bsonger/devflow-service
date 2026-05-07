@@ -3,9 +3,10 @@
 Grafana dashboard-as-code assets for DevFlow pre-production live in this
 directory.
 
-Supported folder: `devflow-pre-production`
+Target post-reconcile supported folder:
+`devflow-pre-production`
 
-Supported dashboards:
+Target post-reconcile supported dashboards:
 - `Infra / Cluster`
 - `Infra / Node`
 - `Service / Overview`
@@ -13,6 +14,10 @@ Supported dashboards:
 - `Service / Dependency`
 - `Delivery / Release`
 - `Page/API / Route Detail`
+
+This target inventory freezes the final folder/dashboard set to reconcile
+toward. The current dashboard/import details below describe the
+pre-reconcile state at this commit.
 
 Current dashboard:
 
