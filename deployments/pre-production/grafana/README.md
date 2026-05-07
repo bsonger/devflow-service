@@ -3,6 +3,17 @@
 Grafana dashboard-as-code assets for DevFlow pre-production live in this
 directory.
 
+Supported folder: `devflow-pre-production`
+
+Supported dashboards:
+- `Infra / Cluster`
+- `Infra / Node`
+- `Service / Overview`
+- `Service / Detail`
+- `Service / Dependency`
+- `Delivery / Release`
+- `Page/API / Route Detail`
+
 Current dashboard:
 
 - `dashboards/devflow-preprod-services.json`
