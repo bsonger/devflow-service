@@ -1,11 +1,11 @@
 {
   "id": null,
-  "uid": "devflow-prod-services",
-  "title": "Service / Overview",
+  "uid": "devflow-prod-route-detail",
+  "title": "Page/API / Route Detail",
   "tags": [
     "devflow",
     "production",
-    "overview"
+    "route-detail"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -99,7 +99,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Targets up",
+      "title": "Selected services",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -113,26 +113,13 @@
       },
       "targets": [
         {
-          "expr": "sum(up{namespace=\"$namespace\",service=~\".*\"})",
+          "expr": "count(count by (service_name) (http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}))",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
+          "unit": "short"
         },
         "overrides": []
       },
@@ -153,7 +140,7 @@
     },
     {
       "id": 2,
-      "title": "Services scraping",
+      "title": "Selected routes",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -167,7 +154,7 @@
       },
       "targets": [
         {
-          "expr": "count(count by (service) (up{namespace=\"$namespace\"}))",
+          "expr": "count(count by (http_route) (http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}))",
           "refId": "A"
         }
       ],
@@ -194,7 +181,7 @@
     },
     {
       "id": 3,
-      "title": "HTTP req/s",
+      "title": "Current req/s",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -208,7 +195,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}[5m]))",
+          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -235,7 +222,7 @@
     },
     {
       "id": 4,
-      "title": "5xx req/s",
+      "title": "Current 5xx req/s",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -249,26 +236,13 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"5xx\"}[5m]))",
+          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.01
-              }
-            ]
-          }
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -289,7 +263,7 @@
     },
     {
       "id": 5,
-      "title": "Request rate by service",
+      "title": "Request rate by route",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -303,8 +277,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}[5m]))",
-          "legendFormat": "{{service_name}}",
+          "expr": "sum by (http_route, http_request_method) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
+          "legendFormat": "{{http_request_method}} {{http_route}}",
           "refId": "A"
         }
       ],
@@ -328,7 +302,7 @@
     },
     {
       "id": 6,
-      "title": "HTTP p95 latency by service",
+      "title": "Response status class rate",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -342,14 +316,14 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\"}[5m])))",
-          "legendFormat": "{{service_name}}",
+          "expr": "sum by (http_response_status_class) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
+          "legendFormat": "{{http_response_status_class}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -367,7 +341,7 @@
     },
     {
       "id": 7,
-      "title": "HTTP p99 latency by service",
+      "title": "Latency p50/p95/p99",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -381,9 +355,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (service_name, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\"}[5m])))",
-          "legendFormat": "{{service_name}}",
+          "expr": "histogram_quantile(0.50, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "p50 {{http_route}}",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "p95 {{http_route}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "p99 {{http_route}}",
+          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -406,7 +390,7 @@
     },
     {
       "id": 8,
-      "title": "5xx rate by service",
+      "title": "4xx / 5xx by route",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -420,131 +404,13 @@
       },
       "targets": [
         {
-          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"5xx\"}[5m]))",
-          "legendFormat": "{{service_name}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "description": "5xx samples should carry Prometheus exemplars when matching traces are retained by the Collector."
-    },
-    {
-      "id": 9,
-      "title": "Top routes by request rate",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}[5m])))",
-          "legendFormat": "{{service_name}} {{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Slowest routes p95",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, histogram_quantile(0.95, sum by (service_name, http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\"}[5m]))))",
-          "legendFormat": "{{service_name}} {{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 11,
-      "title": "4xx/5xx by route",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"4xx\"}[5m])))",
-          "legendFormat": "4xx {{service_name}} {{http_route}}",
+          "expr": "sum by (http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"4xx\"}[5m]))",
+          "legendFormat": "4xx {{http_route}}",
           "refId": "A"
         },
         {
-          "expr": "topk(15, sum by (service_name, http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"5xx\"}[5m])))",
-          "legendFormat": "5xx {{service_name}} {{http_route}}",
+          "expr": "sum by (http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
+          "legendFormat": "5xx {{http_route}}",
           "refId": "B"
         }
       ],
@@ -567,8 +433,126 @@
       }
     },
     {
+      "id": 9,
+      "title": "Request body size p95 by route",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_request_body_size_bytes_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "{{http_route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Response body size p95 by route",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_response_body_size_bytes_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "{{http_route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "5xx traces via exemplars",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
+          "legendFormat": "{{http_route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Enable exemplars in Grafana panel view to jump from 5xx samples to retained traces."
+    },
+    {
       "id": 12,
-      "title": "In-flight requests by service",
+      "title": "In-flight requests",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -607,7 +591,7 @@
     },
     {
       "id": 13,
-      "title": "Release events by type",
+      "title": "Request totals by status code",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -616,229 +600,19 @@
       "gridPos": {
         "x": 0,
         "y": 36,
-        "w": 12,
+        "w": 24,
         "h": 8
       },
       "targets": [
         {
-          "expr": "sum by (release_type) (rate(release_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "created {{release_type}}",
-          "refId": "A"
-        },
-        {
-          "expr": "sum by (release_type) (rate(release_success_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "succeeded {{release_type}}",
-          "refId": "B"
-        },
-        {
-          "expr": "sum by (release_type) (rate(release_failed_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "failed {{release_type}}",
-          "refId": "C"
-        },
-        {
-          "expr": "sum by (release_type) (rate(deployment_rollback_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "rollback {{release_type}}",
-          "refId": "D"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 14,
-      "title": "Release duration p95 by type",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 36,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (release_type, le) (rate(release_duration_seconds_bucket{namespace=\"$namespace\"}[15m])))",
-          "legendFormat": "{{release_type}}",
+          "expr": "sum by (http_response_status_code, http_route) (increase(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[1h]))",
+          "legendFormat": "{{http_response_status_code}} {{http_route}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 15,
-      "title": "Dependency call rate",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 44,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, dependency, action) (rate(devflow_dependency_calls_total{namespace=\"$namespace\"}[5m])))",
-          "legendFormat": "{{service_name}} {{dependency}} {{action}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 16,
-      "title": "Dependency error ratio",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 44,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, dependency, action) (rate(devflow_dependency_errors_total{namespace=\"$namespace\"}[5m])) / clamp_min(sum by (service_name, dependency, action) (rate(devflow_dependency_calls_total{namespace=\"$namespace\"}[5m])), 0.0001))",
-          "legendFormat": "{{service_name}} {{dependency}} {{action}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 17,
-      "title": "CPU rate by pod",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 52,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",container!=\"\",image!=\"\"}[5m]))",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 18,
-      "title": "Resident memory by pod",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 52,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\",container!=\"\",image!=\"\"})",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
+          "unit": "short"
         },
         "overrides": []
       },

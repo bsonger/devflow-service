@@ -1,11 +1,12 @@
 {
   "id": null,
-  "uid": "devflow-prod-services",
-  "title": "Service / Overview",
+  "uid": "devflow-prod-kubernetes-workloads",
+  "title": "Infra / Cluster",
   "tags": [
     "devflow",
-    "production",
-    "overview"
+    "infra",
+    "kubernetes",
+    "production"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -43,16 +44,16 @@
         ]
       },
       {
-        "name": "service",
+        "name": "deployment",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(http_server_requests_total{namespace=\"$namespace\"}, service_name)",
+        "definition": "label_values(kube_deployment_spec_replicas{namespace=\"$namespace\"}, deployment)",
         "query": {
-          "query": "label_values(http_server_requests_total{namespace=\"$namespace\"}, service_name)",
-          "refId": "Prometheus-service-Variable-Query"
+          "query": "label_values(kube_deployment_spec_replicas{namespace=\"$namespace\"}, deployment)",
+          "refId": "deployment-var"
         },
         "refresh": 1,
         "includeAll": true,
@@ -69,16 +70,68 @@
         }
       },
       {
-        "name": "route",
+        "name": "pod",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}, http_route)",
+        "definition": "label_values(kube_pod_info{namespace=\"$namespace\"}, pod)",
         "query": {
-          "query": "label_values(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}, http_route)",
-          "refId": "Prometheus-route-Variable-Query"
+          "query": "label_values(kube_pod_info{namespace=\"$namespace\"}, pod)",
+          "refId": "pod-var"
+        },
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "P1809F7CD0C75ACF3"
+        },
+        "definition": "label_values(up{namespace=\"$namespace\"}, service)",
+        "query": {
+          "query": "label_values(up{namespace=\"$namespace\"}, service)",
+          "refId": "service-var"
+        },
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "P1809F7CD0C75ACF3"
+        },
+        "definition": "label_values(node_memory_MemAvailable_bytes, instance)",
+        "query": {
+          "query": "label_values(node_memory_MemAvailable_bytes, instance)",
+          "refId": "instance-var"
         },
         "refresh": 1,
         "includeAll": true,
@@ -99,7 +152,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Targets up",
+      "title": "Running pods",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -113,26 +166,13 @@
       },
       "targets": [
         {
-          "expr": "sum(up{namespace=\"$namespace\",service=~\".*\"})",
+          "expr": "sum(kube_pod_status_phase{namespace=\"$namespace\",pod=~\"$pod\",phase=\"Running\"})",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
+          "unit": "short"
         },
         "overrides": []
       },
@@ -153,7 +193,7 @@
     },
     {
       "id": 2,
-      "title": "Services scraping",
+      "title": "Deployments",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -167,7 +207,7 @@
       },
       "targets": [
         {
-          "expr": "count(count by (service) (up{namespace=\"$namespace\"}))",
+          "expr": "count(kube_deployment_spec_replicas{namespace=\"$namespace\",deployment=~\"$deployment\"})",
           "refId": "A"
         }
       ],
@@ -194,7 +234,7 @@
     },
     {
       "id": 3,
-      "title": "HTTP req/s",
+      "title": "Unavailable replicas",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -208,13 +248,13 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}[5m]))",
+          "expr": "sum(clamp_min(kube_deployment_spec_replicas{namespace=\"$namespace\",deployment=~\"$deployment\"} - kube_deployment_status_replicas_available{namespace=\"$namespace\",deployment=~\"$deployment\"}, 0))",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -235,7 +275,7 @@
     },
     {
       "id": 4,
-      "title": "5xx req/s",
+      "title": "Scrape targets up",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -249,26 +289,13 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"5xx\"}[5m]))",
+          "expr": "sum(up{namespace=\"$namespace\",service=~\"$service\"})",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.01
-              }
-            ]
-          }
+          "unit": "short"
         },
         "overrides": []
       },
@@ -285,11 +312,12 @@
           "values": false
         },
         "textMode": "auto"
-      }
+      },
+      "description": "ServiceMonitor scrape health for DevFlow services in the selected namespace."
     },
     {
       "id": 5,
-      "title": "Request rate by service",
+      "title": "Pod CPU by pod",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -299,6 +327,245 @@
         "x": 0,
         "y": 4,
         "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",pod=~\"$pod\",container!=\"\",image!=\"\"}[5m]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Pod memory by pod",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\",pod=~\"$pod\",container!=\"\",image!=\"\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Deployment desired vs available",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "kube_deployment_spec_replicas{namespace=\"$namespace\",deployment=~\"$deployment\"}",
+          "legendFormat": "desired {{deployment}}",
+          "refId": "A"
+        },
+        {
+          "expr": "kube_deployment_status_replicas_available{namespace=\"$namespace\",deployment=~\"$deployment\"}",
+          "legendFormat": "available {{deployment}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Pod restarts by pod",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\",pod=~\"$pod\"}[6h]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Pod phase count",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (phase) (kube_pod_status_phase{namespace=\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "{{phase}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Scrape health by service",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 20,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "up{namespace=\"$namespace\",service=~\"$service\"}",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "HTTP request rate by service",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 20,
+        "w": 8,
         "h": 8
       },
       "targets": [
@@ -327,479 +594,29 @@
       }
     },
     {
-      "id": 6,
-      "title": "HTTP p95 latency by service",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 4,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\"}[5m])))",
-          "legendFormat": "{{service_name}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 7,
-      "title": "HTTP p99 latency by service",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 12,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.99, sum by (service_name, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\"}[5m])))",
-          "legendFormat": "{{service_name}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 8,
-      "title": "5xx rate by service",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 12,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"5xx\"}[5m]))",
-          "legendFormat": "{{service_name}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "description": "5xx samples should carry Prometheus exemplars when matching traces are retained by the Collector."
-    },
-    {
-      "id": 9,
-      "title": "Top routes by request rate",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\"}[5m])))",
-          "legendFormat": "{{service_name}} {{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Slowest routes p95",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, histogram_quantile(0.95, sum by (service_name, http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\"}[5m]))))",
-          "legendFormat": "{{service_name}} {{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 11,
-      "title": "4xx/5xx by route",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"4xx\"}[5m])))",
-          "legendFormat": "4xx {{service_name}} {{http_route}}",
-          "refId": "A"
-        },
-        {
-          "expr": "topk(15, sum by (service_name, http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_response_status_class=\"5xx\"}[5m])))",
-          "legendFormat": "5xx {{service_name}} {{http_route}}",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
       "id": 12,
-      "title": "In-flight requests by service",
+      "title": "CPU by deployment",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "P1809F7CD0C75ACF3"
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 28,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
-          "expr": "sum by (service_name) (http_server_requests_in_flight{namespace=\"$namespace\",service_name=~\"$service\"})",
-          "legendFormat": "{{service_name}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 13,
-      "title": "Release events by type",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 36,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (release_type) (rate(release_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "created {{release_type}}",
-          "refId": "A"
-        },
-        {
-          "expr": "sum by (release_type) (rate(release_success_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "succeeded {{release_type}}",
-          "refId": "B"
-        },
-        {
-          "expr": "sum by (release_type) (rate(release_failed_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "failed {{release_type}}",
-          "refId": "C"
-        },
-        {
-          "expr": "sum by (release_type) (rate(deployment_rollback_total{namespace=\"$namespace\"}[15m]))",
-          "legendFormat": "rollback {{release_type}}",
-          "refId": "D"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 14,
-      "title": "Release duration p95 by type",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 36,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (release_type, le) (rate(release_duration_seconds_bucket{namespace=\"$namespace\"}[15m])))",
-          "legendFormat": "{{release_type}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 15,
-      "title": "Dependency call rate",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 44,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, dependency, action) (rate(devflow_dependency_calls_total{namespace=\"$namespace\"}[5m])))",
-          "legendFormat": "{{service_name}} {{dependency}} {{action}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 16,
-      "title": "Dependency error ratio",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 44,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "topk(15, sum by (service_name, dependency, action) (rate(devflow_dependency_errors_total{namespace=\"$namespace\"}[5m])) / clamp_min(sum by (service_name, dependency, action) (rate(devflow_dependency_calls_total{namespace=\"$namespace\"}[5m])), 0.0001))",
-          "legendFormat": "{{service_name}} {{dependency}} {{action}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 17,
-      "title": "CPU rate by pod",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 52,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",container!=\"\",image!=\"\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",pod=~\"$pod\",container!=\"\",image!=\"\"}[5m])) * on(namespace,pod) group_left(created_by_name) kube_pod_info{namespace=\"$namespace\",pod=~\"$pod\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "cores"
         },
         "overrides": []
       },
@@ -813,11 +630,12 @@
           "mode": "multi",
           "sort": "desc"
         }
-      }
+      },
+      "description": "Pod-level CPU. Use deployment variable to narrow workload set."
     },
     {
-      "id": 18,
-      "title": "Resident memory by pod",
+      "id": 13,
+      "title": "Memory by deployment",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -825,13 +643,13 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 52,
+        "y": 28,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\",container!=\"\",image!=\"\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\",pod=~\"$pod\",container!=\"\",image!=\"\"}) * on(namespace,pod) group_left(created_by_name) kube_pod_info{namespace=\"$namespace\",pod=~\"$pod\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
