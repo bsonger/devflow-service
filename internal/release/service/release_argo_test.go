@@ -76,6 +76,28 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, "apps", "Deployment")
 }
 
+func TestBuildReleaseSyncOperationUsesPruneReplaceAndForce(t *testing.T) {
+	operation := buildReleaseSyncOperation()
+	if operation == nil || operation.Sync == nil {
+		t.Fatal("expected sync operation")
+	}
+	if !operation.Sync.Prune {
+		t.Fatal("expected prune=true")
+	}
+	if !operation.Sync.SyncOptions.HasOption("Replace=true") {
+		t.Fatalf("sync options = %#v, want Replace=true", operation.Sync.SyncOptions)
+	}
+	if !operation.Sync.SyncOptions.HasOption("Prune=true") {
+		t.Fatalf("sync options = %#v, want Prune=true", operation.Sync.SyncOptions)
+	}
+	if operation.Sync.SyncStrategy == nil || operation.Sync.SyncStrategy.Apply == nil {
+		t.Fatalf("sync strategy = %#v, want apply strategy", operation.Sync.SyncStrategy)
+	}
+	if !operation.Sync.SyncStrategy.Apply.Force {
+		t.Fatal("expected apply.force=true")
+	}
+}
+
 func TestBuildArgoApplicationTargetsRolloutRestartedAtIgnoreForCanary(t *testing.T) {
 	release := &model.Release{
 		BaseModel:          model.BaseModel{ID: uuid.New()},

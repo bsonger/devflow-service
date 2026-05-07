@@ -251,6 +251,14 @@ Runtime endpoints:
 4. `create_argocd_application` creates an Argo CD `Application` whose source points at the published OCI artifact.
 5. Argo CD pulls the OCI artifact and syncs it into the target namespace.
 
+当前 release-service 在触发 Argo sync 时会显式要求：
+
+- `prune=true`
+- `Replace=true`
+- `apply.force=true`
+
+这样做的目的，是避免历史 `apply` 残留的旧字段继续留在 live workload 上，例如过期的 volume、volumeMount、port 或 metadata。
+
 当前提交到仓库里的 pre-production 配置要求：
 
 - `manifest_registry.registry = zot.zot.svc.cluster.local:5000`

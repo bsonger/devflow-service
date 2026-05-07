@@ -961,6 +961,21 @@ func applyReleaseApplication(ctx context.Context, releaseType string, applicatio
 	return syncFn(ctx, application.Name)
 }
 
+func buildReleaseSyncOperation() *appv1.Operation {
+	return &appv1.Operation{
+		Sync: &appv1.SyncOperation{
+			Prune: true,
+			SyncOptions: appv1.SyncOptions{
+				"Replace=true",
+				"Prune=true",
+			},
+			SyncStrategy: &appv1.SyncStrategy{
+				Apply: &appv1.SyncStrategyApply{Force: true},
+			},
+		},
+	}
+}
+
 func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) *appv1.Application {
 	name := app.Name
 	if name == "" {
@@ -1049,6 +1064,6 @@ func deriveOCIApplicationArtifact(release *model.Release) (string, string) {
 
 func (s *releaseService) syncArgoApplication(ctx context.Context, appName string) error {
 	applications := argoclient.Client.ArgoprojV1alpha1().Applications("argocd")
-	_, err := argoutil.SetAppOperation(applications, appName, &appv1.Operation{Sync: &appv1.SyncOperation{}})
+	_, err := argoutil.SetAppOperation(applications, appName, buildReleaseSyncOperation())
 	return err
 }

@@ -857,6 +857,7 @@ Operational rule:
 - ArgoCD source should point to the release-owned OCI artifact by `repoURL + targetRevision`
 - `repoURL` should be `oci://<registry>/<namespace>/<repository-prefix>/<application>`
 - `targetRevision` should prefer the published digest when available
+- release-triggered sync should explicitly request `prune=true`, sync option `Replace=true`, and apply strategy `force=true` so stale live fields do not survive across releases
 
 When the OCI registry is exposed only through in-cluster HTTP, ArgoCD repository configuration must enable OCI force-http semantics for that registry prefix.
 

@@ -218,16 +218,16 @@ $env_missing"
   local otel_resource_attribute_matches
   otel_resource_attribute_matches="$(
     cd "$ROOT_DIR"
-    rg -n 'name: OTEL_RESOURCE_ATTRIBUTES' deployments/pre-production --glob '*-service.yaml' || true
+    rg -n 'name: OTEL_RESOURCE_ATTRIBUTES' deployments --glob '*-service.yaml' || true
   )"
   [[ -z "$otel_resource_attribute_matches" ]] || fail "pre-production services should not duplicate OTEL_RESOURCE_ATTRIBUTES when service env vars already define service.namespace/service.version/deployment.environment.name:
 $otel_resource_attribute_matches"
 
   config_resource_matches="$(
     cd "$ROOT_DIR"
-    rg -n '^\s+(service_name|resource_attributes):' deployments/pre-production --glob '*-service.yaml' || true
+    rg -n '^\s+(service_name|resource_attributes):' deployments --glob '*-service.yaml' || true
   )"
-  [[ -z "$config_resource_matches" ]] || fail "OTEL public resource labels must come from Deployment env vars, not service config.yaml:
+  [[ -z "$config_resource_matches" ]] || fail "OTEL public resource labels must come from Deployment env vars, not repo-managed service config.yaml:
 $config_resource_matches"
 
   nested_template_matches="$(
