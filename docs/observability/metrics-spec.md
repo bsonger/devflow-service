@@ -81,8 +81,19 @@ retention decisions to the OpenTelemetry Collector. Collector-side tail sampling
 or filtering should keep every 5xx trace and may downsample low-value successful
 traffic.
 
-The application may path-filter trace creation for low-value HTTP paths such as
-health probes, metrics scrapes, pprof, swagger, favicon, and internal status.
+The application may path-filter trace creation only for these approved
+low-value HTTP paths:
+
+- `/health`
+- `/healthz`
+- `/readyz`
+- `/livez`
+- `/metrics`
+- `/favicon.ico`
+- `/internal/status`
+- `/debug/pprof*`
+- `/swagger*`
+
 This is route filtering, not trace downsampling. The application must not apply
 ratio-based trace sampling to the remaining traffic.
 
@@ -178,8 +189,16 @@ repeat `dependency` and `action`.
 
 HTTP metrics should follow the same low-value path policy as request logs:
 
-- do not record fast successful probe/scrape/static requests for `/healthz`,
-  `/readyz`, `/livez`, `/metrics`, or `/favicon.ico`
+- do not record fast successful requests for:
+  - `/health`
+  - `/healthz`
+  - `/readyz`
+  - `/livez`
+  - `/metrics`
+  - `/favicon.ico`
+  - `/internal/status`
+  - `/debug/pprof*`
+  - `/swagger*`
 - always record 4xx requests
 - always record 5xx requests
 - always record requests with duration >= 1000 ms

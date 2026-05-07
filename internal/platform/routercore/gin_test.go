@@ -8,7 +8,19 @@ import (
 )
 
 func TestShouldIgnorePathIncludesLowValueProbePaths(t *testing.T) {
-	for _, path := range []string{"/healthz", "/readyz", "/livez", "/metrics", "/favicon.ico"} {
+	for _, path := range []string{
+		"/health",
+		"/healthz",
+		"/readyz",
+		"/livez",
+		"/metrics",
+		"/favicon.ico",
+		"/internal/status",
+		"/debug/pprof",
+		"/debug/pprof/profile",
+		"/swagger",
+		"/swagger/index.html",
+	} {
 		if !ShouldIgnorePath(path) {
 			t.Fatalf("ShouldIgnorePath(%q) = false, want true", path)
 		}
@@ -16,7 +28,17 @@ func TestShouldIgnorePathIncludesLowValueProbePaths(t *testing.T) {
 }
 
 func TestOtelFilterSkipsLowValuePathsWithoutSamplingOtherRoutes(t *testing.T) {
-	for _, path := range []string{"/healthz", "/readyz", "/livez", "/favicon.ico"} {
+	for _, path := range []string{
+		"/health",
+		"/healthz",
+		"/readyz",
+		"/livez",
+		"/metrics",
+		"/favicon.ico",
+		"/internal/status",
+		"/debug/pprof/heap",
+		"/swagger/doc.json",
+	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		if OtelFilter(req) {
 			t.Fatalf("OtelFilter(%q) = true, want false", path)
@@ -33,6 +55,15 @@ func TestShouldSkipHTTPRequestLogKeepsIncidentSignals(t *testing.T) {
 	if !shouldSkipHTTPRequestLog("/healthz", 200, 10*time.Millisecond) {
 		t.Fatal("expected fast successful healthz request to be skipped")
 	}
+	if !shouldSkipHTTPRequestLog("/internal/status", 200, 10*time.Millisecond) {
+		t.Fatal("expected fast successful internal status request to be skipped")
+	}
+	if !shouldSkipHTTPRequestLog("/debug/pprof/heap", 200, 10*time.Millisecond) {
+		t.Fatal("expected fast successful pprof request to be skipped")
+	}
+	if !shouldSkipHTTPRequestLog("/swagger/index.html", 200, 10*time.Millisecond) {
+		t.Fatal("expected fast successful swagger request to be skipped")
+	}
 	if shouldSkipHTTPRequestLog("/healthz", 500, 10*time.Millisecond) {
 		t.Fatal("expected 5xx healthz request to be logged")
 	}
@@ -47,6 +78,15 @@ func TestShouldSkipHTTPRequestLogKeepsIncidentSignals(t *testing.T) {
 func TestShouldSkipHTTPMetricMatchesRequestLogIncidentPolicy(t *testing.T) {
 	if !shouldSkipHTTPMetric("/metrics", 200, 10*time.Millisecond) {
 		t.Fatal("expected fast successful metrics scrape to be skipped")
+	}
+	if !shouldSkipHTTPMetric("/favicon.ico", 200, 10*time.Millisecond) {
+		t.Fatal("expected fast successful favicon request to be skipped")
+	}
+	if !shouldSkipHTTPMetric("/debug/pprof/profile", 200, 10*time.Millisecond) {
+		t.Fatal("expected fast successful pprof request to be skipped")
+	}
+	if !shouldSkipHTTPMetric("/swagger/doc.json", 200, 10*time.Millisecond) {
+		t.Fatal("expected fast successful swagger request to be skipped")
 	}
 	if shouldSkipHTTPMetric("/metrics", 503, 10*time.Millisecond) {
 		t.Fatal("expected 5xx metrics scrape to be recorded")

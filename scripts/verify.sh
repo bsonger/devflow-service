@@ -509,6 +509,8 @@ require_file "$ROOT_DIR/deployments/pre-production/otel-trace-gateway.yaml" "pre
 require_file "$ROOT_DIR/deployments/pre-production/database/workloadconfig-metrics-cutover.sql" "workloadconfig metrics cutover SQL"
 require_file "$ROOT_DIR/deployments/pre-production/grafana/README.md" "pre-production Grafana README"
 require_file "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "pre-production Grafana dashboard"
+require_file "$ROOT_DIR/deployments/devflow/grafana/README.md" "production Grafana README"
+require_file "$ROOT_DIR/deployments/devflow/grafana/dashboards/devflow-prod-services.json" "production Grafana dashboard"
 require_file "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace retention policy doc"
 require_file "$ROOT_DIR/scripts/verify-exemplars.sh" "exemplar verifier"
 require_file "$ROOT_DIR/deployments/pre-production/istio/shared-ingress.yaml" "shared Istio pre-production ingress manifest"
@@ -651,6 +653,8 @@ require_literal "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace 
 require_literal "$ROOT_DIR/docs/observability/trace-retention-policy.md" "trace retention service version source" "SERVICE_VERSION"
 require_literal "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "Grafana dashboard UID" '"uid": "devflow-preprod-services"'
 require_literal "$ROOT_DIR/deployments/pre-production/grafana/dashboards/devflow-preprod-services.json" "Grafana dashboard service label" "service_name"
+require_literal "$ROOT_DIR/deployments/devflow/grafana/dashboards/devflow-prod-services.json" "production Grafana dashboard UID" '"uid": "devflow-prod-services"'
+require_literal "$ROOT_DIR/deployments/devflow/grafana/dashboards/devflow-prod-services.json" "production Grafana dashboard service label" "service_name"
 require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy verifier command" "bash scripts/verify.sh"
 require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy observability policy reference" "docs/policies/observability-logging.md"
 require_literal "$ROOT_DIR/docs/policies/verification.md" "verification policy error handling policy reference" "docs/policies/error-handling.md"

@@ -79,6 +79,10 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 	release.WithCreateDefault()
 	_, err := h.svc.Create(c.Request.Context(), release)
 	if err != nil {
+		if errors.Is(err, service.ErrReleaseManifestNotFound) || errors.Is(err, sql.ErrNoRows) {
+			httpx.WriteNotFound(c, "manifest not found")
+			return
+		}
 		if errors.Is(err, service.ErrReleaseManifestNotAvailable) || errors.Is(err, service.ErrReleaseAppConfigMissing) || errors.Is(err, downstreamhttp.ErrServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
 			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 			return

@@ -45,17 +45,18 @@ That manifest now contains three `ServiceMonitor` objects for scrape profiles
 - `observability.devflow.io/scrape=true`
 - `observability.devflow.io/scrape-profile=<profile>`
 
-and scrape the named `metrics` port at `/metrics`.
+and scrape the named `metrics` port at `/metrics`. The committed namespace
+selector currently covers both `devflow-pre-production` and `devflow`.
 
 Pre-production log collection is also represented by one committed manifest:
 
 - `deployments/pre-production/otel-log-collector-daemonset.yaml`
 
 That DaemonSet runs a node-local OpenTelemetry Collector in namespace
-`observability`, tails only `devflow-pre-production` pod stdout logs from
-`/var/log/pods`, parses the container envelope plus structured JSON application
-log body, enriches the records with Kubernetes metadata, and exports them over
-OTLP HTTP to the existing Signoz collector endpoint.
+`observability`, tails `devflow-pre-production` and `devflow` pod stdout logs
+from `/var/log/pods`, parses the container envelope plus structured JSON
+application log body, enriches the records with Kubernetes metadata, and
+exports them over OTLP HTTP to the existing Signoz collector endpoint.
 
 Pre-production trace retention is represented by one committed gateway manifest:
 
@@ -70,6 +71,7 @@ sampling.
 Pre-production Grafana dashboard-as-code assets live under:
 
 - `deployments/pre-production/grafana/`
+- `deployments/devflow/grafana/`
 
 Use `scripts/verify-exemplars.sh` for a live Prometheus exemplar smoke test when
 there has been recent 5xx traffic.

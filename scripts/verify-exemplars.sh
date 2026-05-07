@@ -12,7 +12,7 @@ fail() {
 }
 
 response="$(
-  curl -fsS --get "$PROMETHEUS_URL/api/v1/query_exemplars" \
+  curl -kfsS --get "$PROMETHEUS_URL/api/v1/query_exemplars" \
     --data-urlencode "query=$QUERY" \
     --data-urlencode "start=$START" \
     --data-urlencode "end=$END"

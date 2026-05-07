@@ -18,7 +18,7 @@ Application code must:
 
 - create traces for normal application routes
 - keep the SDK sampler as `always_on`
-- filter only low-value routes before trace creation
+- filter only the approved low-value routes before trace creation
 - attach exemplars for HTTP 5xx metric samples when an active trace exists
 
 Application code must not:
@@ -27,9 +27,19 @@ Application code must not:
 - make storage-budget retention decisions
 - add `trace_id` or `span_id` as metric labels
 
-Low-value route filtering currently covers health, readiness, liveness, metrics,
-favicon, internal status, pprof, and swagger paths. This is route filtering, not
-downsampling.
+Low-value route filtering currently covers these paths:
+
+- `/health`
+- `/healthz`
+- `/readyz`
+- `/livez`
+- `/metrics`
+- `/favicon.ico`
+- `/internal/status`
+- `/debug/pprof*`
+- `/swagger*`
+
+This is route filtering, not downsampling.
 
 ## Collector Boundary
 
@@ -60,9 +70,9 @@ to request-level execution.
 
 ## Low-Value Trace Paths
 
-Low-value probe and scrape paths are filtered inside the service before trace
-creation. That keeps backend trace storage from filling with periodic health and
-metrics traffic.
+Low-value probe, scrape, and debug paths are filtered inside the service before
+trace creation. That keeps backend trace storage from filling with periodic
+health, metrics, and debug traffic.
 
 Failed or slow low-value requests still produce logs and metrics according to
 the log and metric policy. They do not have trace exemplars when the route was

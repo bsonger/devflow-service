@@ -245,10 +245,21 @@ Collector, where 5xx traces must be kept.
 The pre-production Collector-side retention contract is documented in
 `docs/observability/trace-retention-policy.md` and deployed through
 `deployments/pre-production/otel-trace-gateway.yaml`.
-Application middleware may path-filter trace creation for low-value health,
-readiness, metrics, internal status, pprof, swagger, and static routes. That is
-route filtering, not downsampling. Application code must not apply ratio-based
-trace sampling to the remaining traffic; downsampling belongs in the
+Application middleware may path-filter trace creation only for these approved
+low-value routes:
+
+- `/health`
+- `/healthz`
+- `/readyz`
+- `/livez`
+- `/metrics`
+- `/favicon.ico`
+- `/internal/status`
+- `/debug/pprof*`
+- `/swagger*`
+
+That is route filtering, not downsampling. Application code must not apply
+ratio-based trace sampling to the remaining traffic; downsampling belongs in the
 OpenTelemetry Collector.
 This is slightly different from logs and metrics: low-value path failures still
 produce logs and metrics, but they do not have trace exemplars when the route was

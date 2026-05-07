@@ -108,6 +108,46 @@ func TestCreateReleaseFailedPreconditionReturnsErrorEnvelope(t *testing.T) {
 	}
 }
 
+func TestCreateReleaseManifestNotFoundReturns404(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	handler := &ReleaseHandler{
+		svc: stubReleaseService{
+			createFn: func(_ context.Context, _ *model.Release) (uuid.UUID, error) {
+				return uuid.Nil, service.ErrReleaseManifestNotFound
+			},
+		},
+	}
+
+	r := gin.New()
+	r.POST("/api/v1/releases", handler.Create)
+
+	body := bytes.NewBufferString(`{"manifest_id":"22222222-2222-2222-2222-222222222222","environment_id":"prod","strategy":"rolling"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	}
+
+	var resp struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if resp.Error.Code != "not_found" {
+		t.Fatalf("error code = %q, want not_found", resp.Error.Code)
+	}
+	if resp.Error.Message != "manifest not found" {
+		t.Fatalf("error message = %q, want manifest not found", resp.Error.Message)
+	}
+}
+
 func TestCreateReleaseClusterNotReadyReturns409(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	handler := &ReleaseHandler{

@@ -42,6 +42,7 @@ type ReleaseListFilter struct {
 var ReleaseService = &releaseService{store: repository.NewPostgresStore(), bundleStore: repository.NewBundlePostgresStore()}
 
 var (
+	ErrReleaseManifestNotFound    = sharederrs.NotFound("manifest not found")
 	ErrReleaseManifestNotAvailable = sharederrs.FailedPrecondition("manifest is not available")
 	ErrReleaseAppConfigMissing     = sharederrs.FailedPrecondition("effective app config is missing")
 	ErrReleaseBundleNotReady       = sharederrs.FailedPrecondition("bundle not ready")
@@ -200,6 +201,9 @@ func (s *releaseService) Create(ctx context.Context, release *model.Release) (uu
 
 	manifest, err := releaseManifestSource.Get(ctx, release.ManifestID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, ErrReleaseManifestNotFound
+		}
 		return uuid.Nil, err
 	}
 	if !isReleaseDeployableManifestStatus(manifest.Status) {

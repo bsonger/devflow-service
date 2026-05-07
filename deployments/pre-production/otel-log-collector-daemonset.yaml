@@ -66,6 +66,7 @@ data:
       filelog/devflow:
         include:
           - /var/log/pods/devflow-pre-production_*/*/*.log
+          - /var/log/pods/devflow_*/*/*.log
         start_at: end
         include_file_path: true
         include_file_name: false
@@ -112,14 +113,6 @@ data:
                 name: k8s.pod.name
               - from: resource_attribute
                 name: k8s.namespace.name
-      resource/devflow:
-        attributes:
-          - key: deployment.environment.name
-            value: pre-production
-            action: upsert
-          - key: service.namespace
-            value: devflow
-            action: upsert
       resourcedetection:
         detectors: [env, system]
         timeout: 2s
@@ -152,7 +145,7 @@ data:
       pipelines:
         logs/devflow:
           receivers: [filelog/devflow]
-          processors: [memory_limiter, k8sattributes, resource/devflow, resourcedetection, batch]
+          processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [otlphttp/signoz]
 ---
 apiVersion: apps/v1

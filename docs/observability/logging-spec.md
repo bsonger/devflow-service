@@ -95,11 +95,11 @@ Collector-owned fields include:
 | `cloud.provider` | Collector resource detection or deployment-side resource config. |
 | `cloud.region` | Collector resource detection or deployment-side resource config. |
 
-The committed pre-production log collector manifest is
+The committed shared log collector manifest is
 `deployments/pre-production/otel-log-collector-daemonset.yaml`.
-It tails only `devflow-pre-production` pod logs from `/var/log/pods`, parses the
-container envelope plus JSON application body, enriches records with Kubernetes
-metadata, and exports them through OTLP HTTP.
+It tails `devflow-pre-production` and `devflow` pod logs from `/var/log/pods`,
+parses the container envelope plus JSON application body, enriches records with
+Kubernetes metadata, and exports them through OTLP HTTP.
 
 ## Duplicate-field policy
 
@@ -129,16 +129,21 @@ Metrics use Prometheus-safe names instead of dotted log keys. See
 
 The request logger filters low-value infrastructure paths by default:
 
+- `/health`
 - `/healthz`
 - `/readyz`
 - `/livez`
 - `/metrics`
 - `/favicon.ico`
+- `/internal/status`
+- `/debug/pprof*`
+- `/swagger*`
 
 Filtering those paths keeps dashboards and log search focused on user-visible or
 operator-visible behavior. Health, readiness, and metrics endpoints can be hit
-many times per minute by kubelet, Prometheus, and probes. Logging every success
-creates noise, storage cost, and false traffic volume.
+many times per minute by kubelet, Prometheus, and probes, while debug endpoints
+such as pprof and swagger can create low-value background traffic. Logging every
+success creates noise, storage cost, and false traffic volume.
 
 The filter must not hide signals that are useful during incidents. The request
 logger must still emit:
