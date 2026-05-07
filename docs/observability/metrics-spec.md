@@ -136,6 +136,16 @@ Release rendering projects that structured contract into Kubernetes objects:
 The shared pre-production `ServiceMonitor` uses those Service labels to select
 targets. Metrics scrape contract must not be sourced from ad-hoc annotations.
 
+Release completion also treats the metrics contract as a runtime promise:
+
+- if `metrics.enabled=false`, no metrics endpoint verification is required
+- if `metrics.enabled=true`, the deployed workload must actually answer
+  `GET /metrics` on the rendered primary Service metrics port before the release
+  can finish successfully
+
+This prevents workloads from declaring a metrics port in configuration while the
+process never binds that listener.
+
 ## Release workflow metrics
 
 Release workflow metrics must use this label set:

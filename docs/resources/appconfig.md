@@ -128,6 +128,10 @@ Pre-production shared ingress external surface:
   - `source_commit`
   - `latest_revision_no`
   - `latest_revision_id`
+- sync must reject repo-managed YAML that hard-codes `otel.service_name` or a
+  non-empty `otel.resource_attributes`; those service resource facts belong to
+  Deployment environment variables such as `OTEL_SERVICE_NAME`,
+  `OTEL_SERVICE_NAMESPACE`, `DEPLOYMENT_ENVIRONMENT`, and `SERVICE_VERSION`
 
 ## Validation notes
 
@@ -144,6 +148,8 @@ Pre-production shared ingress external surface:
 - before the first successful sync, revision and sync output fields may be empty
 - missing records return `not_found`
 - repo sync failures map to `failed_precondition`
+- forbidden observability resource fields in synced YAML also map to
+  `failed_precondition`
 
 ## Source pointers
 

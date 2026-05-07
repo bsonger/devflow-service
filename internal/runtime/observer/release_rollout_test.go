@@ -17,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestDeriveReleaseRolloutContext(t *testing.T) {
@@ -609,6 +610,88 @@ func TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep(t *testing
 				}
 			}
 		})
+	}
+}
+
+func TestWriteReleaseStepsFinalizeFailsWhenMetricsProbeFails(t *testing.T) {
+	releaseID := uuid.New()
+	previousProbe := releaseMetricsEndpointProber
+	releaseMetricsEndpointProber = func(context.Context, string) error {
+		return errors.New("connection refused")
+	}
+	defer func() { releaseMetricsEndpointProber = previousProbe }()
+
+	var got []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		got = append(got, payload)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	clientset := k8sfake.NewSimpleClientset(&corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "platform-web", Namespace: "devflow"},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{Name: "metrics", Port: 9090}},
+		},
+	})
+
+	observer := &ReleaseRolloutObserver{
+		httpClient:  server.Client(),
+		releaseBase: server.URL,
+		clientset:   clientset,
+	}
+	rollout := releaseRolloutContext{
+		ReleaseID:           releaseID,
+		Namespace:           "devflow",
+		PrimaryWorkloadName: "platform-web",
+	}
+	if err := observer.writeReleaseSteps(context.Background(), rollout, releasedomain.StepSucceeded, 100, "deployment healthy"); err != nil {
+		t.Fatalf("writeReleaseSteps failed: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("posted steps = %d want 2", len(got))
+	}
+	if got[0]["step_code"] != "observe_rollout" || got[0]["status"] != string(releasedomain.StepSucceeded) {
+		t.Fatalf("observe payload = %#v", got[0])
+	}
+	if got[1]["step_code"] != "finalize_release" || got[1]["status"] != string(releasedomain.StepFailed) {
+		t.Fatalf("finalize payload = %#v", got[1])
+	}
+	if !strings.Contains(got[1]["message"].(string), "metrics endpoint verification failed") {
+		t.Fatalf("finalize message = %#v", got[1]["message"])
+	}
+}
+
+func TestVerifyMetricsEndpointSkipsWhenServiceHasNoMetricsPort(t *testing.T) {
+	previousProbe := releaseMetricsEndpointProber
+	called := false
+	releaseMetricsEndpointProber = func(context.Context, string) error {
+		called = true
+		return nil
+	}
+	defer func() { releaseMetricsEndpointProber = previousProbe }()
+
+	clientset := k8sfake.NewSimpleClientset(&corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "platform-web", Namespace: "devflow"},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{Name: "http", Port: 80}},
+		},
+	})
+	observer := &ReleaseRolloutObserver{clientset: clientset}
+	err := observer.verifyMetricsEndpoint(context.Background(), releaseRolloutContext{
+		Namespace:           "devflow",
+		PrimaryWorkloadName: "platform-web",
+	})
+	if err != nil {
+		t.Fatalf("verifyMetricsEndpoint returned error: %v", err)
+	}
+	if called {
+		t.Fatal("metrics prober should not be called when service has no metrics port")
 	}
 }
 

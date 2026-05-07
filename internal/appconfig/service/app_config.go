@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,11 +16,13 @@ import (
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 )
 
 var ErrConfigSourceNotFound = sharederrs.FailedPrecondition("configuration source path not found")
 var ErrConfigRepositoryUnavailable = sharederrs.FailedPrecondition("configuration repository is not configured")
 var ErrConfigRepositorySyncFailed = sharederrs.FailedPrecondition("configuration repository sync failed")
+var ErrConfigObservabilityBoundary = sharederrs.FailedPrecondition("configuration repository contains forbidden observability fields")
 
 type AppConfigListFilter struct {
 	ApplicationID  *uuid.UUID
@@ -187,6 +190,9 @@ func (s *AppConfigService) Sync(ctx context.Context, id uuid.UUID) (*AppConfigSy
 }
 
 func (s *AppConfigService) syncWithSnapshot(ctx context.Context, cfg *domain.AppConfig, snapshot *configrepo.Snapshot) (*AppConfigSyncResult, error) {
+	if err := validateSnapshotObservabilityBoundary(snapshot); err != nil {
+		return nil, err
+	}
 	latest, err := s.getLatestRevision(ctx, cfg.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -315,4 +321,80 @@ func snapshotFilesToDomainFiles(files []configrepo.File) []domain.File {
 		})
 	}
 	return out
+}
+
+func validateSnapshotObservabilityBoundary(snapshot *configrepo.Snapshot) error {
+	if snapshot == nil {
+		return nil
+	}
+	var messages []string
+	for _, file := range snapshot.Files {
+		messages = append(messages, validateObservabilityBoundaryFile(file)...)
+	}
+	if len(messages) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", ErrConfigObservabilityBoundary, strings.Join(messages, "; "))
+}
+
+func validateObservabilityBoundaryFile(file configrepo.File) []string {
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(file.Name)))
+	if ext != ".yaml" && ext != ".yml" {
+		return nil
+	}
+	var decoded map[string]any
+	if err := yaml.Unmarshal([]byte(file.Content), &decoded); err != nil {
+		return nil
+	}
+	otelNode, ok := decoded["otel"]
+	if !ok {
+		return nil
+	}
+	otel, ok := toStringMap(otelNode)
+	if !ok {
+		return nil
+	}
+	var messages []string
+	if value := strings.TrimSpace(stringMapValue(otel, "service_name")); value != "" {
+		messages = append(messages, fmt.Sprintf("%s forbids otel.service_name; use OTEL_SERVICE_NAME env var", file.Name))
+	}
+	if value := strings.TrimSpace(stringMapValue(otel, "resource_attributes")); value != "" {
+		messages = append(messages, fmt.Sprintf("%s forbids otel.resource_attributes=%q; use Deployment env vars for service.namespace/service.version/deployment.environment.name", file.Name, value))
+	}
+	return messages
+}
+
+func toStringMap(value any) (map[string]any, bool) {
+	switch current := value.(type) {
+	case map[string]any:
+		return current, true
+	case map[any]any:
+		out := make(map[string]any, len(current))
+		for key, item := range current {
+			text, ok := key.(string)
+			if !ok {
+				continue
+			}
+			out[text] = item
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func stringMapValue(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	switch current := raw.(type) {
+	case string:
+		return current
+	default:
+		return fmt.Sprintf("%v", current)
+	}
 }

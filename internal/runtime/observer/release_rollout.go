@@ -15,17 +15,22 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
+	releasedownstream "github.com/bsonger/devflow-service/internal/release/transport/downstream"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
 const releaseObserverTokenHeader = "X-Devflow-Observer-Token"
+const releaseMetricsPortName = "metrics"
+
+var releaseMetricsEndpointProber = releasedownstream.ProbeMetricsEndpoint
 
 type ReleaseRolloutObserverConfig struct {
 	Enabled               bool
@@ -296,6 +301,9 @@ func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout 
 		if err := o.postStep(ctx, rollout.ReleaseID, "observe_rollout", releasedomain.StepSucceeded, 100, message); err != nil {
 			return err
 		}
+		if err := o.verifyMetricsEndpoint(ctx, rollout); err != nil {
+			return o.postStep(ctx, rollout.ReleaseID, "finalize_release", releasedomain.StepFailed, 100, fmt.Sprintf("metrics endpoint verification failed: %v", err))
+		}
 		if err := o.postStep(ctx, rollout.ReleaseID, "finalize_release", releasedomain.StepSucceeded, 100, "release finalized after deployment became healthy"); err != nil {
 			return err
 		}
@@ -312,6 +320,39 @@ func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout 
 		}
 	}
 	return nil
+}
+
+func (o *ReleaseRolloutObserver) verifyMetricsEndpoint(ctx context.Context, rollout releaseRolloutContext) error {
+	if o == nil || o.clientset == nil {
+		return nil
+	}
+	serviceName := strings.TrimSpace(rollout.PrimaryWorkloadName)
+	namespace := strings.TrimSpace(rollout.Namespace)
+	if serviceName == "" || namespace == "" {
+		return nil
+	}
+	service, err := o.clientset.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	if err != nil {
+		return nil
+	}
+	port, ok := findMetricsServicePort(service)
+	if !ok || port <= 0 {
+		return nil
+	}
+	url := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d/metrics", serviceName, namespace, port)
+	return releaseMetricsEndpointProber(ctx, url)
+}
+
+func findMetricsServicePort(service *corev1.Service) (int32, bool) {
+	if service == nil {
+		return 0, false
+	}
+	for _, port := range service.Spec.Ports {
+		if strings.TrimSpace(port.Name) == releaseMetricsPortName && port.Port > 0 {
+			return port.Port, true
+		}
+	}
+	return 0, false
 }
 
 func pickPrimaryDeployment(appName string, items []appsv1.Deployment) *appsv1.Deployment {
