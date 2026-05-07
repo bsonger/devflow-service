@@ -16,9 +16,8 @@ Target post-reconcile supported dashboards:
 - `Page/API / Route Detail`
 
 This target inventory freezes the final post-reconcile folder/dashboard
-set to reconcile toward. The current imported dashboards in this directory
-are listed below and reflect the current pre-reconcile state at this
-commit.
+set to reconcile toward. The committed dashboard files listed below
+reflect the pre-reconcile inventory snapshot at this commit.
 
 Current dashboards:
 
@@ -48,6 +47,7 @@ Folder inventory:
 
 - Current shared pre-reconcile Grafana folder: `devflow`
 - Current shared pre-reconcile folder UID: `ef9tqdkc8vtoge`
+- Provenance: captured from Grafana API inventory during this cleanup pass on 2026-05-08
 - Target post-reconcile Grafana folder: `devflow-pre-production`
 
 Dashboard intent:
@@ -56,6 +56,7 @@ Dashboard intent:
 - Service Detail: per-service and per-route request, status, latency, payload size, inflight, 5xx exemplar jump-off
 - Release Control: release throughput, failures, rollback, duration
 - Dependency Detail: downstream call rate, error ratio, latency
+- Page/API / Route Detail: per-route traffic, status classes, latency, payload size, and exemplar jump-off for route-level investigation
 - Kubernetes Workloads: deployment readiness, pod phase, restarts, pod CPU/memory, scrape health
 - Node Health: node CPU, memory, root disk, load, DevFlow pod distribution by node
 
