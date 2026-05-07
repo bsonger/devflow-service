@@ -108,7 +108,7 @@
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -140,16 +140,16 @@
     },
     {
       "id": 2,
-      "title": "Requesting services",
+      "title": "Contributing services",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "P1809F7CD0C75ACF3"
       },
       "gridPos": {
-        "x": 6,
+        "x": 4,
         "y": 0,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -188,9 +188,9 @@
         "uid": "P1809F7CD0C75ACF3"
       },
       "gridPos": {
-        "x": 12,
+        "x": 8,
         "y": 0,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
@@ -222,27 +222,44 @@
     },
     {
       "id": 4,
-      "title": "Current route 5xx req/s",
+      "title": "Current route 5xx ratio",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "P1809F7CD0C75ACF3"
       },
       "gridPos": {
-        "x": 18,
+        "x": 12,
         "y": 0,
-        "w": 6,
+        "w": 4,
         "h": 4
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
+          "expr": "100 * sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])), 0.001)",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -263,7 +280,48 @@
     },
     {
       "id": 5,
-      "title": "Request rate by route + method",
+      "title": "Current route p95 latency",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Request rate by selected route pattern",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -301,8 +359,8 @@
       }
     },
     {
-      "id": 6,
-      "title": "Response status class rate",
+      "id": 7,
+      "title": "Request rate by service + method",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -316,8 +374,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (http_response_status_class) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
-          "legendFormat": "{{http_response_status_class}}",
+          "expr": "sum by (service_name, http_request_method) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
+          "legendFormat": "{{service_name}} {{http_request_method}}",
           "refId": "A"
         }
       ],
@@ -340,8 +398,8 @@
       }
     },
     {
-      "id": 7,
-      "title": "Latency quantiles by route",
+      "id": 8,
+      "title": "Latency p50 / p95 / p99 for selected route",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -355,18 +413,18 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
-          "legendFormat": "p50 {{http_route}}",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
-          "legendFormat": "p95 {{http_route}}",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (http_route, le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
-          "legendFormat": "p99 {{http_route}}",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "p99",
           "refId": "C"
         }
       ],
@@ -389,8 +447,8 @@
       }
     },
     {
-      "id": 8,
-      "title": "4xx / 5xx by route",
+      "id": 9,
+      "title": "Response status class mix by service",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -404,13 +462,52 @@
       },
       "targets": [
         {
-          "expr": "sum by (http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"4xx\"}[5m]))",
-          "legendFormat": "4xx {{http_route}}",
+          "expr": "sum by (service_name, http_response_status_class) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
+          "legendFormat": "{{service_name}} {{http_response_status_class}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "4xx / 5xx by service for selected route",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"4xx\"}[5m]))",
+          "legendFormat": "4xx {{service_name}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
-          "legendFormat": "5xx {{http_route}}",
+          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
+          "legendFormat": "5xx {{service_name}}",
           "refId": "B"
         }
       ],
@@ -433,126 +530,8 @@
       }
     },
     {
-      "id": 9,
-      "title": "Request body size p95 by route",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_request_body_size_bytes_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
-          "legendFormat": "{{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Response body size p95 by route",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_response_body_size_bytes_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
-          "legendFormat": "{{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
       "id": 11,
-      "title": "5xx traces via exemplars",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (http_route) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
-          "legendFormat": "{{http_route}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "description": "Enable exemplars in Grafana panel view to jump from 5xx samples to retained traces."
-    },
-    {
-      "id": 12,
-      "title": "Request rate by service for selected route",
+      "title": "Request totals by status code + service (1h)",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -560,53 +539,14 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 28,
+        "y": 20,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
-          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m]))",
-          "legendFormat": "{{service_name}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 13,
-      "title": "Request totals by status code + route",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 36,
-        "w": 24,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "sum by (http_response_status_code, http_route) (increase(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[1h]))",
-          "legendFormat": "{{http_response_status_code}} {{http_route}}",
+          "expr": "sum by (service_name, http_response_status_code) (increase(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[1h]))",
+          "legendFormat": "{{service_name}} {{http_response_status_code}}",
           "refId": "A"
         }
       ],
@@ -627,6 +567,90 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 12,
+      "title": "Payload size p95 by service",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(http_server_request_body_size_bytes_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "request {{service_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(http_server_response_body_size_bytes_bucket{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\"}[5m])))",
+          "legendFormat": "response {{service_name}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "5xx traces via exemplars",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(http_server_requests_total{namespace=\"$namespace\",service_name=~\"$service\",http_route=~\"$route\",http_response_status_class=\"5xx\"}[5m]))",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Enable exemplars in Grafana panel view to jump from 5xx samples to retained traces for the selected route."
     }
   ]
 }
