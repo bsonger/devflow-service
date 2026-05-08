@@ -66,3 +66,32 @@ Query rules:
 - prefer canonical metric labels such as `service_name`, `http_route`, and `http_response_status_class`
 - do not add `trace_id`, `request_id`, `release_id`, or other high-cardinality identifiers to metric label queries
 - use Prometheus exemplars on 5xx panels to jump into traces
+
+Final reconciled folder URL:
+
+- https://grafana.bei.com/dashboards/f/devflow-pre-production/devflow-pre-production
+
+Final dashboard URLs:
+
+- `Infra / Cluster`
+  - https://grafana.bei.com/d/devflow-preprod-kubernetes-workloads/infra-cluster?orgId=1
+- `Infra / Node`
+  - https://grafana.bei.com/d/devflow-preprod-node-health/infra-node?orgId=1
+- `Service / Overview`
+  - https://grafana.bei.com/d/devflow-preprod-services/service-overview?orgId=1
+- `Service / Detail`
+  - https://grafana.bei.com/d/devflow-preprod-service-detail/service-detail?orgId=1
+- `Service / Dependency`
+  - https://grafana.bei.com/d/devflow-preprod-dependency-detail/service-dependency?orgId=1
+- `Delivery / Release`
+  - https://grafana.bei.com/d/devflow-preprod-release-control/delivery-release?orgId=1
+- `Page/API / Route Detail`
+  - https://grafana.bei.com/d/devflow-preprod-route-detail/page-api-route-detail?orgId=1
+
+Current shared pre-reconcile folder retained for generic dashboards only:
+
+- Folder URL: https://grafana.bei.com/dashboards/f/ef9tqdkc8vtoge/devflow
+- Remaining dashboards:
+  - `Log`
+  - `Metrics`
+  - `Trace`
