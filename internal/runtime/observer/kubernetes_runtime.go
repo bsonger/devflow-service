@@ -87,6 +87,9 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 	}
 	namespace := strings.TrimSpace(o.cfg.Namespace)
 	if namespace == "" {
+		namespace = detectObserverNamespace()
+	}
+	if namespace == "" {
 		namespace = metav1.NamespaceAll
 	}
 	deployments, err := o.clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
