@@ -23,9 +23,12 @@ import (
 )
 
 const (
-	defaultTektonNamespace  = "tekton-pipelines"
-	defaultObserverInterval = 15 * time.Second
-	manifestIDLabel         = "devflow.manifest/id"
+	defaultTektonNamespace   = "tekton-pipelines"
+	defaultObserverInterval  = 15 * time.Second
+	manifestIDLabel          = "devflow.manifest/id"
+	manifestTektonStatusPath = "/api/v1/release/manifests/tekton/status"
+	manifestTektonResultPath = "/api/v1/release/manifests/tekton/result"
+	manifestTektonTasksPath  = "/api/v1/release/manifests/tekton/tasks"
 )
 
 type TektonManifestObserverConfig struct {
@@ -157,7 +160,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 		"status":      mapPipelineRunStatus(pr),
 		"message":     pipelineMessage(pr),
 	}
-	if err := o.postJSON(ctx, "/api/v1/manifests/tekton/status", statusPayload); err != nil {
+	if err := o.postJSON(ctx, manifestTektonStatusPath, statusPayload); err != nil {
 		if terminal && isNotFoundWriteback(err) {
 			return nil
 		}
@@ -165,7 +168,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	}
 
 	if result := buildResultPayload(manifestID, pr.Name, taskRuns.Items); result != nil {
-		if err := o.postJSON(ctx, "/api/v1/manifests/tekton/result", result); err != nil {
+		if err := o.postJSON(ctx, manifestTektonResultPath, result); err != nil {
 			if terminal && isNotFoundWriteback(err) {
 				return nil
 			}
@@ -193,7 +196,7 @@ func (o *TektonManifestObserver) syncTaskRun(ctx context.Context, manifestID, pi
 	if ts := tr.Status.CompletionTime; ts != nil {
 		payload["end_time"] = ts.Time.UTC().Format(time.RFC3339Nano)
 	}
-	return o.postJSON(ctx, "/api/v1/manifests/tekton/tasks", payload)
+	return o.postJSON(ctx, manifestTektonTasksPath, payload)
 }
 
 func (o *TektonManifestObserver) postJSON(ctx context.Context, path string, payload any) error {

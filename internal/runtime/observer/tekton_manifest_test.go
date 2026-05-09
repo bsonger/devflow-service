@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -106,7 +107,9 @@ func TestMapPipelineAndTaskStatuses(t *testing.T) {
 func TestSyncPipelineRunRetriesAfterNotFoundWriteback(t *testing.T) {
 	var mode atomic.Int32
 	mode.Store(0)
+	var observedPaths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observedPaths = append(observedPaths, r.URL.Path)
 		if mode.Load() == 0 {
 			http.NotFound(w, r)
 			return
@@ -185,5 +188,15 @@ func TestSyncPipelineRunRetriesAfterNotFoundWriteback(t *testing.T) {
 	}
 	if !observer.isProcessed(pr.Name, pipelineRunStateKey(pr)) {
 		t.Fatal("terminal pipeline was not marked processed after successful writeback")
+	}
+
+	for _, requiredPath := range []string{
+		manifestTektonTasksPath,
+		manifestTektonStatusPath,
+		manifestTektonResultPath,
+	} {
+		if !slices.Contains(observedPaths, requiredPath) {
+			t.Fatalf("expected writeback path %q, got %v", requiredPath, observedPaths)
+		}
 	}
 }
