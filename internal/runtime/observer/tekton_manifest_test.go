@@ -200,3 +200,89 @@ func TestSyncPipelineRunRetriesAfterNotFoundWriteback(t *testing.T) {
 		}
 	}
 }
+
+func TestSyncPipelineRunFallsBackToLegacyManifestWritebackPaths(t *testing.T) {
+	var observedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observedPaths = append(observedPaths, r.URL.Path)
+		switch r.URL.Path {
+		case manifestTektonTasksLegacyPath, manifestTektonStatusLegacyPath, manifestTektonResultLegacyPath:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	now := metav1.NewTime(time.Now())
+	pr := &tknv1.PipelineRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pipe-1",
+			Namespace: "tekton-pipelines",
+			Labels:    map[string]string{manifestIDLabel: "manifest-1"},
+		},
+		Status: tknv1.PipelineRunStatus{
+			Status: duckv1.Status{
+				Conditions: duckv1.Conditions{{
+					Type:    apis.ConditionSucceeded,
+					Status:  corev1.ConditionTrue,
+					Message: "done",
+				}},
+			},
+			PipelineRunStatusFields: tknv1.PipelineRunStatusFields{
+				StartTime:      &now,
+				CompletionTime: &now,
+			},
+		},
+	}
+	taskRun := &tknv1.TaskRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pipe-1-git-clone",
+			Namespace: "tekton-pipelines",
+			Labels: map[string]string{
+				"tekton.dev/pipelineRun":  "pipe-1",
+				"tekton.dev/pipelineTask": "git-clone",
+			},
+		},
+		Status: tknv1.TaskRunStatus{
+			Status: duckv1.Status{
+				Conditions: duckv1.Conditions{{
+					Type:   apis.ConditionSucceeded,
+					Status: corev1.ConditionTrue,
+				}},
+			},
+			TaskRunStatusFields: tknv1.TaskRunStatusFields{
+				StartTime:      &now,
+				CompletionTime: &now,
+				Results: []tknv1.TaskRunResult{
+					{Name: "commit", Value: *tknv1.NewStructuredValues("abc123")},
+				},
+			},
+		},
+	}
+
+	observer := &TektonManifestObserver{
+		cfg:         TektonManifestObserverConfig{ReleaseServiceBaseURL: server.URL},
+		tekton:      tektonfake.NewSimpleClientset(taskRun),
+		httpClient:  &http.Client{Timeout: 5 * time.Second},
+		releaseBase: server.URL,
+		processed:   map[string]string{},
+	}
+
+	if err := observer.syncPipelineRun(context.Background(), pr); err != nil {
+		t.Fatalf("syncPipelineRun() error = %v", err)
+	}
+
+	for _, expectedPair := range [][2]string{
+		{manifestTektonTasksPath, manifestTektonTasksLegacyPath},
+		{manifestTektonStatusPath, manifestTektonStatusLegacyPath},
+		{manifestTektonResultPath, manifestTektonResultLegacyPath},
+	} {
+		if !slices.Contains(observedPaths, expectedPair[0]) {
+			t.Fatalf("expected preferred path %q, got %v", expectedPair[0], observedPaths)
+		}
+		if !slices.Contains(observedPaths, expectedPair[1]) {
+			t.Fatalf("expected legacy fallback path %q, got %v", expectedPair[1], observedPaths)
+		}
+	}
+}

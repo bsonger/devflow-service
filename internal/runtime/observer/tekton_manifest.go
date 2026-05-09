@@ -13,6 +13,7 @@ import (
 
 	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
@@ -23,16 +24,20 @@ import (
 )
 
 const (
-	defaultTektonNamespace   = "tekton-pipelines"
-	defaultObserverInterval  = 15 * time.Second
-	manifestIDLabel          = "devflow.manifest/id"
-	manifestTektonStatusPath = "/api/v1/release/manifests/tekton/status"
-	manifestTektonResultPath = "/api/v1/release/manifests/tekton/result"
-	manifestTektonTasksPath  = "/api/v1/release/manifests/tekton/tasks"
+	defaultTektonNamespace         = "tekton-pipelines"
+	defaultObserverInterval        = 15 * time.Second
+	manifestIDLabel                = "devflow.manifest/id"
+	manifestTektonStatusPath       = "/api/v1/release/manifests/tekton/status"
+	manifestTektonResultPath       = "/api/v1/release/manifests/tekton/result"
+	manifestTektonTasksPath        = "/api/v1/release/manifests/tekton/tasks"
+	manifestTektonStatusLegacyPath = "/api/v1/manifests/tekton/status"
+	manifestTektonResultLegacyPath = "/api/v1/manifests/tekton/result"
+	manifestTektonTasksLegacyPath  = "/api/v1/manifests/tekton/tasks"
 )
 
 type TektonManifestObserverConfig struct {
 	Enabled               bool
+	ControlPlaneID        string
 	TektonNamespace       string
 	PollInterval          time.Duration
 	ReleaseServiceBaseURL string
@@ -50,6 +55,9 @@ type TektonManifestObserver struct {
 }
 
 func StartTektonManifestObserver(ctx context.Context, restCfg *rest.Config, cfg TektonManifestObserverConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
 	cfg.TektonNamespace = strings.TrimSpace(cfg.TektonNamespace)
 	if cfg.TektonNamespace == "" {
 		cfg.TektonNamespace = defaultTektonNamespace
@@ -160,7 +168,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 		"status":      mapPipelineRunStatus(pr),
 		"message":     pipelineMessage(pr),
 	}
-	if err := o.postJSON(ctx, manifestTektonStatusPath, statusPayload); err != nil {
+	if err := o.postJSON(ctx, statusPayload, manifestTektonStatusPath, manifestTektonStatusLegacyPath); err != nil {
 		if terminal && isNotFoundWriteback(err) {
 			return nil
 		}
@@ -168,7 +176,7 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	}
 
 	if result := buildResultPayload(manifestID, pr.Name, taskRuns.Items); result != nil {
-		if err := o.postJSON(ctx, manifestTektonResultPath, result); err != nil {
+		if err := o.postJSON(ctx, result, manifestTektonResultPath, manifestTektonResultLegacyPath); err != nil {
 			if terminal && isNotFoundWriteback(err) {
 				return nil
 			}
@@ -196,31 +204,71 @@ func (o *TektonManifestObserver) syncTaskRun(ctx context.Context, manifestID, pi
 	if ts := tr.Status.CompletionTime; ts != nil {
 		payload["end_time"] = ts.Time.UTC().Format(time.RFC3339Nano)
 	}
-	return o.postJSON(ctx, manifestTektonTasksPath, payload)
+	return o.postJSON(ctx, payload, manifestTektonTasksPath, manifestTektonTasksLegacyPath)
 }
 
-func (o *TektonManifestObserver) postJSON(ctx context.Context, path string, payload any) error {
+func (o *TektonManifestObserver) postJSON(ctx context.Context, payload any, paths ...string) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.releaseBase+path, bytes.NewReader(body))
-	if err != nil {
-		return err
+	ordered := uniqueManifestWritebackPaths(paths)
+	var lastErr error
+	for idx, path := range ordered {
+		err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+			Kind:      "http",
+			Target:    "release_service",
+			Operation: "manifest_tekton_writeback",
+		}, func(depCtx context.Context) (platformobs.DependencyResult, error) {
+			req, err := http.NewRequestWithContext(depCtx, http.MethodPost, o.releaseBase+path, bytes.NewReader(body))
+			if err != nil {
+				return platformobs.DependencyResult{HTTPMethod: http.MethodPost, URLPath: path}, err
+			}
+			req.Header.Set("Content-Type", "application/json")
+			if token := strings.TrimSpace(o.cfg.ObserverToken); token != "" {
+				req.Header.Set(manifesthttp.ManifestObserverTokenHeader, token)
+			}
+			resp, err := o.httpClient.Do(req)
+			if err != nil {
+				return platformobs.DependencyResult{HTTPMethod: http.MethodPost, URLPath: path}, err
+			}
+			defer func() { _ = resp.Body.Close() }()
+			result := platformobs.DependencyResult{
+				HTTPMethod:     http.MethodPost,
+				URLPath:        req.URL.Path,
+				HTTPStatusCode: resp.StatusCode,
+			}
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				return result, nil
+			}
+			return result, &writebackError{path: path, statusCode: resp.StatusCode}
+		})
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if idx == len(ordered)-1 || !isNotFoundWriteback(err) {
+			return err
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	if token := strings.TrimSpace(o.cfg.ObserverToken); token != "" {
-		req.Header.Set(manifesthttp.ManifestObserverTokenHeader, token)
+	return lastErr
+}
+
+func uniqueManifestWritebackPaths(paths []string) []string {
+	seen := make(map[string]struct{}, len(paths))
+	ordered := make([]string, 0, len(paths))
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		ordered = append(ordered, path)
 	}
-	resp, err := o.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return nil
-	}
-	return &writebackError{path: path, statusCode: resp.StatusCode}
+	return ordered
 }
 
 func mapPipelineRunStatus(pr *tknv1.PipelineRun) model.ManifestStatus {
