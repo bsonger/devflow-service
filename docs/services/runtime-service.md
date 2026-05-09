@@ -112,7 +112,7 @@
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
 - when release writeback wiring is present, that rollout observer is a callback sender into `release-service`; it does not become the owner of release status, release steps, or writeback route policy
-- release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, but the active in-tree runtime rollout observer still derives live rollout progress from `Deployment` objects only today
+- release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, and the active in-tree runtime rollout observer now derives live rollout progress from the observed workload kind
 - once `finalize_release` closes a release, runtime-side late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
 
 不要把当前 runtime contract 误读成“全仓库已经不再使用 PostgreSQL”。

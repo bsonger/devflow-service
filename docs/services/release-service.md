@@ -181,7 +181,7 @@
 - `start_deployment` remains the release-service-owned handoff step for rolling releases.
 - `observe_rollout` and `finalize_release` remain callback-owned follow-up steps after that handoff.
 - release/application/environment identity must continue to ride on labels; annotations stay supplementary diagnostics only.
-- the release metadata and inspection contract stays compatible with both `Deployment` and `Rollout` primary workloads even though the active in-tree runtime observer still derives live rollout progress from `Deployment` objects only today.
+- the release metadata and inspection contract stays compatible with both `Deployment` and `Rollout` primary workloads, and the active in-tree runtime observer now writes back rolling, blue-green, and canary rollout progression from the observed workload kind.
 - once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
 
 继续深入时，优先看：

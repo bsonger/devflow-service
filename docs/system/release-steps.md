@@ -70,7 +70,7 @@ Current wiring note:
 - `release-service` advances create/render/publish/Argo-start steps directly during normal create/dispatch
 - release-owned callback routes under `/api/v1/verify/...` can advance later rollout steps
 - the clustered `runtime-service` startup path now starts `internal/runtime/observer/release_rollout.go` when Kubernetes config and release writeback wiring are available, making it one active callback sender without changing release ownership of the callback contract
-- release metadata labels and Argo handoff metadata are intentionally workload-kind-compatible across `Deployment` and `Rollout`, but the active in-tree runtime rollout observer still derives live rollout state from `Deployment` objects only until deferred Rollout observation is explicitly implemented
+- release metadata labels and Argo handoff metadata are intentionally workload-kind-compatible across `Deployment` and `Rollout`, and the active in-tree runtime rollout observer now derives live rollout state from the observed workload kind
 
 
 ### Common steps for all strategies

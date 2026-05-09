@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,14 +77,54 @@ func initReleaseMetrics() {
 }
 
 func releaseMetricAttributes(release *model.Release) []attribute.KeyValue {
-	releaseType := "unknown"
-	if release != nil && release.Type != "" {
-		releaseType = release.Type
-	}
 	return []attribute.KeyValue{
 		attribute.String("service_name", logger.ServiceName()),
 		attribute.String("service_namespace", logger.ServiceNamespace()),
 		attribute.String("deployment_environment_name", logger.Environment()),
-		attribute.String("release_type", releaseType),
+		attribute.String("release_type", normalizedReleaseTypeLabel(release)),
+	}
+}
+
+func normalizedReleaseTypeLabel(release *model.Release) string {
+	if release == nil {
+		return "unknown"
+	}
+	if value := strings.TrimSpace(release.Type); value != "" {
+		return value
+	}
+	return "unknown"
+}
+
+func normalizedReleaseStrategyLabel(release *model.Release) string {
+	if release == nil {
+		return "unknown"
+	}
+	if value := strings.TrimSpace(release.Strategy); value != "" {
+		return value
+	}
+	return "unknown"
+}
+
+func normalizeReleaseStageLabel(stage string) string {
+	switch strings.TrimSpace(stage) {
+	case "render_deployment_bundle":
+		return "render_bundle"
+	case "publish_bundle",
+		"create_argocd_application",
+		"start_deployment",
+		"observe_rollout",
+		"finalize_release",
+		"deploy_preview",
+		"observe_preview",
+		"switch_traffic",
+		"verify_active",
+		"deploy_canary",
+		"canary_10",
+		"canary_30",
+		"canary_60",
+		"canary_100":
+		return strings.TrimSpace(stage)
+	default:
+		return ""
 	}
 }

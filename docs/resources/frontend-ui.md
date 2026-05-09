@@ -829,7 +829,7 @@ The UI contract should mirror those lifecycle rules, not restate them differentl
 - `start_deployment` stays the release-service-owned rolling handoff step.
 - `observe_rollout` and `finalize_release` stay callback-owned follow-up steps.
 - release/application/environment identity for runtime readers and actions continues to ride on labels; annotations are supplementary diagnostics only.
-- the metadata and inspection contract stays compatible with both `Deployment` and `Rollout`, but the active in-tree runtime rollout observer still derives live progress from `Deployment` objects only today.
+- the metadata and inspection contract stays compatible with both `Deployment` and `Rollout`, and the active in-tree runtime rollout observer now derives live progress from the observed workload kind.
 - once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
 
 ### Runtime information architecture

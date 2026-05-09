@@ -17,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
@@ -583,7 +584,32 @@ func TestWriteReleaseStepsRollingObserverSkipsReleaseOwnedHandoffStep(t *testing
 				releaseBase: server.URL,
 			}
 			rollout := releaseRolloutContext{ReleaseID: releaseID}
-			if err := observer.writeReleaseSteps(context.Background(), rollout, tt.phase, tt.progress, tt.message); err != nil {
+			state := &releaseObservedState{
+				Phase: tt.phase,
+				StepWrites: []releaseStepWrite{{
+					StepCode: "observe_rollout",
+					Status:   tt.phase,
+					Progress: tt.progress,
+					Message:  tt.message,
+				}},
+			}
+			switch tt.phase {
+			case releasedomain.StepSucceeded:
+				state.FinalizeState = &releaseStepWrite{
+					StepCode: "finalize_release",
+					Status:   releasedomain.StepSucceeded,
+					Progress: 100,
+					Message:  "release finalized after deployment became healthy",
+				}
+			case releasedomain.StepFailed:
+				state.FinalizeState = &releaseStepWrite{
+					StepCode: "finalize_release",
+					Status:   releasedomain.StepFailed,
+					Progress: 100,
+					Message:  "release finalized after deployment failure",
+				}
+			}
+			if err := observer.writeReleaseSteps(context.Background(), rollout, state); err != nil {
 				t.Fatalf("writeReleaseSteps failed: %v", err)
 			}
 			if len(got) != len(tt.wantSteps) {
@@ -650,7 +676,22 @@ func TestWriteReleaseStepsFinalizeFailsWhenMetricsProbeFails(t *testing.T) {
 		Namespace:           "devflow",
 		PrimaryWorkloadName: "platform-web",
 	}
-	if err := observer.writeReleaseSteps(context.Background(), rollout, releasedomain.StepSucceeded, 100, "deployment healthy"); err != nil {
+	state := &releaseObservedState{
+		Phase: releasedomain.StepSucceeded,
+		StepWrites: []releaseStepWrite{{
+			StepCode: "observe_rollout",
+			Status:   releasedomain.StepSucceeded,
+			Progress: 100,
+			Message:  "deployment healthy",
+		}},
+		FinalizeState: &releaseStepWrite{
+			StepCode: "finalize_release",
+			Status:   releasedomain.StepSucceeded,
+			Progress: 100,
+			Message:  "release finalized after deployment became healthy",
+		},
+	}
+	if err := observer.writeReleaseSteps(context.Background(), rollout, state); err != nil {
 		t.Fatalf("writeReleaseSteps failed: %v", err)
 	}
 	if len(got) != 2 {
@@ -692,6 +733,120 @@ func TestVerifyMetricsEndpointSkipsWhenServiceHasNoMetricsPort(t *testing.T) {
 	}
 	if called {
 		t.Fatal("metrics prober should not be called when service has no metrics port")
+	}
+}
+
+func TestDeriveReleaseObservedStateFromCanaryRolloutRunning(t *testing.T) {
+	rollout := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Rollout",
+		"metadata": map[string]any{
+			"name":       "demo-api",
+			"generation": int64(3),
+		},
+		"spec": map[string]any{
+			"replicas": int64(2),
+			"strategy": map[string]any{
+				"canary": map[string]any{},
+			},
+		},
+		"status": map[string]any{
+			"phase":             "Progressing",
+			"currentStepIndex":  int64(2),
+			"readyReplicas":     int64(1),
+			"availableReplicas": int64(1),
+			"message":           "advancing to 30%",
+		},
+	}}
+
+	state := deriveReleaseObservedStateFromRollout("demo-ns", "demo-api", "demo-api", rollout)
+	if state == nil {
+		t.Fatal("expected state")
+	}
+	if state.Phase != releasedomain.StepRunning {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if len(state.StepWrites) < 2 {
+		t.Fatalf("step writes = %#v", state.StepWrites)
+	}
+	if state.StepWrites[0].StepCode != "deploy_canary" || state.StepWrites[0].Status != releasedomain.StepSucceeded {
+		t.Fatalf("first step write = %#v", state.StepWrites[0])
+	}
+	last := state.StepWrites[len(state.StepWrites)-1]
+	if last.StepCode != "canary_30" || last.Status != releasedomain.StepRunning {
+		t.Fatalf("last step write = %#v", last)
+	}
+}
+
+func TestDeriveReleaseObservedStateFromCanaryRolloutSucceeded(t *testing.T) {
+	rollout := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Rollout",
+		"metadata": map[string]any{
+			"name":       "demo-api",
+			"generation": int64(4),
+		},
+		"spec": map[string]any{
+			"replicas": int64(2),
+			"strategy": map[string]any{
+				"canary": map[string]any{},
+			},
+		},
+		"status": map[string]any{
+			"phase":             "Healthy",
+			"readyReplicas":     int64(2),
+			"availableReplicas": int64(2),
+		},
+	}}
+
+	state := deriveReleaseObservedStateFromRollout("demo-ns", "demo-api", "demo-api", rollout)
+	if state == nil {
+		t.Fatal("expected state")
+	}
+	if state.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if state.FinalizeState == nil || state.FinalizeState.Status != releasedomain.StepSucceeded {
+		t.Fatalf("finalize = %#v", state.FinalizeState)
+	}
+	if got := state.StepWrites[len(state.StepWrites)-1]; got.StepCode != "canary_100" || got.Status != releasedomain.StepSucceeded {
+		t.Fatalf("last step write = %#v", got)
+	}
+}
+
+func TestDeriveReleaseObservedStateFromBlueGreenRolloutSucceeded(t *testing.T) {
+	rollout := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Rollout",
+		"metadata": map[string]any{
+			"name":       "demo-api",
+			"generation": int64(4),
+		},
+		"spec": map[string]any{
+			"replicas": int64(2),
+			"strategy": map[string]any{
+				"blueGreen": map[string]any{},
+			},
+		},
+		"status": map[string]any{
+			"phase":             "Healthy",
+			"readyReplicas":     int64(2),
+			"availableReplicas": int64(2),
+		},
+	}}
+
+	state := deriveReleaseObservedStateFromRollout("demo-ns", "demo-api", "demo-api", rollout)
+	if state == nil {
+		t.Fatal("expected state")
+	}
+	if state.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if len(state.StepWrites) != 4 {
+		t.Fatalf("step writes = %#v", state.StepWrites)
+	}
+	if state.StepWrites[0].StepCode != "deploy_preview" || state.StepWrites[3].StepCode != "verify_active" {
+		t.Fatalf("step writes = %#v", state.StepWrites)
 	}
 }
 
