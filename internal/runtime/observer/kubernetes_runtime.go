@@ -19,6 +19,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -32,6 +34,7 @@ type KubernetesRuntimeObserverConfig struct {
 type KubernetesRuntimeObserver struct {
 	cfg       KubernetesRuntimeObserverConfig
 	clientset kubernetes.Interface
+	dynamic   dynamic.Interface
 	store     repository.Store
 	runtime   runtimeservice.Service
 }
@@ -47,10 +50,15 @@ func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, c
 	if err != nil {
 		return err
 	}
+	dynamicClient, err := dynamic.NewForConfig(restCfg)
+	if err != nil {
+		return err
+	}
 	store := repository.RuntimeStore
 	observer := &KubernetesRuntimeObserver{
 		cfg:       cfg,
 		clientset: clientset,
+		dynamic:   dynamicClient,
 		store:     store,
 		runtime:   runtimeservice.New(store, nil),
 	}
@@ -88,23 +96,57 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 		log.Warn("list runtime deployments failed", zap.Error(err))
 		return
 	}
+	rollouts, err := o.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: releasedomain.ReleaseApplicationLabel,
+	})
+	if err != nil {
+		log.Warn("list runtime rollouts failed", zap.Error(err))
+		return
+	}
+
+	targets := make(map[uuid.UUID]runtimeObserverTarget)
 	for i := range deployments.Items {
 		deployment := &deployments.Items[i]
 		spec, appName, ok := o.runtimeSpecFromDeployment(deployment)
-		if !ok {
+		if !ok || spec == nil {
 			continue
 		}
-		if err := o.syncRuntimeSpec(ctx, spec, appName, deployment.Namespace); err != nil {
-			log.Warn("sync runtime deployment from kubernetes failed",
-				zap.String("runtime_spec_id", spec.ID.String()),
-				zap.String("devflow.application.id", spec.ApplicationID.String()),
-				zap.String("devflow.environment.id", spec.Environment),
-				zap.String("observed_workload_namespace", deployment.Namespace),
-				zap.String("observed_workload_name", deployment.Name),
+		targets[spec.ID] = runtimeObserverTarget{
+			spec:      spec,
+			appName:   appName,
+			namespace: deployment.Namespace,
+		}
+	}
+	for i := range rollouts.Items {
+		rollout := &rollouts.Items[i]
+		spec, appName, ok := o.runtimeSpecFromRollout(rollout)
+		if !ok || spec == nil {
+			continue
+		}
+		targets[spec.ID] = runtimeObserverTarget{
+			spec:      spec,
+			appName:   appName,
+			namespace: rollout.GetNamespace(),
+		}
+	}
+	for _, target := range targets {
+		if err := o.syncRuntimeSpec(ctx, target.spec, target.appName, target.namespace); err != nil {
+			log.Warn("sync runtime workload from kubernetes failed",
+				zap.String("runtime_spec_id", target.spec.ID.String()),
+				zap.String("devflow.application.id", target.spec.ApplicationID.String()),
+				zap.String("devflow.environment.id", target.spec.Environment),
+				zap.String("observed_workload_namespace", target.namespace),
+				zap.String("observed_workload_name", target.appName),
 				zap.Error(err),
 			)
 		}
 	}
+}
+
+type runtimeObserverTarget struct {
+	spec      *domain.RuntimeSpec
+	appName   string
+	namespace string
 }
 
 func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *domain.RuntimeSpec, appName, targetNamespace string) error {
@@ -123,7 +165,13 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 	if err != nil {
 		return err
 	}
-	if err := o.syncDeployment(ctx, spec, appName, targetNamespace, deployments.Items); err != nil {
+	rollouts, err := o.dynamic.Resource(releaseRolloutGVR).Namespace(targetNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selector,
+	})
+	if err != nil {
+		return err
+	}
+	if err := o.syncWorkload(ctx, spec, appName, targetNamespace, deployments.Items, rollouts.Items); err != nil {
 		return err
 	}
 
@@ -163,7 +211,42 @@ func (o *KubernetesRuntimeObserver) runtimeSpecFromDeployment(deployment *appsv1
 	return spec, appName, true
 }
 
-func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *domain.RuntimeSpec, appName, namespace string, deployments []appsv1.Deployment) error {
+func (o *KubernetesRuntimeObserver) runtimeSpecFromRollout(rollout *unstructured.Unstructured) (*domain.RuntimeSpec, string, bool) {
+	if rollout == nil {
+		return nil, "", false
+	}
+	labels := rollout.GetLabels()
+	applicationID, err := uuid.Parse(strings.TrimSpace(labels[releasedomain.ReleaseApplicationLabel]))
+	if err != nil || applicationID == uuid.Nil {
+		return nil, "", false
+	}
+	environment := strings.TrimSpace(labels[releasedomain.ReleaseEnvironmentLabel])
+	if environment == "" {
+		return nil, "", false
+	}
+	appName := strings.TrimSpace(labels["app.kubernetes.io/name"])
+	if appName == "" {
+		appName = strings.TrimSpace(rollout.GetName())
+	}
+	if appName == "" {
+		return nil, "", false
+	}
+	spec, err := o.store.EnsureRuntimeSpecByApplicationEnv(context.Background(), applicationID, environment)
+	if err != nil || spec == nil {
+		return nil, "", false
+	}
+	return spec, appName, true
+}
+
+func (o *KubernetesRuntimeObserver) syncWorkload(ctx context.Context, spec *domain.RuntimeSpec, appName, namespace string, deployments []appsv1.Deployment, rollouts []unstructured.Unstructured) error {
+	rollout, err := selectReleaseOwnedRollout(spec, appName, rollouts)
+	if err != nil {
+		return err
+	}
+	if rollout != nil {
+		return o.syncRollout(ctx, spec, namespace, rollout)
+	}
+
 	deployment, err := selectReleaseOwnedDeployment(spec, appName, deployments)
 	if err != nil {
 		return err
@@ -205,6 +288,34 @@ func (o *KubernetesRuntimeObserver) syncDeployment(ctx context.Context, spec *do
 		Conditions:          deploymentConditions(deployment.Status.Conditions),
 		Labels:              deployment.Labels,
 		Annotations:         deployment.Spec.Template.Annotations,
+		ObservedAt:          time.Now().UTC(),
+		RestartAt:           restartAt,
+	})
+	return err
+}
+
+func (o *KubernetesRuntimeObserver) syncRollout(ctx context.Context, spec *domain.RuntimeSpec, namespace string, rollout *unstructured.Unstructured) error {
+	if rollout == nil {
+		return nil
+	}
+	restartAt := parseRestartAt(rolloutTemplateAnnotations(rollout))
+	_, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
+		ApplicationID:       spec.ApplicationID,
+		Environment:         spec.Environment,
+		Namespace:           namespace,
+		WorkloadKind:        "Rollout",
+		WorkloadName:        rollout.GetName(),
+		DesiredReplicas:     int(nestedInt64Default(rollout.Object, 0, "spec", "replicas")),
+		ReadyReplicas:       int(nestedInt64Default(rollout.Object, 0, "status", "readyReplicas")),
+		UpdatedReplicas:     int(nestedInt64Default(rollout.Object, 0, "status", "updatedReplicas")),
+		AvailableReplicas:   int(nestedInt64Default(rollout.Object, 0, "status", "availableReplicas")),
+		UnavailableReplicas: int(nestedInt64Default(rollout.Object, 0, "status", "unavailableReplicas")),
+		ObservedGeneration:  nestedInt64Default(rollout.Object, 0, "status", "observedGeneration"),
+		SummaryStatus:       summarizeRolloutStatus(rollout),
+		Images:              rolloutImages(rollout),
+		Conditions:          rolloutConditions(rollout),
+		Labels:              rollout.GetLabels(),
+		Annotations:         rolloutTemplateAnnotations(rollout),
 		ObservedAt:          time.Now().UTC(),
 		RestartAt:           restartAt,
 	})
@@ -346,6 +457,42 @@ func selectReleaseOwnedDeployment(spec *domain.RuntimeSpec, appName string, depl
 	return nil, fmt.Errorf("%w: application_id=%s environment=%s namespace=%s candidates=%s", runtimeservice.ErrRuntimeWorkloadAmbiguous, spec.ApplicationID.String(), strings.TrimSpace(spec.Environment), strings.TrimSpace(matches[0].Namespace), joinDeploymentNames(matches))
 }
 
+func rolloutMatchesRuntimeSpec(spec *domain.RuntimeSpec, rollout unstructured.Unstructured) bool {
+	return labelsMatchRuntimeSpec(spec, rollout.GetLabels())
+}
+
+func selectReleaseOwnedRollout(spec *domain.RuntimeSpec, appName string, rollouts []unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	matches := make([]unstructured.Unstructured, 0, len(rollouts))
+	for _, rollout := range rollouts {
+		if !rolloutMatchesRuntimeSpec(spec, rollout) {
+			continue
+		}
+		matches = append(matches, rollout)
+	}
+	if len(matches) == 0 {
+		return nil, nil
+	}
+	if len(matches) == 1 {
+		return &matches[0], nil
+	}
+	preferred := make([]unstructured.Unstructured, 0, len(matches))
+	for _, rollout := range matches {
+		if strings.TrimSpace(appName) != "" && rollout.GetName() == strings.TrimSpace(appName) {
+			preferred = append(preferred, rollout)
+		}
+	}
+	if len(preferred) == 1 {
+		return &preferred[0], nil
+	}
+	if len(preferred) > 1 {
+		matches = preferred
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		return matches[i].GetName() < matches[j].GetName()
+	})
+	return nil, fmt.Errorf("%w: application_id=%s environment=%s namespace=%s rollout_candidates=%s", runtimeservice.ErrRuntimeWorkloadAmbiguous, spec.ApplicationID.String(), strings.TrimSpace(spec.Environment), strings.TrimSpace(matches[0].GetNamespace()), joinRolloutNames(matches))
+}
+
 func filterReleaseOwnedPods(spec *domain.RuntimeSpec, pods []corev1.Pod) []corev1.Pod {
 	if len(pods) == 0 {
 		return nil
@@ -367,6 +514,22 @@ func joinDeploymentNames(items []appsv1.Deployment) string {
 	names := make([]string, 0, len(items))
 	for _, item := range items {
 		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ",")
+}
+
+func joinRolloutNames(items []unstructured.Unstructured) string {
+	if len(items) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(item.GetName())
 		if name == "" {
 			continue
 		}
@@ -429,10 +592,57 @@ func summarizeDeploymentStatus(deployment appsv1.Deployment) string {
 	return "Unknown"
 }
 
+func summarizeRolloutStatus(rollout *unstructured.Unstructured) string {
+	if rollout == nil {
+		return "Unknown"
+	}
+	phase := strings.ToLower(strings.TrimSpace(nestedString(rollout.Object, "status", "phase")))
+	switch phase {
+	case "healthy", "completed":
+		return "Healthy"
+	case "degraded", "error", "failed":
+		return "Degraded"
+	case "paused", "progressing":
+		return "Progressing"
+	}
+	desired := nestedInt64Default(rollout.Object, 0, "spec", "replicas")
+	ready := nestedInt64Default(rollout.Object, 0, "status", "readyReplicas")
+	if desired == 0 {
+		return "Idle"
+	}
+	if ready >= desired {
+		return "Healthy"
+	}
+	if ready > 0 {
+		return "Progressing"
+	}
+	return "Unknown"
+}
+
 func deploymentImages(deployment appsv1.Deployment) []string {
 	images := make([]string, 0, len(deployment.Spec.Template.Spec.Containers))
 	for _, c := range deployment.Spec.Template.Spec.Containers {
 		image := strings.TrimSpace(c.Image)
+		if image == "" {
+			continue
+		}
+		images = append(images, image)
+	}
+	return images
+}
+
+func rolloutImages(rollout *unstructured.Unstructured) []string {
+	if rollout == nil {
+		return nil
+	}
+	containers, _, _ := unstructured.NestedSlice(rollout.Object, "spec", "template", "spec", "containers")
+	images := make([]string, 0, len(containers))
+	for _, item := range containers {
+		container, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		image := strings.TrimSpace(fmt.Sprintf("%v", container["image"]))
 		if image == "" {
 			continue
 		}
@@ -455,6 +665,53 @@ func deploymentConditions(conditions []appsv1.DeploymentCondition) []runtimeserv
 			Message:            strings.TrimSpace(cond.Message),
 			LastTransitionTime: &ts,
 		})
+	}
+	return out
+}
+
+func rolloutConditions(rollout *unstructured.Unstructured) []runtimeservice.ObservedWorkloadConditionInput {
+	if rollout == nil {
+		return nil
+	}
+	items, _, _ := unstructured.NestedSlice(rollout.Object, "status", "conditions")
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]runtimeservice.ObservedWorkloadConditionInput, 0, len(items))
+	for _, item := range items {
+		condition, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		var ts *time.Time
+		if value := strings.TrimSpace(fmt.Sprintf("%v", condition["lastTransitionTime"])); value != "" {
+			if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+				utc := parsed.UTC()
+				ts = &utc
+			}
+		}
+		out = append(out, runtimeservice.ObservedWorkloadConditionInput{
+			Type:               strings.TrimSpace(fmt.Sprintf("%v", condition["type"])),
+			Status:             strings.TrimSpace(fmt.Sprintf("%v", condition["status"])),
+			Reason:             strings.TrimSpace(fmt.Sprintf("%v", condition["reason"])),
+			Message:            strings.TrimSpace(fmt.Sprintf("%v", condition["message"])),
+			LastTransitionTime: ts,
+		})
+	}
+	return out
+}
+
+func rolloutTemplateAnnotations(rollout *unstructured.Unstructured) map[string]string {
+	if rollout == nil {
+		return nil
+	}
+	annotations, _, _ := unstructured.NestedStringMap(rollout.Object, "spec", "template", "metadata", "annotations")
+	if len(annotations) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(annotations))
+	for key, value := range annotations {
+		out[key] = strings.TrimSpace(value)
 	}
 	return out
 }
