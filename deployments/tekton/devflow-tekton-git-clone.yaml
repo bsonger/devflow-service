@@ -1,0 +1,107 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: devflow-tekton-git-clone
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/component: tekton-task
+    app.kubernetes.io/part-of: devflow
+spec:
+  description: Clone a GitHub repository by branch, tag, or exact commit SHA using SSH.
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: main
+  results:
+    - name: commit
+      description: git commit SHA resolved for the requested revision
+      type: string
+    - name: git-tag
+      description: exact git tag on HEAD, empty when absent
+      type: string
+  workspaces:
+    - name: output
+    - name: ssh
+  steps:
+    - name: clone
+      image: mcp/git:latest
+      script: |
+        set -eu
+
+        RAW_URL="$(params.url)"
+        RAW_REVISION="$(params.revision)"
+        OUTPUT_DIR="$(workspaces.output.path)"
+        SSH_DIR="${HOME}/.ssh"
+
+        trim() {
+          printf "%s" "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+        }
+
+        URL="$(trim "${RAW_URL}")"
+        REVISION="$(trim "${RAW_REVISION}")"
+        if [ -z "${REVISION}" ]; then
+          REVISION="main"
+        fi
+
+        if [ -z "${URL}" ]; then
+          echo "ERROR: git url is empty"
+          exit 1
+        fi
+
+        case "${URL}" in
+          https://github.com/*)
+            SSH_URL="$(printf "%s" "${URL}" | sed 's#^https://github.com/#git@github.com:#')"
+            ;;
+          git@github.com:*)
+            SSH_URL="${URL}"
+            ;;
+          *)
+            SSH_URL="${URL}"
+            ;;
+        esac
+
+        mkdir -p "${SSH_DIR}"
+        cp "$(workspaces.ssh.path)/id_rsa" "${SSH_DIR}/id_rsa"
+        chmod 600 "${SSH_DIR}/id_rsa"
+        ssh-keyscan github.com > "${SSH_DIR}/known_hosts"
+        export GIT_SSH_COMMAND="ssh -i ${SSH_DIR}/id_rsa -o UserKnownHostsFile=${SSH_DIR}/known_hosts"
+
+        mkdir -p "${OUTPUT_DIR}"
+        find "${OUTPUT_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+        echo "=== devflow git clone task started ==="
+        echo "requested.url=${URL}"
+        echo "resolved.ssh_url=${SSH_URL}"
+        echo "requested.revision=${REVISION}"
+        echo "workspace.output=${OUTPUT_DIR}"
+
+        if printf "%s" "${REVISION}" | grep -Eq '^[0-9a-fA-F]{7,40}$'; then
+          echo "clone.mode=commit"
+          git init "${OUTPUT_DIR}"
+          cd "${OUTPUT_DIR}"
+          git remote add origin "${SSH_URL}"
+          echo "git fetch --depth 1 origin ${REVISION}"
+          git fetch --depth 1 origin "${REVISION}"
+          git checkout --detach FETCH_HEAD
+        else
+          echo "clone.mode=branch-or-tag"
+          echo "git clone --depth 1 --single-branch --branch ${REVISION} ${SSH_URL} ${OUTPUT_DIR}"
+          git clone --depth 1 --single-branch --branch "${REVISION}" "${SSH_URL}" "${OUTPUT_DIR}"
+          cd "${OUTPUT_DIR}"
+        fi
+
+        RESOLVED_COMMIT="$(git rev-parse HEAD)"
+        echo "resolved.commit=${RESOLVED_COMMIT}"
+        printf "%s" "${RESOLVED_COMMIT}" | tee /tekton/results/commit
+
+        if TAG="$(git describe --tags --exact-match HEAD 2>/dev/null)"; then
+          echo "resolved.tag=${TAG}"
+          printf "%s" "${TAG}" | tee /tekton/results/git-tag
+        else
+          echo "resolved.tag="
+          : > /tekton/results/git-tag
+        fi
+
+        echo "=== devflow git clone task finished ==="

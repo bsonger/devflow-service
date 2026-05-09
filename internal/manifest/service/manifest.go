@@ -27,6 +27,7 @@ import (
 )
 
 var ErrManifestWorkloadConfigMissing = sharederrs.FailedPrecondition("effective workload config is missing")
+var ErrManifestRepositoryMissing = sharederrs.FailedPrecondition("application repository address is missing")
 
 var (
 	manifestCreatePVC         = localtekton.CreatePVC
@@ -473,6 +474,10 @@ func deriveManifestResourceApplicationName(item *manifestdomain.Manifest) string
 }
 
 func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, repoAddress string, target oci.ImageTarget, imageDigest string, workload *appconfigdownstream.WorkloadConfig, services []servicedownstream.Service) (*manifestdomain.Manifest, error) {
+	repoAddress = strings.TrimSpace(repoAddress)
+	if repoAddress == "" {
+		return nil, ErrManifestRepositoryMissing
+	}
 	servicesSnapshot := make([]manifestdomain.ManifestService, 0, len(services))
 	for _, item := range services {
 		ports := make([]manifestdomain.ManifestServicePort, 0, len(item.Ports))

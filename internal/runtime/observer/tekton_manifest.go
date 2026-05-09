@@ -39,7 +39,7 @@ type TektonManifestObserverConfig struct {
 
 type TektonManifestObserver struct {
 	cfg         TektonManifestObserverConfig
-	tekton      *tektonclient.Clientset
+	tekton      tektonclient.Interface
 	httpClient  *http.Client
 	releaseBase string
 	mu          sync.Mutex
@@ -145,7 +145,6 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	for i := range taskRuns.Items {
 		if err := o.syncTaskRun(ctx, manifestID, pr.Name, &taskRuns.Items[i]); err != nil {
 			if terminal && isNotFoundWriteback(err) {
-				o.markProcessed(pr.Name, stateKey)
 				return nil
 			}
 			return err
@@ -160,7 +159,6 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	}
 	if err := o.postJSON(ctx, "/api/v1/manifests/tekton/status", statusPayload); err != nil {
 		if terminal && isNotFoundWriteback(err) {
-			o.markProcessed(pr.Name, stateKey)
 			return nil
 		}
 		return err
@@ -169,7 +167,6 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	if result := buildResultPayload(manifestID, pr.Name, taskRuns.Items); result != nil {
 		if err := o.postJSON(ctx, "/api/v1/manifests/tekton/result", result); err != nil {
 			if terminal && isNotFoundWriteback(err) {
-				o.markProcessed(pr.Name, stateKey)
 				return nil
 			}
 			return err

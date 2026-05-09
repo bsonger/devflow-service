@@ -11,9 +11,17 @@ Today the active committed pipeline is:
 
 Current files:
 
+- task: `deployments/tekton/devflow-tekton-git-clone.yaml`
 - task: `deployments/tekton/devflow-tekton-image-build-and-push.yaml`
 - pipeline: `deployments/tekton/devflow-tekton-image-build-push-only.yaml`
 - service-specific `PipelineRun` templates and pre-production runs under the same directory
+
+`devflow-tekton-git-clone` is the active source-selection contract for image builds:
+
+- branch names are cloned with `git clone --branch`
+- tags are cloned with `git clone --branch`
+- exact commit SHAs are fetched and checked out explicitly, instead of being misused as branch names
+- task logs print the requested revision, resolved SSH URL, clone mode, and resolved commit SHA
 
 ## Staged manifest-delivery contract
 

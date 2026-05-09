@@ -239,6 +239,22 @@ func TestNormalizeGitRevisionDefaultsToMain(t *testing.T) {
 	}
 }
 
+func TestBuildManifestRequiresRepositoryAddress(t *testing.T) {
+	req := &manifestdomain.CreateManifestRequest{
+		ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111"),
+	}
+	workload := &appconfigdownstream.WorkloadConfig{Replicas: 1}
+	target := oci.ImageTarget{
+		Name: "demo-api",
+		Tag:  "20260411-120000",
+		Ref:  "registry.example.com/devflow/demo-api:20260411-120000",
+	}
+	_, err := buildManifest(req, "demo-api", "   ", target, "", workload, nil)
+	if !errors.Is(err, ErrManifestRepositoryMissing) {
+		t.Fatalf("buildManifest() error = %v, want %v", err, ErrManifestRepositoryMissing)
+	}
+}
+
 func TestBuildManifestPipelineRunUsesGitRevisionAndAnnotations(t *testing.T) {
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111")},

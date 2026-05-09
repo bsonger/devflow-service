@@ -188,6 +188,7 @@ func writeManifestError(c *gin.Context, err error) {
 	case errors.Is(err, sql.ErrNoRows):
 		httpx.WriteNotFound(c, "not found")
 	case errors.Is(err, manifestservice.ErrManifestWorkloadConfigMissing),
+		errors.Is(err, manifestservice.ErrManifestRepositoryMissing),
 		errors.Is(err, manifestservice.ErrManifestImageNotDeployable):
 		httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 	default:

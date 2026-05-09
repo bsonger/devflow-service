@@ -10,7 +10,7 @@ Examples:
 Keep build-time Docker base-image assets under `docker/`.
 
 Current local pre-production flow:
-- apply `deployments/tekton/devflow-tekton-image-build-and-push.yaml` and `deployments/tekton/devflow-tekton-image-build-push-only.yaml` first when the cluster task or pipeline needs the monorepo-aware build logic
+- apply `deployments/tekton/devflow-tekton-git-clone.yaml`, `deployments/tekton/devflow-tekton-image-build-and-push.yaml`, and `deployments/tekton/devflow-tekton-image-build-push-only.yaml` first when the cluster task or pipeline needs the monorepo-aware build logic
 - use `deployments/tekton/meta-service-preproduction-build-pipelinerun.yaml` to build and push `meta-service:preproduction`
 - use `deployments/tekton/config-service-preproduction-build-pipelinerun.yaml` to build and push `config-service:preproduction`
 - use `deployments/tekton/network-service-preproduction-build-pipelinerun.yaml` to build and push `network-service:preproduction`
@@ -124,6 +124,8 @@ The committed Tekton manifests that make this explicit are:
 - `deployments/tekton/runtime-service-pipeline-run-template.yaml`
 
 Tekton task note:
+- `deployments/tekton/devflow-tekton-git-clone.yaml` logs the requested revision, resolved SSH URL, clone mode, and resolved commit SHA
+- `deployments/tekton/devflow-tekton-git-clone.yaml` supports `git-revision` as branch, tag, or exact commit SHA; commit SHAs are fetched and checked out explicitly instead of being treated as branch names
 - `deployments/tekton/devflow-tekton-image-build-and-push.yaml` accepts an optional `BUILD_ARGS` param
 - `deployments/tekton/devflow-tekton-image-build-push-only.yaml` must forward `SERVICE_NAME` and `BUILD_ARGS` into the build task
 - the committed service manifests now hardcode monorepo service selection with dedicated Tekton params, for example:
