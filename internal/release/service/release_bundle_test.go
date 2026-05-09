@@ -192,7 +192,80 @@ func TestBuildReleaseBundleFallsBackToApplicationIDWithoutServiceName(t *testing
 		t.Fatalf("unexpected deployment = %#v", bundle.Resources.Deployment)
 	}
 }
+func TestBuildReleaseBundleOmitsConfigMapAndMountsWithoutAppConfig(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/document@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{
+			{
+				Name: "document",
+				Ports: []manifestdomain.ManifestServicePort{
+					{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"},
+				},
+			},
+		},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{Replicas: 1},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "production",
+	}
 
+	bundle, err := buildReleaseBundle("devflow", "document", "production", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	if bundle.Resources.ConfigMap != nil {
+		t.Fatalf("expected no configmap, got %#v", bundle.Resources.ConfigMap)
+	}
+	deployment := bundle.Resources.Deployment
+	if deployment == nil {
+		t.Fatal("expected deployment")
+	}
+	podSpec := deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)
+	containers := podSpec["containers"].([]map[string]any)
+	if _, ok := containers[0]["volumeMounts"]; ok {
+		t.Fatalf("unexpected volumeMounts: %#v", containers[0]["volumeMounts"])
+	}
+	if _, ok := podSpec["volumes"]; ok {
+		t.Fatalf("unexpected volumes: %#v", podSpec["volumes"])
+	}
+}
+
+func TestBuildReleaseBundleOmitsDefaultServiceAccountResource(t *testing.T) {
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		ImageRef:      "registry.example.com/devflow/document@sha256:abc",
+		ServicesSnapshot: []manifestdomain.ManifestService{
+			{
+				Name: "document",
+				Ports: []manifestdomain.ManifestServicePort{
+					{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"},
+				},
+			},
+		},
+		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
+			Replicas:           1,
+			ServiceAccountName: "default",
+		},
+	}
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: manifest.ApplicationID,
+		EnvironmentID: "production",
+	}
+
+	bundle, err := buildReleaseBundle("devflow", "document", "production", manifest, release)
+	if err != nil {
+		t.Fatalf("buildReleaseBundle failed: %v", err)
+	}
+	if strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "kind: ServiceAccount") {
+		t.Fatalf("unexpected serviceaccount in bundle: %s", bundle.Files[len(bundle.Files)-1].Content)
+	}
+}
 func TestReleaseBundleDigestUsesBundleYAML(t *testing.T) {
 	bundle := &model.ReleaseBundle{
 		Files: []model.ReleaseBundleFile{

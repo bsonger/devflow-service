@@ -126,7 +126,7 @@ func renderReleaseBundleResources(namespace, applicationName, deploymentEnvironm
 
 func buildReleaseServiceAccount(namespace, name string) map[string]any {
 	name = strings.TrimSpace(name)
-	if name == "" {
+	if name == "" || strings.EqualFold(name, "default") {
 		return nil
 	}
 	metadata := map[string]any{"name": name}
