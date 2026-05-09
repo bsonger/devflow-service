@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type ReleaseType string
 type ReleaseStrategy string
@@ -111,4 +114,17 @@ type ReleaseStep struct {
 	Message   string     `json:"message,omitempty"`
 	StartTime *time.Time `json:"start_time,omitempty"`
 	EndTime   *time.Time `json:"end_time,omitempty"`
+}
+
+func NormalizeReleaseAction(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "deploy", "upgrade", "normal":
+		return ReleaseUpgrade
+	case "install":
+		return ReleaseInstall
+	case "rollback":
+		return ReleaseRollback
+	default:
+		return strings.TrimSpace(value)
+	}
 }

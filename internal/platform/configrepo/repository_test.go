@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type stubGitSyncer struct {
@@ -125,5 +126,124 @@ func TestRepositoryReadSnapshotReturnsSyncErrorWhenSyncFails(t *testing.T) {
 	_, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
 	if !errors.Is(err, ErrRepositorySyncFailed) {
 		t.Fatalf("err = %v, want ErrRepositorySyncFailed", err)
+	}
+}
+
+type observedSyncCall struct {
+	success  bool
+	duration time.Duration
+}
+
+func TestReadSnapshotRecordsSyncSuccess(t *testing.T) {
+	rootDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sourceDir := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "configuration.yaml"), []byte("foo: bar\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepository(Options{RootDir: rootDir, DefaultRef: "main"})
+	repo.syncer = &stubGitSyncer{commit: "abc123"}
+
+	var calls []observedSyncCall
+	original := observeConfigRepoSyncMetricsFunc
+	observeConfigRepoSyncMetricsFunc = func(_ context.Context, success bool, duration time.Duration) {
+		calls = append(calls, observedSyncCall{success: success, duration: duration})
+	}
+	defer func() { observeConfigRepoSyncMetricsFunc = original }()
+
+	if _, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", ""); err != nil {
+		t.Fatalf("ReadSnapshot returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(calls))
+	}
+	if !calls[0].success {
+		t.Fatal("expected success observation")
+	}
+}
+
+func TestReadSnapshotRecordsSyncFailure(t *testing.T) {
+	rootDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sourceDir := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "configuration.yaml"), []byte("foo: bar\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepository(Options{RootDir: rootDir, DefaultRef: "main"})
+	repo.syncer = &stubGitSyncer{err: errors.New("network unavailable")}
+
+	var calls []observedSyncCall
+	original := observeConfigRepoSyncMetricsFunc
+	observeConfigRepoSyncMetricsFunc = func(_ context.Context, success bool, duration time.Duration) {
+		calls = append(calls, observedSyncCall{success: success, duration: duration})
+	}
+	defer func() { observeConfigRepoSyncMetricsFunc = original }()
+
+	_, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
+	if !errors.Is(err, ErrRepositorySyncFailed) {
+		t.Fatalf("err = %v, want ErrRepositorySyncFailed", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(calls))
+	}
+	if calls[0].success {
+		t.Fatal("expected failure observation")
+	}
+}
+
+func TestRepositoryReadSnapshotReclonesAfterSyncFailure(t *testing.T) {
+	rootDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
+	if err := os.MkdirAll(sourcePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourcePath, "configuration.yaml"), []byte("old: value\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepository(Options{RootDir: rootDir, DefaultRef: "main"})
+	repo.syncer = &stubGitSyncer{err: errors.New("object not found")}
+
+	origClone := ensureClonedRepositoryFunc
+	origHead := repositoryHeadCommitFunc
+	defer func() {
+		ensureClonedRepositoryFunc = origClone
+		repositoryHeadCommitFunc = origHead
+	}()
+	ensureClonedRepositoryFunc = func(_ context.Context, rootDir, ref, sshKeyPath string) error {
+		if err := os.MkdirAll(filepath.Join(rootDir, ".git"), 0o755); err != nil {
+			return err
+		}
+		sourceDir := filepath.Join(rootDir, "devflow", "devflow-app-service", "staging")
+		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(sourceDir, "configuration.yaml"), []byte("foo: bar\n"), 0o644)
+	}
+	repositoryHeadCommitFunc = func(_ string) (string, error) {
+		return "recloned-commit", nil
+	}
+
+	snapshot, err := repo.ReadSnapshot(context.Background(), "devflow/devflow-app-service/staging", "")
+	if err != nil {
+		t.Fatalf("ReadSnapshot returned error: %v", err)
+	}
+	if snapshot.SourceCommit != "recloned-commit" {
+		t.Fatalf("SourceCommit = %q, want %q", snapshot.SourceCommit, "recloned-commit")
+	}
+	if len(snapshot.Files) != 1 || snapshot.Files[0].Content != "foo: bar\n" {
+		t.Fatalf("unexpected files: %+v", snapshot.Files)
 	}
 }

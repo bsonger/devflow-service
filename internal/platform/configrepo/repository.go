@@ -56,6 +56,9 @@ type Repository struct {
 	syncer     gitSyncer
 }
 
+var ensureClonedRepositoryFunc = ensureClonedRepository
+var repositoryHeadCommitFunc = repositoryHeadCommit
+
 func NewRepository(opts Options) *Repository {
 	return &Repository{
 		rootDir:    opts.RootDir,
@@ -120,8 +123,18 @@ func (r *Repository) sync(ctx context.Context) (string, error) {
 		}
 	}
 	commit, err := r.syncer.Sync(ctx, r.rootDir, r.defaultRefOrMain())
-	if err != nil {
+	if err == nil {
+		return commit, nil
+	}
+	if removeErr := os.RemoveAll(r.rootDir); removeErr != nil {
 		return "", fmt.Errorf("%w: %v", ErrRepositorySyncFailed, err)
+	}
+	if cloneErr := ensureClonedRepositoryFunc(ctx, r.rootDir, r.defaultRefOrMain(), r.sshKeyPath); cloneErr != nil {
+		return "", fmt.Errorf("%w: %v", ErrRepositorySyncFailed, err)
+	}
+	commit, headErr := repositoryHeadCommitFunc(r.rootDir)
+	if headErr != nil {
+		return "", fmt.Errorf("%w: %v", ErrRepositorySyncFailed, headErr)
 	}
 	return commit, nil
 }
@@ -206,4 +219,16 @@ func defaultAuthMethod(path string) (*gitssh.PublicKeys, error) {
 		HostKeyCallback: ssh2.InsecureIgnoreHostKey(),
 	}
 	return auth, nil
+}
+
+func repositoryHeadCommit(rootDir string) (string, error) {
+	repo, err := git.PlainOpen(rootDir)
+	if err != nil {
+		return "", fmt.Errorf("git open %s: %w", rootDir, err)
+	}
+	head, err := repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("git head %s: %w", rootDir, err)
+	}
+	return head.Hash().String(), nil
 }

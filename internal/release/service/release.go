@@ -107,6 +107,7 @@ func (s *releaseService) repoBundleStore() repository.BundleStore {
 func populateReleaseDefaults(release *model.Release, applicationId uuid.UUID, environmentId string) {
 	release.ApplicationID = applicationId
 	release.Strategy = model.NormalizeReleaseStrategy(release.Strategy)
+	release.Type = model.NormalizeReleaseAction(release.Type)
 	if release.Type == "" {
 		release.Type = model.ReleaseUpgrade
 	}
