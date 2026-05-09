@@ -149,14 +149,17 @@ func TestHandleArgoEventUpdatesReleaseStatus(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	releaseID := uuid.New()
 	called := false
-	stepCalled := false
+	var stepCalls []string
 	handler := &ReleaseWritebackHandler{svc: stubReleaseWritebackService{
 		updateStatusFn: func(_ context.Context, got uuid.UUID, status model.ReleaseStatus) error {
 			called = got == releaseID && status == model.ReleaseSucceeded
 			return nil
 		},
 		updateStepFn: func(_ context.Context, got uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, _, _ *time.Time) error {
-			stepCalled = got == releaseID && stepName == "observe_rollout" && status == model.StepSucceeded && progress == 100 && message == "rollout observed as succeeded by argocd"
+			if got != releaseID {
+				t.Fatalf("unexpected release id: %s", got)
+			}
+			stepCalls = append(stepCalls, stepName+"|"+string(status)+"|"+message)
 			return nil
 		},
 	}}
@@ -175,8 +178,54 @@ func TestHandleArgoEventUpdatesReleaseStatus(t *testing.T) {
 	if !called {
 		t.Fatalf("status update was not called with expected args")
 	}
-	if !stepCalled {
-		t.Fatalf("step update was not called with expected args")
+	if len(stepCalls) != 2 {
+		t.Fatalf("step updates = %#v want 2", stepCalls)
+	}
+	if stepCalls[0] != "observe_rollout|Succeeded|rollout observed as succeeded by argocd" {
+		t.Fatalf("first step update = %q", stepCalls[0])
+	}
+	if stepCalls[1] != "finalize_release|Succeeded|release finalized after rollout observed as succeeded by argocd" {
+		t.Fatalf("second step update = %q", stepCalls[1])
+	}
+}
+
+func TestHandleArgoEventWritesStepsBeforeTerminalStatusUpdate(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	releaseID := uuid.New()
+	var calls []string
+	handler := &ReleaseWritebackHandler{svc: stubReleaseWritebackService{
+		updateStatusFn: func(_ context.Context, got uuid.UUID, status model.ReleaseStatus) error {
+			if got != releaseID || status != model.ReleaseSucceeded {
+				t.Fatalf("unexpected status update: release=%s status=%s", got, status)
+			}
+			calls = append(calls, "status")
+			return nil
+		},
+		updateStepFn: func(_ context.Context, got uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, _, _ *time.Time) error {
+			if got != releaseID {
+				t.Fatalf("unexpected release id: %s", got)
+			}
+			calls = append(calls, stepName)
+			return nil
+		},
+	}}
+	r := gin.New()
+	r.POST("/api/v1/verify/argo/events", handler.HandleArgoEvent)
+
+	body := bytes.NewBufferString(`{"release_id":"` + releaseID.String() + `","status":"Succeeded"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/verify/argo/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if len(calls) != 3 {
+		t.Fatalf("calls = %#v", calls)
+	}
+	if calls[0] != "observe_rollout" || calls[1] != "finalize_release" || calls[2] != "status" {
+		t.Fatalf("call order = %#v", calls)
 	}
 }
 

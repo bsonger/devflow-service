@@ -41,6 +41,7 @@ func NewReleaseWritebackHandler() *ReleaseWritebackHandler {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/verify/argo/events [post]
 func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
+	start := time.Now()
 	var req ArgoEventRequest
 	if !httpx.BindJSON(c, &req) {
 		return
@@ -50,23 +51,33 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 		return
 	}
 	status := mapArgoStatusToReleaseStatus(req.Status)
+	for _, step := range deriveArgoStepUpdates(req.Status) {
+		if err := h.svc.UpdateStep(c.Request.Context(), releaseID, step.StepCode, step.Status, step.Progress, step.Message, nil, nil); err != nil {
+			if shouldIgnoreReleaseWritebackError(err) {
+				httpx.WriteNoContent(c)
+				return
+			}
+			observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
+			writeReleaseVerifyError(c, err)
+			return
+		}
+	}
 	if err := h.svc.UpdateStatus(c.Request.Context(), releaseID, status); err != nil {
 		if shouldIgnoreReleaseWritebackError(err) {
 			httpx.WriteNoContent(c)
 			return
 		}
+		observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 		writeReleaseVerifyError(c, err)
 		return
 	}
-	if stepCode, stepStatus, stepMessage, ok := deriveArgoStepUpdate(req.Status); ok {
-		if err := h.svc.UpdateStep(c.Request.Context(), releaseID, stepCode, stepStatus, 100, stepMessage, nil, nil); err != nil {
-			if shouldIgnoreReleaseWritebackError(err) {
-				httpx.WriteNoContent(c)
-				return
-			}
-			writeReleaseVerifyError(c, err)
-			return
+	observeReleaseWriteback(c.Request.Context(), "argo_event", true, time.Since(start))
+	if release, err := h.svc.Get(c.Request.Context(), releaseID); err == nil && release != nil {
+		duration := time.Duration(0)
+		if !release.CreatedAt.IsZero() {
+			duration = time.Since(release.CreatedAt)
 		}
+		observeArgoRollout(c.Request.Context(), release, status, duration)
 	}
 	httpx.WriteNoContent(c)
 }
@@ -173,19 +184,37 @@ func mapArgoStatusToReleaseStatus(phase string) model.ReleaseStatus {
 	}
 }
 
-func deriveArgoStepUpdate(phase string) (string, model.StepStatus, string, bool) {
+func deriveArgoStepUpdates(phase string) []releaseStepUpdate {
 	switch strings.ToLower(strings.TrimSpace(phase)) {
 	case "succeeded":
-		return "observe_rollout", model.StepSucceeded, "rollout observed as succeeded by argocd", true
+		return []releaseStepUpdate{
+			{StepCode: "observe_rollout", Status: model.StepSucceeded, Progress: 100, Message: "rollout observed as succeeded by argocd"},
+			{StepCode: "finalize_release", Status: model.StepSucceeded, Progress: 100, Message: "release finalized after rollout observed as succeeded by argocd"},
+		}
 	case "failed":
-		return "observe_rollout", model.StepFailed, "rollout observed as failed by argocd", true
+		return []releaseStepUpdate{
+			{StepCode: "observe_rollout", Status: model.StepFailed, Progress: 100, Message: "rollout observed as failed by argocd"},
+			{StepCode: "finalize_release", Status: model.StepFailed, Progress: 100, Message: "release finalized after rollout observed as failed by argocd"},
+		}
 	case "error":
-		return "observe_rollout", model.StepFailed, "rollout observed as error by argocd", true
+		return []releaseStepUpdate{
+			{StepCode: "observe_rollout", Status: model.StepFailed, Progress: 100, Message: "rollout observed as error by argocd"},
+			{StepCode: "finalize_release", Status: model.StepFailed, Progress: 100, Message: "release finalized after rollout observed as error by argocd"},
+		}
 	case "running":
-		return "observe_rollout", model.StepRunning, "rollout is running in argocd", true
+		return []releaseStepUpdate{
+			{StepCode: "observe_rollout", Status: model.StepRunning, Progress: 100, Message: "rollout is running in argocd"},
+		}
 	default:
-		return "", "", "", false
+		return nil
 	}
+}
+
+type releaseStepUpdate struct {
+	StepCode string
+	Status   model.StepStatus
+	Progress int32
+	Message  string
 }
 
 func normalizedReleaseStepMessage(stepCode string, status model.StepStatus, progress int32, message string) string {
