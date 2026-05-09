@@ -339,6 +339,11 @@ func (s *releaseService) loadRelease(ctx context.Context, id uuid.UUID) (*model.
 	if err != nil {
 		return nil, err
 	}
+	release.Type = model.NormalizeReleaseAction(release.Type)
+	if release.Type == "" {
+		release.Type = model.ReleaseUpgrade
+	}
+	release.Strategy = model.NormalizeReleaseStrategy(release.Strategy)
 	release.Steps = normalizeReleaseSteps(release)
 	s.attachBundleSummary(ctx, release)
 	return release, nil
