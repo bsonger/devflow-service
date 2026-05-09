@@ -33,9 +33,10 @@ type DownstreamConfig struct {
 }
 
 type ObserverConfig struct {
-	SharedToken         string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
-	TektonNamespace     string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
-	PollIntervalSeconds int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+	SharedToken           string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
+	TektonNamespace       string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
+	PollIntervalSeconds   int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+	TektonManifestEnabled *bool  `mapstructure:"tekton_manifest_enabled" json:"tekton_manifest_enabled" yaml:"tekton_manifest_enabled"`
 }
 
 type Config struct {
@@ -107,12 +108,15 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 }
 
 func startTektonManifestObserver(ctx context.Context, config *Config) error {
+	if !boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.TektonManifestEnabled }, true) {
+		return nil
+	}
 	restCfg, err := inClusterConfig()
 	if err != nil {
 		return nil
 	}
 	return startTektonManifestObserverFn(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
-		Enabled:               true,
+		Enabled:               boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.TektonManifestEnabled }, true),
 		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
 		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
@@ -156,6 +160,17 @@ func floatValue[T any](value *T, getter func(*T) float64) float64 {
 		return 0
 	}
 	return getter(value)
+}
+
+func boolValueDefault[T any](value *T, getter func(*T) *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	resolved := getter(value)
+	if resolved == nil {
+		return fallback
+	}
+	return *resolved
 }
 
 func stringValue[T any](value *T, getter func(*T) string) string {
