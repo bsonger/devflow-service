@@ -142,7 +142,7 @@ run_observability_logging_policy_check() {
   dotted_matches="$(
     cd "$ROOT_DIR"
     rg -n "$dotted_pattern" internal cmd --glob '!**/*_test.go' \
-      | grep -Ev 'zap\.(String|Int|Int32|Int64|Bool|Duration|Float64|Any)\("(trace_id|span_id|trace_flags|service\.name|service\.namespace|service\.version|deployment\.environment\.name|logger\.name|event\.outcome|http\.request\.method|http\.route|url\.path|http\.response\.status_code|http\.response\.status_class|http\.request\.body\.size|http\.response\.body\.size|http\.server\.request\.duration|client\.address|user_agent\.original|devflow\.(project|application|service|environment|release|manifest)\.id)"' || true
+      | grep -Ev 'zap\.(String|Int|Int32|Int64|Bool|Duration|Float64|Any)\("(trace_id|span_id|trace_flags|service\.name|service\.namespace|service\.version|deployment\.environment\.name|container\.image\.digest|logger\.name|event\.outcome|http\.request\.method|http\.route|url\.path|http\.response\.status_code|http\.response\.status_class|http\.request\.body\.size|http\.response\.body\.size|http\.server\.request\.duration|client\.address|user_agent\.original|devflow\.(project|application|service|environment|release|manifest)\.id)"' || true
   )"
   [[ -z "$dotted_matches" ]] || fail "structured log field names must use snake_case unless they are approved OpenTelemetry semantic log keys:\n$dotted_matches"
 

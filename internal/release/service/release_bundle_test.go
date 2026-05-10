@@ -91,10 +91,10 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	}
 	env := containerSpec[0]["env"].([]map[string]any)
 	assertEnvContains(t, env, "APP_ENV", "prod")
-	assertEnvContains(t, env, "SERVICE_NAME", "demo-api")
-	assertEnvContains(t, env, "OTEL_SERVICE_NAME", "demo-api")
+	assertEnvFieldRef(t, env, "SERVICE_NAME", "metadata.labels['app.kubernetes.io/name']")
 	assertEnvContains(t, env, "OTEL_SERVICE_NAMESPACE", "devflow")
-	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "production")
+	assertEnvMissing(t, env, "OTEL_SERVICE_NAME")
+	assertEnvMissing(t, env, "DEPLOYMENT_ENVIRONMENT")
 	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
 	assertEnvContains(t, env, "METRICS_PORT", "9090")
 	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
@@ -347,8 +347,8 @@ func TestBuildReleaseBundleUsesFrozenManifestSnapshotWithoutLiveWorkloadReads(t 
 	}
 	env := container["env"].([]map[string]any)
 	assertEnvContains(t, env, "SNAPSHOT_ONLY", "true")
-	assertEnvContains(t, env, "SERVICE_NAME", "demo-api")
-	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
+	assertEnvFieldRef(t, env, "SERVICE_NAME", "metadata.labels['app.kubernetes.io/name']")
+	assertEnvMissing(t, env, "DEPLOYMENT_ENVIRONMENT")
 	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
 	assertEnvContains(t, env, "METRICS_PORT", "9100")
 	if !strings.Contains(bundle.Files[len(bundle.Files)-1].Content, "SNAPSHOT_ONLY") {
@@ -390,34 +390,10 @@ func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.
 
 	assertEnvContains(t, env, "OTEL_SERVICE_NAMESPACE", "custom-ns")
 	assertEnvContains(t, env, "SERVICE_VERSION", "custom-version")
-	assertEnvContains(t, env, "OTEL_SERVICE_NAME", "demo-api")
-	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "staging")
+	assertEnvFieldRef(t, env, "SERVICE_NAME", "metadata.labels['app.kubernetes.io/name']")
+	assertEnvMissing(t, env, "OTEL_SERVICE_NAME")
+	assertEnvMissing(t, env, "DEPLOYMENT_ENVIRONMENT")
 	assertEnvContains(t, env, "METRICS_PORT", "19090")
-}
-
-func TestBuildReleaseBundleUsesEnvironmentNameForDeploymentEnvironment(t *testing.T) {
-	manifest := &manifestdomain.Manifest{
-		BaseModel:     model.BaseModel{ID: uuid.New()},
-		ApplicationID: uuid.New(),
-		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
-		WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-			Replicas: 1,
-		},
-	}
-	release := &model.Release{
-		BaseModel:     model.BaseModel{ID: uuid.New()},
-		ApplicationID: manifest.ApplicationID,
-		EnvironmentID: "b780ca97-a213-4763-bfb9-43f7e3a11ee7",
-	}
-
-	bundle, err := buildReleaseBundle("checkout", "demo-api", "pre-production", manifest, release)
-	if err != nil {
-		t.Fatalf("buildReleaseBundle failed: %v", err)
-	}
-	container := bundle.Resources.Deployment.Object["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)["containers"].([]map[string]any)[0]
-	env := container["env"].([]map[string]any)
-
-	assertEnvContains(t, env, "DEPLOYMENT_ENVIRONMENT", "pre-production")
 }
 
 func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
@@ -492,4 +468,35 @@ func assertEnvContains(t *testing.T, env []map[string]any, name, want string) {
 		}
 	}
 	t.Fatalf("env missing %s: %#v", name, env)
+}
+
+func assertEnvFieldRef(t *testing.T, env []map[string]any, name, fieldPath string) {
+	t.Helper()
+	for _, entry := range env {
+		if entry["name"] != name {
+			continue
+		}
+		valueFrom, ok := entry["valueFrom"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s missing valueFrom: %#v", name, entry)
+		}
+		fieldRef, ok := valueFrom["fieldRef"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s missing fieldRef: %#v", name, entry)
+		}
+		if got := fieldRef["fieldPath"]; got != fieldPath {
+			t.Fatalf("%s fieldPath = %#v want %q", name, got, fieldPath)
+		}
+		return
+	}
+	t.Fatalf("env missing %s: %#v", name, env)
+}
+
+func assertEnvMissing(t *testing.T, env []map[string]any, name string) {
+	t.Helper()
+	for _, entry := range env {
+		if entry["name"] == name {
+			t.Fatalf("env should omit %s: %#v", name, entry)
+		}
+	}
 }

@@ -11,12 +11,14 @@ import (
 )
 
 var Logger *zap.Logger
+var RootLogger *zap.Logger
 
 type loggerKeyType struct{}
 type requestIDKeyType struct{}
 
 var loggerKey = loggerKeyType{}
 var requestIDKey = requestIDKeyType{}
+var baseLoggerKey = struct{}{}
 
 type Config struct {
 	Level  string
@@ -64,31 +66,41 @@ func InitZapLogger(config *Config) {
 		panic(err)
 	}
 
-	Logger = withResourceFields(logger.Named(ServiceName()))
+	RootLogger = withResourceFields(logger)
+	Logger = RootLogger.Named(ServiceName())
 }
 
 func InjectLogger(ctx context.Context, base *zap.Logger) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	baseRoot := RootLogger
+	if baseRoot == nil {
+		baseRoot = zap.NewNop()
+	}
 	if base == nil {
 		base = Logger
 	}
 
 	log := base
+	rootLog := baseRoot
 	span := trace.SpanFromContext(ctx)
 	if sc := span.SpanContext(); sc.IsValid() {
 		log = log.With(
 			zap.String("trace_id", sc.TraceID().String()),
 			zap.String("span_id", sc.SpanID().String()),
-			zap.String("trace_flags", sc.TraceFlags().String()),
+		)
+		rootLog = rootLog.With(
+			zap.String("trace_id", sc.TraceID().String()),
+			zap.String("span_id", sc.SpanID().String()),
 		)
 	}
 	if requestID := RequestIDFromContext(ctx); requestID != "" {
 		log = log.With(zap.String("request_id", requestID))
 	}
 
-	return context.WithValue(ctx, loggerKey, log)
+	ctx = context.WithValue(ctx, loggerKey, log)
+	return context.WithValue(ctx, baseLoggerKey, rootLog)
 }
 
 func WithRequestID(ctx context.Context, requestID string) context.Context {
@@ -134,6 +146,18 @@ func DeploymentEnvironmentName() string {
 }
 
 func ServiceVersion() string {
+	return normalizeServiceVersion(resolvedServiceVersion())
+}
+
+func ContainerImageDigest() string {
+	resolved := resolvedServiceVersion()
+	if !isDigestValue(resolved) {
+		return ""
+	}
+	return resolved
+}
+
+func resolvedServiceVersion() string {
 	return firstNonEmpty(
 		resourceAttribute("service.version"),
 		os.Getenv("SERVICE_VERSION"),
@@ -164,6 +188,28 @@ func LoggerFromContext(ctx context.Context) *zap.Logger {
 
 func LoggerWithContext(ctx context.Context) *zap.Logger {
 	return LoggerFromContext(ctx)
+}
+
+func BaseLoggerFromContext(ctx context.Context) *zap.Logger {
+	if ctx == nil {
+		return RootLogger
+	}
+	if l, ok := ctx.Value(baseLoggerKey).(*zap.Logger); ok {
+		return l
+	}
+	return RootLogger
+}
+
+func NamedLoggerFromContext(ctx context.Context, name string) *zap.Logger {
+	base := BaseLoggerFromContext(ctx)
+	if base == nil {
+		base = zap.NewNop()
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return base
+	}
+	return base.Named(name)
 }
 
 type ZapAdapter struct {
@@ -198,7 +244,6 @@ func withResourceFields(l *zap.Logger) *zap.Logger {
 		zap.String("service.name", ServiceName()),
 		zap.String("service.namespace", ServiceNamespace()),
 		zap.String("service.version", ServiceVersion()),
-		zap.String("deployment.environment.name", DeploymentEnvironmentName()),
 	}
 
 	out := l
@@ -239,4 +284,39 @@ func parseResourceAttributes(value string) map[string]string {
 		attrs[key] = raw
 	}
 	return attrs
+}
+
+func normalizeServiceVersion(value string) string {
+	value = strings.TrimSpace(value)
+	if !isDigestValue(value) {
+		return value
+	}
+	algorithm, digest, ok := strings.Cut(value, ":")
+	if !ok || digest == "" {
+		return value
+	}
+	if len(digest) > 12 {
+		digest = digest[:12]
+	}
+	return algorithm + ":" + digest
+}
+
+func isDigestValue(value string) bool {
+	algorithm, digest, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok || algorithm == "" || digest == "" {
+		return false
+	}
+	if len(digest) < 16 {
+		return false
+	}
+	for _, r := range digest {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'f':
+		case r >= 'A' && r <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }

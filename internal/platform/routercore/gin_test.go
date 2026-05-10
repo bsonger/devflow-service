@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"go.uber.org/zap/zapcore"
 )
 
 func TestShouldIgnorePathIncludesLowValueProbePaths(t *testing.T) {
@@ -96,17 +98,72 @@ func TestShouldSkipHTTPMetricMatchesRequestLogIncidentPolicy(t *testing.T) {
 	}
 }
 
-func TestHTTPEventOutcome(t *testing.T) {
-	if got := httpEventOutcome(200); got != "success" {
-		t.Fatalf("httpEventOutcome(200) = %q, want success", got)
-	}
-	if got := httpEventOutcome(404); got != "failure" {
-		t.Fatalf("httpEventOutcome(404) = %q, want failure", got)
-	}
-}
-
 func TestHTTPStatusClassUsesInFlightForUnsetStatus(t *testing.T) {
 	if got := httpStatusClass(0); got != "in_flight" {
 		t.Fatalf("httpStatusClass(0) = %q, want in_flight", got)
+	}
+}
+
+func TestRequestBodySizeFieldOmitsEmptyGetAndHeadBodies(t *testing.T) {
+	if _, ok := requestBodySizeField(http.MethodGet, 0); ok {
+		t.Fatal("expected empty GET body size to be omitted")
+	}
+	if _, ok := requestBodySizeField(http.MethodHead, 0); ok {
+		t.Fatal("expected empty HEAD body size to be omitted")
+	}
+	if field, ok := requestBodySizeField(http.MethodPost, 0); !ok || field.Key != "http.request.body.size" {
+		t.Fatalf("expected POST field, got %#v ok=%v", field, ok)
+	}
+}
+
+func TestShouldIncludeDevflowAccessFields(t *testing.T) {
+	if shouldIncludeDevflowAccessFields(200, 10*time.Millisecond) {
+		t.Fatal("expected normal 2xx request to omit devflow identifiers")
+	}
+	if !shouldIncludeDevflowAccessFields(404, 10*time.Millisecond) {
+		t.Fatal("expected 4xx request to keep devflow identifiers")
+	}
+	if !shouldIncludeDevflowAccessFields(200, 1500*time.Millisecond) {
+		t.Fatal("expected slow 2xx request to keep devflow identifiers")
+	}
+}
+
+func TestHTTPRequestLoggerNames(t *testing.T) {
+	if got := httpRequestLogger(nil, 200).Name(); got != "http.access" {
+		t.Fatalf("httpRequestLogger(200).Name() = %q", got)
+	}
+	if got := httpRequestLogger(nil, 500).Name(); got != "http.error" {
+		t.Fatalf("httpRequestLogger(500).Name() = %q", got)
+	}
+	if got := httpRequestLogger(nil, 404).Name(); got != "http.error" {
+		t.Fatalf("httpRequestLogger(404).Name() = %q", got)
+	}
+}
+
+func TestHTTPRequestMessage(t *testing.T) {
+	if got := httpRequestMessage(200, 10*time.Millisecond); got != "http request" {
+		t.Fatalf("httpRequestMessage(200) = %q", got)
+	}
+	if got := httpRequestMessage(404, 10*time.Millisecond); got != "http client error" {
+		t.Fatalf("httpRequestMessage(404) = %q", got)
+	}
+	if got := httpRequestMessage(500, 10*time.Millisecond); got != "http server error" {
+		t.Fatalf("httpRequestMessage(500) = %q", got)
+	}
+	if got := httpRequestMessage(200, 1500*time.Millisecond); got != "slow http request" {
+		t.Fatalf("httpRequestMessage(slow 200) = %q", got)
+	}
+}
+
+func TestRequestBodySizeFieldReturnsRealZapField(t *testing.T) {
+	field, ok := requestBodySizeField(http.MethodPost, 12)
+	if !ok {
+		t.Fatal("expected body size field")
+	}
+	if field.Key != "http.request.body.size" {
+		t.Fatalf("field.Key = %q", field.Key)
+	}
+	if field.Type == zapcore.SkipType {
+		t.Fatalf("unexpected skip field: %#v", field)
 	}
 }

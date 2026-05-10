@@ -88,6 +88,9 @@ func buildResource(ctx context.Context, cfg *Config) (*resource.Resource, error)
 		semconv.ServiceVersion(logger.ServiceVersion()),
 		semconv.DeploymentEnvironmentName(logger.Environment()),
 	}
+	if digest := logger.ContainerImageDigest(); digest != "" {
+		attrs = append(attrs, attribute.String("container.image.digest", digest))
+	}
 	attrs = append(attrs, parseResourceAttributes(cfg.ResourceAttributes)...)
 
 	return resource.New(

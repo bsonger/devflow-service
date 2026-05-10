@@ -22,18 +22,15 @@ edge. These fields are emitted by the logger or Gin middleware when available:
 | `severity_text` | zap encoder | Log severity text. Older readers may call this `level`. |
 | `body` | zap encoder | Log message body. Older readers may call this `msg`. |
 | `request_id` | Gin middleware | Generated from `X-Request-Id` / `X-Request-ID`, or created when absent. |
+| `caller` | zap encoder | Debugging aid only. Keep it in logs, but do not treat it as a primary observability dimension. |
 | `logger.name` | zap logger | Logger name for the running service logger. |
-| `component` | application code | Stable component such as `http_server` or `dependency_client`. |
-| `event.outcome` | Gin middleware | `success` or `failure` for request completion. |
-| `result` | application code | Domain-specific outcome such as `2xx`, `4xx`, `started`, `success`, `error`. |
 | `http.request.method` | Gin middleware | Request method. |
 | `http.route` | Gin middleware | Gin route template, not raw unbounded path IDs. |
 | `url.path` | Gin middleware | Raw request path. |
 | `http.response.status_code` | Gin middleware | Numeric response status. |
-| `http.response.status_class` | Gin middleware | Low-cardinality class such as `2xx` or `5xx`. |
-| `http.request.body.size` | Gin middleware | Request body size in bytes when known. |
+| `http.request.body.size` | Gin middleware | Request body size in bytes when known. Omit empty `GET` / `HEAD` zero-body noise. |
 | `http.response.body.size` | Gin middleware | Response body size in bytes when known. |
-| `duration_ms` | Gin middleware | Request duration in milliseconds for quick human scanning. |
+| `duration_ms` | Gin middleware | Request duration in floating-point milliseconds for quick human scanning. |
 | `http.server.request.duration` | Gin middleware | Request duration in seconds for semantic alignment with metrics/traces. |
 | `client.address` | Gin middleware | Client address as observed by Gin. |
 | `user_agent.original` | Gin middleware | Raw user-agent header. |
@@ -59,16 +56,15 @@ service resource fields below.
 |---|---|
 | `trace_id` | Current span context from OpenTelemetry instrumentation. |
 | `span_id` | Current span context from OpenTelemetry instrumentation. |
-| `trace_flags` | Current span context from OpenTelemetry instrumentation. |
 | `service.name` | `OTEL_SERVICE_NAME`, then `service.name` in `OTEL_RESOURCE_ATTRIBUTES`, then service bootstrap fallback. |
 | `service.namespace` | `OTEL_SERVICE_NAMESPACE`, then `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES`, then `devflow`. |
-| `service.version` | `SERVICE_VERSION` / `VERSION`, then `service.version` in `OTEL_RESOURCE_ATTRIBUTES`. Pre-production service manifests set this through environment variables instead of service config. |
-| `deployment.environment.name` | `DEPLOYMENT_ENVIRONMENT` (environment name, not environment ID), then `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES`; legacy `deployment.environment` is accepted only as fallback. |
+| `service.version` | `SERVICE_VERSION` / `VERSION`, then `service.version` in `OTEL_RESOURCE_ATTRIBUTES`. When the raw value is a full digest, application logging and tracing normalize it to a shorter service version. |
+| `deployment.environment.name` | `DEPLOYMENT_ENVIRONMENT` (environment name, not environment ID), then `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES`; legacy `deployment.environment` is accepted only as fallback. This remains a resource attribute for traces/OTEL, but request logs do not need to repeat it in every record. |
 
 `trace_id` and `span_id` are the key join columns for Trace -> Log correlation:
 when an operator opens a slow or failed trace, the same identifiers let them find
 application logs that happened inside that trace/span without guessing by time,
-pod, or route alone. `trace_flags` helps identify whether the trace was sampled.
+pod, or route alone.
 
 ### OpenTelemetry Collector enrichment
 
@@ -125,6 +121,33 @@ for new structured log events.
 Metrics use Prometheus-safe names instead of dotted log keys. See
 `docs/observability/metrics-spec.md` for the canonical log/metric/trace mapping.
 
+## Logger naming and caller policy
+
+- `caller` stays in every log as a debugging aid.
+- `caller` is not a core observability field.
+- `caller` must not be used as a metrics label.
+- `caller` must not be used as a Loki stream label.
+- `caller` must not be exposed as a Grafana dashboard variable.
+- log classification should use `logger.name`, not `caller`
+
+Current HTTP logger names:
+
+- normal request completion: `http.access`
+- HTTP 4xx / 5xx request completion: `http.error`
+- panic recovery log: `http.error`
+
+Current HTTP message bodies:
+
+- normal request completion: `http request`
+- slow 2xx request completion: `slow http request`
+- HTTP 4xx request completion: `http client error`
+- HTTP 5xx request completion: `http server error`
+- panic recovery: `panic recovered`
+
+Business and dependency logs may still use service- or component-specific
+`logger.name` values, but request-class dashboards and filters should classify
+HTTP logs by the names above.
+
 ## HTTP request logging filter
 
 The request logger filters low-value infrastructure paths by default:
@@ -156,3 +179,17 @@ logger must still emit:
 
 Ordinary successful 2xx business requests may be sampled in the future, but
 sampling must never suppress the incident signals listed above.
+
+For ordinary non-slow 2xx access logs, keep the payload minimal. Do not add:
+
+- `component`
+- `event.outcome`
+- `result`
+- `trace_flags`
+- `deployment.environment.name`
+- `container.image.digest`
+- empty `GET` / `HEAD` `http.request.body.size=0`
+- `http.response.status_class`
+- request-scoped `devflow.application.id`
+- request-scoped `devflow.release.id`
+- request-scoped `devflow.manifest.id`

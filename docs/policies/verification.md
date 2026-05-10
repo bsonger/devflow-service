@@ -40,7 +40,7 @@ make ci
 - focused Go seam tests prove behavioral seams such as callback ownership, rollout-writeback normalization, and finalized-release terminality; `bash scripts/verify-metadata-audit.sh` proves metadata/doc routing consistency only; `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
 - trace retention changes must keep `deployments/pre-production/otel-trace-gateway.yaml` aligned with `docs/observability/trace-retention-policy.md`; application SDK sampling remains `always_on` and Collector-side tail sampling owns downsampling
-- pre-production service manifests must not encode static calendar `service.version` values in service config; common OTEL resource labels should come from Deployment environment variables such as `OTEL_SERVICE_NAME`, `OTEL_SERVICE_NAMESPACE`, `DEPLOYMENT_ENVIRONMENT` (environment name, not environment ID), and `SERVICE_VERSION`; `OTEL_RESOURCE_ATTRIBUTES` is legacy compatibility only and should not be duplicated in new manifests
+- pre-production service manifests must not encode static calendar `service.version` values in service config; release-rendered workloads should source `SERVICE_NAME` from the pod label `app.kubernetes.io/name`, keep `OTEL_SERVICE_NAMESPACE` and `SERVICE_VERSION` explicit, and avoid duplicating deprecated compatibility env such as `OTEL_SERVICE_NAME`, `DEPLOYMENT_ENVIRONMENT`, or `OTEL_RESOURCE_ATTRIBUTES` in new manifests
 - live exemplar verification uses `scripts/verify-exemplars.sh` when Prometheus has recent 5xx samples; repo-local `scripts/verify.sh` checks the script and exemplar policy surfaces but does not depend on live Prometheus data
 - API error envelope and handler mapping changes must follow `docs/policies/error-handling.md`
 - HTTP transport behavior changes must follow `docs/policies/http-handler.md`
@@ -55,7 +55,7 @@ make ci
 - service and repository generic validation errors should prefer `internal/shared/errs` over repeated ad-hoc `errors.New(...)` strings
 - worker, runtime, or background execution changes must follow `docs/policies/worker-runtime.md`
 - resource-facing HTTP behavior and `docs/resources/*.md` changes must follow `docs/policies/resource-api.md`
-- new application-owned structured log fields must use `snake_case`; approved OpenTelemetry semantic log fields such as `service.name`, `deployment.environment.name`, `http.request.method`, and `devflow.application.id` are allowed
+- new application-owned structured log fields must use `snake_case`; approved OpenTelemetry semantic log fields such as `service.name`, `deployment.environment.name`, `container.image.digest`, `http.request.method`, and `devflow.application.id` are allowed
 - new metrics labels must stay low-cardinality and must not include identifiers such as `trace_id`, `request_id`, `release_id`, or user-specific values
 - production code under `internal/*/service` must not call `db.Postgres()` or `store.DB()` directly; repository-owned persistence must stay in `internal/*/repository`
 - production code under `internal/*/service` must not depend on Gin, `internal/platform/httpx`, or `internal/*/transport/http`

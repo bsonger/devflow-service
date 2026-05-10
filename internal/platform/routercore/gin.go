@@ -169,39 +169,40 @@ func GinZapLogger() gin.HandlerFunc {
 		}
 
 		fields := []zap.Field{
-			zap.String("component", "http_server"),
-			zap.String("event.outcome", httpEventOutcome(status)),
-			zap.String("result", httpResult(status)),
 			zap.String("http.request.method", req.Method),
 			zap.String("http.route", route),
 			zap.String("url.path", path),
 			zap.Int("http.response.status_code", status),
-			zap.String("http.response.status_class", httpStatusClass(status)),
-			zap.Int64("http.request.body.size", maxInt64(req.ContentLength, 0)),
 			zap.Int("http.response.body.size", maxInt(c.Writer.Size(), 0)),
-			zap.Int64("duration_ms", latency.Milliseconds()),
+			zap.Float64("duration_ms", float64(latency)/float64(time.Millisecond)),
 			zap.Float64("http.server.request.duration", latency.Seconds()),
 			zap.String("client.address", c.ClientIP()),
 			zap.String("user_agent.original", req.UserAgent()),
 		}
-		fields = append(fields, devflowIdentityFields(c, route)...)
+		if bodySize, ok := requestBodySizeField(req.Method, req.ContentLength); ok {
+			fields = append(fields, bodySize)
+		}
+		if shouldIncludeDevflowAccessFields(status, latency) {
+			fields = append(fields, devflowIdentityFields(c, route)...)
+		}
 
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last()
 			fields = append(fields, zap.String("error_message", err.Error()))
 		}
 
-		log := logger.LoggerFromContext(req.Context())
+		log := httpRequestLogger(req.Context(), status)
+		message := httpRequestMessage(status, latency)
 
 		switch {
 		case status >= 500:
-			log.Error("http request", fields...)
+			log.Error(message, fields...)
 		case status >= 400:
-			log.Warn("http request", fields...)
+			log.Warn(message, fields...)
 		case latency >= time.Second:
-			log.Warn("slow http request", fields...)
+			log.Warn(message, fields...)
 		default:
-			log.Info("http request", fields...)
+			log.Info(message, fields...)
 		}
 	}
 }
@@ -210,13 +211,11 @@ func GinZapRecovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				log := logger.LoggerFromContext(c.Request.Context())
+				log := logger.NamedLoggerFromContext(c.Request.Context(), "http.error")
 				log.Error("panic recovered",
-					zap.String("component", "http_server"),
-					zap.String("event.outcome", "failure"),
-					zap.String("result", "panic"),
 					zap.Any("panic", rec),
 					zap.String("http.request.method", c.Request.Method),
+					zap.String("http.route", routeLabel(c)),
 					zap.String("url.path", c.Request.URL.Path),
 					zap.String("client.address", c.ClientIP()),
 				)
@@ -297,18 +296,51 @@ func httpResult(status int) string {
 	}
 }
 
-func httpEventOutcome(status int) string {
-	if status >= 400 {
-		return "failure"
-	}
-	return "success"
-}
-
 func httpStatusClass(status int) string {
 	if status <= 0 {
 		return "in_flight"
 	}
 	return strconv.Itoa(status/100) + "xx"
+}
+
+func requestBodySizeField(method string, size int64) (zap.Field, bool) {
+	size = maxInt64(size, 0)
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodGet, http.MethodHead:
+		if size == 0 {
+			return zap.Skip(), false
+		}
+	}
+	return zap.Int64("http.request.body.size", size), true
+}
+
+func shouldIncludeDevflowAccessFields(status int, latency time.Duration) bool {
+	if status >= 400 {
+		return true
+	}
+	return latency >= time.Second
+}
+
+func httpRequestLogger(ctx context.Context, status int) *zap.Logger {
+	switch {
+	case status >= 400:
+		return logger.NamedLoggerFromContext(ctx, "http.error")
+	default:
+		return logger.NamedLoggerFromContext(ctx, "http.access")
+	}
+}
+
+func httpRequestMessage(status int, latency time.Duration) string {
+	switch {
+	case status >= 500:
+		return "http server error"
+	case status >= 400:
+		return "http client error"
+	case latency >= time.Second:
+		return "slow http request"
+	default:
+		return "http request"
+	}
 }
 
 func shouldSkipHTTPMetric(path string, status int, latency time.Duration) bool {

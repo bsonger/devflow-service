@@ -387,7 +387,7 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 	}
 }
 
-func buildReleaseWorkloadEnv(applicationName, deploymentEnvironmentName string, manifest *manifestdomain.Manifest) []map[string]any {
+func buildReleaseWorkloadEnv(_ string, _ string, manifest *manifestdomain.Manifest) []map[string]any {
 	baseEnv := workloadEnv(manifest)
 	env := make([]map[string]any, 0, len(baseEnv)+6)
 	seen := map[string]struct{}{}
@@ -402,19 +402,30 @@ func buildReleaseWorkloadEnv(applicationName, deploymentEnvironmentName string, 
 		seen[name] = struct{}{}
 		env = append(env, map[string]any{"name": name, "value": value})
 	}
+	appendEnvValueFrom := func(name string, valueFrom map[string]any) {
+		name = strings.TrimSpace(name)
+		if name == "" || valueFrom == nil {
+			return
+		}
+		if _, exists := seen[name]; exists {
+			return
+		}
+		seen[name] = struct{}{}
+		env = append(env, map[string]any{"name": name, "valueFrom": valueFrom})
+	}
 
 	for _, entry := range baseEnv {
 		appendEnv(entry.Name, entry.Value)
 	}
 
-	serviceName := strings.TrimSpace(applicationName)
-	deploymentEnvironment := strings.TrimSpace(firstNonEmptyString(deploymentEnvironmentName, "unknown"))
 	serviceVersion := strings.TrimSpace(releaseServiceVersion(manifest))
 
-	appendEnv("SERVICE_NAME", serviceName)
-	appendEnv("OTEL_SERVICE_NAME", serviceName)
+	appendEnvValueFrom("SERVICE_NAME", map[string]any{
+		"fieldRef": map[string]any{
+			"fieldPath": "metadata.labels['app.kubernetes.io/name']",
+		},
+	})
 	appendEnv("OTEL_SERVICE_NAMESPACE", defaultOTELServiceNamespace)
-	appendEnv("DEPLOYMENT_ENVIRONMENT", deploymentEnvironment)
 	appendEnv("SERVICE_VERSION", serviceVersion)
 	if metrics := releaseWorkloadMetrics(manifest); metrics.Enabled && metrics.Port > 0 {
 		appendEnv(releaseMetricsPortEnv, fmt.Sprintf("%d", metrics.Port))

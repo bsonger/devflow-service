@@ -24,6 +24,9 @@ func TestRequestIDFromContext(t *testing.T) {
 	if got := RequestIDFromContext(ctx); got != "req-456" {
 		t.Fatalf("request id = %q, want %q", got, "req-456")
 	}
+	if gotBase := BaseLoggerFromContext(ctx); gotBase == nil {
+		t.Fatal("expected base logger from context")
+	}
 }
 
 func TestNewZapAdapterFallsBackToGlobalLogger(t *testing.T) {
@@ -64,5 +67,18 @@ func TestDeploymentEnvironmentAcceptsLegacyResourceAttributeFallback(t *testing.
 
 	if got := DeploymentEnvironmentName(); got != "pre-production" {
 		t.Fatalf("DeploymentEnvironmentName() = %q, want pre-production", got)
+	}
+}
+
+func TestServiceVersionNormalizesDigestAndExposesFullContainerDigest(t *testing.T) {
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "")
+	t.Setenv("SERVICE_VERSION", "sha256:8fc33fd48da9be177f5d75bf55ed6a6a39cd0a99d841a7604f5e897e50031f52")
+	t.Setenv("VERSION", "")
+
+	if got := ServiceVersion(); got != "sha256:8fc33fd48da9" {
+		t.Fatalf("ServiceVersion() = %q", got)
+	}
+	if got := ContainerImageDigest(); got != "sha256:8fc33fd48da9be177f5d75bf55ed6a6a39cd0a99d841a7604f5e897e50031f52" {
+		t.Fatalf("ContainerImageDigest() = %q", got)
 	}
 }

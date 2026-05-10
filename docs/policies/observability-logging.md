@@ -57,7 +57,6 @@ Service runtime logs should carry these fields whenever available:
 - `service.name`
 - `service.namespace`
 - `service.version`
-- `deployment.environment.name`
 - `trace_id`
 - `span_id`
 - `trace_flags`
@@ -101,7 +100,7 @@ Prefer explicit names such as `cluster_server`, `pipeline_run_id`, `listen_port`
 ### Allowed
 
 - `snake_case` field names
-- approved OpenTelemetry semantic log keys such as `service.name`, `deployment.environment.name`, `http.request.method`, and `devflow.application.id`
+- approved OpenTelemetry semantic log keys such as `service.name`, `deployment.environment.name`, `container.image.digest`, `http.request.method`, and `devflow.application.id`
 - explicit identifiers such as `release_id`
 - explicit counters such as `project_count`
 - explicit filter names such as `filter_project_id`
@@ -385,17 +384,17 @@ Choose the smallest set of fields that explains the decision or outcome clearly.
 Use for request summary logs emitted by HTTP middleware.
 
 Recommended fields:
-- `component`
-- `event.outcome`
-- `result`
+- `severity_text`
+- `timestamp`
+- `logger.name`
+- `caller`
+- `body`
 - `http.request.method`
 - `http.route`
 - `url.path`
 - `http.response.status_code`
-- `http.response.status_class`
 - `duration_ms`
 - `http.server.request.duration`
-- `http.request.body.size`
 - `http.response.body.size`
 - `client.address`
 - `user_agent.original`
@@ -403,6 +402,14 @@ Recommended fields:
 - `span_id`
 - `trace_flags`
 - `request_id`
+
+Conditional fields:
+- `http.request.body.size` when a request body is present or when the method is not `GET` / `HEAD`
+- `trace_flags`
+- `request_id`
+
+Conditional fields:
+- `http.request.body.size` when a request body is present or when the method is not `GET` / `HEAD`
 - `devflow.project.id`
 - `devflow.application.id`
 - `devflow.service.id`
@@ -410,21 +417,31 @@ Recommended fields:
 - `devflow.release.id`
 - `devflow.manifest.id`
 
+Ordinary non-slow 2xx access logs should omit:
+- `component`
+- `event.outcome`
+- `result`
+- `trace_flags`
+- `deployment.environment.name`
+- `container.image.digest`
+- `http.response.status_class`
+- empty `GET` / `HEAD` `http.request.body.size=0`
+- request-scoped `devflow.application.id`
+- request-scoped `devflow.release.id`
+- request-scoped `devflow.manifest.id`
+
 Example:
 
 ```text
 body="http request"
-component="http_server"
-event.outcome="success"
-result="2xx"
-http.request.method="POST"
-http.route="/api/v1/releases"
-url.path="/api/v1/releases"
-http.response.status_code=201
+logger.name="http.access"
+http.request.method="GET"
+http.route="/api/v1/releases/:id"
+url.path="/api/v1/releases/123"
+http.response.status_code=200
 http.response.status_class="2xx"
-duration_ms=143
-http.server.request.duration=0.143
-http.request.body.size=512
+duration_ms=143.217
+http.server.request.duration=0.143217
 http.response.body.size=244
 client.address="10.0.0.8"
 user_agent.original="curl/8.7.1"
@@ -434,6 +451,13 @@ trace_flags="01"
 request_id="..."
 devflow.release.id="..."
 ```
+
+HTTP 4xx / 5xx request logs and panic logs must use `logger.name="http.error"`.
+`caller` may stay in every record as a debugging aid, but it must not become a
+metrics label, Loki stream label, dashboard variable, or primary log category.
+Within `http.error`, 4xx should log as client-side request failures and 5xx
+should log as server-side failures; keep the severity split (`WARN` for 4xx,
+`ERROR` for 5xx).
 
 ### Repository read or write
 
