@@ -47,19 +47,20 @@ state transitions. It should not add Kubernetes, host, or cloud fields.
 ### OpenTelemetry SDK and instrumentation
 
 The SDK and instrumentation own trace correlation and service resource facts.
-They read from the active context and OTEL environment/configuration values,
-including `OTEL_SERVICE_NAME`. `OTEL_RESOURCE_ATTRIBUTES` remains an optional
-legacy compatibility fallback, not the recommended primary source for the core
-service resource fields below.
+They read from the active context and OTEL environment/configuration values.
+Current DevFlow service templates derive service identity primarily from the
+service bootstrap/runtime environment, while `OTEL_SERVICE_NAME` and
+`OTEL_RESOURCE_ATTRIBUTES` remain compatibility fallbacks rather than the
+recommended primary path.
 
 | Field | Source |
 |---|---|
 | `trace_id` | Current span context from OpenTelemetry instrumentation. |
 | `span_id` | Current span context from OpenTelemetry instrumentation. |
-| `service.name` | `OTEL_SERVICE_NAME`, then `service.name` in `OTEL_RESOURCE_ATTRIBUTES`, then service bootstrap fallback. |
+| `service.name` | service bootstrap / `SERVICE_NAME`, then `OTEL_SERVICE_NAME`, then `service.name` in `OTEL_RESOURCE_ATTRIBUTES`. |
 | `service.namespace` | `OTEL_SERVICE_NAMESPACE`, then `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES`, then `devflow`. |
 | `service.version` | `SERVICE_VERSION` / `VERSION`, then `service.version` in `OTEL_RESOURCE_ATTRIBUTES`. When the raw value is a full digest, application logging and tracing normalize it to a shorter service version. |
-| `deployment.environment.name` | `DEPLOYMENT_ENVIRONMENT` (environment name, not environment ID), then `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES`; legacy `deployment.environment` is accepted only as fallback. This remains a resource attribute for traces/OTEL, but request logs do not need to repeat it in every record. |
+| `deployment.environment.name` | preferred from downstream resource enrichment or Collector-side resource metadata. If a service explicitly provides it, `DEPLOYMENT_ENVIRONMENT` or `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES` may still be consumed as compatibility input. Request logs do not need to repeat it in every record. |
 
 `trace_id` and `span_id` are the key join columns for Trace -> Log correlation:
 when an operator opens a slow or failed trace, the same identifiers let them find
