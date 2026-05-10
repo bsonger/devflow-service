@@ -62,6 +62,7 @@ type RuntimeConfig struct {
 	ManifestPublisherMode string
 	Tekton                ManifestBuildTektonConfig
 	Downstream            model.DownstreamConfig
+	ControlPlaneID        string
 }
 
 var (

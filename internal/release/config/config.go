@@ -150,6 +150,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		ManifestRegistryEnabled: bundlePublicationEnabled,
 		ManifestPublisherMode:   stringValue(config.ManifestRegistry, func(v *model.ManifestRegistryRuntimeConfig) string { return v.Mode }),
 		Tekton:                  releasesupport.ManifestBuildTektonConfigFromModel(config.Tekton),
+		ControlPlaneID:          stringValue(config.Observer, func(v *model.ObserverConfig) string { return v.ControlPlaneID }),
 		Downstream: model.DownstreamConfig{
 			PlatformOrchestratorBaseURL: stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.PlatformOrchestratorBaseURL }),
 			MetaServiceBaseURL:          stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.MetaServiceBaseURL }),

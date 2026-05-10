@@ -26,9 +26,10 @@ import (
 )
 
 type KubernetesRuntimeObserverConfig struct {
-	Enabled      bool
-	Namespace    string
-	PollInterval time.Duration
+	Enabled        bool
+	Namespace      string
+	PollInterval   time.Duration
+	ControlPlaneID string
 }
 
 type KubernetesRuntimeObserver struct {
@@ -93,14 +94,14 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 		namespace = metav1.NamespaceAll
 	}
 	deployments, err := o.clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releasedomain.ReleaseApplicationLabel,
+		LabelSelector: releaseDiscoverySelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
 	})
 	if err != nil {
 		log.Warn("list runtime deployments failed", zap.Error(err))
 		return
 	}
 	rollouts, err := o.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releasedomain.ReleaseApplicationLabel,
+		LabelSelector: releaseDiscoverySelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
 	})
 	if err != nil {
 		log.Warn("list runtime rollouts failed", zap.Error(err))
@@ -157,7 +158,7 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 	if targetNamespace == "" {
 		targetNamespace = o.resolveSpecNamespace(spec)
 	}
-	selector, err := releaseOwnedSelector(spec)
+	selector, err := releaseOwnedSelectorWithControlPlane(spec, strings.TrimSpace(o.cfg.ControlPlaneID))
 	if err != nil {
 		return err
 	}
@@ -379,6 +380,10 @@ func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.R
 }
 
 func releaseOwnedSelector(spec *domain.RuntimeSpec) (string, error) {
+	return releaseOwnedSelectorWithControlPlane(spec, "")
+}
+
+func releaseOwnedSelectorWithControlPlane(spec *domain.RuntimeSpec, controlPlaneID string) (string, error) {
 	if spec == nil {
 		return "", fmt.Errorf("runtime spec is required for release-owned correlation")
 	}
@@ -389,10 +394,14 @@ func releaseOwnedSelector(spec *domain.RuntimeSpec) (string, error) {
 	if environment == "" {
 		return "", fmt.Errorf("runtime spec environment is required for release-owned correlation")
 	}
-	return strings.Join([]string{
+	parts := []string{
 		releasedomain.ReleaseApplicationLabel + "=" + spec.ApplicationID.String(),
 		releasedomain.ReleaseEnvironmentLabel + "=" + environment,
-	}, ","), nil
+	}
+	if strings.TrimSpace(controlPlaneID) != "" {
+		parts = append(parts, releasedomain.ControlPlaneLabel+"="+strings.TrimSpace(controlPlaneID))
+	}
+	return strings.Join(parts, ","), nil
 }
 
 func deploymentMatchesRuntimeSpec(spec *domain.RuntimeSpec, deployment appsv1.Deployment) bool {
@@ -404,6 +413,10 @@ func podMatchesRuntimeSpec(spec *domain.RuntimeSpec, pod corev1.Pod) bool {
 }
 
 func labelsMatchRuntimeSpec(spec *domain.RuntimeSpec, labels map[string]string) bool {
+	return labelsMatchRuntimeSpecWithControlPlane(spec, labels, "")
+}
+
+func labelsMatchRuntimeSpecWithControlPlane(spec *domain.RuntimeSpec, labels map[string]string, controlPlaneID string) bool {
 	if spec == nil {
 		return false
 	}
@@ -423,6 +436,9 @@ func labelsMatchRuntimeSpec(spec *domain.RuntimeSpec, labels map[string]string) 
 		return false
 	}
 	if strings.TrimSpace(labels[releasedomain.ReleaseIDLabel]) == "" {
+		return false
+	}
+	if strings.TrimSpace(controlPlaneID) != "" && strings.TrimSpace(labels[releasedomain.ControlPlaneLabel]) != strings.TrimSpace(controlPlaneID) {
 		return false
 	}
 	return true
@@ -462,6 +478,14 @@ func selectReleaseOwnedDeployment(spec *domain.RuntimeSpec, appName string, depl
 
 func rolloutMatchesRuntimeSpec(spec *domain.RuntimeSpec, rollout unstructured.Unstructured) bool {
 	return labelsMatchRuntimeSpec(spec, rollout.GetLabels())
+}
+
+func releaseDiscoverySelector(controlPlaneID string) string {
+	parts := []string{releasedomain.ReleaseApplicationLabel}
+	if strings.TrimSpace(controlPlaneID) != "" {
+		parts = append(parts, releasedomain.ControlPlaneLabel+"="+strings.TrimSpace(controlPlaneID))
+	}
+	return strings.Join(parts, ",")
 }
 
 func selectReleaseOwnedRollout(spec *domain.RuntimeSpec, appName string, rollouts []unstructured.Unstructured) (*unstructured.Unstructured, error) {

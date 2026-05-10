@@ -48,6 +48,7 @@ type ReleaseRolloutObserverConfig struct {
 	ReleaseServiceBaseURL string
 	ObserverToken         string
 	HTTPTimeout           time.Duration
+	ControlPlaneID        string
 }
 
 type releaseRolloutContext struct {
@@ -204,6 +205,16 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 		)
 		return nil
 	}
+	if !releaseRolloutOwnedByControlPlane(workload, strings.TrimSpace(o.cfg.ControlPlaneID)) {
+		log.Debug("skip release rollout observer because workload does not belong to current control plane",
+			zap.String("runtime_spec_id", spec.ID.String()),
+			zap.String("namespace", strings.TrimSpace(workload.Namespace)),
+			zap.String("workload_kind", strings.TrimSpace(workload.WorkloadKind)),
+			zap.String("workload_name", strings.TrimSpace(workload.WorkloadName)),
+			zap.String("control_plane_id", strings.TrimSpace(o.cfg.ControlPlaneID)),
+		)
+		return nil
+	}
 
 	state, err := o.lookupObservedState(ctx, rollout)
 	if err != nil {
@@ -272,6 +283,16 @@ func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runt
 	)
 	o.markProcessed(rollout.ReleaseID.String(), state.StateKey)
 	return nil
+}
+
+func releaseRolloutOwnedByControlPlane(workload *runtimedomain.RuntimeObservedWorkload, controlPlaneID string) bool {
+	if strings.TrimSpace(controlPlaneID) == "" {
+		return true
+	}
+	if workload == nil {
+		return false
+	}
+	return strings.TrimSpace(workload.Labels[releasedomain.ControlPlaneLabel]) == strings.TrimSpace(controlPlaneID)
 }
 
 func deriveReleaseRolloutContext(workload *runtimedomain.RuntimeObservedWorkload) (releaseRolloutContext, string) {

@@ -10,6 +10,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"sigs.k8s.io/yaml"
@@ -546,6 +547,9 @@ func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
 		observer.ObserveStateLabel:    observer.ObserveStateRunning,
+	}
+	if controlPlaneID := strings.TrimSpace(releasesupport.CurrentRuntimeConfig().ControlPlaneID); controlPlaneID != "" {
+		requiredLabels[model.ControlPlaneLabel] = controlPlaneID
 	}
 	labels := make(map[string]any, len(requiredLabels)+len(workloadLabels))
 	for key, value := range workloadLabels {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -62,7 +63,7 @@ func TestBuildResultPayload(t *testing.T) {
 }
 
 func TestTektonObserverSelectorUsesObserveStateRunning(t *testing.T) {
-	if got := manifestIDLabel + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning; got != "devflow.manifest/id,devflow.io/observe-state=running" {
+	if got := tektonManifestSelector(""); got != "devflow.manifest/id,devflow.io/observe-state=running" {
 		t.Fatalf("selector = %q", got)
 	}
 }
@@ -285,4 +286,27 @@ func TestSyncPipelineRunFallsBackToLegacyManifestWritebackPaths(t *testing.T) {
 			t.Fatalf("expected legacy fallback path %q, got %v", expectedPair[1], observedPaths)
 		}
 	}
+}
+
+func TestTektonManifestSelectorIncludesControlPlaneID(t *testing.T) {
+	got := tektonManifestSelector("prod-control-plane")
+	wantParts := []string{
+		manifestIDLabel,
+		observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
+		model.ControlPlaneLabel + "=prod-control-plane",
+	}
+	for _, want := range wantParts {
+		if !containsSelectorPart(got, want) {
+			t.Fatalf("selector %q missing %q", got, want)
+		}
+	}
+}
+
+func containsSelectorPart(selector, part string) bool {
+	for _, item := range strings.Split(selector, ",") {
+		if item == part {
+			return true
+		}
+	}
+	return false
 }

@@ -38,7 +38,8 @@ type RuntimeServiceConfig struct {
 }
 
 type ObserverConfig struct {
-	SharedToken string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
+	SharedToken    string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
+	ControlPlaneID string `mapstructure:"control_plane_id" json:"control_plane_id" yaml:"control_plane_id"`
 }
 
 type WorkerConfig struct {

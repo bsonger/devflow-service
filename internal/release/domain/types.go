@@ -84,6 +84,7 @@ const (
 	ReleaseIDLabel          = "devflow.io/release-id"
 	ReleaseApplicationLabel = "devflow.application/id"
 	ReleaseEnvironmentLabel = "devflow.environment/id"
+	ControlPlaneLabel       = "devflow.control-plane/id"
 )
 
 type Port struct {

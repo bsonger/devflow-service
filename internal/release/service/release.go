@@ -984,6 +984,9 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 		model.ReleaseEnvironmentLabel: releaseTargetEnvironment(release),
 		observer.ObserveStateLabel:    observer.ObserveStateRunning,
 	}
+	if controlPlaneID := strings.TrimSpace(releasesupport.CurrentRuntimeConfig().ControlPlaneID); controlPlaneID != "" {
+		application.Labels[model.ControlPlaneLabel] = controlPlaneID
+	}
 }
 
 func (s *releaseService) createArgoApplication(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {

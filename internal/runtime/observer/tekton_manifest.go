@@ -110,7 +110,7 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 		log = zap.NewNop()
 	}
 	pipelineRuns, err := o.tekton.TektonV1().PipelineRuns(o.cfg.TektonNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: manifestIDLabel + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
+		LabelSelector: tektonManifestSelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
 	})
 	if err != nil {
 		log.Warn("list tekton pipeline runs failed", zap.Error(err))
@@ -269,6 +269,17 @@ func uniqueManifestWritebackPaths(paths []string) []string {
 		ordered = append(ordered, path)
 	}
 	return ordered
+}
+
+func tektonManifestSelector(controlPlaneID string) string {
+	parts := []string{
+		manifestIDLabel,
+		observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
+	}
+	if strings.TrimSpace(controlPlaneID) != "" {
+		parts = append(parts, model.ControlPlaneLabel+"="+strings.TrimSpace(controlPlaneID))
+	}
+	return strings.Join(parts, ",")
 }
 
 func mapPipelineRunStatus(pr *tknv1.PipelineRun) model.ManifestStatus {

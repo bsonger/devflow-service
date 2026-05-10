@@ -178,6 +178,13 @@ func submitManifestBuild(ctx context.Context, manifest *manifestdomain.Manifest,
 
 func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageRegistry string, target oci.ImageTarget, tektonCfg releasesupport.ManifestBuildTektonConfig) *tknv1.PipelineRun {
 	tektonCfg = tektonCfg.WithDefaults()
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	labels := map[string]string{
+		"devflow.manifest/id": manifest.ID.String(),
+	}
+	if controlPlaneID := strings.TrimSpace(runtimeCfg.ControlPlaneID); controlPlaneID != "" {
+		labels[model.ControlPlaneLabel] = controlPlaneID
+	}
 	params := []tknv1.Param{
 		{Name: "git-url", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.RepoAddress}},
 		{Name: "git-revision", Value: tknv1.ParamValue{Type: tknv1.ParamTypeString, StringVal: manifest.GitRevision}},
@@ -198,10 +205,14 @@ func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageR
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: tektonCfg.BuildPipeline + "-run-",
-			Labels: map[string]string{
-				"devflow.manifest/id":      manifest.ID.String(),
-				observer.ObserveStateLabel: observer.ObserveStateRunning,
-			},
+			Labels: func() map[string]string {
+				out := make(map[string]string, len(labels)+1)
+				for k, v := range labels {
+					out[k] = v
+				}
+				out[observer.ObserveStateLabel] = observer.ObserveStateRunning
+				return out
+			}(),
 			Annotations: map[string]string{
 				"devflow.manifest/id":             manifest.ID.String(),
 				observer.ObserveKindAnnotation:   observer.ObserveKindManifest,

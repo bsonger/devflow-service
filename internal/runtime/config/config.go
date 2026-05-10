@@ -34,6 +34,7 @@ type DownstreamConfig struct {
 
 type ObserverConfig struct {
 	SharedToken           string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
+	ControlPlaneID        string `mapstructure:"control_plane_id" json:"control_plane_id" yaml:"control_plane_id"`
 	TektonNamespace       string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
 	PollIntervalSeconds   int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
 	TektonManifestEnabled *bool  `mapstructure:"tekton_manifest_enabled" json:"tekton_manifest_enabled" yaml:"tekton_manifest_enabled"`
@@ -117,6 +118,7 @@ func startTektonManifestObserver(ctx context.Context, config *Config) error {
 	}
 	return startTektonManifestObserverFn(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
 		Enabled:               boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.TektonManifestEnabled }, true),
+		ControlPlaneID:        stringValue(config.Observer, func(v *ObserverConfig) string { return v.ControlPlaneID }),
 		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
 		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
@@ -130,8 +132,9 @@ func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
 		return nil
 	}
 	return startKubernetesRuntimeObserverFn(ctx, restCfg, runtimeobserver.KubernetesRuntimeObserverConfig{
-		Enabled:      true,
-		PollInterval: time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+		Enabled:        true,
+		ControlPlaneID: stringValue(config.Observer, func(v *ObserverConfig) string { return v.ControlPlaneID }),
+		PollInterval:   time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 	})
 }
 
@@ -142,6 +145,7 @@ func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
 	}
 	return startReleaseRolloutObserverFn(ctx, restCfg, runtimeobserver.ReleaseRolloutObserverConfig{
 		Enabled:               true,
+		ControlPlaneID:        stringValue(config.Observer, func(v *ObserverConfig) string { return v.ControlPlaneID }),
 		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
 		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),

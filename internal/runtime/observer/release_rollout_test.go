@@ -86,6 +86,20 @@ func TestPostJSONReturnsTypedNotFoundError(t *testing.T) {
 	}
 }
 
+func TestReleaseRolloutOwnedByControlPlane(t *testing.T) {
+	workload := &runtimedomain.RuntimeObservedWorkload{
+		Labels: map[string]string{
+			releasedomain.ControlPlaneLabel: "prod-control-plane",
+		},
+	}
+	if !releaseRolloutOwnedByControlPlane(workload, "prod-control-plane") {
+		t.Fatal("expected workload to belong to matching control plane")
+	}
+	if releaseRolloutOwnedByControlPlane(workload, "staging-control-plane") {
+		t.Fatal("expected workload to be rejected for different control plane")
+	}
+}
+
 func TestDeriveReleaseRolloutContextFallsBackToWorkloadEnvironment(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()
