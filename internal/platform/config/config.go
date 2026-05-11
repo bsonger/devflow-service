@@ -6,8 +6,10 @@ import (
 
 	platformconfigrepo "github.com/bsonger/devflow-service/internal/platform/configrepo"
 	"github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
@@ -90,6 +92,15 @@ func InitConfig(ctx context.Context, config *Config) error {
 }
 
 func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(context.Context) error, error) {
+	preInitLogger := logger.RootLogger
+	if preInitLogger == nil {
+		preInitLogger = zap.NewNop()
+	}
+	preInitLogger.Named("service.lifecycle").Info("initializing service runtime",
+		zap.String("operation", "init_service_runtime"),
+		zap.String("resource", "service_runtime"),
+		zap.String("result", "started"),
+	)
 	shutdown, err := observability.Init(ctx, observability.RuntimeOptions{
 		LogLevel:               stringValue(config.Log, func(v *LogConfig) string { return v.Level }),
 		LogFormat:              stringValue(config.Log, func(v *LogConfig) string { return v.Format }),
@@ -121,10 +132,22 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 
 	db.InitPostgres(conn)
 	initConfigRepo(config)
+	logger.RootLogger.Named("service.lifecycle").Info("service runtime initialized",
+		zap.String("operation", "init_service_runtime"),
+		zap.String("resource", "service_runtime"),
+		zap.String("result", "success"),
+	)
 
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)
+		if shutdownErr == nil && closeErr == nil {
+			logger.RootLogger.Named("service.lifecycle").Info("service runtime stopped",
+				zap.String("operation", "shutdown_service_runtime"),
+				zap.String("resource", "service_runtime"),
+				zap.String("result", "success"),
+			)
+		}
 		if shutdownErr != nil {
 			return shutdownErr
 		}

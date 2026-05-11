@@ -41,7 +41,6 @@ func NewReleaseWritebackHandler() *ReleaseWritebackHandler {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/verify/argo/events [post]
 func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
-	start := time.Now()
 	var req ArgoEventRequest
 	if !httpx.BindJSON(c, &req) {
 		return
@@ -57,7 +56,6 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 				httpx.WriteNoContent(c)
 				return
 			}
-			observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 			writeReleaseVerifyError(c, err)
 			return
 		}
@@ -67,17 +65,8 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 			httpx.WriteNoContent(c)
 			return
 		}
-		observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 		writeReleaseVerifyError(c, err)
 		return
-	}
-	observeReleaseWriteback(c.Request.Context(), "argo_event", true, time.Since(start))
-	if release, err := h.svc.Get(c.Request.Context(), releaseID); err == nil && release != nil {
-		duration := time.Duration(0)
-		if !release.CreatedAt.IsZero() {
-			duration = time.Since(release.CreatedAt)
-		}
-		observeArgoRollout(c.Request.Context(), release, status, duration)
 	}
 	httpx.WriteNoContent(c)
 }
