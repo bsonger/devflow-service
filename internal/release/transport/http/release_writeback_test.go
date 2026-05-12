@@ -140,8 +140,8 @@ func TestHandleArgoEventReturns404WhenLateStepUpdateFindsMissingRelease(t *testi
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusNoContent)
 	}
 }
 
@@ -337,8 +337,8 @@ func TestHandleArgoEventReturns404ForMissingRelease(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusNoContent)
 	}
 }
 
@@ -594,8 +594,8 @@ func TestHandleReleaseArtifactReturns404ForMissingRelease(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusNoContent)
 	}
 }
 
@@ -660,8 +660,8 @@ func TestHandleReleaseStepReturns404ForMissingRelease(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("got %d want %d", rec.Code, http.StatusNoContent)
 	}
 }
 

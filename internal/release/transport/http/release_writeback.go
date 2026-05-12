@@ -51,11 +51,19 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 	}
 	status := mapArgoStatusToReleaseStatus(req.Status)
 	if err := h.svc.UpdateStatus(c.Request.Context(), releaseID, status); err != nil {
+		if shouldIgnoreReleaseWritebackError(err) {
+			httpx.WriteNoContent(c)
+			return
+		}
 		writeReleaseVerifyError(c, err)
 		return
 	}
 	if stepCode, stepStatus, stepMessage, ok := deriveArgoStepUpdate(req.Status); ok {
 		if err := h.svc.UpdateStep(c.Request.Context(), releaseID, stepCode, stepStatus, 100, stepMessage, nil, nil); err != nil {
+			if shouldIgnoreReleaseWritebackError(err) {
+				httpx.WriteNoContent(c)
+				return
+			}
 			writeReleaseVerifyError(c, err)
 			return
 		}
@@ -90,6 +98,10 @@ func (h *ReleaseWritebackHandler) HandleReleaseStep(c *gin.Context) {
 	status := normalizeStepStatus(model.StepStatus(req.Status))
 	message := normalizedReleaseStepMessage(stepKey, status, req.Progress, req.Message)
 	if err := h.svc.UpdateStep(c.Request.Context(), releaseID, stepKey, status, req.Progress, message, nil, nil); err != nil {
+		if shouldIgnoreReleaseWritebackError(err) {
+			httpx.WriteNoContent(c)
+			return
+		}
 		writeReleaseVerifyError(c, err)
 		return
 	}
@@ -126,6 +138,10 @@ func (h *ReleaseWritebackHandler) HandleReleaseArtifact(c *gin.Context) {
 		normalizeArtifactStepStatus(req.Status),
 		req.Progress,
 	); err != nil {
+		if shouldIgnoreReleaseWritebackError(err) {
+			httpx.WriteNoContent(c)
+			return
+		}
 		writeReleaseVerifyError(c, err)
 		return
 	}
@@ -246,4 +262,8 @@ func writeReleaseVerifyError(c *gin.Context, err error) {
 		return
 	}
 	httpx.WriteInternalError(c, err)
+}
+
+func shouldIgnoreReleaseWritebackError(err error) bool {
+	return errors.Is(err, sql.ErrNoRows)
 }

@@ -266,6 +266,10 @@ func (h *Handler) SyncObservedPod(c *gin.Context) {
 		ObservedAt:    req.ObservedAt,
 	})
 	if err != nil {
+		if shouldIgnoreObservedPodError(err) {
+			httpx.WriteNoContent(c)
+			return
+		}
 		writeRuntimeError(c, err)
 		return
 	}
@@ -284,6 +288,10 @@ func (h *Handler) DeleteObservedPod(c *gin.Context) {
 		PodName:       req.PodName,
 		ObservedAt:    req.ObservedAt,
 	}); err != nil {
+		if shouldIgnoreObservedPodError(err) {
+			httpx.WriteNoContent(c)
+			return
+		}
 		writeRuntimeError(c, err)
 		return
 	}
@@ -391,4 +399,8 @@ func writeRuntimeError(c *gin.Context, err error) {
 	default:
 		httpx.WriteInternalError(c, err)
 	}
+}
+
+func shouldIgnoreObservedPodError(err error) bool {
+	return sharederrs.HasCode(err, sharederrs.CodeNotFound)
 }

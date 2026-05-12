@@ -14,6 +14,7 @@ import (
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
@@ -72,6 +73,12 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	}
 	if app.Spec.Destination.Server != target.DestinationServer {
 		t.Fatalf("server = %q", app.Spec.Destination.Server)
+	}
+	if app.Labels != nil {
+		t.Fatalf("expected constructor to leave labels unset, got %#v", app.Labels)
+	}
+	if app.Annotations != nil {
+		t.Fatalf("expected constructor to leave annotations unset, got %#v", app.Annotations)
 	}
 	assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, "apps", "Deployment")
 }
@@ -139,7 +146,7 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 
 	applyReleaseApplicationMetadata(ctx, release, application)
 
-	if len(application.Annotations) != 2 {
+	if len(application.Annotations) != 4 {
 		t.Fatalf("annotations = %#v", application.Annotations)
 	}
 	if got := application.Annotations[oci.TraceIDAnnotation]; got != "0102030405060708090a0b0c0d0e0f10" {
@@ -152,7 +159,7 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 		t.Fatalf("unexpected custom annotation preserved: %#v", application.Annotations)
 	}
 	for key := range application.Annotations {
-		if key != oci.TraceIDAnnotation && key != oci.SpanAnnotation {
+		if key != oci.TraceIDAnnotation && key != oci.SpanAnnotation && key != observer.ObserveKindAnnotation && key != observer.ObserveOwnerIDAnnotation {
 			t.Fatalf("unexpected non-otel annotation emitted: %s (%#v)", key, application.Annotations)
 		}
 	}
@@ -171,7 +178,10 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 	if got := application.Labels["status"]; got != string(model.ReleaseRunning) {
 		t.Fatalf("status label = %q", got)
 	}
-	if len(application.Labels) != 5 {
+	if got := application.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
+		t.Fatalf("observe-state = %q", got)
+	}
+	if len(application.Labels) != 6 {
 		t.Fatalf("labels = %#v", application.Labels)
 	}
 	if _, ok := application.Labels["custom"]; ok {

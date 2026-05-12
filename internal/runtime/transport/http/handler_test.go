@@ -146,8 +146,28 @@ func TestDeleteObservedPodReturnsNotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSyncObservedPodIgnoresMissingRuntimeSpec(t *testing.T) {
+	h := NewHandler(&mockRuntimeService{
+		syncObservedPodFunc: func(context.Context, runtimeservice.SyncObservedPodInput) (*runtimedomain.RuntimeObservedPod, error) {
+			return nil, runtimeservice.ErrRuntimeSpecNotFound
+		},
+	})
+	r := setupRuntimeTestRouter(h, "secret")
+
+	body, _ := json.Marshal(SyncObservedPodRequest{ApplicationID: uuid.New(), Environment: "staging", Namespace: "ns", PodName: "demo-0", Phase: "Running", ObservedAt: time.Now().UTC()})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/runtime-pods/sync", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(ObserverTokenHeader, "secret")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

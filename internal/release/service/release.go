@@ -15,6 +15,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
@@ -742,8 +743,10 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 	}
 	sc := trace.SpanContextFromContext(ctx)
 	application.Annotations = map[string]string{
-		oci.TraceIDAnnotation: sc.TraceID().String(),
-		oci.SpanAnnotation:    sc.SpanID().String(),
+		oci.TraceIDAnnotation:          sc.TraceID().String(),
+		oci.SpanAnnotation:             sc.SpanID().String(),
+		observer.ObserveKindAnnotation: observer.ObserveKindRelease,
+		observer.ObserveOwnerIDAnnotation: release.ID.String(),
 	}
 	application.Labels = map[string]string{
 		"status":                      string(model.ReleaseRunning),
@@ -751,6 +754,7 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: releaseTargetEnvironment(release),
+		observer.ObserveStateLabel:    observer.ObserveStateRunning,
 	}
 }
 
