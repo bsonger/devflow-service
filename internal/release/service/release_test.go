@@ -17,6 +17,7 @@ import (
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -220,6 +221,13 @@ func TestUpdateStatusMarksReleaseWorkloadsObserveStateDoneOnTerminal(t *testing.
 			Namespace: "checkout",
 			Labels:    map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning},
 		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning},
+				},
+			},
+		},
 	})
 	releaseNewKubeClient = func() (kubernetes.Interface, error) { return kubeClient, nil }
 
@@ -231,6 +239,13 @@ func TestUpdateStatusMarksReleaseWorkloadsObserveStateDoneOnTerminal(t *testing.
 	rollout.SetName("demo-api-canary")
 	rollout.SetNamespace("checkout")
 	rollout.SetLabels(map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning})
+	rollout.Object["spec"] = map[string]any{
+		"template": map[string]any{
+			"metadata": map[string]any{
+				"labels": map[string]any{observer.ObserveStateLabel: observer.ObserveStateRunning},
+			},
+		},
+	}
 	dyn := dynamicfake.NewSimpleDynamicClient(scheme, rollout)
 	releaseNewDynamicClient = func() (dynamic.Interface, error) { return dyn, nil }
 
@@ -245,12 +260,25 @@ func TestUpdateStatusMarksReleaseWorkloadsObserveStateDoneOnTerminal(t *testing.
 	if got := deployment.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateDone {
 		t.Fatalf("deployment observe-state = %q", got)
 	}
+	if got := deployment.Spec.Template.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateDone {
+		t.Fatalf("deployment pod template observe-state = %q", got)
+	}
 	gotRollout, err := dyn.Resource(gvr).Namespace("checkout").Get(context.Background(), "demo-api-canary", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("get rollout: %v", err)
 	}
 	if got := gotRollout.GetLabels()[observer.ObserveStateLabel]; got != observer.ObserveStateDone {
 		t.Fatalf("rollout observe-state = %q", got)
+	}
+	templateLabels, found, err := unstructured.NestedStringMap(gotRollout.Object, "spec", "template", "metadata", "labels")
+	if err != nil {
+		t.Fatalf("get rollout pod template labels: %v", err)
+	}
+	if !found {
+		t.Fatalf("rollout pod template labels not found")
+	}
+	if got := templateLabels[observer.ObserveStateLabel]; got != observer.ObserveStateDone {
+		t.Fatalf("rollout pod template observe-state = %q", got)
 	}
 }
 

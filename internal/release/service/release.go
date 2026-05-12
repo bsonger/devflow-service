@@ -29,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -597,6 +598,10 @@ func (s *releaseService) markReleaseWorkloadsObservationTerminal(ctx context.Con
 				workload.Labels = map[string]string{}
 			}
 			workload.Labels[observer.ObserveStateLabel] = observer.ObserveStateDone
+			if workload.Spec.Template.Labels == nil {
+				workload.Spec.Template.Labels = map[string]string{}
+			}
+			workload.Spec.Template.Labels[observer.ObserveStateLabel] = observer.ObserveStateDone
 			if _, err := kubeClient.AppsV1().Deployments(namespace).Update(ctx, workload, metav1.UpdateOptions{}); err != nil {
 				log.Warn("update deployment observe-state failed",
 					zap.String("workload_kind", kind),
@@ -638,6 +643,29 @@ func (s *releaseService) markReleaseWorkloadsObservationTerminal(ctx context.Con
 			}
 			labels[observer.ObserveStateLabel] = observer.ObserveStateDone
 			workload.SetLabels(labels)
+			templateLabels, found, err := unstructured.NestedStringMap(workload.Object, "spec", "template", "metadata", "labels")
+			if err != nil {
+				log.Warn("read rollout pod template labels failed",
+					zap.String("workload_kind", kind),
+					zap.String("workload_name", name),
+					zap.String("namespace", namespace),
+					zap.Error(err),
+				)
+				continue
+			}
+			if !found || templateLabels == nil {
+				templateLabels = map[string]string{}
+			}
+			templateLabels[observer.ObserveStateLabel] = observer.ObserveStateDone
+			if err := unstructured.SetNestedStringMap(workload.Object, templateLabels, "spec", "template", "metadata", "labels"); err != nil {
+				log.Warn("set rollout pod template labels failed",
+					zap.String("workload_kind", kind),
+					zap.String("workload_name", name),
+					zap.String("namespace", namespace),
+					zap.Error(err),
+				)
+				continue
+			}
 			if _, err := dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, workload, metav1.UpdateOptions{}); err != nil {
 				log.Warn("update rollout observe-state failed",
 					zap.String("workload_kind", kind),
