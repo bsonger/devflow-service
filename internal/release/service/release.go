@@ -43,6 +43,11 @@ type ReleaseListFilter struct {
 var ReleaseService = &releaseService{store: repository.NewPostgresStore(), bundleStore: repository.NewBundlePostgresStore()}
 
 var (
+	releaseGetArgoApplication    = argoclient.GetApplication
+	releaseUpdateArgoApplication = argoclient.UpdateApplication
+)
+
+var (
 	ErrReleaseManifestNotFound    = sharederrs.NotFound("manifest not found")
 	ErrReleaseManifestNotAvailable = sharederrs.FailedPrecondition("manifest is not available")
 	ErrReleaseAppConfigMissing     = sharederrs.FailedPrecondition("effective app config is missing")
@@ -456,11 +461,36 @@ func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, 
 		zap.String("status", string(status)),
 	)
 	observeReleaseTerminal(ctx, release, status)
+	markReleaseObservationTerminal(ctx, release, status)
 	return nil
 }
 
 func (s *releaseService) UpdateStatus(ctx context.Context, releaseID uuid.UUID, status model.ReleaseStatus) error {
 	return s.updateStatus(ctx, releaseID, status)
+}
+
+func markReleaseObservationTerminal(ctx context.Context, release *model.Release, status model.ReleaseStatus) {
+	if release == nil {
+		return
+	}
+	switch status {
+	case model.ReleaseSucceeded, model.ReleaseFailed, model.ReleaseRolledBack, model.ReleaseSyncFailed:
+	default:
+		return
+	}
+	appName := strings.TrimSpace(release.ArgoCDApplicationName)
+	if appName == "" {
+		return
+	}
+	application, err := releaseGetArgoApplication(ctx, appName)
+	if err != nil || application == nil {
+		return
+	}
+	if application.Labels == nil {
+		application.Labels = map[string]string{}
+	}
+	application.Labels[observer.ObserveStateLabel] = observer.ObserveStateDone
+	_ = releaseUpdateArgoApplication(ctx, application)
 }
 
 func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) error {

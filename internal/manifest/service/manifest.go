@@ -33,6 +33,7 @@ var (
 	manifestCreatePipelineRun = localtekton.CreatePipelineRun
 	manifestPatchPVCOwner     = localtekton.PatchPVCOwner
 	manifestGetPipeline       = localtekton.GetPipeline
+	manifestMarkPipelineRunObserveState = localtekton.MarkPipelineRunObserveState
 )
 
 var ManifestService = NewManifestService()
@@ -292,7 +293,11 @@ func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifest
 	}
 	current.Status = nextStatus
 	current.UpdatedAt = time.Now()
-	return s.repoStore().UpdateStatusAndSteps(ctx, current.ID, current.Status, current.Steps, current.PipelineID)
+	if err := s.repoStore().UpdateStatusAndSteps(ctx, current.ID, current.Status, current.Steps, current.PipelineID); err != nil {
+		return err
+	}
+	markManifestObservationTerminal(ctx, current)
+	return nil
 }
 
 // UpdateStepStatus persists build-task observations coming back from Tekton writeback.
@@ -360,7 +365,26 @@ func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID s
 	}
 	manifest.Status = nextStatus
 	manifest.UpdatedAt = time.Now()
-	return s.repoStore().UpdateStatusAndSteps(ctx, manifest.ID, manifest.Status, manifest.Steps, manifest.PipelineID)
+	if err := s.repoStore().UpdateStatusAndSteps(ctx, manifest.ID, manifest.Status, manifest.Steps, manifest.PipelineID); err != nil {
+		return err
+	}
+	markManifestObservationTerminal(ctx, manifest)
+	return nil
+}
+
+func markManifestObservationTerminal(ctx context.Context, manifest *manifestdomain.Manifest) {
+	if manifest == nil || strings.TrimSpace(manifest.PipelineID) == "" {
+		return
+	}
+	if manifest.Status != model.ManifestAvailable && manifest.Status != model.ManifestUnavailable {
+		return
+	}
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	namespace := strings.TrimSpace(runtimeCfg.Tekton.Namespace)
+	if namespace == "" {
+		namespace = "tekton-pipelines"
+	}
+	_ = manifestMarkPipelineRunObserveState(ctx, namespace, manifest.PipelineID, observer.ObserveStateDone)
 }
 
 // UpdateBuildResult stores the build output that release creation later consumes as its deployable image input.

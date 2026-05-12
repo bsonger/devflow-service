@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
@@ -101,6 +103,58 @@ func TestUpdateStatusRespectsTerminalGuard(t *testing.T) {
 	}
 	if release.Status != model.ReleaseSucceeded {
 		t.Fatalf("terminal status was overwritten: got %q want Succeeded", release.Status)
+	}
+}
+
+func TestUpdateStatusMarksArgoApplicationObserveStateDoneOnTerminal(t *testing.T) {
+	setupTestDB(t)
+	originalGet := releaseGetArgoApplication
+	originalUpdate := releaseUpdateArgoApplication
+	t.Cleanup(func() {
+		releaseGetArgoApplication = originalGet
+		releaseUpdateArgoApplication = originalUpdate
+	})
+
+	releaseID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	release := &model.Release{
+		BaseModel:             model.BaseModel{ID: releaseID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID:         appID,
+		ManifestID:            uuid.New(),
+		EnvironmentID:         "production",
+		Type:                  model.ReleaseUpgrade,
+		Status:                model.ReleaseRunning,
+		ArgoCDApplicationName: "demo-api",
+		Steps:                 model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+	}
+	if err := (&releaseService{}).repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	app := &appv1.Application{}
+	app.Name = "demo-api"
+	app.Labels = map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning}
+	releaseGetArgoApplication = func(_ context.Context, name string) (*appv1.Application, error) {
+		if name != "demo-api" {
+			t.Fatalf("name = %q", name)
+		}
+		return app, nil
+	}
+	updated := false
+	releaseUpdateArgoApplication = func(_ context.Context, got *appv1.Application) error {
+		updated = true
+		if got.Labels[observer.ObserveStateLabel] != observer.ObserveStateDone {
+			t.Fatalf("observe-state = %q", got.Labels[observer.ObserveStateLabel])
+		}
+		return nil
+	}
+
+	if err := (&releaseService{}).updateStatus(context.Background(), releaseID, model.ReleaseSucceeded); err != nil {
+		t.Fatalf("updateStatus error = %v", err)
+	}
+	if !updated {
+		t.Fatal("expected argo application observe-state update")
 	}
 }
 

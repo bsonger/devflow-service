@@ -490,6 +490,19 @@ func TestUpdateStepStatusDoesNotPromoteManifestStatus(t *testing.T) {
 func TestUpdateManifestStatusAcceptsRuntimeReportedAvailable(t *testing.T) {
 	setupManifestTestDB(t)
 	svc := &manifestService{}
+	originalMark := manifestMarkPipelineRunObserveState
+	t.Cleanup(func() {
+		manifestMarkPipelineRunObserveState = originalMark
+	})
+	called := false
+	var gotNamespace, gotPipelineID, gotState string
+	manifestMarkPipelineRunObserveState = func(_ context.Context, namespace, pipelineID, state string) error {
+		called = true
+		gotNamespace = namespace
+		gotPipelineID = pipelineID
+		gotState = state
+		return nil
+	}
 	manifestID := uuid.New()
 	appID := uuid.New()
 	now := time.Now()
@@ -517,6 +530,18 @@ func TestUpdateManifestStatusAcceptsRuntimeReportedAvailable(t *testing.T) {
 	}
 	if got.Status != model.ManifestAvailable {
 		t.Fatalf("status = %q, want %q", got.Status, model.ManifestAvailable)
+	}
+	if !called {
+		t.Fatal("expected observe-state terminal marker to be called")
+	}
+	if gotPipelineID != manifest.PipelineID {
+		t.Fatalf("pipelineID = %q", gotPipelineID)
+	}
+	if gotState != observer.ObserveStateDone {
+		t.Fatalf("state = %q", gotState)
+	}
+	if gotNamespace == "" {
+		t.Fatal("expected namespace to be resolved")
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	"go.uber.org/zap"
@@ -43,6 +44,20 @@ func GetPipeline(ctx context.Context, namespace string, name string) (*tknv1.Pip
 
 func CreatePipelineRun(ctx context.Context, namespace string, pr *tknv1.PipelineRun) (*tknv1.PipelineRun, error) {
 	return tektonClient.TektonV1().PipelineRuns(namespace).Create(ctx, pr, metav1.CreateOptions{})
+}
+
+func MarkPipelineRunObserveState(ctx context.Context, namespace, name, state string) error {
+	run, err := tektonClient.TektonV1().PipelineRuns(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	copy := run.DeepCopy()
+	if copy.Labels == nil {
+		copy.Labels = map[string]string{}
+	}
+	copy.Labels[observer.ObserveStateLabel] = state
+	_, err = tektonClient.TektonV1().PipelineRuns(namespace).Update(ctx, copy, metav1.UpdateOptions{})
+	return err
 }
 
 func CreatePVC(ctx context.Context, namespace, pvcName, storageClassName string, size string) (*corev1.PersistentVolumeClaim, error) {
