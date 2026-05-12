@@ -128,10 +128,14 @@ For HTTP and service metrics, prefer labels like:
 - `http_response_status_class`
 
 For release and workflow metrics, prefer stable labels such as:
-- `service_name`
-- `service_namespace`
-- `deployment_environment_name`
 - `release_type`
+
+Only add `stage` when the metric is explicitly a release-stage metric.
+
+For dependency and other business/workflow metrics, prefer only the business
+dimensions required for aggregation. Do not automatically repeat service-level
+resource identity dimensions when the same information is already available from
+resource metadata or scrape target metadata.
 
 ### Forbidden high-cardinality labels
 
@@ -182,18 +186,12 @@ http_server_requests_total{
 #### Release workflow metrics
 
 Recommended labels:
-- `service_name`
-- `service_namespace`
-- `deployment_environment_name`
 - `release_type`
 
 Example:
 
 ```text
 release_total{
-  service_name="release-service",
-  service_namespace="devflow",
-  deployment_environment_name="pre-production",
   release_type="upgrade"
 }
 ```
@@ -201,9 +199,6 @@ release_total{
 #### Dependency metrics
 
 Recommended labels:
-- `service_name`
-- `service_namespace`
-- `deployment_environment_name`
 - `dependency`
 - `action`
 - `result`
@@ -212,14 +207,14 @@ Example:
 
 ```text
 devflow_dependency_calls_total{
-  service_name="release-service",
-  service_namespace="devflow",
-  deployment_environment_name="pre-production",
   dependency="runtime_service",
   action="get_runtime_spec",
   result="ok"
 }
 ```
+
+Use `action` as the canonical dependency operation dimension. Do not emit both
+`dependency_operation` and `action` for the same dependency metric or log event.
 
 ### Metric label anti-patterns
 

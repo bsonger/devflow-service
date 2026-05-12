@@ -16,6 +16,12 @@ Do not add high-cardinality identifiers such as `trace_id`, `request_id`, or
 `release_id` to metric labels. Use logs, traces, and Prometheus exemplars for
 those joins.
 
+For business and workflow metrics, do not automatically repeat service identity
+dimensions such as `service_name`, `service_namespace`, or
+`deployment_environment_name` when the same facts are already available from
+resource metadata or scrape target metadata. Reserve those dimensions for
+infrastructure-facing metrics such as HTTP server metrics.
+
 ## Canonical field mapping
 
 | Meaning | Logs | Metrics | Traces |
@@ -29,7 +35,7 @@ those joins.
 | HTTP status code | `http.response.status_code` | `http_response_status_code` | `http.response.status_code` |
 | HTTP status class | `http.response.status_class` | `http_response_status_class` | `http.response.status_class` |
 | Dependency target | `dependency` | `dependency` | `dependency` |
-| Dependency action | `dependency_operation` or `action` | `action` | `action` |
+| Dependency action | `action` | `action` | `action` |
 | Operation result | `result` | `result` | `result` |
 | Release type | `release_type` | `release_type` | `devflow.release.type` |
 | Trace ID | `trace_id` | forbidden | trace context |
@@ -161,9 +167,6 @@ process never binds that listener.
 
 Release workflow metrics must use this label set:
 
-- `service_name`
-- `service_namespace`
-- `deployment_environment_name`
 - `release_type`
 
 Do not add `release_id`, `manifest_id`, `application_id`, or `environment_id` to
@@ -171,19 +174,21 @@ release metric labels. Those are high-cardinality identifiers and belong in logs
 or traces. If a release metric needs sample-level debugging context in the
 future, use exemplars instead of labels.
 
+Step-level release metrics may additionally use:
+
+- `stage`
+
 ## Dependency metrics
 
 Dependency metrics must use this label set:
 
-- `service_name`
-- `service_namespace`
-- `deployment_environment_name`
 - `dependency`
 - `action`
 - `result`
 
 Avoid duplicate labels such as `devflow.dependency` and `devflow.action` that
 repeat `dependency` and `action`.
+Do not emit both `dependency_operation` and `action` for the same metric.
 
 ## Low-value path filtering
 

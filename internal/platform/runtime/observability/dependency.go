@@ -61,9 +61,9 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 			zap.String("resource", "dependency"),
 			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
+			zap.String("action", safeAction(call.Operation)),
 			zap.String("result", "error"),
 			zap.String("dependency_kind", call.Kind),
-			zap.String("dependency_operation", call.Operation),
 			zap.Float64("dependency_duration_seconds", duration),
 			zap.Error(err),
 		)
@@ -74,9 +74,9 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 			zap.String("resource", "dependency"),
 			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
+			zap.String("action", safeAction(call.Operation)),
 			zap.String("result", "ok"),
 			zap.String("dependency_kind", call.Kind),
-			zap.String("dependency_operation", call.Operation),
 			zap.Float64("dependency_duration_seconds", duration),
 		)
 	}
@@ -124,9 +124,6 @@ func initDependencyMetrics() {
 
 func dependencyAttributes(call DependencyCall) []attribute.KeyValue {
 	return []attribute.KeyValue{
-		attribute.String("service_name", logger.ServiceName()),
-		attribute.String("service_namespace", logger.ServiceNamespace()),
-		attribute.String("deployment_environment_name", logger.Environment()),
 		attribute.String("dependency", safeDependency(call.Target)),
 		attribute.String("action", safeAction(call.Operation)),
 	}

@@ -43,6 +43,8 @@ edge. These fields are emitted by the logger or Gin middleware when available:
 
 Business code should still log critical operation decisions, failures, and
 state transitions. It should not add Kubernetes, host, or cloud fields.
+It should also avoid repeating service resource facts that are already attached
+by the base logger or OpenTelemetry resource configuration.
 
 ### OpenTelemetry SDK and instrumentation
 
@@ -148,6 +150,24 @@ Current HTTP message bodies:
 Business and dependency logs may still use service- or component-specific
 `logger.name` values, but request-class dashboards and filters should classify
 HTTP logs by the names above.
+
+## Dependency logging contract
+
+Dependency logs should prefer this field set:
+
+- `operation`
+- `resource`
+- `dependency`
+- `action`
+- `result`
+- `dependency_duration_seconds`
+
+Optional:
+
+- `dependency_kind`
+
+Do not emit both `dependency_operation` and `action` for the same dependency
+event. Use `action` as the canonical dependency operation field.
 
 ## HTTP request logging filter
 

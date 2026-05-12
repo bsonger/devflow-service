@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/logger"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -78,9 +77,6 @@ func initReleaseMetrics() {
 
 func releaseMetricAttributes(release *model.Release) []attribute.KeyValue {
 	return []attribute.KeyValue{
-		attribute.String("service_name", logger.ServiceName()),
-		attribute.String("service_namespace", logger.ServiceNamespace()),
-		attribute.String("deployment_environment_name", logger.Environment()),
 		attribute.String("release_type", normalizedReleaseTypeLabel(release)),
 	}
 }
