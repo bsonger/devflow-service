@@ -181,6 +181,12 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 	if got := application.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
 		t.Fatalf("observe-state = %q", got)
 	}
+	if got := application.Annotations[observer.ObserveKindAnnotation]; got != observer.ObserveKindRelease {
+		t.Fatalf("observe-kind = %q", got)
+	}
+	if got := application.Annotations[observer.ObserveOwnerIDAnnotation]; got != release.ID.String() {
+		t.Fatalf("observe-owner-id = %q", got)
+	}
 	if len(application.Labels) != 6 {
 		t.Fatalf("labels = %#v", application.Labels)
 	}

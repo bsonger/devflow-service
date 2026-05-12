@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -51,6 +52,12 @@ func TestBuildResultPayload(t *testing.T) {
 	}
 	if got["image_digest"] != "sha256:abc" {
 		t.Fatalf("image_digest = %v", got["image_digest"])
+	}
+}
+
+func TestTektonObserverSelectorUsesObserveStateRunning(t *testing.T) {
+	if got := manifestIDLabel + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning; got != "devflow.manifest/id,devflow.io/observe-state=running" {
+		t.Fatalf("selector = %q", got)
 	}
 }
 

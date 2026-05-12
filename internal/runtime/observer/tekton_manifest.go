@@ -13,6 +13,7 @@ import (
 
 	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
@@ -98,7 +99,7 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 		log = zap.NewNop()
 	}
 	pipelineRuns, err := o.tekton.TektonV1().PipelineRuns(o.cfg.TektonNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: manifestIDLabel,
+		LabelSelector: manifestIDLabel + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
 	})
 	if err != nil {
 		log.Warn("list tekton pipeline runs failed", zap.Error(err))

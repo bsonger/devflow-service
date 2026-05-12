@@ -14,6 +14,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	platformlogger "github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
@@ -274,6 +275,15 @@ func TestBuildManifestPipelineRunUsesGitRevisionAndAnnotations(t *testing.T) {
 	}
 	if run.Annotations["devflow.manifest/id"] != manifest.ID.String() {
 		t.Fatalf("annotation manifest id = %q", run.Annotations["devflow.manifest/id"])
+	}
+	if got := run.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
+		t.Fatalf("observe-state label = %q", got)
+	}
+	if got := run.Annotations[observer.ObserveKindAnnotation]; got != observer.ObserveKindManifest {
+		t.Fatalf("observe-kind annotation = %q", got)
+	}
+	if got := run.Annotations[observer.ObserveOwnerIDAnnotation]; got != manifest.ID.String() {
+		t.Fatalf("observe-owner-id annotation = %q", got)
 	}
 }
 

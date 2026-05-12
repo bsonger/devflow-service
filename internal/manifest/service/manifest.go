@@ -9,6 +9,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	"github.com/bsonger/devflow-service/internal/manifest/repository"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
@@ -196,10 +197,13 @@ func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageR
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: tektonCfg.BuildPipeline + "-run-",
 			Labels: map[string]string{
-				"devflow.manifest/id": manifest.ID.String(),
+				"devflow.manifest/id":      manifest.ID.String(),
+				observer.ObserveStateLabel: observer.ObserveStateRunning,
 			},
 			Annotations: map[string]string{
-				"devflow.manifest/id": manifest.ID.String(),
+				"devflow.manifest/id":             manifest.ID.String(),
+				observer.ObserveKindAnnotation:   observer.ObserveKindManifest,
+				observer.ObserveOwnerIDAnnotation: manifest.ID.String(),
 			},
 		},
 		Spec: tknv1.PipelineRunSpec{

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	releasedownstream "github.com/bsonger/devflow-service/internal/release/transport/downstream"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
@@ -283,7 +284,7 @@ func deriveReleaseRolloutContext(workload *runtimedomain.RuntimeObservedWorkload
 
 func (o *ReleaseRolloutObserver) lookupDeployment(ctx context.Context, rollout releaseRolloutContext) (*appsv1.Deployment, error) {
 	deployments, err := o.clientset.AppsV1().Deployments(rollout.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String(),
+		LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String() + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
 	})
 	if err != nil {
 		return nil, err

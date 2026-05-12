@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/google/uuid"
@@ -454,6 +455,9 @@ func assertRequiredIdentityLabels(t *testing.T, labels map[string]any, releaseID
 	}
 	if got := labels["app.kubernetes.io/name"]; got != name {
 		t.Fatalf("app label = %#v", got)
+	}
+	if got := labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
+		t.Fatalf("observe-state label = %#v", got)
 	}
 }
 

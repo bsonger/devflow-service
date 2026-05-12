@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
@@ -544,6 +545,7 @@ func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string
 		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
+		observer.ObserveStateLabel:    observer.ObserveStateRunning,
 	}
 	labels := make(map[string]any, len(requiredLabels)+len(workloadLabels))
 	for key, value := range workloadLabels {

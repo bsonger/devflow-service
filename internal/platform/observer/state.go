@@ -8,8 +8,10 @@ const (
 
 const (
 	ObserveStateRunning = "running"
+	ObserveStateDone    = "done"
 )
 
 const (
-	ObserveKindRelease = "release"
+	ObserveKindRelease  = "release"
+	ObserveKindManifest = "manifest"
 )
