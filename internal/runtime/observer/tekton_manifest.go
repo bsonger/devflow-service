@@ -219,10 +219,10 @@ func (o *TektonManifestObserver) postJSON(ctx context.Context, payload any, path
 			Kind:      "http",
 			Target:    "release_service",
 			Operation: "manifest_tekton_writeback",
-		}, func(depCtx context.Context) (platformobs.DependencyResult, error) {
+		}, func(depCtx context.Context) error {
 			req, err := http.NewRequestWithContext(depCtx, http.MethodPost, o.releaseBase+path, bytes.NewReader(body))
 			if err != nil {
-				return platformobs.DependencyResult{HTTPMethod: http.MethodPost, URLPath: path}, err
+				return err
 			}
 			req.Header.Set("Content-Type", "application/json")
 			if token := strings.TrimSpace(o.cfg.ObserverToken); token != "" {
@@ -230,18 +230,13 @@ func (o *TektonManifestObserver) postJSON(ctx context.Context, payload any, path
 			}
 			resp, err := o.httpClient.Do(req)
 			if err != nil {
-				return platformobs.DependencyResult{HTTPMethod: http.MethodPost, URLPath: path}, err
+				return err
 			}
 			defer func() { _ = resp.Body.Close() }()
-			result := platformobs.DependencyResult{
-				HTTPMethod:     http.MethodPost,
-				URLPath:        req.URL.Path,
-				HTTPStatusCode: resp.StatusCode,
-			}
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				return result, nil
+				return nil
 			}
-			return result, &writebackError{path: path, statusCode: resp.StatusCode}
+			return &writebackError{path: path, statusCode: resp.StatusCode}
 		})
 		if err == nil {
 			return nil
