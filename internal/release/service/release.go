@@ -29,6 +29,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 type ReleaseListFilter struct {
@@ -45,6 +48,18 @@ var ReleaseService = &releaseService{store: repository.NewPostgresStore(), bundl
 var (
 	releaseGetArgoApplication    = argoclient.GetApplication
 	releaseUpdateArgoApplication = argoclient.UpdateApplication
+	releaseNewKubeClient         = func() (kubernetes.Interface, error) {
+		if model.KubeConfig == nil {
+			return nil, fmt.Errorf("missing kubernetes config")
+		}
+		return kubernetes.NewForConfig(model.KubeConfig)
+	}
+	releaseNewDynamicClient = func() (dynamic.Interface, error) {
+		if model.KubeConfig == nil {
+			return nil, fmt.Errorf("missing kubernetes config")
+		}
+		return dynamic.NewForConfig(model.KubeConfig)
+	}
 )
 
 var (
@@ -461,7 +476,7 @@ func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, 
 		zap.String("status", string(status)),
 	)
 	observeReleaseTerminal(ctx, release, status)
-	markReleaseObservationTerminal(ctx, release, status)
+	s.markReleaseObservationTerminal(ctx, release, status)
 	return nil
 }
 
@@ -469,7 +484,7 @@ func (s *releaseService) UpdateStatus(ctx context.Context, releaseID uuid.UUID, 
 	return s.updateStatus(ctx, releaseID, status)
 }
 
-func markReleaseObservationTerminal(ctx context.Context, release *model.Release, status model.ReleaseStatus) {
+func (s *releaseService) markReleaseObservationTerminal(ctx context.Context, release *model.Release, status model.ReleaseStatus) {
 	if release == nil {
 		return
 	}
@@ -491,6 +506,68 @@ func markReleaseObservationTerminal(ctx context.Context, release *model.Release,
 	}
 	application.Labels[observer.ObserveStateLabel] = observer.ObserveStateDone
 	_ = releaseUpdateArgoApplication(ctx, application)
+	s.markReleaseWorkloadsObservationTerminal(ctx, release)
+}
+
+func (s *releaseService) markReleaseWorkloadsObservationTerminal(ctx context.Context, release *model.Release) {
+	if release == nil {
+		return
+	}
+	bundle, err := s.repoBundleStore().GetByReleaseID(ctx, release.ID)
+	if err != nil || bundle == nil {
+		return
+	}
+	var (
+		kubeClient    kubernetes.Interface
+		dynamicClient dynamic.Interface
+	)
+	for _, item := range bundle.RenderedObjects {
+		kind := strings.TrimSpace(item.Kind)
+		name := strings.TrimSpace(item.Name)
+		namespace := strings.TrimSpace(item.Namespace)
+		if kind == "" || name == "" || namespace == "" {
+			continue
+		}
+		switch kind {
+		case "Deployment":
+			if kubeClient == nil {
+				client, err := releaseNewKubeClient()
+				if err != nil {
+					return
+				}
+				kubeClient = client
+			}
+			workload, err := kubeClient.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+			if err != nil {
+				continue
+			}
+			if workload.Labels == nil {
+				workload.Labels = map[string]string{}
+			}
+			workload.Labels[observer.ObserveStateLabel] = observer.ObserveStateDone
+			_, _ = kubeClient.AppsV1().Deployments(namespace).Update(ctx, workload, metav1.UpdateOptions{})
+		case "Rollout":
+			if dynamicClient == nil {
+				client, err := releaseNewDynamicClient()
+				if err != nil {
+					return
+				}
+				dynamicClient = client
+			}
+			gvr := schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}
+			workload, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+			if err != nil {
+				continue
+			}
+			labels := workload.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[observer.ObserveStateLabel] = observer.ObserveStateDone
+			workload.SetLabels(labels)
+			_, _ = dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, workload, metav1.UpdateOptions{})
+		}
+	}
 }
 
 func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) error {

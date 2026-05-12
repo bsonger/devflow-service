@@ -16,6 +16,15 @@ import (
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/kubernetes"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	_ "modernc.org/sqlite"
 )
 
@@ -155,6 +164,93 @@ func TestUpdateStatusMarksArgoApplicationObserveStateDoneOnTerminal(t *testing.T
 	}
 	if !updated {
 		t.Fatal("expected argo application observe-state update")
+	}
+}
+
+func TestUpdateStatusMarksReleaseWorkloadsObserveStateDoneOnTerminal(t *testing.T) {
+	setupTestDB(t)
+	originalGet := releaseGetArgoApplication
+	originalUpdate := releaseUpdateArgoApplication
+	originalKube := releaseNewKubeClient
+	originalDynamic := releaseNewDynamicClient
+	t.Cleanup(func() {
+		releaseGetArgoApplication = originalGet
+		releaseUpdateArgoApplication = originalUpdate
+		releaseNewKubeClient = originalKube
+		releaseNewDynamicClient = originalDynamic
+	})
+
+	releaseID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	release := &model.Release{
+		BaseModel:             model.BaseModel{ID: releaseID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID:         appID,
+		ManifestID:            uuid.New(),
+		EnvironmentID:         "production",
+		Type:                  model.ReleaseUpgrade,
+		Status:                model.ReleaseRunning,
+		ArgoCDApplicationName: "demo-api",
+		Steps:                 model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	bundle := &model.ReleaseBundleRecord{
+		BaseModel: model.BaseModel{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
+		ReleaseID: releaseID,
+		Namespace: "checkout",
+		RenderedObjects: []model.ReleaseRenderedResource{
+			{Kind: "Deployment", Name: "demo-api", Namespace: "checkout"},
+			{Kind: "Rollout", Name: "demo-api-canary", Namespace: "checkout"},
+		},
+	}
+	if err := svc.repoBundleStore().Insert(context.Background(), bundle); err != nil {
+		t.Fatalf("insert bundle: %v", err)
+	}
+
+	app := &appv1.Application{ObjectMeta: metav1.ObjectMeta{Name: "demo-api", Labels: map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning}}}
+	releaseGetArgoApplication = func(_ context.Context, name string) (*appv1.Application, error) { return app, nil }
+	releaseUpdateArgoApplication = func(_ context.Context, got *appv1.Application) error { return nil }
+
+	kubeClient := kubefake.NewSimpleClientset(&appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo-api",
+			Namespace: "checkout",
+			Labels:    map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning},
+		},
+	})
+	releaseNewKubeClient = func() (kubernetes.Interface, error) { return kubeClient, nil }
+
+	scheme := runtime.NewScheme()
+	gvr := schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}
+	rollout := &unstructured.Unstructured{}
+	rollout.SetAPIVersion("argoproj.io/v1alpha1")
+	rollout.SetKind("Rollout")
+	rollout.SetName("demo-api-canary")
+	rollout.SetNamespace("checkout")
+	rollout.SetLabels(map[string]string{observer.ObserveStateLabel: observer.ObserveStateRunning})
+	dyn := dynamicfake.NewSimpleDynamicClient(scheme, rollout)
+	releaseNewDynamicClient = func() (dynamic.Interface, error) { return dyn, nil }
+
+	if err := svc.updateStatus(context.Background(), releaseID, model.ReleaseSucceeded); err != nil {
+		t.Fatalf("updateStatus error = %v", err)
+	}
+
+	deployment, err := kubeClient.AppsV1().Deployments("checkout").Get(context.Background(), "demo-api", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get deployment: %v", err)
+	}
+	if got := deployment.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateDone {
+		t.Fatalf("deployment observe-state = %q", got)
+	}
+	gotRollout, err := dyn.Resource(gvr).Namespace("checkout").Get(context.Background(), "demo-api-canary", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get rollout: %v", err)
+	}
+	if got := gotRollout.GetLabels()[observer.ObserveStateLabel]; got != observer.ObserveStateDone {
+		t.Fatalf("rollout observe-state = %q", got)
 	}
 }
 
