@@ -66,7 +66,7 @@ var (
 )
 
 var (
-	ErrReleaseManifestNotFound    = sharederrs.NotFound("manifest not found")
+	ErrReleaseManifestNotFound     = sharederrs.NotFound("manifest not found")
 	ErrReleaseManifestNotAvailable = sharederrs.FailedPrecondition("manifest is not available")
 	ErrReleaseBundleNotReady       = sharederrs.FailedPrecondition("bundle not ready")
 	ErrReleaseUnknownStep          = sharederrs.InvalidArgument("unknown release step")
@@ -720,6 +720,7 @@ func (s *releaseService) markReleaseWorkloadsObservationTerminal(ctx context.Con
 }
 
 func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) error {
+	metricStart := time.Now()
 	stepName = normalizeReleaseStepKey(stepName)
 	if stepName == "" {
 		return nil
@@ -751,6 +752,9 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 	release.UpdatedAt = time.Now()
 	if err := s.repoStore().UpdateSteps(ctx, release); err != nil {
 		return err
+	}
+	if status == model.StepSucceeded || status == model.StepFailed {
+		observeReleaseStage(ctx, release, stepName, status == model.StepSucceeded, time.Since(metricStart))
 	}
 	return s.updateStatusFromSteps(ctx, releaseID, release.Type, release.Status, nextSteps)
 }
@@ -999,9 +1003,9 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 	}
 	sc := trace.SpanContextFromContext(ctx)
 	application.Annotations = map[string]string{
-		oci.TraceIDAnnotation:          sc.TraceID().String(),
-		oci.SpanAnnotation:             sc.SpanID().String(),
-		observer.ObserveKindAnnotation: observer.ObserveKindRelease,
+		oci.TraceIDAnnotation:             sc.TraceID().String(),
+		oci.SpanAnnotation:                sc.SpanID().String(),
+		observer.ObserveKindAnnotation:    observer.ObserveKindRelease,
 		observer.ObserveOwnerIDAnnotation: release.ID.String(),
 	}
 	application.Labels = map[string]string{
@@ -1018,6 +1022,7 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 }
 
 func (s *releaseService) createArgoApplication(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
+	start := time.Now()
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
 		log = zap.NewNop()
@@ -1034,10 +1039,12 @@ func (s *releaseService) createArgoApplication(ctx context.Context, release *mod
 	err := applyReleaseApplication(ctx, release.Type, application, argoclient.CreateApplication, argoclient.UpdateApplication, s.syncArgoApplication)
 	if err != nil {
 		_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepFailed, 100, createArgoApplicationFailureMessage(application.Name, err), nil, nil)
+		observeArgoApplicationCreate(ctx, release, false, time.Since(start))
 		log.Error("argo sync failed", zap.String("result", "error"), zap.Error(err))
 		return err
 	}
 	_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepSucceeded, 100, createArgoApplicationSuccessMessage(release, application.Name), nil, nil)
+	observeArgoApplicationCreate(ctx, release, true, time.Since(start))
 	if code, message := releaseDeploymentStartStep(release); code != "" {
 		_ = s.UpdateStep(ctx, release.ID, code, model.StepSucceeded, 100, message, nil, nil)
 	}

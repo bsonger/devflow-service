@@ -187,6 +187,8 @@ http_server_requests_total{
 
 Recommended labels:
 - `release_type`
+- `stage` for release-stage metrics only
+- `result` for stage/action result counters and durations only
 
 Example:
 
@@ -195,6 +197,21 @@ release_total{
   release_type="upgrade"
 }
 ```
+
+#### Manifest workflow metrics
+
+Recommended labels:
+- `pipeline_type`
+- `result`
+
+#### Runtime action metrics
+
+Recommended labels:
+- `action`
+- `result`
+
+Do not include manifest IDs, pipeline IDs, application IDs, pod names,
+deployment names, namespaces, or control-plane identity as labels.
 
 #### Dependency metrics
 

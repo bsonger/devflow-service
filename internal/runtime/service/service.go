@@ -35,9 +35,9 @@ var ErrK8sNotFound = sharederrs.NotFound("kubernetes resource not found")
 var ErrK8sForbidden = sharederrs.FailedPrecondition("kubernetes operation forbidden")
 
 const (
-	RuntimeMutationAccepted          = "accepted"
-	RuntimeConvergencePending        = "pending_observation"
-	RuntimeOperationPodDelete        = "pod_delete"
+	RuntimeMutationAccepted           = "accepted"
+	RuntimeConvergencePending         = "pending_observation"
+	RuntimeOperationPodDelete         = "pod_delete"
 	RuntimeOperationDeploymentRestart = "deployment_restart"
 )
 
@@ -351,6 +351,7 @@ func (s *runtimeService) GetObservedWorkloadByApplicationEnv(ctx context.Context
 }
 
 func (s *runtimeService) SyncObservedWorkload(ctx context.Context, in SyncObservedWorkloadInput) (*domain.RuntimeObservedWorkload, error) {
+	start := time.Now()
 	in.Environment = strings.TrimSpace(in.Environment)
 	in.Namespace = strings.TrimSpace(in.Namespace)
 	in.WorkloadKind = strings.TrimSpace(in.WorkloadKind)
@@ -403,8 +404,10 @@ func (s *runtimeService) SyncObservedWorkload(ctx context.Context, in SyncObserv
 		RestartAt:           in.RestartAt,
 	}
 	if err := s.repoStore().UpsertObservedWorkload(ctx, item); err != nil {
+		observeRuntimeAction(ctx, "sync_runtime_workload", false, time.Since(start))
 		return nil, err
 	}
+	observeRuntimeAction(ctx, "sync_runtime_workload", true, time.Since(start))
 	return item, nil
 }
 
@@ -466,6 +469,7 @@ func (s *runtimeService) ListObservedPodsByApplicationEnv(ctx context.Context, a
 }
 
 func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPodInput) (*domain.RuntimeObservedPod, error) {
+	start := time.Now()
 	in.Environment = strings.TrimSpace(in.Environment)
 	in.Namespace = strings.TrimSpace(in.Namespace)
 	in.PodName = strings.TrimSpace(in.PodName)
@@ -514,8 +518,10 @@ func (s *runtimeService) SyncObservedPod(ctx context.Context, in SyncObservedPod
 		ObservedAt:    observedAt,
 	}
 	if err := s.repoStore().UpsertObservedPod(ctx, item); err != nil {
+		observeRuntimeAction(ctx, "sync_runtime_pod", false, time.Since(start))
 		return nil, err
 	}
+	observeRuntimeAction(ctx, "sync_runtime_pod", true, time.Since(start))
 	return item, nil
 }
 
@@ -551,6 +557,7 @@ func (s *runtimeService) DeleteObservedPod(ctx context.Context, in DeleteObserve
 }
 
 func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID, podName, operator string) (*domain.RuntimeActionAcknowledgement, error) {
+	start := time.Now()
 	if runtimeSpecID == uuid.Nil {
 		return nil, sharederrs.Required("id")
 	}
@@ -580,6 +587,7 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 	}
 
 	if err := k8s.DeletePod(ctx, target.namespace, target.name); err != nil {
+		observeRuntimeAction(ctx, "delete_pod", false, time.Since(start))
 		if apierrors.IsNotFound(err) {
 			return nil, ErrK8sNotFound
 		}
@@ -591,8 +599,10 @@ func (s *runtimeService) DeletePod(ctx context.Context, runtimeSpecID uuid.UUID,
 
 	op, err := s.recordOperation(ctx, spec, RuntimeOperationPodDelete, target.name, target.namespace, operator)
 	if err != nil {
+		observeRuntimeAction(ctx, "delete_pod", false, time.Since(start))
 		return nil, err
 	}
+	observeRuntimeAction(ctx, "delete_pod", true, time.Since(start))
 	return buildActionAcknowledgement(op, "pod", ""), nil
 }
 
@@ -609,6 +619,7 @@ func (s *runtimeService) DeletePodByApplicationEnv(ctx context.Context, applicat
 }
 
 func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uuid.UUID, deploymentName, operator string) (*domain.RuntimeActionAcknowledgement, error) {
+	start := time.Now()
 	if runtimeSpecID == uuid.Nil {
 		return nil, sharederrs.Required("id")
 	}
@@ -638,6 +649,7 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 		return nil, err
 	}
 	if err := k8s.RestartDeployment(ctx, namespace, deploymentName); err != nil {
+		observeRuntimeAction(ctx, "restart_deployment", false, time.Since(start))
 		if apierrors.IsNotFound(err) {
 			return nil, ErrK8sNotFound
 		}
@@ -655,8 +667,10 @@ func (s *runtimeService) RestartDeployment(ctx context.Context, runtimeSpecID uu
 	}
 	op, err := s.recordOperation(ctx, spec, RuntimeOperationDeploymentRestart, deploymentName, namespace, operator)
 	if err != nil {
+		observeRuntimeAction(ctx, "restart_deployment", false, time.Since(start))
 		return nil, err
 	}
+	observeRuntimeAction(ctx, "restart_deployment", true, time.Since(start))
 	return buildActionAcknowledgement(op, "deployment", observedWorkload), nil
 }
 

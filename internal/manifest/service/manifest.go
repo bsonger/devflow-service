@@ -63,6 +63,7 @@ func NewManifestService() *manifestService {
 // CreateManifest freezes build-time inputs, dispatches the Tekton image build, and persists the manifest as the build-owned handoff artifact.
 // Release creation starts later from the persisted manifest once runtime writeback marks the build output available.
 func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
+	start := time.Now()
 	req.GitRevision = normalizeGitRevision(req.GitRevision)
 
 	log := logger.LoggerWithContext(ctx).With(
@@ -79,35 +80,43 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 
 	application, err := s.apps.Get(ctx, req.ApplicationID)
 	if err != nil {
+		observeManifest(ctx, nil, false, time.Since(start))
 		return nil, err
 	}
 
 	workloadConfig, err := configs.FindWorkloadConfig(ctx, req.ApplicationID.String())
 	if err != nil {
+		observeManifest(ctx, nil, false, time.Since(start))
 		return nil, err
 	}
 	if workloadConfig == nil {
+		observeManifest(ctx, nil, false, time.Since(start))
 		return nil, ErrManifestWorkloadConfigMissing
 	}
 	services, err := networks.ListServices(ctx, req.ApplicationID.String())
 	if err != nil {
+		observeManifest(ctx, nil, false, time.Since(start))
 		return nil, err
 	}
 	imageTarget, err := oci.BuildImageTarget(runtimeCfg.ImageRegistry, application.Name, "main", "", time.Now())
 	if err != nil {
+		observeManifest(ctx, nil, false, time.Since(start))
 		return nil, err
 	}
 	manifest, err := buildManifest(req, application.Name, application.RepoAddress, imageTarget, "", workloadConfig, services)
 	if err != nil {
+		observeManifest(ctx, nil, false, time.Since(start))
 		return nil, err
 	}
 	manifest.WithCreateDefault()
 	if err := submitManifestBuild(ctx, manifest, runtimeCfg.ImageRegistry.Repository(), imageTarget); err != nil {
 		log.Error("submit manifest build failed", zap.String("result", "error"), zap.Error(err))
+		observeManifest(ctx, manifest, false, time.Since(start))
 		return nil, err
 	}
 	if err := s.repoStore().Insert(ctx, manifest); err != nil {
 		log.Error("persist manifest failed", zap.String("result", "error"), zap.Error(err))
+		observeManifest(ctx, manifest, false, time.Since(start))
 		return nil, err
 	}
 	log.Info("manifest created",
@@ -116,6 +125,7 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 		zap.String("pipeline_id", manifest.PipelineID),
 		zap.String("image_ref", manifest.ImageRef),
 	)
+	observeManifest(ctx, manifest, true, time.Since(start))
 	return manifest, nil
 }
 
@@ -292,6 +302,7 @@ func (s *manifestService) AssignPipelineID(ctx context.Context, manifestID uuid.
 // UpdateManifestStatusByID persists the runtime-reported manifest status for a manifest row.
 // Manifest service does not derive aggregate status from local task-step snapshots; runtime writeback is the source of truth.
 func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifestID uuid.UUID, status model.ManifestStatus) error {
+	start := time.Now()
 	if manifestID == uuid.Nil {
 		return sharederrs.InvalidArgument("manifest id cannot be zero")
 	}
@@ -307,6 +318,9 @@ func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifest
 	current.UpdatedAt = time.Now()
 	if err := s.repoStore().UpdateStatusAndSteps(ctx, current.ID, current.Status, current.Steps, current.PipelineID); err != nil {
 		return err
+	}
+	if current.Status == model.ManifestAvailable || current.Status == model.ManifestUnavailable {
+		observeManifest(ctx, current, current.Status == model.ManifestAvailable, manifestTerminalDuration(current, start))
 	}
 	markManifestObservationTerminal(ctx, current)
 	return nil
@@ -367,6 +381,7 @@ func (s *manifestService) BindTaskRun(ctx context.Context, pipelineID, taskName,
 }
 
 func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID string, status model.ManifestStatus) error {
+	start := time.Now()
 	manifest, err := s.GetByPipelineID(ctx, pipelineID)
 	if err != nil {
 		return err
@@ -379,6 +394,9 @@ func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID s
 	manifest.UpdatedAt = time.Now()
 	if err := s.repoStore().UpdateStatusAndSteps(ctx, manifest.ID, manifest.Status, manifest.Steps, manifest.PipelineID); err != nil {
 		return err
+	}
+	if manifest.Status == model.ManifestAvailable || manifest.Status == model.ManifestUnavailable {
+		observeManifest(ctx, manifest, manifest.Status == model.ManifestAvailable, manifestTerminalDuration(manifest, start))
 	}
 	markManifestObservationTerminal(ctx, manifest)
 	return nil

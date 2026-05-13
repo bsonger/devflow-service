@@ -303,6 +303,15 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	applicationID := uuid.New()
 	runtimeSpecID := uuid.New()
 	var captured *runtimedomain.RuntimeObservedWorkload
+	var metricAction string
+	original := observeRuntimeActionMetricsFunc
+	observeRuntimeActionMetricsFunc = func(_ context.Context, action string, success bool, duration time.Duration) {
+		if success && duration >= 0 {
+			metricAction = action
+		}
+	}
+	defer func() { observeRuntimeActionMetricsFunc = original }()
+
 	svc := New(stubStore{
 		ensureRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
 			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
@@ -335,6 +344,9 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	}
 	if captured == nil || captured.WorkloadName != "meta-service" {
 		t.Fatalf("captured workload = %#v", captured)
+	}
+	if metricAction != "sync_runtime_workload" {
+		t.Fatalf("metric action = %q, want sync_runtime_workload", metricAction)
 	}
 }
 

@@ -177,6 +177,35 @@ future, use exemplars instead of labels.
 Step-level release metrics may additionally use:
 
 - `stage`
+- `result`
+
+Argo Application create metrics may additionally use:
+
+- `strategy`
+- `result`
+
+## Manifest workflow metrics
+
+Manifest workflow metrics must use this label set:
+
+- `pipeline_type`
+- `result`
+
+Do not add manifest, application, pipeline, trace, git revision, image, or
+control-plane identity values to metric labels. Those fields belong in structured
+logs or trace attributes.
+
+## Runtime action metrics
+
+Runtime action metrics must use this label set:
+
+- `action`
+- `result`
+
+Allowed runtime action values are bounded to operator/runtime write paths such as
+`sync_runtime_workload`, `sync_runtime_pod`, `delete_pod`, and
+`restart_deployment`. Do not add pod names, deployment names, namespaces,
+application IDs, or runtime spec IDs as metric labels.
 
 ## Dependency metrics
 
