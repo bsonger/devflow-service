@@ -87,11 +87,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	if preInitLogger == nil {
 		preInitLogger = zap.NewNop()
 	}
-	preInitLogger.Named("service.lifecycle").Info("initializing service runtime",
-		zap.String("operation", "init_service_runtime"),
-		zap.String("resource", "service_runtime"),
-		zap.String("result", "started"),
-	)
+	preInitLogger.Named("service.lifecycle").Info("initializing service runtime")
 	shutdown, err := initObservability(ctx, config.Log, config.Otel, config.Pyroscope, serviceName)
 	if err != nil {
 		return nil, err
