@@ -181,6 +181,19 @@ func buildReleaseConfigMap(namespace, applicationName string, release *model.Rel
 	}
 }
 
+func releaseHasAppConfig(snapshot model.ReleaseAppConfig) bool {
+	if len(snapshot.Data) > 0 {
+		return true
+	}
+	for _, file := range snapshot.Files {
+		if strings.TrimSpace(file.Name) == "" {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func buildReleaseServiceResources(namespace string, manifest *manifestdomain.Manifest, release *model.Release) ([]model.ReleaseRenderedResource, error) {
 	services := manifest.ServicesSnapshot
 	extras := 0
@@ -291,7 +304,7 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 		container["ports"] = ports
 	}
 	applyReleaseWorkloadProbes(container, workload.Probes)
-	if len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
+	if releaseHasAppConfig(release.AppConfigSnapshot) {
 		volumeName := "app-config"
 		container["volumeMounts"] = []map[string]any{{
 			"name":      volumeName,
@@ -312,7 +325,7 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 		podSpec["serviceAccount"] = workload.ServiceAccountName
 		podSpec["serviceAccountName"] = workload.ServiceAccountName
 	}
-	if len(release.AppConfigSnapshot.Data) > 0 || len(release.AppConfigSnapshot.Files) > 0 {
+	if releaseHasAppConfig(release.AppConfigSnapshot) {
 		podSpec["volumes"] = []map[string]any{{
 			"name": "app-config",
 			"configMap": map[string]any{

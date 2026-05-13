@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
@@ -33,7 +34,7 @@ func (s stubReleaseStore) Delete(context.Context, uuid.UUID) error { return nil 
 func (s stubReleaseStore) List(context.Context, repository.ListFilter) ([]*model.Release, error) {
 	return nil, nil
 }
-func (s stubReleaseStore) UpdateRow(context.Context, *model.Release) error { return nil }
+func (s stubReleaseStore) UpdateRow(context.Context, *model.Release) error   { return nil }
 func (s stubReleaseStore) UpdateSteps(context.Context, *model.Release) error { return nil }
 func (s stubReleaseStore) UpdateArgoMetadata(context.Context, uuid.UUID, string, string, time.Time) error {
 	return nil
@@ -44,6 +45,22 @@ type stubReleaseBundleStore struct{}
 func (stubReleaseBundleStore) Insert(context.Context, *model.ReleaseBundleRecord) error { return nil }
 func (stubReleaseBundleStore) GetByReleaseID(context.Context, uuid.UUID) (*model.ReleaseBundleRecord, error) {
 	return nil, sql.ErrNoRows
+}
+
+type stubReleaseConfigReader struct {
+	findFn func(context.Context, string, string) (*appconfigdownstream.AppConfig, error)
+}
+
+func (s stubReleaseConfigReader) FindAppConfig(ctx context.Context, applicationID, environmentID string) (*appconfigdownstream.AppConfig, error) {
+	return s.findFn(ctx, applicationID, environmentID)
+}
+
+type stubReleaseNetworkReader struct {
+	listFn func(context.Context, string, string) ([]servicedownstream.Route, error)
+}
+
+func (s stubReleaseNetworkReader) ListRoutes(ctx context.Context, applicationID, environmentID string) ([]servicedownstream.Route, error) {
+	return s.listFn(ctx, applicationID, environmentID)
 }
 
 func TestPopulateReleaseDefaultsPreservesProvidedEnv(t *testing.T) {
@@ -114,6 +131,54 @@ func TestCreateReleaseRejectsManifestThatIsNotAvailable(t *testing.T) {
 	}
 	if err != ErrReleaseManifestNotAvailable {
 		t.Fatalf("got err %v want %v", err, ErrReleaseManifestNotAvailable)
+	}
+}
+
+func TestFreezeReleaseLiveInputsAllowsMissingAppConfig(t *testing.T) {
+	originalConfigFactory := releaseConfigReaderFactory
+	originalNetworkFactory := releaseNetworkReaderFactory
+	defer func() {
+		releaseConfigReaderFactory = originalConfigFactory
+		releaseNetworkReaderFactory = originalNetworkFactory
+	}()
+
+	releaseConfigReaderFactory = func() releaseConfigReader {
+		return stubReleaseConfigReader{
+			findFn: func(_ context.Context, applicationID, environmentID string) (*appconfigdownstream.AppConfig, error) {
+				if applicationID == "" || environmentID == "" {
+					t.Fatalf("unexpected lookup args: application=%q environment=%q", applicationID, environmentID)
+				}
+				return nil, nil
+			},
+		}
+	}
+	releaseNetworkReaderFactory = func() releaseNetworkReader {
+		return stubReleaseNetworkReader{
+			listFn: func(_ context.Context, applicationID, environmentID string) ([]servicedownstream.Route, error) {
+				return []servicedownstream.Route{{
+					ID:          uuid.New().String(),
+					Name:        "api",
+					Host:        "document.example.com",
+					Path:        "/",
+					ServiceName: "document",
+					ServicePort: 80,
+				}}, nil
+			},
+		}
+	}
+
+	release := &model.Release{
+		ApplicationID: uuid.New(),
+		EnvironmentID: "production",
+	}
+	if err := freezeReleaseLiveInputs(context.Background(), release); err != nil {
+		t.Fatalf("freezeReleaseLiveInputs failed: %v", err)
+	}
+	if len(release.AppConfigSnapshot.Files) != 0 || len(release.AppConfigSnapshot.Data) != 0 {
+		t.Fatalf("expected empty app config snapshot, got %#v", release.AppConfigSnapshot)
+	}
+	if len(release.RoutesSnapshot) != 1 {
+		t.Fatalf("expected one route snapshot, got %#v", release.RoutesSnapshot)
 	}
 }
 

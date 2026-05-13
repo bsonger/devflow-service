@@ -83,7 +83,7 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 			httpx.WriteNotFound(c, "manifest not found")
 			return
 		}
-		if errors.Is(err, service.ErrReleaseManifestNotAvailable) || errors.Is(err, service.ErrReleaseAppConfigMissing) || errors.Is(err, downstreamhttp.ErrServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
+		if errors.Is(err, service.ErrReleaseManifestNotAvailable) || errors.Is(err, downstreamhttp.ErrServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
 			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
 			return
 		}

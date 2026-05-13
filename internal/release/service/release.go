@@ -66,7 +66,6 @@ var (
 var (
 	ErrReleaseManifestNotFound    = sharederrs.NotFound("manifest not found")
 	ErrReleaseManifestNotAvailable = sharederrs.FailedPrecondition("manifest is not available")
-	ErrReleaseAppConfigMissing     = sharederrs.FailedPrecondition("effective app config is missing")
 	ErrReleaseBundleNotReady       = sharederrs.FailedPrecondition("bundle not ready")
 	ErrReleaseUnknownStep          = sharederrs.InvalidArgument("unknown release step")
 )
@@ -84,6 +83,8 @@ type releaseConfigReader interface {
 }
 
 var releaseManifestSource releaseManifestReader = manifestservice.ManifestService
+var releaseConfigReaderFactory = func() releaseConfigReader { return newReleaseConfigReader() }
+var releaseNetworkReaderFactory = func() releaseNetworkReader { return newReleaseNetworkReader() }
 
 type releaseService struct {
 	store       repository.Store
@@ -163,32 +164,31 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	if release == nil {
 		return nil
 	}
-	configReader := newReleaseConfigReader()
+	configReader := releaseConfigReaderFactory()
 	appConfig, err := configReader.FindAppConfig(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
 	if err != nil {
 		return err
 	}
-	if appConfig == nil || len(appConfig.Files) == 0 {
-		return ErrReleaseAppConfigMissing
-	}
-	files := make([]model.ReleaseFile, 0, len(appConfig.Files))
-	for _, item := range appConfig.Files {
-		files = append(files, model.ReleaseFile{Name: item.Name, Content: item.Content})
-	}
-	data := make(map[string]string, len(appConfig.Files))
-	for _, item := range appConfig.Files {
-		data[item.Name] = item.Content
-	}
-	release.AppConfigSnapshot = model.ReleaseAppConfig{
-		ID:              appConfig.ID,
-		MountPath:       appConfig.MountPath,
-		Files:           files,
-		Data:            data,
-		SourceDirectory: appConfig.SourceDirectory,
-		SourceCommit:    appConfig.SourceCommit,
+	if appConfig != nil {
+		files := make([]model.ReleaseFile, 0, len(appConfig.Files))
+		for _, item := range appConfig.Files {
+			files = append(files, model.ReleaseFile{Name: item.Name, Content: item.Content})
+		}
+		data := make(map[string]string, len(appConfig.Files))
+		for _, item := range appConfig.Files {
+			data[item.Name] = item.Content
+		}
+		release.AppConfigSnapshot = model.ReleaseAppConfig{
+			ID:              appConfig.ID,
+			MountPath:       appConfig.MountPath,
+			Files:           files,
+			Data:            data,
+			SourceDirectory: appConfig.SourceDirectory,
+			SourceCommit:    appConfig.SourceCommit,
+		}
 	}
 
-	networkReader := newReleaseNetworkReader()
+	networkReader := releaseNetworkReaderFactory()
 	routes, err := networkReader.ListRoutes(ctx, release.ApplicationID.String(), release.EnvironmentID)
 	if err != nil {
 		return err
