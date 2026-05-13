@@ -13,6 +13,22 @@ Reader routing:
 
 This document does not redefine release resource ownership or runtime read-model ownership; it explains how progress returns to the release-owned record after Argo handoff.
 
+## Current Control-Plane Topology
+
+Current steady-state topology:
+
+- pre-production creates and owns build-side `Manifest`
+- pre-production `release-service` owns pre-production `Release` records
+- production `release-service` owns production `Release` records
+- production `release-service` may read missing manifests from the configured manifest source fallback
+- production runtime writeback targets production `release-service` directly
+
+Ownership rule:
+
+- the control plane that owns the deploy-side target owns the release record and callback surface
+- workload identity and observer routing use `devflow.control-plane/id`
+- a writeback `404 not_found` should be treated first as an ownership or stale-release problem
+
 ## Current owner
 
 - owning service boundary: `docs/services/release-service.md`
@@ -120,6 +136,7 @@ Current primary use:
 
 - external executors or observers may use this route for ongoing release step progression
 - the in-tree runtime rollout observer is one active caller when `runtime-service` starts with in-cluster config and release-service writeback configuration
+- in production, that runtime observer writes directly to production `release-service`
 - this remains a token-gated release-owned callback surface rather than a public user-facing route or a runtime-owned API
 - the stable `step_code` set is the compatibility boundary, and each code has one advancing owner even when multiple components can report facts into release-service
 - for workload-kind questions, separate metadata compatibility from live observation scope: release-owned labels, Argo `Application` metadata, and inspection helpers intentionally support both `Deployment` and `Rollout` primary workloads, and the active in-tree runtime rollout observer now advances the canonical step set according to the observed workload strategy
@@ -190,6 +207,7 @@ Normalized step statuses:
 - the canonical resource-level shape for release data still lives in `docs/resources/release.md`
 - the canonical step-by-step meaning of each release step now lives in `docs/system/release-steps.md`
 - when writeback contracts change, update this file, `docs/resources/release.md`, and the handler tests in the same change
+- if writeback returns `404 not_found`, inspect ownership routing before retry behavior
 
 ## Source pointers
 

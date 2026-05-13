@@ -106,12 +106,14 @@
 - the runtime index is not durable local storage inside `runtime-service`
 - after restart, runtime state is expected to be rebuilt by the in-process observers
 - release-owned Kubernetes metadata is the runtime identity contract: rendered workloads, pod templates, and the Argo CD `Application` handoff object must all carry `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, and `devflow.environment/id`
+- `devflow.control-plane/id` is also part of the active runtime ownership contract; observers only process workloads that belong to the local control plane when `observer.control_plane_id` is configured
 - runtime-service consumes those labels as the authoritative release/application/environment lookup surface; it must not require annotations for identity recovery
 - Argo CD `Application` annotations are reserved for supplementary tracing context such as trace/span correlation during handoff diagnostics
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
-- when release writeback wiring is present, that rollout observer is a callback sender into `release-service`; it does not become the owner of release status, release steps, or writeback route policy
+- when release writeback wiring is present, that rollout observer is a callback sender into the owning `release-service`; it does not become the owner of release status, release steps, or writeback route policy
+- in production, runtime observer writeback targets production `release-service` directly
 - release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, and the active in-tree runtime rollout observer now derives live rollout progress from the observed workload kind
 - once `finalize_release` closes a release, runtime-side late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
 
@@ -163,6 +165,15 @@ internal/runtime/transport/http
 - `/api/v1/runtime/...`
 
 Internal observer callbacks are service-internal only and are not part of the shared-ingress external contract.
+
+## Current Control-Plane Routing
+
+Runtime observer routing is label-scoped:
+
+- pre-production runtime observers process pre-production workloads
+- production runtime observers process production workloads
+- `devflow.control-plane/id` plus local `observer.control_plane_id` is the control-plane filter
+- writeback goes to the release-service configured for that runtime service
 
 ## Primary operator flows
 

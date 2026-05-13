@@ -30,6 +30,13 @@
 
 `release-service` 负责从 build 到 deploy 的交接记录和执行流程。
 
+当前 pre-production / production 拆分下，最短准确描述是：
+
+- pre-production `release-service` creates and owns build-side `Manifest`
+- production `release-service` creates and owns production deploy-side `Release`
+- production `release-service` may read a missing referenced manifest from the configured manifest source fallback
+- production `runtime-service` writes rollout progress back to production `release-service`
+
 它会：
 
 - 创建 build-side 的 `Manifest`
@@ -102,6 +109,19 @@
 - the runtime/config surface still uses the legacy `manifest_registry` key and helper names
 - in the current code path that naming refers to the registry target for release deployment bundle publication, not ownership of the `Manifest` API resource
 
+### Control-plane federation dependencies
+
+Current control-plane-specific downstream settings:
+
+- `downstream.manifest_source_base_url`
+  - used by the owning `release-service` when it needs to read a manifest that is not present in the local store
+- `downstream.release_service_base_url`
+  - reserved for explicit release-service federation routes; do not infer ownership from namespace naming alone
+
+The active production flow does not move release truth back to pre-production.
+Production release records and production callback state belong to production
+`release-service`.
+
 ### Upstream business dependencies
 
 - `meta-service`
@@ -145,7 +165,8 @@
 创建 `Release` 时，`release-service` 会组合这些上游事实：
 
 1. read frozen manifest from release-owned persistence
-2. read app config from `config-service`
+   - or read it from configured manifest-source fallback when this control plane owns the release but the manifest was built elsewhere
+2. read app config from `config-service` when present
 3. read route list from `network-service`
 4. resolve application / environment / cluster deploy target from `meta-service`
 5. freeze those live inputs onto the release row
@@ -154,6 +175,7 @@
 这说明：
 
 - `Release` 是 release-owned 的 deploy-side record
+- the control plane that owns the deploy-side target owns the durable `Release` row
 
 它承担的观察面包括：
 
@@ -175,12 +197,14 @@
 4. `release-service` does not poll Argo CD application status during normal release detail reads
 5. rollout progress writeback, when used, comes through release-owned writeback routes
 6. those writeback routes are part of the release boundary, not a public runtime API surface
+7. production rollout writeback targets production `release-service` directly
 
 从系统生命周期文档延续下来的关键提醒：
 
 - `start_deployment` remains the release-service-owned handoff step for rolling releases.
 - `observe_rollout` and `finalize_release` remain callback-owned follow-up steps after that handoff.
 - release/application/environment identity must continue to ride on labels; annotations stay supplementary diagnostics only.
+- `devflow.control-plane/id` is part of the runtime ownership contract; observers use it to keep pre-production and production truth separated.
 - the release metadata and inspection contract stays compatible with both `Deployment` and `Rollout` primary workloads, and the active in-tree runtime observer now writes back rolling, blue-green, and canary rollout progression from the observed workload kind.
 - once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
 
