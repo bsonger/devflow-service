@@ -174,6 +174,50 @@ run_metrics_label_policy_check() {
   [[ -z "$legacy_matches" ]] || fail "metrics attributes must use canonical Prometheus-safe labels such as service_name, deployment_environment_name, http_route, and http_response_status_code:\n$legacy_matches"
 }
 
+run_control_plane_metrics_policy_check() {
+  info "Running control-plane metrics policy checks"
+
+  local missing
+  missing="$(
+    cd "$ROOT_DIR"
+    for pattern in \
+      'app_config_sync_total' \
+      'app_config_sync_success_total' \
+      'app_config_sync_failed_total' \
+      'app_config_sync_duration_seconds' \
+      'release_stage_total' \
+      'release_stage_failed_total' \
+      'release_stage_duration_seconds' \
+      'argo_application_create_total' \
+      'argo_application_create_success_total' \
+      'argo_application_create_failed_total' \
+      'argo_application_create_duration_seconds' \
+      'argo_rollout_total' \
+      'argo_rollout_success_total' \
+      'argo_rollout_failed_total' \
+      'argo_rollout_duration_seconds' \
+      'release_writeback_total' \
+      'release_writeback_failed_total' \
+      'release_writeback_duration_seconds' \
+      'runtime_observer_sync_total' \
+      'runtime_observer_sync_failed_total' \
+      'runtime_observer_sync_duration_seconds' \
+      'manifest_total' \
+      'manifest_failed_total' \
+      'manifest_duration_seconds' \
+      'manifest_task_total' \
+      'manifest_task_failed_total' \
+      'manifest_task_duration_seconds' \
+      'runtime_action_total' \
+      'runtime_action_failed_total' \
+      'runtime_action_duration_seconds'; do
+      rg -n "$pattern" internal docs/observability/metrics-spec.md >/dev/null || echo "$pattern"
+    done
+  )"
+  [[ -z "$missing" ]] || fail "control-plane metric families are missing from code or active spec:
+$missing"
+}
+
 run_observability_deployment_policy_check() {
   info "Running observability deployment policy checks"
 
@@ -721,6 +765,7 @@ run_worker_runtime_policy_check
 run_no_mongo_remnants_check
 run_observability_logging_policy_check
 run_metrics_label_policy_check
+run_control_plane_metrics_policy_check
 run_observability_deployment_policy_check
 run_workload_metrics_contract_check
 run_preproduction_manifest_syntax_check
