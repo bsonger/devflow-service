@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
@@ -96,15 +97,34 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 	if namespace == "" {
 		namespace = metav1.NamespaceAll
 	}
-	deployments, err := o.clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releaseDiscoverySelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
+	selector := releaseDiscoverySelector(strings.TrimSpace(o.cfg.ControlPlaneID))
+	var deployments *appsv1.DeploymentList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "list_runtime_deployments",
+	}, func(depCtx context.Context) error {
+		var err error
+		deployments, err = o.clientset.AppsV1().Deployments(namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		return err
 	})
 	if err != nil {
 		log.Warn("list runtime deployments failed", zap.Error(err))
 		return
 	}
-	rollouts, err := o.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releaseDiscoverySelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
+	var rollouts *unstructured.UnstructuredList
+	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argo_rollouts",
+		Operation: "list_runtime_rollouts",
+	}, func(depCtx context.Context) error {
+		var err error
+		rollouts, err = o.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		return err
 	})
 	if err != nil {
 		log.Warn("list runtime rollouts failed", zap.Error(err))
@@ -167,14 +187,32 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 		return err
 	}
 
-	deployments, err := o.clientset.AppsV1().Deployments(targetNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
+	var deployments *appsv1.DeploymentList
+	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "list_release_owned_deployments",
+	}, func(depCtx context.Context) error {
+		var err error
+		deployments, err = o.clientset.AppsV1().Deployments(targetNamespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	rollouts, err := o.dynamic.Resource(releaseRolloutGVR).Namespace(targetNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
+	var rollouts *unstructured.UnstructuredList
+	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argo_rollouts",
+		Operation: "list_release_owned_rollouts",
+	}, func(depCtx context.Context) error {
+		var err error
+		rollouts, err = o.dynamic.Resource(releaseRolloutGVR).Namespace(targetNamespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		return err
 	})
 	if err != nil {
 		return err
@@ -183,8 +221,17 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 		return err
 	}
 
-	pods, err := o.clientset.CoreV1().Pods(targetNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
+	var pods *corev1.PodList
+	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "list_release_owned_pods",
+	}, func(depCtx context.Context) error {
+		var err error
+		pods, err = o.clientset.CoreV1().Pods(targetNamespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		return err
 	})
 	if err != nil {
 		return err

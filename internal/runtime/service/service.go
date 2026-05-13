@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
@@ -201,13 +202,25 @@ type k8sExecutor struct {
 }
 
 func (k *k8sExecutor) DeletePod(ctx context.Context, namespace, name string) error {
-	return k.clientset.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "delete_pod",
+	}, func(depCtx context.Context) error {
+		return k.clientset.CoreV1().Pods(namespace).Delete(depCtx, name, metav1.DeleteOptions{})
+	})
 }
 
 func (k *k8sExecutor) RestartDeployment(ctx context.Context, namespace, name string) error {
 	patch := []byte(fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().Format(time.RFC3339)))
-	_, err := k.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
-	return err
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "restart_deployment",
+	}, func(depCtx context.Context) error {
+		_, err := k.clientset.AppsV1().Deployments(namespace).Patch(depCtx, name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+		return err
+	})
 }
 
 func (s *runtimeService) CreateRuntimeSpec(ctx context.Context, in CreateRuntimeSpecInput) (*domain.RuntimeSpec, error) {
