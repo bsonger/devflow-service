@@ -5,9 +5,11 @@ import (
 
 	appdomain "github.com/bsonger/devflow-service/internal/application/domain"
 	applicationservice "github.com/bsonger/devflow-service/internal/application/service"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	projectdomain "github.com/bsonger/devflow-service/internal/project/domain"
 	projectrepo "github.com/bsonger/devflow-service/internal/project/repository"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type ProjectListFilter struct {
@@ -35,7 +37,17 @@ func NewService(store projectrepo.Store) Service {
 }
 
 func (s *service) Create(ctx context.Context, project *projectdomain.Project) (uuid.UUID, error) {
-	return s.store.Create(ctx, project)
+	log := platformobs.OperationLogger(ctx, "project_service", "create_project", "project")
+	id, err := s.store.Create(ctx, project)
+	if err != nil {
+		platformobs.LogOperationFailure(log, "create project failed", err)
+		return uuid.Nil, err
+	}
+	platformobs.LogOperationSuccess(log, "project created",
+		zap.String("resource_id", id.String()),
+		zap.String("devflow.project.id", id.String()),
+	)
+	return id, nil
 }
 
 func (s *service) Get(ctx context.Context, id uuid.UUID) (*projectdomain.Project, error) {
@@ -43,15 +55,40 @@ func (s *service) Get(ctx context.Context, id uuid.UUID) (*projectdomain.Project
 }
 
 func (s *service) Update(ctx context.Context, project *projectdomain.Project) error {
-	return s.store.Update(ctx, project)
+	log := platformobs.OperationLogger(ctx, "project_service", "update_project", "project",
+		zap.String("resource_id", projectID(project)),
+		zap.String("devflow.project.id", projectID(project)),
+	)
+	if err := s.store.Update(ctx, project); err != nil {
+		platformobs.LogOperationFailure(log, "update project failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "project updated")
+	return nil
 }
 
 func (s *service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.store.Delete(ctx, id)
+	log := platformobs.OperationLogger(ctx, "project_service", "delete_project", "project",
+		zap.String("resource_id", id.String()),
+		zap.String("devflow.project.id", id.String()),
+	)
+	if err := s.store.Delete(ctx, id); err != nil {
+		platformobs.LogOperationFailure(log, "delete project failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "project deleted")
+	return nil
 }
 
 func (s *service) List(ctx context.Context, filter ProjectListFilter) ([]projectdomain.Project, error) {
 	return s.store.List(ctx, filter.IncludeDeleted, filter.Name)
+}
+
+func projectID(project *projectdomain.Project) string {
+	if project == nil || project.ID == uuid.Nil {
+		return ""
+	}
+	return project.ID.String()
 }
 
 func (s *service) ListApplications(ctx context.Context, projectID uuid.UUID) ([]projectdomain.Application, error) {

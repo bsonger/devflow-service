@@ -9,7 +9,7 @@ import (
 
 	clusterdomain "github.com/bsonger/devflow-service/internal/cluster/domain"
 	clusterrepo "github.com/bsonger/devflow-service/internal/cluster/repository"
-	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -145,7 +145,15 @@ func (s *service) Update(ctx context.Context, cluster *clusterdomain.Cluster) er
 }
 
 func (s *service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.store.Delete(ctx, id)
+	log := clusterLogger(ctx, "delete_cluster", id)
+	if err := s.store.Delete(ctx, id); err != nil {
+		platformobs.LogOperationFailure(log, "delete cluster failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "cluster deleted",
+		zap.String("resource_id", id.String()),
+	)
+	return nil
 }
 
 func (s *service) List(ctx context.Context, filter ListFilter) ([]clusterdomain.Cluster, error) {
@@ -202,43 +210,11 @@ func clusterLogger(ctx context.Context, operation string, resourceID uuid.UUID) 
 	if resourceID != uuid.Nil {
 		resourceIDValue = resourceID.String()
 	}
-	return logger.LoggerWithContext(ctx).With(
-		zap.String("operation", operation),
-		zap.String("resource", "cluster"),
+	return platformobs.OperationLogger(ctx, "cluster_service", operation, "cluster",
 		zap.String("resource_id", resourceIDValue),
 	)
 }
 
 func logClusterFailure(log *zap.Logger, msg string, err error) {
-	log.Error(msg,
-		zap.String("result", "error"),
-		zap.String("error_code", appErrorCode(err)),
-		zap.Error(err),
-	)
-}
-
-func appErrorCode(err error) string {
-	if code := sharederrs.Code(err); code != "" {
-		return code
-	}
-
-	switch {
-	case err == nil:
-		return ""
-	case errors.Is(err, sql.ErrNoRows):
-		return "not_found"
-	case errors.Is(err, ErrClusterConflict):
-		return "conflict"
-	case errors.Is(err, ErrClusterNameRequired),
-		errors.Is(err, ErrClusterServerRequired),
-		errors.Is(err, ErrClusterKubeConfigRequired),
-		errors.Is(err, ErrClusterOnboardingMalformed):
-		return "invalid_argument"
-	case errors.Is(err, ErrClusterOnboardingTimeout):
-		return "deadline_exceeded"
-	case errors.Is(err, ErrClusterOnboardingFailed):
-		return "failed_precondition"
-	default:
-		return "internal"
-	}
+	platformobs.LogOperationFailure(log, msg, err)
 }

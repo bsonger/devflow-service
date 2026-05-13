@@ -14,10 +14,12 @@ import (
 	"github.com/bsonger/devflow-service/internal/applicationenv/repository"
 	envdomain "github.com/bsonger/devflow-service/internal/environment/domain"
 	envservice "github.com/bsonger/devflow-service/internal/environment/service"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	workloadconfigdomain "github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	workloadconfigservice "github.com/bsonger/devflow-service/internal/workloadconfig/service"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 var (
@@ -95,10 +97,16 @@ func NewService(
 
 func (s *bindingService) Attach(ctx context.Context, applicationId uuid.UUID, input domain.BindingInput) (*domain.Binding, error) {
 	environmentId := strings.TrimSpace(input.EnvironmentID)
+	log := platformobs.OperationLogger(ctx, "application_service", "attach_application_environment", "application_environment",
+		zap.String("devflow.application.id", applicationId.String()),
+		zap.String("devflow.environment.id", environmentId),
+	)
 	if environmentId == "" {
+		platformobs.LogOperationFailure(log, "attach application environment failed", ErrEnvironmentIDRequired)
 		return nil, ErrEnvironmentIDRequired
 	}
 	if err := s.validateReferences(ctx, applicationId, environmentId); err != nil {
+		platformobs.LogOperationFailure(log, "attach application environment failed", err)
 		return nil, err
 	}
 
@@ -109,8 +117,10 @@ func (s *bindingService) Attach(ctx context.Context, applicationId uuid.UUID, in
 	item.WithCreateDefault()
 	_, err := s.store.Create(ctx, item)
 	if err != nil {
+		platformobs.LogOperationFailure(log, "attach application environment failed", err)
 		return nil, err
 	}
+	platformobs.LogOperationSuccess(log, "application environment attached")
 	return item, nil
 }
 
@@ -137,7 +147,17 @@ func (s *bindingService) List(ctx context.Context, applicationId uuid.UUID) ([]B
 }
 
 func (s *bindingService) Delete(ctx context.Context, applicationId uuid.UUID, environmentId string) error {
-	return s.store.Delete(ctx, applicationId, strings.TrimSpace(environmentId))
+	environmentId = strings.TrimSpace(environmentId)
+	log := platformobs.OperationLogger(ctx, "application_service", "detach_application_environment", "application_environment",
+		zap.String("devflow.application.id", applicationId.String()),
+		zap.String("devflow.environment.id", environmentId),
+	)
+	if err := s.store.Delete(ctx, applicationId, environmentId); err != nil {
+		platformobs.LogOperationFailure(log, "detach application environment failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "application environment detached")
+	return nil
 }
 
 func (s *bindingService) GetDetail(ctx context.Context, applicationId uuid.UUID, environmentId string) (*BindingDetail, error) {
