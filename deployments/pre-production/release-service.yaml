@@ -26,11 +26,13 @@ data:
       base_url: "http://runtime-service.devflow-pre-production.svc.cluster.local:8084"
     observer:
       shared_token: ""
+      control_plane_id: "devflow-pre-production"
     downstream:
       platform_orchestrator_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
       meta_service_base_url: "http://meta-service.devflow-pre-production.svc.cluster.local:8081"
       network_service_base_url: "http://network-service.devflow-pre-production.svc.cluster.local:8086"
       config_service_base_url: "http://config-service.devflow-pre-production.svc.cluster.local:8082"
+      release_service_base_url: "http://release-service.devflow.svc.cluster.local:80"
     tekton:
       namespace: "tekton-pipelines"
       build_pipeline: "devflow-tekton-image-build-push-only"

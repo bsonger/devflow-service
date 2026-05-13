@@ -21,6 +21,8 @@ data:
       release_service_base_url: "http://release-service.devflow-pre-production.svc.cluster.local:8083"
     observer:
       shared_token: ""
+      control_plane_id: "devflow-pre-production"
+      tekton_manifest_enabled: true
       tekton_namespace: "tekton-pipelines"
       poll_interval_seconds: 15
     pyroscope: ""
