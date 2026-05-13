@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -70,6 +71,12 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
+	if releaseShouldProxyByManifest(c.Request.Context(), req.ManifestID, req.EnvironmentID) {
+		body, _ := json.Marshal(req)
+		if proxyReleaseRequest(c, http.MethodPost, "/api/v1/releases", body, "application/json") {
+			return
+		}
+	}
 	release := &model.Release{
 		ManifestID:    req.ManifestID,
 		EnvironmentID: req.EnvironmentID,
@@ -109,6 +116,9 @@ func (h *ReleaseHandler) Get(c *gin.Context) {
 	release, err := h.svc.Get(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			if proxyReleaseRequest(c, http.MethodGet, "/api/v1/releases/"+id.String(), nil, "") {
+				return
+			}
 			httpx.WriteNotFound(c, "not found")
 			return
 		}
@@ -135,6 +145,9 @@ func (h *ReleaseHandler) GetBundlePreview(c *gin.Context) {
 	bundle, err := h.svc.GetBundlePreview(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			if proxyReleaseRequest(c, http.MethodGet, "/api/v1/releases/"+id.String()+"/bundle-preview", nil, "") {
+				return
+			}
 			httpx.WriteNotFound(c, "not found")
 			return
 		}
@@ -165,6 +178,9 @@ func (h *ReleaseHandler) Delete(c *gin.Context) {
 	}
 	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			if proxyReleaseRequest(c, http.MethodDelete, "/api/v1/releases/"+id.String(), nil, "") {
+				return
+			}
 			httpx.WriteNotFound(c, "not found")
 			return
 		}
@@ -201,6 +217,11 @@ func (h *ReleaseHandler) List(c *gin.Context) {
 	}
 	filter.ApplicationID = applicationId
 	filter.EnvironmentID = environmentID
+	if releaseShouldProxyByTarget(c.Request.Context(), *applicationId, environmentID) {
+		if proxyReleaseRequest(c, http.MethodGet, "/api/v1/releases", nil, "") {
+			return
+		}
+	}
 	manifestID, ok := httpx.ParseUUIDQuery(c, "manifest_id")
 	if !ok {
 		return
