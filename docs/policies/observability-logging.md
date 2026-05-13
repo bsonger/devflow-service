@@ -213,6 +213,19 @@ Recommended labels:
 Do not include manifest IDs, pipeline IDs, application IDs, pod names,
 deployment names, namespaces, or control-plane identity as labels.
 
+#### Runtime observer and writeback metrics
+
+Recommended labels:
+- `observer_type`
+- `callback_type`
+- `task_name`
+- `strategy`
+- `sync_source`
+- `result`
+
+Use only the subset that describes the specific metric. Do not add Kubernetes
+object names, release IDs, manifest IDs, environment IDs, or control-plane IDs.
+
 #### Dependency metrics
 
 Recommended labels:

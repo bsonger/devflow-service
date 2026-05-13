@@ -41,6 +41,7 @@ func NewReleaseWritebackHandler() *ReleaseWritebackHandler {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/verify/argo/events [post]
 func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
+	start := time.Now()
 	var req ArgoEventRequest
 	if !httpx.BindJSON(c, &req) {
 		return
@@ -53,20 +54,32 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 	for _, step := range deriveArgoStepUpdates(req.Status) {
 		if err := h.svc.UpdateStep(c.Request.Context(), releaseID, step.StepCode, step.Status, step.Progress, step.Message, nil, nil); err != nil {
 			if shouldIgnoreReleaseWritebackError(err) {
+				observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 				httpx.WriteNoContent(c)
 				return
 			}
+			observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 			writeReleaseVerifyError(c, err)
 			return
 		}
 	}
 	if err := h.svc.UpdateStatus(c.Request.Context(), releaseID, status); err != nil {
 		if shouldIgnoreReleaseWritebackError(err) {
+			observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 			httpx.WriteNoContent(c)
 			return
 		}
+		observeReleaseWriteback(c.Request.Context(), "argo_event", false, time.Since(start))
 		writeReleaseVerifyError(c, err)
 		return
+	}
+	observeReleaseWriteback(c.Request.Context(), "argo_event", true, time.Since(start))
+	if release, err := h.svc.Get(c.Request.Context(), releaseID); err == nil && release != nil {
+		duration := time.Duration(0)
+		if !release.CreatedAt.IsZero() {
+			duration = time.Since(release.CreatedAt)
+		}
+		observeArgoRollout(c.Request.Context(), release, status, duration)
 	}
 	httpx.WriteNoContent(c)
 }
@@ -82,6 +95,7 @@ func (h *ReleaseWritebackHandler) HandleArgoEvent(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/verify/release/steps [post]
 func (h *ReleaseWritebackHandler) HandleReleaseStep(c *gin.Context) {
+	start := time.Now()
 	var req ReleaseStepRequest
 	if !httpx.BindJSON(c, &req) {
 		return
@@ -99,12 +113,15 @@ func (h *ReleaseWritebackHandler) HandleReleaseStep(c *gin.Context) {
 	message := normalizedReleaseStepMessage(stepKey, status, req.Progress, req.Message)
 	if err := h.svc.UpdateStep(c.Request.Context(), releaseID, stepKey, status, req.Progress, message, nil, nil); err != nil {
 		if shouldIgnoreReleaseWritebackError(err) {
+			observeReleaseWriteback(c.Request.Context(), "release_step", false, time.Since(start))
 			httpx.WriteNoContent(c)
 			return
 		}
+		observeReleaseWriteback(c.Request.Context(), "release_step", false, time.Since(start))
 		writeReleaseVerifyError(c, err)
 		return
 	}
+	observeReleaseWriteback(c.Request.Context(), "release_step", true, time.Since(start))
 	httpx.WriteNoContent(c)
 }
 
@@ -119,6 +136,7 @@ func (h *ReleaseWritebackHandler) HandleReleaseStep(c *gin.Context) {
 // @Failure 500 {object} httpx.ErrorResponse
 // @Router /api/v1/verify/release/artifact [post]
 func (h *ReleaseWritebackHandler) HandleReleaseArtifact(c *gin.Context) {
+	start := time.Now()
 	var req ReleaseArtifactRequest
 	if !httpx.BindJSON(c, &req) {
 		return
@@ -139,12 +157,15 @@ func (h *ReleaseWritebackHandler) HandleReleaseArtifact(c *gin.Context) {
 		req.Progress,
 	); err != nil {
 		if shouldIgnoreReleaseWritebackError(err) {
+			observeReleaseWriteback(c.Request.Context(), "release_artifact", false, time.Since(start))
 			httpx.WriteNoContent(c)
 			return
 		}
+		observeReleaseWriteback(c.Request.Context(), "release_artifact", false, time.Since(start))
 		writeReleaseVerifyError(c, err)
 		return
 	}
+	observeReleaseWriteback(c.Request.Context(), "release_artifact", true, time.Since(start))
 	httpx.WriteNoContent(c)
 }
 

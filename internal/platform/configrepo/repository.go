@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -70,10 +71,15 @@ func NewRepository(opts Options) *Repository {
 
 func (r *Repository) ReadSnapshot(ctx context.Context, sourcePath, env string) (*Snapshot, error) {
 	sourceCommit := r.defaultRefOrMain()
+	syncStart := time.Now()
 	if commit, err := r.sync(ctx); err != nil {
+		observeConfigRepoSync(ctx, false, time.Since(syncStart))
 		return nil, err
 	} else if commit != "" {
+		observeConfigRepoSync(ctx, true, time.Since(syncStart))
 		sourceCommit = commit
+	} else {
+		observeConfigRepoSync(ctx, true, time.Since(syncStart))
 	}
 	resolved, err := resolveLayout(r.rootDir, sourcePath, env)
 	if err != nil {

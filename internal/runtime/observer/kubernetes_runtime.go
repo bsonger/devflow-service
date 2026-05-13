@@ -82,6 +82,9 @@ func (o *KubernetesRuntimeObserver) run(ctx context.Context) {
 }
 
 func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
+	start := time.Now()
+	success := false
+	defer func() { observeRuntimeObserverSync(ctx, "kubernetes_runtime", success, time.Since(start)) }()
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
 		log = zap.NewNop()
@@ -145,6 +148,7 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 			)
 		}
 	}
+	success = true
 }
 
 type runtimeObserverTarget struct {

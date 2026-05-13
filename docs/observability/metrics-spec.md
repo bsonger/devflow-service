@@ -207,6 +207,35 @@ Allowed runtime action values are bounded to operator/runtime write paths such a
 `restart_deployment`. Do not add pod names, deployment names, namespaces,
 application IDs, or runtime spec IDs as metric labels.
 
+Runtime observer sync metrics must use this label set:
+
+- `observer_type`
+- `result`
+
+Tekton manifest task metrics must use this label set:
+
+- `task_name`
+- `result`
+
+## Config repository metrics
+
+Config repository sync metrics must use this label set:
+
+- `sync_source`
+- `result`
+
+## Release writeback metrics
+
+Release writeback callback metrics must use this label set:
+
+- `callback_type`
+- `result`
+
+Argo rollout writeback metrics may use:
+
+- `strategy`
+- `result`
+
 ## Dependency metrics
 
 Dependency metrics must use this label set:

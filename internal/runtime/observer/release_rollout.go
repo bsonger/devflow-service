@@ -156,6 +156,9 @@ func (o *ReleaseRolloutObserver) run(ctx context.Context) {
 }
 
 func (o *ReleaseRolloutObserver) sync(ctx context.Context) {
+	start := time.Now()
+	success := false
+	defer func() { observeRuntimeObserverSync(ctx, "release_rollout", success, time.Since(start)) }()
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
 		log = zap.NewNop()
@@ -179,6 +182,7 @@ func (o *ReleaseRolloutObserver) sync(ctx context.Context) {
 			)
 		}
 	}
+	success = true
 }
 
 func (o *ReleaseRolloutObserver) syncRuntimeSpec(ctx context.Context, spec *runtimedomain.RuntimeSpec, log *zap.Logger) error {

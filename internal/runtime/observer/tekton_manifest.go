@@ -13,8 +13,8 @@ import (
 
 	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
-	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
@@ -105,6 +105,9 @@ func (o *TektonManifestObserver) run(ctx context.Context) {
 // sync polls build-side Tekton resources and forwards only manifest writeback updates to release-service.
 // It does not report release rollout progress; deploy-phase diagnostics continue through release rows, bundle preview, and Argo-facing execution.
 func (o *TektonManifestObserver) sync(ctx context.Context) {
+	start := time.Now()
+	success := false
+	defer func() { observeRuntimeObserverSync(ctx, "tekton_manifest", success, time.Since(start)) }()
 	log := logger.LoggerWithContext(ctx)
 	if log == nil {
 		log = zap.NewNop()
@@ -132,6 +135,7 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 			)
 		}
 	}
+	success = true
 }
 
 // syncPipelineRun translates one Tekton build pipeline run into manifest writeback callbacks.
@@ -190,12 +194,16 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 }
 
 func (o *TektonManifestObserver) syncTaskRun(ctx context.Context, manifestID, pipelineID string, tr *tknv1.TaskRun) error {
+	start := time.Now()
+	status := mapTaskRunStatus(tr)
+	success := status != model.StepFailed
+	defer func() { observeManifestTask(ctx, taskRunName(tr), string(status), success, time.Since(start)) }()
 	payload := map[string]any{
 		"manifest_id": manifestID,
 		"pipeline_id": pipelineID,
 		"task_name":   taskRunName(tr),
 		"task_run":    tr.Name,
-		"status":      mapTaskRunStatus(tr),
+		"status":      status,
 		"message":     taskRunMessage(tr),
 	}
 	if ts := tr.Status.StartTime; ts != nil {
