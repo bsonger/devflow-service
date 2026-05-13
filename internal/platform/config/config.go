@@ -96,11 +96,7 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	if preInitLogger == nil {
 		preInitLogger = zap.NewNop()
 	}
-	preInitLogger.Named("service.lifecycle").Info("initializing service runtime",
-		zap.String("operation", "init_service_runtime"),
-		zap.String("resource", "service_runtime"),
-		zap.String("result", "started"),
-	)
+	preInitLogger.Named("service.lifecycle").Info("initializing service runtime")
 	shutdown, err := observability.Init(ctx, observability.RuntimeOptions{
 		LogLevel:               stringValue(config.Log, func(v *LogConfig) string { return v.Level }),
 		LogFormat:              stringValue(config.Log, func(v *LogConfig) string { return v.Format }),
@@ -132,21 +128,13 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 
 	db.InitPostgres(conn)
 	initConfigRepo(config)
-	logger.RootLogger.Named("service.lifecycle").Info("service runtime initialized",
-		zap.String("operation", "init_service_runtime"),
-		zap.String("resource", "service_runtime"),
-		zap.String("result", "success"),
-	)
+	logger.RootLogger.Named("service.lifecycle").Info("service runtime initialized")
 
 	return func(shutdownCtx context.Context) error {
 		closeErr := conn.Close()
 		shutdownErr := shutdown(shutdownCtx)
 		if shutdownErr == nil && closeErr == nil {
-			logger.RootLogger.Named("service.lifecycle").Info("service runtime stopped",
-				zap.String("operation", "shutdown_service_runtime"),
-				zap.String("resource", "service_runtime"),
-				zap.String("result", "success"),
-			)
+			logger.RootLogger.Named("service.lifecycle").Info("service runtime stopped")
 		}
 		if shutdownErr != nil {
 			return shutdownErr

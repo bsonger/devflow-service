@@ -57,9 +57,6 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 			Message:   "dependency call failed",
 		})
 		log.Error("dependency call failed",
-			zap.String("operation", "dependency_call"),
-			zap.String("resource", "dependency"),
-			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
 			zap.String("action", safeAction(call.Operation)),
 			zap.String("result", "error"),
@@ -70,9 +67,6 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 	} else {
 		span.SetStatus(codes.Ok, "ok")
 		log.Info("dependency call completed",
-			zap.String("operation", "dependency_call"),
-			zap.String("resource", "dependency"),
-			zap.String("component", "dependency_client"),
 			zap.String("dependency", call.Target),
 			zap.String("action", safeAction(call.Operation)),
 			zap.String("result", "ok"),

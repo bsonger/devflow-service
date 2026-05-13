@@ -76,7 +76,6 @@ func runReleaseIntentWorker(ctx context.Context, cfg ReleaseIntentWorkerConfig, 
 		zap.String("execution_mode", string(GetExecutionMode())),
 	)
 	log.Info("release intent worker started",
-		zap.String("result", "starting"),
 		zap.Duration("lease_duration", cfg.LeaseDuration),
 		zap.Duration("poll_interval", cfg.PollInterval),
 	)
@@ -87,14 +86,14 @@ func runReleaseIntentWorker(ctx context.Context, cfg ReleaseIntentWorkerConfig, 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info("release intent worker stopped", zap.String("result", "stopped"))
+			log.Info("release intent worker stopped")
 			return
 		default:
 		}
 
 		processed, err := processor.ProcessNextReleaseIntent(ctx, cfg.WorkerID, cfg.LeaseDuration)
 		if err != nil {
-			log.Error("release intent worker iteration failed", zap.String("result", "error"), zap.Error(err))
+			log.Error("release intent worker iteration failed", zap.Error(err))
 		}
 		if processed {
 			continue
@@ -102,7 +101,7 @@ func runReleaseIntentWorker(ctx context.Context, cfg ReleaseIntentWorkerConfig, 
 
 		select {
 		case <-ctx.Done():
-			log.Info("release intent worker stopped", zap.String("result", "stopped"))
+			log.Info("release intent worker stopped")
 			return
 		case <-ticker.C:
 		}

@@ -25,9 +25,6 @@ func InitPyroscope(name, address string) {
 		},
 	}); err != nil {
 		logger.Logger.Warn("pyroscope initialization failed",
-			zap.String("operation", "init_pyroscope"),
-			zap.String("resource", "pyroscope"),
-			zap.String("result", "error"),
 			zap.String("application_name", name),
 			zap.String("server_address", address),
 			zap.Error(err),
