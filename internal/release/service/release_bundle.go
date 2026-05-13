@@ -404,7 +404,7 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 
 func buildReleaseWorkloadEnv(_ string, _ string, manifest *manifestdomain.Manifest) []map[string]any {
 	baseEnv := workloadEnv(manifest)
-	env := make([]map[string]any, 0, len(baseEnv)+6)
+	env := make([]map[string]any, 0, len(baseEnv)+4)
 	seen := map[string]struct{}{}
 	appendEnv := func(name, value string) {
 		name = strings.TrimSpace(name)
@@ -441,7 +441,9 @@ func buildReleaseWorkloadEnv(_ string, _ string, manifest *manifestdomain.Manife
 		},
 	})
 	appendEnv("OTEL_SERVICE_NAMESPACE", defaultOTELServiceNamespace)
-	appendEnv("SERVICE_VERSION", serviceVersion)
+	if serviceVersion != "" {
+		appendEnv("SERVICE_VERSION", serviceVersion)
+	}
 	if metrics := releaseWorkloadMetrics(manifest); metrics.Enabled && metrics.Port > 0 {
 		appendEnv(releaseMetricsPortEnv, fmt.Sprintf("%d", metrics.Port))
 	}
@@ -468,17 +470,34 @@ func releaseServiceVersion(manifest *manifestdomain.Manifest) string {
 		return "unknown"
 	}
 	if digest := strings.TrimSpace(manifest.ImageDigest); digest != "" {
-		return digest
+		return shortenReleaseVersion(digest)
 	}
 	if imageRef := strings.TrimSpace(manifest.ImageRef); imageRef != "" {
 		if _, digest, ok := strings.Cut(imageRef, "@"); ok && strings.TrimSpace(digest) != "" {
-			return strings.TrimSpace(digest)
+			return shortenReleaseVersion(strings.TrimSpace(digest))
 		}
 	}
 	if commitHash := strings.TrimSpace(manifest.CommitHash); commitHash != "" {
-		return commitHash
+		return shortenReleaseVersion(commitHash)
 	}
 	return "unknown"
+}
+
+func shortenReleaseVersion(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	if algorithm, digest, ok := strings.Cut(value, ":"); ok && digest != "" {
+		if len(digest) > 12 {
+			digest = digest[:12]
+		}
+		return algorithm + ":" + digest
+	}
+	if len(value) > 12 {
+		return value[:12]
+	}
+	return value
 }
 
 func buildReleaseKubernetesResourceRequirements(resources workloadconfigdomain.WorkloadResourceRequirements) map[string]any {

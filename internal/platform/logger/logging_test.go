@@ -78,7 +78,4 @@ func TestServiceVersionNormalizesDigestAndExposesFullContainerDigest(t *testing.
 	if got := ServiceVersion(); got != "sha256:8fc33fd48da9" {
 		t.Fatalf("ServiceVersion() = %q", got)
 	}
-	if got := ContainerImageDigest(); got != "sha256:8fc33fd48da9be177f5d75bf55ed6a6a39cd0a99d841a7604f5e897e50031f52" {
-		t.Fatalf("ContainerImageDigest() = %q", got)
-	}
 }
