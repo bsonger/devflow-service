@@ -97,10 +97,9 @@ Prefer logs with fields such as:
 - `worker_id`
 - `intent_id`
 - `intent_kind`
-- `resource`
 - `resource_id`
-- `operation`
-- `result`
+- optional `operation` when the log is a real business mutation or decision point
+- status / lifecycle context such as `execution_mode`, lease timing, or poll timing
 
 Prefer traces that:
 

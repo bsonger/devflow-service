@@ -107,7 +107,7 @@ Required expectations:
 When adding extra logs around downstream failures, prefer low-cardinality fields such as:
 
 - `dependency`
-- `operation`
+- `action`
 - `method`
 - `path`
 - `status_code`

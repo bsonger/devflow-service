@@ -155,8 +155,6 @@ HTTP logs by the names above.
 
 Dependency logs should prefer this field set:
 
-- `operation`
-- `resource`
 - `dependency`
 - `action`
 - `result`
@@ -165,6 +163,7 @@ Dependency logs should prefer this field set:
 Optional:
 
 - `dependency_kind`
+- `error_code`
 
 Do not emit both `dependency_operation` and `action` for the same dependency
 event. Use `action` as the canonical dependency operation field.

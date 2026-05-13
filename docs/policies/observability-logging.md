@@ -67,7 +67,7 @@ They are compatibility fields, not recommended structured-log fields for new app
 
 ### Preferred operation fields
 
-Decision-point logs should prefer these keys:
+Business decision-point logs should prefer these keys:
 - `operation`
 - `resource`
 - `resource_id`
@@ -509,25 +509,20 @@ trace_id="..."
 Use for outbound dependency boundaries.
 
 Recommended fields:
-- `operation`
-- `resource`
-- `component`
 - `dependency`
 - `dependency_kind`
-- `dependency_operation`
+- `action`
 - `dependency_duration_seconds`
 - `result`
+- optional `error_code`
 
 Example:
 
 ```text
 message="dependency call failed"
-operation="dependency_call"
-resource="dependency"
-component="dependency_client"
 dependency="runtime_service"
 dependency_kind="http"
-dependency_operation="get_runtime_spec"
+action="get_runtime_spec"
 dependency_duration_seconds=1.42
 result="error"
 error_code="upstream_unavailable"
@@ -539,19 +534,14 @@ trace_id="..."
 Use for service bootstrap and client initialization.
 
 Recommended fields:
-- `operation`
-- `resource`
-- `result`
 - explicit port or address fields such as `listen_port`, `metrics_listen_port`, `server_address`
+- optional lifecycle context such as `server_kind`, `listen_addr`, `application_name`
 
 Example:
 
 ```text
 body="starting service"
 service.name="release-service"
-operation="service_start"
-resource="service"
-result="starting"
 listen_port=8083
 metrics_listen_port=9090
 pprof_listen_port=6060
