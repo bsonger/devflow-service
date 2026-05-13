@@ -27,6 +27,8 @@ Ownership rule:
 
 - the control plane that owns the deploy-side target owns the release record and callback surface
 - workload identity and observer routing use `devflow.control-plane/id`
+- `devflow.control-plane/id` comes from explicit `observer.control_plane_id` config on both `release-service` and `runtime-service`
+- do not infer control-plane ownership from namespace names inside handlers or observers
 - a writeback `404 not_found` should be treated first as an ownership or stale-release problem
 
 ## Current owner

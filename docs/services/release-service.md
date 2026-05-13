@@ -36,6 +36,7 @@
 - production `release-service` creates and owns production deploy-side `Release`
 - production `release-service` may read a missing referenced manifest from the configured manifest source fallback
 - production `runtime-service` writes rollout progress back to production `release-service`
+- each control plane must set an explicit `observer.control_plane_id`; the value must match between that plane's `release-service` and `runtime-service`
 
 它会：
 
@@ -205,6 +206,7 @@ Production release records and production callback state belong to production
 - `observe_rollout` and `finalize_release` remain callback-owned follow-up steps after that handoff.
 - release/application/environment identity must continue to ride on labels; annotations stay supplementary diagnostics only.
 - `devflow.control-plane/id` is part of the runtime ownership contract; observers use it to keep pre-production and production truth separated.
+- `devflow.control-plane/id` is sourced from `observer.control_plane_id`; do not derive it from namespace names or ingress hostnames.
 - the release metadata and inspection contract stays compatible with both `Deployment` and `Rollout` primary workloads, and the active in-tree runtime observer now writes back rolling, blue-green, and canary rollout progression from the observed workload kind.
 - once `finalize_release` closes a release, late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details.
 

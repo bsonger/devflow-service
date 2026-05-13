@@ -107,6 +107,7 @@
 - after restart, runtime state is expected to be rebuilt by the in-process observers
 - release-owned Kubernetes metadata is the runtime identity contract: rendered workloads, pod templates, and the Argo CD `Application` handoff object must all carry `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, and `devflow.environment/id`
 - `devflow.control-plane/id` is also part of the active runtime ownership contract; observers only process workloads that belong to the local control plane when `observer.control_plane_id` is configured
+- `observer.control_plane_id` must match the owning `release-service` value for the same control plane; mismatches look like stale writeback or missing release records
 - runtime-service consumes those labels as the authoritative release/application/environment lookup surface; it must not require annotations for identity recovery
 - Argo CD `Application` annotations are reserved for supplementary tracing context such as trace/span correlation during handoff diagnostics
 - runtime-service active/runtime-domain storage is PostgreSQL-free
@@ -174,6 +175,7 @@ Runtime observer routing is label-scoped:
 - production runtime observers process production workloads
 - `devflow.control-plane/id` plus local `observer.control_plane_id` is the control-plane filter
 - writeback goes to the release-service configured for that runtime service
+- production runtime writeback must target production `release-service`; it must not route production callback traffic through pre-production
 
 ## Primary operator flows
 
