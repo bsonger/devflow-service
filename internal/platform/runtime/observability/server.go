@@ -47,7 +47,7 @@ func StartPprofServer(addr string) {
 }
 
 func serve(kind, addr string, handler http.Handler) {
-	logger.Logger.Info("starting observability server",
+	logger.RootLogger.Named("service.lifecycle").Info("starting observability server",
 		zap.String("server_kind", kind),
 		zap.String("listen_addr", addr),
 	)
@@ -60,7 +60,7 @@ func serve(kind, addr string, handler http.Handler) {
 			Result:    "error",
 			Message:   "observability server exited",
 		})
-		logger.Logger.Error("observability server exited",
+		logger.RootLogger.Named("service.lifecycle").Error("observability server exited",
 			zap.String("server_kind", kind),
 			zap.String("listen_addr", addr),
 			zap.Error(err),

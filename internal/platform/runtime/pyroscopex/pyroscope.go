@@ -24,7 +24,7 @@ func InitPyroscope(name, address string) {
 			pyroscope.ProfileBlockCount,
 		},
 	}); err != nil {
-		logger.Logger.Warn("pyroscope initialization failed",
+		logger.RootLogger.Named("service.lifecycle").Warn("pyroscope initialization failed",
 			zap.String("application_name", name),
 			zap.String("server_address", address),
 			zap.Error(err),
