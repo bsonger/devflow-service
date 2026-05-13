@@ -69,6 +69,8 @@ var (
 	httpMetricsInitErr   error
 )
 
+const panicLoggedContextKey = "__panic_logged"
+
 func GinMetricsMiddleware() gin.HandlerFunc {
 	httpMetricsOnce.Do(initHTTPMetrics)
 
@@ -160,6 +162,9 @@ func GinZapLogger() gin.HandlerFunc {
 
 		latency := time.Since(start)
 		status := c.Writer.Status()
+		if panicLogged(c) {
+			return
+		}
 		if shouldSkipHTTPRequestLog(path, status, latency) {
 			return
 		}
@@ -211,6 +216,7 @@ func GinZapRecovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if rec := recover(); rec != nil {
+				c.Set(panicLoggedContextKey, true)
 				log := logger.NamedLoggerFromContext(c.Request.Context(), "http.error")
 				log.Error("panic recovered",
 					zap.Any("panic", rec),
@@ -312,6 +318,18 @@ func requestBodySizeField(method string, size int64) (zap.Field, bool) {
 		}
 	}
 	return zap.Int64("http.request.body.size", size), true
+}
+
+func panicLogged(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	value, ok := c.Get(panicLoggedContextKey)
+	if !ok {
+		return false
+	}
+	flag, _ := value.(bool)
+	return flag
 }
 
 func shouldIncludeDevflowAccessFields(status int, latency time.Duration) bool {

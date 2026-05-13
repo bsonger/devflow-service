@@ -41,7 +41,7 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 	start := time.Now()
 	err := fn(ctx)
 	duration := time.Since(start).Seconds()
-	log := logger.LoggerFromContext(ctx)
+	log := logger.NamedLoggerFromContext(ctx, "dependency.client")
 	if log == nil {
 		log = zap.NewNop()
 	}

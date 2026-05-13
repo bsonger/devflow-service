@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -165,5 +166,16 @@ func TestRequestBodySizeFieldReturnsRealZapField(t *testing.T) {
 	}
 	if field.Type == zapcore.SkipType {
 		t.Fatalf("unexpected skip field: %#v", field)
+	}
+}
+
+func TestPanicLoggedFlag(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	if panicLogged(c) {
+		t.Fatal("expected panic flag to be false by default")
+	}
+	c.Set(panicLoggedContextKey, true)
+	if !panicLogged(c) {
+		t.Fatal("expected panic flag to be true after recovery marker")
 	}
 }
