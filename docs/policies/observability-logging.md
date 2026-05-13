@@ -53,14 +53,21 @@ Do not copy Collector-owned Kubernetes fields into business code.
 
 ### Required baseline fields
 
-Service runtime logs should carry these fields whenever available:
-- `service.name`
-- `service.namespace`
-- `service.version`
-- `trace_id`
-- `span_id`
-- `trace_flags`
-- `request_id`
+Application logs should carry these baseline fields:
+- `timestamp`
+- `severity_text`
+- `body`
+- `logger.name`
+- `caller`
+- `trace_id` when an active span exists
+- `span_id` when an active span exists
+
+Service identity belongs to OpenTelemetry resource metadata and Collector
+enrichment. Do not repeat `service.name`, `service.namespace`,
+`service.version`, or `deployment.environment.name` in every business log.
+
+`request_id` may still appear for compatibility, but new log dashboards and
+contracts must use `trace_id` / `span_id` as the primary correlation keys.
 
 Legacy fields such as `service`, `environment`, and `service_version` may still appear in older logs or metric labels.
 They are compatibility fields, not recommended structured-log fields for new application log events.
@@ -414,6 +421,8 @@ Recommended fields:
 - `logger.name`
 - `caller`
 - `body`
+- `trace_id`
+- `span_id`
 - `http.request.method`
 - `http.route`
 - `url.path`
@@ -423,18 +432,11 @@ Recommended fields:
 - `http.response.body.size`
 - `client.address`
 - `user_agent.original`
-- `trace_id`
-- `span_id`
-- `trace_flags`
-- `request_id`
 
 Conditional fields:
 - `http.request.body.size` when a request body is present or when the method is not `GET` / `HEAD`
 - `trace_flags`
 - `request_id`
-
-Conditional fields:
-- `http.request.body.size` when a request body is present or when the method is not `GET` / `HEAD`
 - `devflow.project.id`
 - `devflow.application.id`
 - `devflow.service.id`
@@ -464,7 +466,6 @@ http.request.method="GET"
 http.route="/api/v1/releases/:id"
 url.path="/api/v1/releases/123"
 http.response.status_code=200
-http.response.status_class="2xx"
 duration_ms=143.217
 http.server.request.duration=0.143217
 http.response.body.size=244
@@ -472,8 +473,6 @@ client.address="10.0.0.8"
 user_agent.original="curl/8.7.1"
 trace_id="..."
 span_id="..."
-trace_flags="01"
-request_id="..."
 devflow.release.id="..."
 ```
 

@@ -21,7 +21,7 @@ edge. These fields are emitted by the logger or Gin middleware when available:
 | `timestamp` | zap encoder | Event time emitted by the application logger. |
 | `severity_text` | zap encoder | Log severity text. Older readers may call this `level`. |
 | `body` | zap encoder | Log message body. Older readers may call this `msg`. |
-| `request_id` | Gin middleware | Generated from `X-Request-Id` / `X-Request-ID`, or created when absent. |
+| `request_id` | Gin middleware | Compatibility correlation only. Prefer `trace_id` / `span_id` for new log queries and dashboards. |
 | `caller` | zap encoder | Debugging aid only. Keep it in logs, but do not treat it as a primary observability dimension. |
 | `logger.name` | zap logger | Logger name for the running service logger. |
 | `http.request.method` | Gin middleware | Request method. |
@@ -64,7 +64,9 @@ recommended primary path.
 | `service.version` | `SERVICE_VERSION` / `VERSION`, then `service.version` in `OTEL_RESOURCE_ATTRIBUTES`. When the raw value is a full digest, application logging and tracing normalize it to a shorter service version. |
 | `deployment.environment.name` | preferred from downstream resource enrichment or Collector-side resource metadata. If a service explicitly provides it, `DEPLOYMENT_ENVIRONMENT` or `deployment.environment.name` in `OTEL_RESOURCE_ATTRIBUTES` may still be consumed as compatibility input. Request logs do not need to repeat it in every record. |
 
-`trace_id` and `span_id` are the key join columns for Trace -> Log correlation:
+`trace_id` and `span_id` are required on request, workflow, dependency, and
+worker logs whenever the current context has an active span. They are the key
+join columns for Trace -> Log correlation:
 when an operator opens a slow or failed trace, the same identifiers let them find
 application logs that happened inside that trace/span without guessing by time,
 pod, or route alone.
@@ -106,20 +108,21 @@ Do not emit duplicate aliases for the same fact in new logs.
 
 Recommended fields:
 
-- `service.name`, not `service`
-- `deployment.environment.name`, not `environment`
-- `service.version`, not `service_version`
+- `trace_id`, not `request_id`, for primary request correlation
 - `http.request.method`, not `method`
 - `http.route`, not `route`
 - `url.path`, not `path`
 - `http.response.status_code`, not `status_code`
 - `client.address`, not `client_ip`
 - `user_agent.original`, not `user_agent`
+- `service.name`, not `service`, only when service identity is explicitly needed
+- `deployment.environment.name`, not `environment`, only when environment identity is explicitly needed
+- `service.version`, not `service_version`, only when version identity is explicitly needed
 
-Legacy fields such as `service`, `environment`, `service_version`, `method`,
-`route`, `path`, `status_code`, `client_ip`, and `user_agent` may appear in
-older logs or metrics, but they are compatibility fields and are not recommended
-for new structured log events.
+Legacy fields such as `service`, `environment`, `service_version`,
+`request_id`, `method`, `route`, `path`, `status_code`, `client_ip`, and
+`user_agent` may appear in older logs or metrics, but they are compatibility
+fields and are not recommended for new structured log events.
 
 Metrics use Prometheus-safe names instead of dotted log keys. See
 `docs/observability/metrics-spec.md` for the canonical log/metric/trace mapping.
@@ -150,6 +153,20 @@ Current HTTP message bodies:
 Business and dependency logs may still use service- or component-specific
 `logger.name` values, but request-class dashboards and filters should classify
 HTTP logs by the names above.
+
+Shared baseline fields for structured logs:
+
+- `timestamp`
+- `severity_text`
+- `body`
+- `logger.name`
+- `caller`
+- `trace_id` when an active span exists
+- `span_id` when an active span exists
+
+`logger.name` is the category field. `caller` is a debugging field only and must
+not be used as a metric label, Loki stream label, dashboard variable, or primary
+classification key.
 
 ## Dependency logging contract
 
