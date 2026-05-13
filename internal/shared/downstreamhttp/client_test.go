@@ -75,3 +75,21 @@ func TestGetEnvelopeDataReturnsTypedStatusError(t *testing.T) {
 		t.Fatalf("path = %q, want /api/v1/projects/proj-1", statusErr.Path)
 	}
 }
+
+func TestGetEnvelopeDataWithOperationUsesConfiguredDependency(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"id":"env-1"}}`)
+	}))
+	defer ts.Close()
+
+	var out struct {
+		ID string `json:"id"`
+	}
+	client := NewWithOptions(ts.URL, WithDependency("http", "meta_service"))
+	if err := client.GetEnvelopeDataWithOperation(context.Background(), "/api/v1/environments/env-1", "get_environment", &out); err != nil {
+		t.Fatalf("GetEnvelopeDataWithOperation error = %v", err)
+	}
+	if out.ID != "env-1" {
+		t.Fatalf("id = %q, want env-1", out.ID)
+	}
+}

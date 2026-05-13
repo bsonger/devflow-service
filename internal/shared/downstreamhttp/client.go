@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -29,7 +30,9 @@ type StatusError struct {
 type Option func(*config)
 
 type config struct {
-	timeout time.Duration
+	timeout          time.Duration
+	dependencyKind   string
+	dependencyTarget string
 }
 
 func WithTimeout(timeout time.Duration) Option {
@@ -37,6 +40,13 @@ func WithTimeout(timeout time.Duration) Option {
 		if timeout > 0 {
 			cfg.timeout = timeout
 		}
+	}
+}
+
+func WithDependency(kind, target string) Option {
+	return func(cfg *config) {
+		cfg.dependencyKind = strings.TrimSpace(kind)
+		cfg.dependencyTarget = strings.TrimSpace(target)
 	}
 }
 
@@ -73,8 +83,10 @@ func IsStatus(err error, statusCode int) bool {
 }
 
 type Client struct {
-	baseURL string
-	http    *http.Client
+	baseURL          string
+	http             *http.Client
+	dependencyKind   string
+	dependencyTarget string
 }
 
 func New(baseURL string) *Client {
@@ -90,7 +102,9 @@ func NewWithOptions(baseURL string, opts ...Option) *Client {
 	}
 
 	return &Client{
-		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		baseURL:          strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		dependencyKind:   cfg.dependencyKind,
+		dependencyTarget: cfg.dependencyTarget,
 		http: &http.Client{
 			Timeout: cfg.timeout,
 			Transport: otelhttp.NewTransport(
@@ -104,32 +118,41 @@ func NewWithOptions(baseURL string, opts ...Option) *Client {
 }
 
 func (c *Client) GetEnvelopeData(ctx context.Context, path string, out any) error {
+	return c.GetEnvelopeDataWithOperation(ctx, path, "http_get", out)
+}
+
+func (c *Client) GetEnvelopeDataWithOperation(ctx context.Context, path, operation string, out any) error {
 	if c == nil || c.baseURL == "" {
 		return ErrServiceUnavailable
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-	if requestID := logger.RequestIDFromContext(ctx); requestID != "" {
-		req.Header.Set("X-Request-Id", requestID)
-		req.Header.Set("X-Request-ID", requestID)
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return &StatusError{
-			Method:     req.Method,
-			Path:       req.URL.Path,
-			StatusCode: resp.StatusCode,
-			Status:     resp.Status,
+
+	var body []byte
+	err := c.observeHTTPDependency(ctx, http.MethodGet, path, operation, func(depCtx context.Context) error {
+		req, err := http.NewRequestWithContext(depCtx, http.MethodGet, c.baseURL+path, nil)
+		if err != nil {
+			return err
 		}
-	}
-	body, err := io.ReadAll(resp.Body)
+		req.Header.Set("Accept", "application/json")
+		if requestID := logger.RequestIDFromContext(ctx); requestID != "" {
+			req.Header.Set("X-Request-Id", requestID)
+			req.Header.Set("X-Request-ID", requestID)
+		}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			return &StatusError{
+				Method:     req.Method,
+				Path:       req.URL.Path,
+				StatusCode: resp.StatusCode,
+				Status:     resp.Status,
+			}
+		}
+		body, err = io.ReadAll(resp.Body)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -142,4 +165,23 @@ func (c *Client) GetEnvelopeData(ctx context.Context, path string, out any) erro
 		return json.Unmarshal(body, out)
 	}
 	return json.Unmarshal(data, out)
+}
+
+func (c *Client) observeHTTPDependency(ctx context.Context, method, path, operation string, fn func(context.Context) error) error {
+	call := platformobs.DependencyCall{
+		Kind:      firstNonEmpty(c.dependencyKind, "http"),
+		Target:    firstNonEmpty(c.dependencyTarget, "downstream_http"),
+		Operation: firstNonEmpty(operation, strings.ToLower(method)),
+	}
+	return platformobs.ObserveDependency(ctx, call, fn)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

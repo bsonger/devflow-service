@@ -81,6 +81,9 @@ func InjectLogger(ctx context.Context, base *zap.Logger) context.Context {
 	if base == nil {
 		base = Logger
 	}
+	if base == nil {
+		base = zap.NewNop()
+	}
 
 	log := base
 	rootLog := baseRoot
