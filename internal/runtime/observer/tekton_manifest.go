@@ -112,8 +112,17 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	pipelineRuns, err := o.tekton.TektonV1().PipelineRuns(o.cfg.TektonNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: tektonManifestSelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
+	var pipelineRuns *tknv1.PipelineRunList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "tekton",
+		Operation: "list_manifest_pipeline_runs",
+	}, func(depCtx context.Context) error {
+		var err error
+		pipelineRuns, err = o.tekton.TektonV1().PipelineRuns(o.cfg.TektonNamespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: tektonManifestSelector(strings.TrimSpace(o.cfg.ControlPlaneID)),
+		})
+		return err
 	})
 	if err != nil {
 		log.Warn("list tekton pipeline runs failed", zap.Error(err))
@@ -150,8 +159,17 @@ func (o *TektonManifestObserver) syncPipelineRun(ctx context.Context, pr *tknv1.
 	if terminal && o.isProcessed(pr.Name, stateKey) {
 		return nil
 	}
-	taskRuns, err := o.tekton.TektonV1().TaskRuns(pr.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "tekton.dev/pipelineRun=" + pr.Name,
+	var taskRuns *tknv1.TaskRunList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "tekton",
+		Operation: "list_manifest_task_runs",
+	}, func(depCtx context.Context) error {
+		var err error
+		taskRuns, err = o.tekton.TektonV1().TaskRuns(pr.Namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: "tekton.dev/pipelineRun=" + pr.Name,
+		})
+		return err
 	})
 	if err != nil {
 		return err

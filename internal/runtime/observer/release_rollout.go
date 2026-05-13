@@ -15,6 +15,7 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	releasedownstream "github.com/bsonger/devflow-service/internal/release/transport/downstream"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
@@ -352,8 +353,17 @@ func deriveReleaseRolloutContext(workload *runtimedomain.RuntimeObservedWorkload
 }
 
 func (o *ReleaseRolloutObserver) lookupDeployment(ctx context.Context, rollout releaseRolloutContext) (*appsv1.Deployment, error) {
-	deployments, err := o.clientset.AppsV1().Deployments(rollout.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String() + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
+	var deployments *appsv1.DeploymentList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "list_release_deployments",
+	}, func(depCtx context.Context) error {
+		var err error
+		deployments, err = o.clientset.AppsV1().Deployments(rollout.Namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String() + "," + observer.ObserveStateLabel + "=" + observer.ObserveStateRunning,
+		})
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -423,8 +433,17 @@ func (o *ReleaseRolloutObserver) lookupRolloutState(ctx context.Context, rollout
 			}},
 		}, nil
 	}
-	rollouts, err := o.dynamic.Resource(releaseRolloutGVR).Namespace(rollout.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String(),
+	var rollouts *unstructured.UnstructuredList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argo_rollouts",
+		Operation: "list_release_rollouts",
+	}, func(depCtx context.Context) error {
+		var err error
+		rollouts, err = o.dynamic.Resource(releaseRolloutGVR).Namespace(rollout.Namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: releasedomain.ReleaseIDLabel + "=" + rollout.ReleaseID.String(),
+		})
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -826,7 +845,16 @@ func (o *ReleaseRolloutObserver) verifyMetricsEndpoint(ctx context.Context, roll
 	if serviceName == "" || namespace == "" {
 		return nil
 	}
-	service, err := o.clientset.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	var service *corev1.Service
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "get_metrics_service",
+	}, func(depCtx context.Context) error {
+		var err error
+		service, err = o.clientset.CoreV1().Services(namespace).Get(depCtx, serviceName, metav1.GetOptions{})
+		return err
+	})
 	if err != nil {
 		return nil
 	}
@@ -930,23 +958,29 @@ func (o *ReleaseRolloutObserver) postJSON(ctx context.Context, path string, payl
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.releaseBase+path, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if token := strings.TrimSpace(o.cfg.ObserverToken); token != "" {
-		req.Header.Set(releaseObserverTokenHeader, token)
-	}
-	resp, err := o.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return nil
-	}
-	return &releaseRolloutWritebackError{Path: path, StatusCode: resp.StatusCode}
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "release_service",
+		Operation: "release_rollout_writeback",
+	}, func(depCtx context.Context) error {
+		req, err := http.NewRequestWithContext(depCtx, http.MethodPost, o.releaseBase+path, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if token := strings.TrimSpace(o.cfg.ObserverToken); token != "" {
+			req.Header.Set(releaseObserverTokenHeader, token)
+		}
+		resp, err := o.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+		return &releaseRolloutWritebackError{Path: path, StatusCode: resp.StatusCode}
+	})
 }
 
 func (o *ReleaseRolloutObserver) isProcessed(releaseID, stateKey string) bool {
