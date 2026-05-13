@@ -4,11 +4,13 @@ import (
 	"context"
 	"strings"
 
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/route/domain"
 	"github.com/bsonger/devflow-service/internal/route/repository"
 	servicesvc "github.com/bsonger/devflow-service/internal/service/service"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type RouteService interface {
@@ -39,10 +41,23 @@ func NewRouteService(services servicesvc.ServiceService) RouteService {
 var DefaultRouteService RouteService = NewRouteService(servicesvc.DefaultServiceService)
 
 func (s *routeService) Create(ctx context.Context, item *domain.Route) (uuid.UUID, error) {
+	log := platformobs.OperationLogger(ctx, "network_service", "create_route", "route",
+		zap.String("devflow.application.id", routeApplicationID(item)),
+		zap.String("devflow.environment.id", routeEnvironmentID(item)),
+	)
 	if err := s.validate(ctx, item); err != nil {
+		platformobs.LogOperationFailure(log, "create route failed", err)
 		return uuid.Nil, err
 	}
-	return s.store.Create(ctx, item)
+	id, err := s.store.Create(ctx, item)
+	if err != nil {
+		platformobs.LogOperationFailure(log, "create route failed", err)
+		return uuid.Nil, err
+	}
+	platformobs.LogOperationSuccess(log, "route created",
+		zap.String("resource_id", id.String()),
+	)
+	return id, nil
 }
 
 func (s *routeService) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Route, error) {
@@ -50,14 +65,34 @@ func (s *routeService) Get(ctx context.Context, applicationId, id uuid.UUID) (*d
 }
 
 func (s *routeService) Update(ctx context.Context, item *domain.Route) error {
+	log := platformobs.OperationLogger(ctx, "network_service", "update_route", "route",
+		zap.String("resource_id", routeID(item)),
+		zap.String("devflow.application.id", routeApplicationID(item)),
+		zap.String("devflow.environment.id", routeEnvironmentID(item)),
+	)
 	if err := s.validate(ctx, item); err != nil {
+		platformobs.LogOperationFailure(log, "update route failed", err)
 		return err
 	}
-	return s.store.Update(ctx, item)
+	if err := s.store.Update(ctx, item); err != nil {
+		platformobs.LogOperationFailure(log, "update route failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "route updated")
+	return nil
 }
 
 func (s *routeService) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
-	return s.store.Delete(ctx, applicationId, id)
+	log := platformobs.OperationLogger(ctx, "network_service", "delete_route", "route",
+		zap.String("resource_id", id.String()),
+		zap.String("devflow.application.id", applicationId.String()),
+	)
+	if err := s.store.Delete(ctx, applicationId, id); err != nil {
+		platformobs.LogOperationFailure(log, "delete route failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "route deleted")
+	return nil
 }
 
 func (s *routeService) List(ctx context.Context, filter RouteListFilter) ([]domain.Route, error) {
@@ -67,6 +102,27 @@ func (s *routeService) List(ctx context.Context, filter RouteListFilter) ([]doma
 		IncludeDeleted: filter.IncludeDeleted,
 		Name:           filter.Name,
 	})
+}
+
+func routeID(item *domain.Route) string {
+	if item == nil || item.ID == uuid.Nil {
+		return ""
+	}
+	return item.ID.String()
+}
+
+func routeApplicationID(item *domain.Route) string {
+	if item == nil || item.ApplicationID == uuid.Nil {
+		return ""
+	}
+	return item.ApplicationID.String()
+}
+
+func routeEnvironmentID(item *domain.Route) string {
+	if item == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.EnvironmentID)
 }
 
 func (s *routeService) Validate(ctx context.Context, item *domain.Route) []string {

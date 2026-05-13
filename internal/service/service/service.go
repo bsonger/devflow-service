@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/service/domain"
 	"github.com/bsonger/devflow-service/internal/service/repository"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type ServiceService interface {
@@ -36,15 +38,27 @@ func NewServiceService(networks repository.Store) ServiceService {
 var DefaultServiceService ServiceService = NewServiceService(repository.NetworkStore)
 
 func (s *serviceService) Create(ctx context.Context, item *domain.Service) (uuid.UUID, error) {
+	log := platformobs.OperationLogger(ctx, "network_service", "create_service", "service",
+		zap.String("devflow.application.id", serviceApplicationID(item)),
+	)
 	if err := validateService(item); err != nil {
+		platformobs.LogOperationFailure(log, "create service failed", err)
 		return uuid.Nil, err
 	}
-	return s.networks.Create(ctx, &domain.Network{
+	id, err := s.networks.Create(ctx, &domain.Network{
 		BaseModel:     item.BaseModel,
 		ApplicationID: item.ApplicationID,
 		Name:          item.Name,
 		Ports:         toNetworkPorts(item.Ports),
 	})
+	if err != nil {
+		platformobs.LogOperationFailure(log, "create service failed", err)
+		return uuid.Nil, err
+	}
+	platformobs.LogOperationSuccess(log, "service created",
+		zap.String("resource_id", id.String()),
+	)
+	return id, nil
 }
 
 func (s *serviceService) Get(ctx context.Context, applicationId, id uuid.UUID) (*domain.Service, error) {
@@ -56,19 +70,38 @@ func (s *serviceService) Get(ctx context.Context, applicationId, id uuid.UUID) (
 }
 
 func (s *serviceService) Update(ctx context.Context, item *domain.Service) error {
+	log := platformobs.OperationLogger(ctx, "network_service", "update_service", "service",
+		zap.String("resource_id", serviceID(item)),
+		zap.String("devflow.application.id", serviceApplicationID(item)),
+	)
 	if err := validateService(item); err != nil {
+		platformobs.LogOperationFailure(log, "update service failed", err)
 		return err
 	}
-	return s.networks.Update(ctx, &domain.Network{
+	if err := s.networks.Update(ctx, &domain.Network{
 		BaseModel:     item.BaseModel,
 		ApplicationID: item.ApplicationID,
 		Name:          item.Name,
 		Ports:         toNetworkPorts(item.Ports),
-	})
+	}); err != nil {
+		platformobs.LogOperationFailure(log, "update service failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "service updated")
+	return nil
 }
 
 func (s *serviceService) Delete(ctx context.Context, applicationId, id uuid.UUID) error {
-	return s.networks.Delete(ctx, applicationId, id)
+	log := platformobs.OperationLogger(ctx, "network_service", "delete_service", "service",
+		zap.String("resource_id", id.String()),
+		zap.String("devflow.application.id", applicationId.String()),
+	)
+	if err := s.networks.Delete(ctx, applicationId, id); err != nil {
+		platformobs.LogOperationFailure(log, "delete service failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "service deleted")
+	return nil
 }
 
 func (s *serviceService) List(ctx context.Context, filter ServiceListFilter) ([]domain.Service, error) {
@@ -86,6 +119,20 @@ func (s *serviceService) List(ctx context.Context, filter ServiceListFilter) ([]
 		out = append(out, *fromNetwork(&current))
 	}
 	return out, nil
+}
+
+func serviceID(item *domain.Service) string {
+	if item == nil || item.ID == uuid.Nil {
+		return ""
+	}
+	return item.ID.String()
+}
+
+func serviceApplicationID(item *domain.Service) string {
+	if item == nil || item.ApplicationID == uuid.Nil {
+		return ""
+	}
+	return item.ApplicationID.String()
 }
 
 func validateService(item *domain.Service) error {

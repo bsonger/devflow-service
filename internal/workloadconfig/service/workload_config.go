@@ -6,10 +6,12 @@ import (
 	"sort"
 	"strings"
 
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/bsonger/devflow-service/internal/workloadconfig/domain"
 	"github.com/bsonger/devflow-service/internal/workloadconfig/repository"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type WorkloadConfigListFilter struct {
@@ -26,17 +28,32 @@ func NewWorkloadConfigService() *WorkloadConfigService {
 }
 
 func (s *WorkloadConfigService) Create(ctx context.Context, item *domain.WorkloadConfig) (uuid.UUID, error) {
+	log := platformobs.OperationLogger(ctx, "config_service", "create_workload_config", "workload_config",
+		zap.String("devflow.application.id", workloadConfigApplicationID(item)),
+	)
 	if err := validateWorkloadConfig(item); err != nil {
+		platformobs.LogOperationFailure(log, "create workload config failed", err)
 		return uuid.Nil, err
 	}
 	existing, err := s.store.List(ctx, repository.ListFilter{ApplicationID: &item.ApplicationID})
 	if err != nil {
+		platformobs.LogOperationFailure(log, "create workload config failed", err)
 		return uuid.Nil, err
 	}
 	if len(existing) > 0 {
-		return uuid.Nil, sharederrs.Conflict("workload config already exists for application")
+		err := sharederrs.Conflict("workload config already exists for application")
+		platformobs.LogOperationFailure(log, "create workload config failed", err)
+		return uuid.Nil, err
 	}
-	return s.store.Create(ctx, item)
+	id, err := s.store.Create(ctx, item)
+	if err != nil {
+		platformobs.LogOperationFailure(log, "create workload config failed", err)
+		return uuid.Nil, err
+	}
+	platformobs.LogOperationSuccess(log, "workload config created",
+		zap.String("resource_id", id.String()),
+	)
+	return id, nil
 }
 
 func (s *WorkloadConfigService) Get(ctx context.Context, id uuid.UUID) (*domain.WorkloadConfig, error) {
@@ -44,24 +61,45 @@ func (s *WorkloadConfigService) Get(ctx context.Context, id uuid.UUID) (*domain.
 }
 
 func (s *WorkloadConfigService) Update(ctx context.Context, item *domain.WorkloadConfig) error {
+	log := platformobs.OperationLogger(ctx, "config_service", "update_workload_config", "workload_config",
+		zap.String("resource_id", workloadConfigID(item)),
+		zap.String("devflow.application.id", workloadConfigApplicationID(item)),
+	)
 	if err := validateWorkloadConfig(item); err != nil {
+		platformobs.LogOperationFailure(log, "update workload config failed", err)
 		return err
 	}
 	current, err := s.Get(ctx, item.ID)
 	if err != nil {
+		platformobs.LogOperationFailure(log, "update workload config failed", err)
 		return err
 	}
 	if current.ApplicationID != item.ApplicationID {
-		return sharederrs.InvalidArgument("application_id cannot be changed")
+		err := sharederrs.InvalidArgument("application_id cannot be changed")
+		platformobs.LogOperationFailure(log, "update workload config failed", err)
+		return err
 	}
 	item.CreatedAt = current.CreatedAt
 	item.DeletedAt = current.DeletedAt
 	item.WithUpdateDefault()
-	return s.store.Update(ctx, item)
+	if err := s.store.Update(ctx, item); err != nil {
+		platformobs.LogOperationFailure(log, "update workload config failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "workload config updated")
+	return nil
 }
 
 func (s *WorkloadConfigService) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.store.Delete(ctx, id)
+	log := platformobs.OperationLogger(ctx, "config_service", "delete_workload_config", "workload_config",
+		zap.String("resource_id", id.String()),
+	)
+	if err := s.store.Delete(ctx, id); err != nil {
+		platformobs.LogOperationFailure(log, "delete workload config failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "workload config deleted")
+	return nil
 }
 
 func (s *WorkloadConfigService) List(ctx context.Context, filter WorkloadConfigListFilter) ([]domain.WorkloadConfig, error) {
@@ -69,6 +107,20 @@ func (s *WorkloadConfigService) List(ctx context.Context, filter WorkloadConfigL
 		ApplicationID:  filter.ApplicationID,
 		IncludeDeleted: filter.IncludeDeleted,
 	})
+}
+
+func workloadConfigID(item *domain.WorkloadConfig) string {
+	if item == nil || item.ID == uuid.Nil {
+		return ""
+	}
+	return item.ID.String()
+}
+
+func workloadConfigApplicationID(item *domain.WorkloadConfig) string {
+	if item == nil || item.ApplicationID == uuid.Nil {
+		return ""
+	}
+	return item.ApplicationID.String()
 }
 
 func validateWorkloadConfig(item *domain.WorkloadConfig) error {

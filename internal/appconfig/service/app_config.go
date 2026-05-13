@@ -13,9 +13,11 @@ import (
 	appconfigrepo "github.com/bsonger/devflow-service/internal/appconfig/repository"
 	environmentservice "github.com/bsonger/devflow-service/internal/environment/service"
 	"github.com/bsonger/devflow-service/internal/platform/configrepo"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -86,11 +88,24 @@ func (s *AppConfigService) WithEnvironmentResolver(resolver environmentNameResol
 }
 
 func (s *AppConfigService) Create(ctx context.Context, cfg *domain.AppConfig) (uuid.UUID, error) {
+	log := platformobs.OperationLogger(ctx, "config_service", "create_app_config", "app_config",
+		zap.String("devflow.application.id", appConfigApplicationID(cfg)),
+		zap.String("devflow.environment.id", appConfigEnvironmentID(cfg)),
+	)
 	if err := validateAppConfig(cfg); err != nil {
+		platformobs.LogOperationFailure(log, "create app config failed", err)
 		return uuid.Nil, err
 	}
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
-	return s.store.Create(ctx, cfg)
+	id, err := s.store.Create(ctx, cfg)
+	if err != nil {
+		platformobs.LogOperationFailure(log, "create app config failed", err)
+		return uuid.Nil, err
+	}
+	platformobs.LogOperationSuccess(log, "app config created",
+		zap.String("resource_id", id.String()),
+	)
+	return id, nil
 }
 
 func (s *AppConfigService) Get(ctx context.Context, id uuid.UUID) (*domain.AppConfig, error) {
@@ -114,22 +129,42 @@ func (s *AppConfigService) Get(ctx context.Context, id uuid.UUID) (*domain.AppCo
 }
 
 func (s *AppConfigService) Update(ctx context.Context, cfg *domain.AppConfig) error {
+	log := platformobs.OperationLogger(ctx, "config_service", "update_app_config", "app_config",
+		zap.String("resource_id", appConfigID(cfg)),
+		zap.String("devflow.application.id", appConfigApplicationID(cfg)),
+		zap.String("devflow.environment.id", appConfigEnvironmentID(cfg)),
+	)
 	if err := validateAppConfig(cfg); err != nil {
+		platformobs.LogOperationFailure(log, "update app config failed", err)
 		return err
 	}
 	current, err := s.Get(ctx, cfg.ID)
 	if err != nil {
+		platformobs.LogOperationFailure(log, "update app config failed", err)
 		return err
 	}
 	cfg.CreatedAt = current.CreatedAt
 	cfg.DeletedAt = current.DeletedAt
 	cfg.SourceDirectory = current.SourceDirectory
 	cfg.MountPath = normalizeAppConfigMountPath(cfg.MountPath)
-	return s.store.Update(ctx, cfg)
+	if err := s.store.Update(ctx, cfg); err != nil {
+		platformobs.LogOperationFailure(log, "update app config failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "app config updated")
+	return nil
 }
 
 func (s *AppConfigService) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.store.Delete(ctx, id)
+	log := platformobs.OperationLogger(ctx, "config_service", "delete_app_config", "app_config",
+		zap.String("resource_id", id.String()),
+	)
+	if err := s.store.Delete(ctx, id); err != nil {
+		platformobs.LogOperationFailure(log, "delete app config failed", err)
+		return err
+	}
+	platformobs.LogOperationSuccess(log, "app config deleted")
+	return nil
 }
 
 func (s *AppConfigService) List(ctx context.Context, filter AppConfigListFilter) ([]domain.AppConfig, error) {
@@ -159,34 +194,53 @@ func (s *AppConfigService) List(ctx context.Context, filter AppConfigListFilter)
 }
 
 func (s *AppConfigService) Sync(ctx context.Context, id uuid.UUID) (*AppConfigSyncResult, error) {
+	log := platformobs.OperationLogger(ctx, "config_service", "sync_app_config", "app_config",
+		zap.String("resource_id", id.String()),
+	)
 	if s.repo == nil {
+		platformobs.LogOperationFailure(log, "sync app config failed", ErrConfigRepositoryUnavailable)
 		return nil, ErrConfigRepositoryUnavailable
 	}
 	cfg, err := s.Get(ctx, id)
 	if err != nil {
+		platformobs.LogOperationFailure(log, "sync app config failed", err)
 		return nil, err
 	}
 	sourceDirectory, err := s.deriveSourceDirectory(ctx, cfg)
 	if err != nil {
+		platformobs.LogOperationFailure(log, "sync app config failed", err)
 		return nil, err
 	}
 	snapshot, err := s.repo.ReadSnapshot(ctx, sourceDirectory, "")
 	if err != nil {
 		if errors.Is(err, configrepo.ErrSourcePathNotFound) {
+			platformobs.LogOperationFailure(log, "sync app config failed", ErrConfigSourceNotFound)
 			return nil, ErrConfigSourceNotFound
 		}
 		if errors.Is(err, configrepo.ErrRepositorySyncFailed) {
-			return nil, fmt.Errorf("%w: %v", ErrConfigRepositorySyncFailed, err)
+			wrapped := fmt.Errorf("%w: %v", ErrConfigRepositorySyncFailed, err)
+			platformobs.LogOperationFailure(log, "sync app config failed", wrapped)
+			return nil, wrapped
 		}
+		platformobs.LogOperationFailure(log, "sync app config failed", err)
 		return nil, err
 	}
 	if strings.TrimSpace(cfg.SourceDirectory) != strings.TrimSpace(sourceDirectory) {
 		cfg.SourceDirectory = sourceDirectory
 		if updateErr := s.updateSourceDirectory(ctx, cfg.ID, sourceDirectory); updateErr != nil {
+			platformobs.LogOperationFailure(log, "sync app config failed", updateErr)
 			return nil, updateErr
 		}
 	}
-	return s.syncWithSnapshot(ctx, cfg, snapshot)
+	result, err := s.syncWithSnapshot(ctx, cfg, snapshot)
+	if err != nil {
+		platformobs.LogOperationFailure(log, "sync app config failed", err)
+		return nil, err
+	}
+	platformobs.LogOperationSuccess(log, "app config synced",
+		zap.Bool("revision_created", result != nil && result.Created),
+	)
+	return result, nil
 }
 
 func (s *AppConfigService) syncWithSnapshot(ctx context.Context, cfg *domain.AppConfig, snapshot *configrepo.Snapshot) (*AppConfigSyncResult, error) {
@@ -221,6 +275,27 @@ func (s *AppConfigService) syncWithSnapshot(ctx context.Context, cfg *domain.App
 		return nil, err
 	}
 	return &AppConfigSyncResult{Revision: revision, Created: true}, nil
+}
+
+func appConfigID(cfg *domain.AppConfig) string {
+	if cfg == nil || cfg.ID == uuid.Nil {
+		return ""
+	}
+	return cfg.ID.String()
+}
+
+func appConfigApplicationID(cfg *domain.AppConfig) string {
+	if cfg == nil || cfg.ApplicationID == uuid.Nil {
+		return ""
+	}
+	return cfg.ApplicationID.String()
+}
+
+func appConfigEnvironmentID(cfg *domain.AppConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(cfg.EnvironmentID)
 }
 
 func (s *AppConfigService) getLatestRevision(ctx context.Context, appConfigID uuid.UUID) (*domain.AppConfigRevision, error) {
