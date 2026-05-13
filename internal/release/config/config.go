@@ -160,10 +160,14 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		workerCfg := runtime.ReleaseIntentWorkerConfigFromModel(config.Worker)
 		runtime.StartReleaseIntentWorker(runtimeCtx, workerCfg, service.ReleaseService)
 	}
+	logger.RootLogger.Named("service.lifecycle").Info("service runtime initialized")
 	return func(shutdownCtx context.Context) error {
 		runtimeCancel()
 		closeErr := db.Close()
 		shutdownErr := shutdown(shutdownCtx)
+		if shutdownErr == nil && closeErr == nil {
+			logger.RootLogger.Named("service.lifecycle").Info("service runtime stopped")
+		}
 		if shutdownErr != nil {
 			return shutdownErr
 		}
