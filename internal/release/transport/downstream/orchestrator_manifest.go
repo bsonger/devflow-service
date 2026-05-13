@@ -18,6 +18,12 @@ type ApplicationEnvironmentRef struct {
 	Name string `json:"name,omitempty"`
 }
 
+type ApplicationEnvironmentListItem struct {
+	ID            string                    `json:"id"`
+	ApplicationID string                    `json:"application_id"`
+	Environment   ApplicationEnvironmentRef `json:"environment,omitempty"`
+}
+
 type OrchestratorManifestClient struct{ *downstreamhttp.Client }
 
 func NewOrchestratorManifestClient(baseURL string) *OrchestratorManifestClient {
@@ -30,4 +36,12 @@ func (c *OrchestratorManifestClient) GetApplicationEnvironment(ctx context.Conte
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (c *OrchestratorManifestClient) ListApplicationEnvironments(ctx context.Context, applicationId string) ([]ApplicationEnvironmentListItem, error) {
+	var out []ApplicationEnvironmentListItem
+	if err := c.GetEnvelopeData(ctx, fmt.Sprintf("/api/v1/applications/%s/environments", applicationId), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
