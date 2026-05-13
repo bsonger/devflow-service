@@ -9,6 +9,7 @@ import (
 	argoapi "github.com/argoproj/argo-cd/v3/pkg/client/clientset/versioned"
 	argov1alpha1 "github.com/argoproj/argo-cd/v3/pkg/client/clientset/versioned/typed/application/v1alpha1"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"go.uber.org/zap"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,16 +88,38 @@ func Init(config *rest.Config) error {
 }
 
 func CreateApplication(ctx context.Context, app *appv1.Application) error {
-	_, err := Client.ArgoprojV1alpha1().Applications(namespace).Create(ctx, app, metav1.CreateOptions{})
-	return err
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argocd",
+		Operation: "create_application",
+	}, func(depCtx context.Context) error {
+		_, err := Client.ArgoprojV1alpha1().Applications(namespace).Create(depCtx, app, metav1.CreateOptions{})
+		return err
+	})
 }
 
 func UpdateApplication(ctx context.Context, app *appv1.Application) error {
-	return applyApplication(ctx, Client.ArgoprojV1alpha1().Applications(namespace), app)
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argocd",
+		Operation: "apply_application",
+	}, func(depCtx context.Context) error {
+		return applyApplication(depCtx, Client.ArgoprojV1alpha1().Applications(namespace), app)
+	})
 }
 
 func GetApplication(ctx context.Context, name string) (*appv1.Application, error) {
-	return Client.ArgoprojV1alpha1().Applications(namespace).Get(ctx, name, metav1.GetOptions{})
+	var app *appv1.Application
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argocd",
+		Operation: "get_application",
+	}, func(depCtx context.Context) error {
+		var err error
+		app, err = Client.ArgoprojV1alpha1().Applications(namespace).Get(depCtx, name, metav1.GetOptions{})
+		return err
+	})
+	return app, err
 }
 
 func InspectApplication(ctx context.Context, name string) (*ApplicationInspection, error) {
@@ -269,10 +292,26 @@ func applyApplication(ctx context.Context, applications applicationAPI, app *app
 }
 
 func GetAppProject(ctx context.Context, name string) (*appv1.AppProject, error) {
-	return Client.ArgoprojV1alpha1().AppProjects(namespace).Get(ctx, name, metav1.GetOptions{})
+	var project *appv1.AppProject
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argocd",
+		Operation: "get_appproject",
+	}, func(depCtx context.Context) error {
+		var err error
+		project, err = Client.ArgoprojV1alpha1().AppProjects(namespace).Get(depCtx, name, metav1.GetOptions{})
+		return err
+	})
+	return project, err
 }
 
 func UpdateAppProject(ctx context.Context, project *appv1.AppProject) error {
-	_, err := Client.ArgoprojV1alpha1().AppProjects(namespace).Update(ctx, project, metav1.UpdateOptions{})
-	return err
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argocd",
+		Operation: "update_appproject",
+	}, func(depCtx context.Context) error {
+		_, err := Client.ArgoprojV1alpha1().AppProjects(namespace).Update(depCtx, project, metav1.UpdateOptions{})
+		return err
+	})
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/bsonger/devflow-service/internal/platform/observer"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	"go.uber.org/zap"
@@ -39,25 +40,51 @@ func InitClient(ctx context.Context, config *rest.Config, logger *zap.Logger) er
 }
 
 func GetPipeline(ctx context.Context, namespace string, name string) (*tknv1.Pipeline, error) {
-	return tektonClient.TektonV1().Pipelines(namespace).Get(ctx, name, metav1.GetOptions{})
+	var pipeline *tknv1.Pipeline
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "tekton",
+		Operation: "get_pipeline",
+	}, func(depCtx context.Context) error {
+		var err error
+		pipeline, err = tektonClient.TektonV1().Pipelines(namespace).Get(depCtx, name, metav1.GetOptions{})
+		return err
+	})
+	return pipeline, err
 }
 
 func CreatePipelineRun(ctx context.Context, namespace string, pr *tknv1.PipelineRun) (*tknv1.PipelineRun, error) {
-	return tektonClient.TektonV1().PipelineRuns(namespace).Create(ctx, pr, metav1.CreateOptions{})
+	var pipelineRun *tknv1.PipelineRun
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "tekton",
+		Operation: "create_pipeline_run",
+	}, func(depCtx context.Context) error {
+		var err error
+		pipelineRun, err = tektonClient.TektonV1().PipelineRuns(namespace).Create(depCtx, pr, metav1.CreateOptions{})
+		return err
+	})
+	return pipelineRun, err
 }
 
 func MarkPipelineRunObserveState(ctx context.Context, namespace, name, state string) error {
-	run, err := tektonClient.TektonV1().PipelineRuns(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "tekton",
+		Operation: "mark_pipeline_run_observe_state",
+	}, func(depCtx context.Context) error {
+		run, err := tektonClient.TektonV1().PipelineRuns(namespace).Get(depCtx, name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		copy := run.DeepCopy()
+		if copy.Labels == nil {
+			copy.Labels = map[string]string{}
+		}
+		copy.Labels[observer.ObserveStateLabel] = state
+		_, err = tektonClient.TektonV1().PipelineRuns(namespace).Update(depCtx, copy, metav1.UpdateOptions{})
 		return err
-	}
-	copy := run.DeepCopy()
-	if copy.Labels == nil {
-		copy.Labels = map[string]string{}
-	}
-	copy.Labels[observer.ObserveStateLabel] = state
-	_, err = tektonClient.TektonV1().PipelineRuns(namespace).Update(ctx, copy, metav1.UpdateOptions{})
-	return err
+	})
 }
 
 func CreatePVC(ctx context.Context, namespace, pvcName, storageClassName string, size string) (*corev1.PersistentVolumeClaim, error) {
@@ -78,7 +105,17 @@ func CreatePVC(ctx context.Context, namespace, pvcName, storageClassName string,
 		},
 	}
 
-	return kubeClient.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	var created *corev1.PersistentVolumeClaim
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "create_persistent_volume_claim",
+	}, func(depCtx context.Context) error {
+		var err error
+		created, err = kubeClient.CoreV1().PersistentVolumeClaims(namespace).Create(depCtx, pvc, metav1.CreateOptions{})
+		return err
+	})
+	return created, err
 }
 
 func PatchPVCOwner(ctx context.Context, pvc *corev1.PersistentVolumeClaim, pr *tknv1.PipelineRun) error {
@@ -98,8 +135,14 @@ func PatchPVCOwner(ctx context.Context, pvc *corev1.PersistentVolumeClaim, pr *t
 		return err
 	}
 
-	_, err = kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(ctx, pvc.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-	return err
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "patch_persistent_volume_claim_owner",
+	}, func(depCtx context.Context) error {
+		_, err := kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(depCtx, pvc.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+		return err
+	})
 }
 
 func withPVCOwner(pvc *corev1.PersistentVolumeClaim, pr *tknv1.PipelineRun) *corev1.PersistentVolumeClaim {

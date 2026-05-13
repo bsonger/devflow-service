@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -35,13 +36,20 @@ func ProbeMetricsEndpoint(ctx context.Context, url string) error {
 			}),
 		),
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("metrics probe returned status %s", resp.Status)
-	}
-	return nil
+	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "metrics_endpoint",
+		Operation: "probe_metrics_endpoint",
+	}, func(depCtx context.Context) error {
+		req = req.WithContext(depCtx)
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("metrics probe returned status %s", resp.Status)
+		}
+		return nil
+	})
 }
