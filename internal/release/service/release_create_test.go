@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
 	"github.com/google/uuid"
 )
@@ -179,6 +182,53 @@ func TestFreezeReleaseLiveInputsAllowsMissingAppConfig(t *testing.T) {
 	}
 	if len(release.RoutesSnapshot) != 1 {
 		t.Fatalf("expected one route snapshot, got %#v", release.RoutesSnapshot)
+	}
+}
+
+func TestReleaseManifestReaderWithFallbackLoadsRemoteManifestOnLocalMiss(t *testing.T) {
+	manifestID := uuid.New()
+	applicationID := uuid.New()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/manifests/"+manifestID.String() {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"` + manifestID.String() + `","application_id":"` + applicationID.String() + `","status":"Available"}}`))
+	}))
+	defer server.Close()
+
+	originalCfg := releasesupport.CurrentRuntimeConfig()
+	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{
+		Downstream: model.DownstreamConfig{
+			ManifestSourceBaseURL: server.URL,
+		},
+	})
+	defer releasesupport.ConfigureRuntimeConfig(originalCfg)
+
+	reader := releaseManifestReaderWithFallback{
+		local: stubReleaseManifestReader{
+			getFn: func(_ context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
+				if id != manifestID {
+					t.Fatalf("manifest id = %s want %s", id, manifestID)
+				}
+				return nil, sql.ErrNoRows
+			},
+		},
+	}
+
+	manifest, err := reader.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if manifest == nil {
+		t.Fatal("expected manifest")
+	}
+	if manifest.ID != manifestID {
+		t.Fatalf("manifest id = %s want %s", manifest.ID, manifestID)
+	}
+	if manifest.ApplicationID != applicationID {
+		t.Fatalf("application id = %s want %s", manifest.ApplicationID, applicationID)
 	}
 }
 

@@ -156,6 +156,8 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 			MetaServiceBaseURL:          stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.MetaServiceBaseURL }),
 			NetworkServiceBaseURL:       stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.NetworkServiceBaseURL }),
 			ConfigServiceBaseURL:        stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.ConfigServiceBaseURL }),
+			ReleaseServiceBaseURL:       stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
+			ManifestSourceBaseURL:       stringValue(config.Downstream, func(v *model.DownstreamConfig) string { return v.ManifestSourceBaseURL }),
 		},
 	})
 	if runtime.IsIntentMode() {

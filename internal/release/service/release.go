@@ -22,7 +22,9 @@ import (
 	"github.com/bsonger/devflow-service/internal/release/runtime"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/bsonger/devflow-service/internal/release/transport/argo"
+	releasedownstream "github.com/bsonger/devflow-service/internal/release/transport/downstream"
 	servicedownstream "github.com/bsonger/devflow-service/internal/service/transport/downstream"
+	"github.com/bsonger/devflow-service/internal/shared/downstreamhttp"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -82,9 +84,35 @@ type releaseConfigReader interface {
 	FindAppConfig(context.Context, string, string) (*appconfigdownstream.AppConfig, error)
 }
 
-var releaseManifestSource releaseManifestReader = manifestservice.ManifestService
+var releaseManifestSource releaseManifestReader = releaseManifestReaderWithFallback{local: manifestservice.ManifestService}
 var releaseConfigReaderFactory = func() releaseConfigReader { return newReleaseConfigReader() }
 var releaseNetworkReaderFactory = func() releaseNetworkReader { return newReleaseNetworkReader() }
+
+type releaseManifestReaderWithFallback struct {
+	local releaseManifestReader
+}
+
+func (r releaseManifestReaderWithFallback) Get(ctx context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
+	if r.local == nil {
+		return nil, sql.ErrNoRows
+	}
+	item, err := r.local.Get(ctx, id)
+	if err == nil || !errors.Is(err, sql.ErrNoRows) {
+		return item, err
+	}
+	baseURL := strings.TrimSpace(releasesupport.CurrentRuntimeConfig().Downstream.ManifestSourceBaseURL)
+	if baseURL == "" {
+		return nil, err
+	}
+	remote, remoteErr := releasedownstream.NewManifestClient(baseURL).GetManifest(ctx, id.String())
+	if remoteErr != nil {
+		if downstreamhttp.IsStatus(remoteErr, 404) {
+			return nil, err
+		}
+		return nil, remoteErr
+	}
+	return remote, nil
+}
 
 type releaseService struct {
 	store       repository.Store

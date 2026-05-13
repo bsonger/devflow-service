@@ -54,6 +54,8 @@ type DownstreamConfig struct {
 	MetaServiceBaseURL          string `mapstructure:"meta_service_base_url" json:"meta_service_base_url" yaml:"meta_service_base_url"`
 	NetworkServiceBaseURL       string `mapstructure:"network_service_base_url" json:"network_service_base_url" yaml:"network_service_base_url"`
 	ConfigServiceBaseURL        string `mapstructure:"config_service_base_url" json:"config_service_base_url" yaml:"config_service_base_url"`
+	ReleaseServiceBaseURL       string `mapstructure:"release_service_base_url" json:"release_service_base_url" yaml:"release_service_base_url"`
+	ManifestSourceBaseURL       string `mapstructure:"manifest_source_base_url" json:"manifest_source_base_url" yaml:"manifest_source_base_url"`
 }
 
 type TektonConfig struct {
