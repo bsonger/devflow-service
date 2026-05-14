@@ -286,6 +286,7 @@ func applyApplication(ctx context.Context, applications applicationAPI, app *app
 	current.Spec = app.Spec
 	current.Annotations = app.Annotations
 	current.Labels = app.Labels
+	current.Status = appv1.ApplicationStatus{}
 
 	_, err = applications.Update(ctx, current, metav1.UpdateOptions{})
 	return err
