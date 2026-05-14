@@ -69,10 +69,12 @@
 - `internal/platform/`：基础设施能力
 - `internal/shared/`：少量稳定共享 helper
 - `api/`：稳定契约，当前主要是 OpenAPI
-- `deployments/`：部署与环境清单
 - `docs/`：分层文档
 - `scripts/`：验证和辅助脚本
 - `test/`：集成或端到端验证面
+
+`deployments/` 目录已移除。
+仓库中仍然存在的 `deployments/...` 文档引用属于历史内容，不能再当作当前仓库事实。
 
 业务代码约定为：
 

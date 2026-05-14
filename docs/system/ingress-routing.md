@@ -112,3 +112,31 @@ If this route fails, diagnose in order:
   - `internal/networkservice/transport/http/router.go`
   - `internal/release/transport/http/router.go`
   - `internal/runtime/transport/http/router.go`
+
+## Argo CD external access
+
+Production Argo CD is exposed separately from the shared pre-production ingress.
+
+Current external contract:
+
+- host: `argo.bei.com`
+- TLS termination: Istio ingress
+- upstream service: `argocd-server.argocd.svc.cluster.local:80`
+
+Operational constraints that must stay true after every Argo CD upgrade:
+
+- Argo CD external URL must remain `https://argo.bei.com`
+- `argocd-server` must run with `server.insecure=true` because TLS is already terminated at Istio
+- if `server.insecure` is removed while Istio still forwards plain HTTP to port `80`, the browser will hit an infinite redirect loop at `https://argo.bei.com/`
+
+The redirect-loop symptom is usually:
+
+- browser error: `ERR_TOO_MANY_REDIRECTS`
+- `curl -I https://argo.bei.com/` repeatedly returns `307` to the same URL
+
+When this happens, inspect these objects first:
+
+1. `configmap/argocd-cmd-params-cm` in namespace `argocd`
+2. `configmap/argocd-cm` in namespace `argocd`
+3. `deployment/argocd-server` in namespace `argocd`
+4. the Istio `VirtualService` for host `argo.bei.com`

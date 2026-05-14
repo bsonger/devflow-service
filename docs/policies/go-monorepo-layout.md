@@ -19,7 +19,6 @@ The repo root should use:
 - `cmd/`
 - `internal/`
 - `api/`
-- `deployments/`
 - `scripts/`
 - `test/`
 - `docs/`
@@ -216,13 +215,15 @@ This keeps service wiring stable and prevents callers from depending on storage-
 
 Minor naming differences in existing files are acceptable during migration, but new work should move toward the consistent interface-returning pattern instead of adding more variants.
 
-## API and deployments rules
+## API rules
 
 - `api/` holds contracts such as OpenAPI, protobuf, JSON Schema, and examples
-- `deployments/` holds deployment artifacts such as manifests, Helm assets, or overlays
 
 `api/` is contract surface.
 `internal/<domain>/transport` is implementation surface.
+
+`deployments/` no longer exists in the active repository layout.
+Any remaining doc references to `deployments/...` are historical and must not be treated as current repo-local artifacts.
 
 ## Dependency direction
 

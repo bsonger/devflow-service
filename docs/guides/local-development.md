@@ -107,10 +107,10 @@ bash scripts/verify.sh
 
 ## 什么时候去看部署清单
 
-如果你需要确认服务启动参数、镜像选择、shared ingress 或 pre-production 环境差异，去看：
+如果你需要确认服务启动参数、镜像选择、shared ingress 或 pre-production / production 环境差异：
 
-- `deployments/pre-production/`
-- `deployments/tekton/`
+- 优先看当前运行集群、发布系统和对应资源文档
+- 不要再依赖仓库内 `deployments/` 目录；该目录已移除
 
 如果你只是在做 repo-local 重构，不要把部署清单当作业务逻辑来源。
 
