@@ -10,6 +10,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/runtime/pyroscopex"
 	gootel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 type RuntimeOptions struct {
@@ -40,6 +41,12 @@ func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error
 		Level:  opts.LogLevel,
 		Format: opts.LogFormat,
 	})
+	gootel.SetErrorHandler(gootel.ErrorHandlerFunc(func(err error) {
+		if err == nil {
+			return
+		}
+		logger.RootLogger.Named("otel.exporter").Error("OpenTelemetry runtime error", zap.Error(err))
+	}))
 
 	shutdown := func(context.Context) error { return nil }
 	if opts.OtelEndpoint != "" {
