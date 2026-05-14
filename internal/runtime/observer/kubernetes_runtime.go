@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
@@ -86,10 +85,7 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 	start := time.Now()
 	success := false
 	defer func() { observeRuntimeObserverSync(ctx, "kubernetes_runtime", success, time.Since(start)) }()
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
+	log := platformobs.OperationLogger(ctx, "runtime_observer", "sync_kubernetes_runtime", "runtime")
 	namespace := strings.TrimSpace(o.cfg.Namespace)
 	if namespace == "" {
 		namespace = detectObserverNamespace()

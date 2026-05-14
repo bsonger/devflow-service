@@ -79,7 +79,7 @@ func Init(config *rest.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create argo cd client: %w", err)
 	}
-	logger.Logger.Info("argo cd client initialized",
+	logger.RootLogger.Named("service.lifecycle").Info("argo cd client initialized",
 		zap.String("operation", "init_argo_client"),
 		zap.String("resource", "argo_client"),
 		zap.String("result", "success"),

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
-	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/bsonger/devflow-service/internal/release/transport/argo"
@@ -55,10 +55,7 @@ type bootstrapResult struct {
 // runBootstrapGates executes bootstrap gates in order and returns on first failure.
 // The caller is responsible for persisting step outcomes via UpdateStep.
 func (e *bootstrapExecutor) runBootstrapGates(ctx context.Context, target releasesupport.DeployTarget, appProjectName string) ([]bootstrapResult, error) {
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
+	log := platformobs.OperationLogger(ctx, "release_service", "run_bootstrap_gates", "release")
 
 	if target.Namespace == "" || target.DestinationServer == "" {
 		return nil, fmt.Errorf("%w: namespace=%q server=%q", ErrBootstrapMissingTarget, target.Namespace, target.DestinationServer)

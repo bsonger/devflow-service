@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
@@ -160,10 +159,7 @@ func (o *ReleaseRolloutObserver) sync(ctx context.Context) {
 	start := time.Now()
 	success := false
 	defer func() { observeRuntimeObserverSync(ctx, "release_rollout", success, time.Since(start)) }()
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
+	log := platformobs.OperationLogger(ctx, "runtime_observer", "sync_release_rollout", "runtime")
 
 	specs, err := o.store.ListRuntimeSpecs(ctx)
 	if err != nil {

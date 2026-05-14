@@ -12,7 +12,6 @@ import (
 	"time"
 
 	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
-	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
@@ -108,10 +107,7 @@ func (o *TektonManifestObserver) sync(ctx context.Context) {
 	start := time.Now()
 	success := false
 	defer func() { observeRuntimeObserverSync(ctx, "tekton_manifest", success, time.Since(start)) }()
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
+	log := platformobs.OperationLogger(ctx, "runtime_observer", "sync_tekton_manifest", "manifest")
 	var pipelineRuns *tknv1.PipelineRunList
 	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
 		Kind:      "k8s",

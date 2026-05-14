@@ -6,7 +6,7 @@ import (
 
 	intentdomain "github.com/bsonger/devflow-service/internal/intent/domain"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
-	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -33,13 +33,7 @@ func (s *releaseService) ProcessNextReleaseIntent(ctx context.Context, workerID 
 		return false, err
 	}
 
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
-	log = log.With(
-		zap.String("operation", "process_release_intent"),
-		zap.String("resource", "intent"),
+	log := platformobs.OperationLogger(ctx, "worker", "process_release_intent", "intent",
 		zap.String("intent_id", intent.ID.String()),
 		zap.String("release_id", intent.ResourceID.String()),
 		zap.String("worker_id", workerID),

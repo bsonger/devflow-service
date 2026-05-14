@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bsonger/devflow-service/internal/platform/logger"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"go.uber.org/zap"
 )
@@ -66,11 +66,7 @@ func StartReleaseIntentWorker(ctx context.Context, cfg ReleaseIntentWorkerConfig
 }
 
 func runReleaseIntentWorker(ctx context.Context, cfg ReleaseIntentWorkerConfig, processor ReleaseIntentProcessor) {
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
-	log = log.With(
+	log := platformobs.OperationLogger(ctx, "worker", "run_release_intent_worker", "worker",
 		zap.String("component", "release_intent_worker"),
 		zap.String("worker_id", cfg.WorkerID),
 		zap.String("execution_mode", string(GetExecutionMode())),

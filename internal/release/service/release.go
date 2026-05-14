@@ -14,9 +14,9 @@ import (
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
-	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/observer"
 	"github.com/bsonger/devflow-service/internal/platform/oci"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
 	"github.com/bsonger/devflow-service/internal/release/runtime"
@@ -238,13 +238,7 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 // Create validates that the build-side manifest is deployable, freezes release-only live inputs, and then starts deploy execution.
 // This is the explicit handoff point from manifest build observation into release-owned bundle render/publication and Argo delivery.
 func (s *releaseService) Create(ctx context.Context, release *model.Release) (uuid.UUID, error) {
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
-	log = log.With(
-		zap.String("operation", "create_release"),
-		zap.String("resource", "release"),
+	log := platformobs.OperationLogger(ctx, "release_service", "create_release", "release",
 		zap.String("result", "started"),
 		zap.String("release_type", release.Type),
 		zap.String("manifest_id", release.ManifestID.String()),
@@ -349,9 +343,7 @@ func (s *releaseService) DispatchRelease(ctx context.Context, releaseID uuid.UUI
 }
 
 func (s *releaseService) handleSyncArgoError(ctx context.Context, release *model.Release, err error) {
-	log := logger.LoggerWithContext(ctx).With(
-		zap.String("operation", "sync_release"),
-		zap.String("resource", "release"),
+	log := platformobs.OperationLogger(ctx, "release_service", "sync_release", "release",
 		zap.String("resource_id", release.ID.String()),
 		zap.String("release_type", release.Type),
 	)
@@ -498,14 +490,10 @@ func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, 
 	if err := s.repoStore().UpdateRow(ctx, release); err != nil {
 		return err
 	}
-	statusLog := logger.LoggerWithContext(ctx)
-	if statusLog == nil {
-		statusLog = zap.NewNop()
-	}
-	statusLog.Info("release status updated",
-		zap.String("operation", "update_release_status"),
-		zap.String("resource", "release"),
+	statusLog := platformobs.OperationLogger(ctx, "release_service", "update_release_status", "release",
 		zap.String("resource_id", release.ID.String()),
+	)
+	statusLog.Info("release status updated",
 		zap.String("result", "success"),
 		zap.String("previous_status", string(previousStatus)),
 		zap.String("status", string(status)),
@@ -523,13 +511,7 @@ func (s *releaseService) markReleaseObservationTerminal(ctx context.Context, rel
 	if release == nil {
 		return
 	}
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
-	log = log.With(
-		zap.String("operation", "mark_release_observation_terminal"),
-		zap.String("resource", "release"),
+	log := platformobs.OperationLogger(ctx, "release_service", "mark_release_observation_terminal", "release",
 		zap.String("resource_id", release.ID.String()),
 		zap.String("status", string(status)),
 	)
@@ -579,13 +561,7 @@ func (s *releaseService) markReleaseWorkloadsObservationTerminal(ctx context.Con
 	if release == nil {
 		return
 	}
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
-	log = log.With(
-		zap.String("operation", "mark_release_workloads_observation_terminal"),
-		zap.String("resource", "release"),
+	log := platformobs.OperationLogger(ctx, "release_service", "mark_release_workloads_observation_terminal", "release",
 		zap.String("resource_id", release.ID.String()),
 	)
 	bundle, err := s.repoBundleStore().GetByReleaseID(ctx, release.ID)
@@ -809,11 +785,8 @@ func (s *releaseService) updateStatusFromSteps(ctx context.Context, releaseID uu
 // executeReleasePhases runs the deploy-side pipeline after manifest build handoff has completed.
 // From this point on, step messages, bundle preview/publication, and Argo application sync are the authoritative diagnostics surfaces.
 func (s *releaseService) executeReleasePhases(ctx context.Context, release *model.Release) error {
-	log := logger.LoggerWithContext(ctx)
 	annotateReleaseSpan(ctx, release)
-	log = log.With(
-		zap.String("operation", "sync_release"),
-		zap.String("resource", "release"),
+	log := platformobs.OperationLogger(ctx, "release_service", "sync_release", "release",
 		zap.String("resource_id", release.ID.String()),
 		zap.String("release_type", release.Type),
 	)
@@ -1023,10 +996,9 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 
 func (s *releaseService) createArgoApplication(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
 	start := time.Now()
-	log := logger.LoggerWithContext(ctx)
-	if log == nil {
-		log = zap.NewNop()
-	}
+	log := platformobs.OperationLogger(ctx, "release_service", "create_argocd_application", "release",
+		zap.String("resource_id", release.ID.String()),
+	)
 	application := buildArgoApplication(release, manifest, app, target)
 	if err := s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepRunning, 25, createArgoApplicationStartMessage(release, application.Name, target), nil, nil); err != nil {
 		return err
