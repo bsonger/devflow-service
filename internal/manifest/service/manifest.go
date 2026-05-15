@@ -30,10 +30,10 @@ var ErrManifestWorkloadConfigMissing = sharederrs.FailedPrecondition("effective 
 var ErrManifestRepositoryMissing = sharederrs.FailedPrecondition("application repository address is missing")
 
 var (
-	manifestCreatePVC         = localtekton.CreatePVC
-	manifestCreatePipelineRun = localtekton.CreatePipelineRun
-	manifestPatchPVCOwner     = localtekton.PatchPVCOwner
-	manifestGetPipeline       = localtekton.GetPipeline
+	manifestCreatePVC                   = localtekton.CreatePVC
+	manifestCreatePipelineRun           = localtekton.CreatePipelineRun
+	manifestPatchPVCOwner               = localtekton.PatchPVCOwner
+	manifestGetPipeline                 = localtekton.GetPipeline
 	manifestMarkPipelineRunObserveState = localtekton.MarkPipelineRunObserveState
 )
 
@@ -225,7 +225,7 @@ func buildManifestPipelineRun(manifest *manifestdomain.Manifest, pvcName, imageR
 			}(),
 			Annotations: map[string]string{
 				"devflow.manifest/id":             manifest.ID.String(),
-				observer.ObserveKindAnnotation:   observer.ObserveKindManifest,
+				observer.ObserveKindAnnotation:    observer.ObserveKindManifest,
 				observer.ObserveOwnerIDAnnotation: manifest.ID.String(),
 			},
 		},
@@ -527,6 +527,7 @@ func buildManifest(req *manifestdomain.CreateManifestRequest, applicationName, r
 		Resources:          workload.Resources,
 		Probes:             workload.Probes,
 		Metrics:            workload.Metrics,
+		EmptyDirs:          workload.EmptyDirs,
 		Env:                toModelEnvVars(workload.Env),
 		Labels:             workload.Labels,
 		Annotations:        workload.Annotations,

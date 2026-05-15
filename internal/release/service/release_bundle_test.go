@@ -46,6 +46,10 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 			Resources: workloadconfigdomain.WorkloadResourceRequirements{
 				Limits: workloadconfigdomain.WorkloadResourceList{CPU: "500m"},
 			},
+			EmptyDirs: []workloadconfigdomain.WorkloadEmptyDir{{
+				Name:      "tmp",
+				MountPath: "/tmp",
+			}},
 			Env: []model.EnvVar{{Name: "APP_ENV", Value: "prod"}},
 		},
 	}
@@ -123,9 +127,26 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 	if got := podSpec["terminationGracePeriodSeconds"]; got != 30 {
 		t.Fatalf("terminationGracePeriodSeconds = %#v", got)
 	}
+	volumes := podSpec["volumes"].([]map[string]any)
+	if len(volumes) != 2 {
+		t.Fatalf("volumes = %#v", volumes)
+	}
+	if volumes[1]["name"] != "tmp" {
+		t.Fatalf("emptyDir volume name = %#v", volumes[1])
+	}
+	if _, ok := volumes[1]["emptyDir"].(map[string]any); !ok {
+		t.Fatalf("emptyDir volume missing payload: %#v", volumes[1])
+	}
 	ports, ok := containerSpec[0]["ports"].([]map[string]any)
 	if !ok || len(ports) != 2 {
 		t.Fatalf("deployment ports missing: %#v", containerSpec[0])
+	}
+	volumeMounts := containerSpec[0]["volumeMounts"].([]map[string]any)
+	if len(volumeMounts) != 2 {
+		t.Fatalf("volumeMounts = %#v", volumeMounts)
+	}
+	if volumeMounts[1]["name"] != "tmp" || volumeMounts[1]["mountPath"] != "/tmp" {
+		t.Fatalf("unexpected emptyDir volumeMount = %#v", volumeMounts[1])
 	}
 	if ports[0]["name"] != "http" || ports[0]["containerPort"] != 8080 {
 		t.Fatalf("deployment port = %#v", ports[0])

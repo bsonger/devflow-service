@@ -31,6 +31,7 @@ The active write contract is intentionally constrained:
 - probe `path` values must start with `/`, and `port` is required whenever a probe `path` is set
 - `env` remains an ordered array of repeated `{name,value}` rows and rejects duplicate `name` entries
 - `metrics` is a typed contract with `enabled`, `port`, and `scrape_profile`
+- `empty_dirs` is the typed writable scratch-volume contract for `emptyDir` mounts
 - `labels` and `annotations` remain explicit user inputs
 - rollout strategy is **not** stored here; it belongs to `Release.strategy`
 - render-time expansion into Kubernetes `resources`, `livenessProbe`, `readinessProbe`, `startupProbe`, and similar fields happens downstream during manifest/release rendering
@@ -54,6 +55,7 @@ The active write contract is intentionally constrained:
 | `resources` | `WorkloadResourceRequirements` | optional | user | Constrained resource selector. Writes must provide a valid `size_class` and must not send `requests` or `limits`. |
 | `probes` | `WorkloadProbes` | optional | user | Typed HTTP probe contract with only `liveness`, `readiness`, and `startup` slots. |
 | `metrics` | `WorkloadMetrics` | optional | user | Typed metrics exposure contract. `enabled=true` requires `port > 0`. `scrape_profile` defaults to `default` and is constrained to `default`, `fast`, or `slow`. |
+| `empty_dirs` | `[]WorkloadEmptyDir` | optional | user | Writable scratch volume contract rendered into Kubernetes `emptyDir` volumes and matching container `volumeMounts`. |
 | `env` | `[]EnvVar` | optional | user | Ordered literal environment variable rows. Duplicate `name` values are rejected on writes. |
 | `labels` | `map[string]string` | optional | user | Labels copied into rendered workload metadata. |
 | `annotations` | `map[string]string` | optional | user | Annotations copied into rendered workload metadata. |
@@ -111,6 +113,15 @@ The active write contract is intentionally constrained:
 | `port` | `int` | required when `enabled=true` | Metrics listener port. Must be `> 0` when metrics are enabled. |
 | `scrape_profile` | `WorkloadMetricsScrapeProfile` | optional | Shared `ServiceMonitor` profile. Allowed values: `default`, `fast`, `slow`. Defaults to `default` when metrics are enabled. |
 
+### `WorkloadEmptyDir`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | required | Kubernetes volume name. Must be unique within `empty_dirs`. |
+| `mount_path` | `string` | required | Container mount path. Must start with `/` and be unique within `empty_dirs`. |
+| `medium` | `string` | optional | Allowed value: `Memory`. Empty means node filesystem-backed `emptyDir`. |
+| `size_limit` | `string` | optional | Kubernetes quantity string rendered to `emptyDir.sizeLimit`. |
+
 ## Fixed size-class mapping table
 
 The canonical source of truth is `internal/workloadconfig/domain.WorkloadSizeClassResources`.
@@ -161,6 +172,7 @@ Optional fields:
 - `service_account_name`
 - `probes`
 - `metrics`
+- `empty_dirs`
 - `env`
 - `labels`
 - `annotations`
@@ -240,6 +252,12 @@ Immutable/system-managed fields:
     "port": 9090,
     "scrape_profile": "default"
   },
+  "empty_dirs": [
+    {
+      "name": "tmp",
+      "mount_path": "/tmp"
+    }
+  ],
   "env": [
     {
       "name": "LOG_LEVEL",
@@ -258,6 +276,26 @@ Immutable/system-managed fields:
   }
 }
 ```
+
+`empty_dirs` 是平台级的 scratch storage 声明入口。典型场景就是容器需要可写 `/tmp`，例如：
+
+```json
+{
+  "empty_dirs": [
+    {
+      "name": "tmp",
+      "mount_path": "/tmp"
+    }
+  ]
+}
+```
+
+release 渲染时会把它翻译成:
+
+- pod `spec.volumes[].emptyDir`
+- container `volumeMounts[]`
+
+这样应用通过 `WorkloadConfig` 就能声明临时可写目录，而不是依赖线上手工 patch。
 
 ### Rejected legacy wide write shape
 

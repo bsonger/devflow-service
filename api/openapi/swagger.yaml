@@ -554,6 +554,10 @@ definitions:
         type: string
       deleted_at:
         type: string
+      empty_dirs:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir'
+        type: array
       env:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar'
@@ -585,6 +589,10 @@ definitions:
         type: object
       application_id:
         type: string
+      empty_dirs:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir'
+        type: array
       env:
         items:
           $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar'
@@ -602,6 +610,17 @@ definitions:
       resources:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements'
       service_account_name:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir:
+    properties:
+      medium:
+        type: string
+      mount_path:
+        type: string
+      name:
+        type: string
+      size_limit:
         type: string
     type: object
   github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetrics:
@@ -1398,6 +1417,10 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      empty_dirs:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir'
+        type: array
       env:
         items:
           $ref: '#/definitions/internal_manifest_transport_http.ManifestEnvVarDoc'

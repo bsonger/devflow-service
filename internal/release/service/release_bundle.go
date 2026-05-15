@@ -291,6 +291,7 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 		metadata["namespace"] = namespace
 	}
 	env := buildReleaseWorkloadEnv(applicationName, deploymentEnvironmentName, manifest)
+	volumeMounts := buildReleaseVolumeMounts(workload, release)
 	container := map[string]any{
 		"name":                     applicationName,
 		"image":                    manifest.ImageRef,
@@ -304,13 +305,8 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 		container["ports"] = ports
 	}
 	applyReleaseWorkloadProbes(container, workload.Probes)
-	if releaseHasAppConfig(release.AppConfigSnapshot) {
-		volumeName := "app-config"
-		container["volumeMounts"] = []map[string]any{{
-			"name":      volumeName,
-			"mountPath": firstNonEmptyString(strings.TrimSpace(release.AppConfigSnapshot.MountPath), "/etc/config"),
-			"readOnly":  true,
-		}}
+	if len(volumeMounts) > 0 {
+		container["volumeMounts"] = volumeMounts
 	}
 	podSpec := map[string]any{
 		"dnsPolicy":                     "ClusterFirst",
@@ -325,14 +321,8 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 		podSpec["serviceAccount"] = workload.ServiceAccountName
 		podSpec["serviceAccountName"] = workload.ServiceAccountName
 	}
-	if releaseHasAppConfig(release.AppConfigSnapshot) {
-		podSpec["volumes"] = []map[string]any{{
-			"name": "app-config",
-			"configMap": map[string]any{
-				"name":        applicationName,
-				"defaultMode": 420,
-			},
-		}}
+	if volumes := buildReleaseVolumes(applicationName, workload, release); len(volumes) > 0 {
+		podSpec["volumes"] = volumes
 	}
 	spec := map[string]any{
 		"progressDeadlineSeconds": 600,
@@ -400,6 +390,51 @@ func buildReleaseWorkloadResource(namespace, applicationName, deploymentEnvironm
 		}
 		return marshalReleaseRenderedObject("Deployment", applicationName, namespace, obj)
 	}
+}
+
+func buildReleaseVolumeMounts(workload manifestdomain.ManifestWorkloadConfig, release *model.Release) []map[string]any {
+	mounts := make([]map[string]any, 0, len(workload.EmptyDirs)+1)
+	if releaseHasAppConfig(release.AppConfigSnapshot) {
+		mounts = append(mounts, map[string]any{
+			"name":      "app-config",
+			"mountPath": firstNonEmptyString(strings.TrimSpace(release.AppConfigSnapshot.MountPath), "/etc/config"),
+			"readOnly":  true,
+		})
+	}
+	for _, item := range workload.EmptyDirs {
+		mounts = append(mounts, map[string]any{
+			"name":      strings.TrimSpace(item.Name),
+			"mountPath": strings.TrimSpace(item.MountPath),
+		})
+	}
+	return mounts
+}
+
+func buildReleaseVolumes(applicationName string, workload manifestdomain.ManifestWorkloadConfig, release *model.Release) []map[string]any {
+	volumes := make([]map[string]any, 0, len(workload.EmptyDirs)+1)
+	if releaseHasAppConfig(release.AppConfigSnapshot) {
+		volumes = append(volumes, map[string]any{
+			"name": "app-config",
+			"configMap": map[string]any{
+				"name":        applicationName,
+				"defaultMode": 420,
+			},
+		})
+	}
+	for _, item := range workload.EmptyDirs {
+		emptyDir := map[string]any{}
+		if medium := strings.TrimSpace(item.Medium); medium != "" {
+			emptyDir["medium"] = medium
+		}
+		if sizeLimit := strings.TrimSpace(item.SizeLimit); sizeLimit != "" {
+			emptyDir["sizeLimit"] = sizeLimit
+		}
+		volumes = append(volumes, map[string]any{
+			"name":     strings.TrimSpace(item.Name),
+			"emptyDir": emptyDir,
+		})
+	}
+	return volumes
 }
 
 func buildReleaseWorkloadEnv(_ string, _ string, manifest *manifestdomain.Manifest) []map[string]any {

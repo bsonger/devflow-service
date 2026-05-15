@@ -137,6 +137,7 @@ func validateWorkloadConfig(item *domain.WorkloadConfig) error {
 	messages = append(messages, validateWorkloadResources(item.Resources)...)
 	messages = append(messages, validateWorkloadProbes(item.Probes)...)
 	messages = append(messages, validateWorkloadMetrics(&item.Metrics)...)
+	messages = append(messages, validateWorkloadEmptyDirs(item.EmptyDirs)...)
 	messages = append(messages, validateWorkloadEnv(item.Env)...)
 	return sharederrs.JoinInvalid(messages)
 }
@@ -195,6 +196,40 @@ func validateWorkloadEnv(env []domain.EnvVar) []string {
 			continue
 		}
 		seen[name] = i
+	}
+	return messages
+}
+
+func validateWorkloadEmptyDirs(emptyDirs []domain.WorkloadEmptyDir) []string {
+	var messages []string
+	seenNames := map[string]int{}
+	seenMountPaths := map[string]int{}
+	for i, item := range emptyDirs {
+		name := strings.TrimSpace(item.Name)
+		mountPath := strings.TrimSpace(item.MountPath)
+		medium := strings.TrimSpace(item.Medium)
+		if name == "" {
+			messages = append(messages, fmt.Sprintf("empty_dirs[%d].name is required", i))
+		} else if first, ok := seenNames[name]; ok {
+			messages = append(messages, fmt.Sprintf("empty_dirs[%d].name duplicates empty_dirs[%d].name %q", i, first, name))
+		} else {
+			seenNames[name] = i
+		}
+		if mountPath == "" {
+			messages = append(messages, fmt.Sprintf("empty_dirs[%d].mount_path is required", i))
+		} else {
+			if !strings.HasPrefix(mountPath, "/") {
+				messages = append(messages, fmt.Sprintf("empty_dirs[%d].mount_path must start with '/'", i))
+			}
+			if first, ok := seenMountPaths[mountPath]; ok {
+				messages = append(messages, fmt.Sprintf("empty_dirs[%d].mount_path duplicates empty_dirs[%d].mount_path %q", i, first, mountPath))
+			} else {
+				seenMountPaths[mountPath] = i
+			}
+		}
+		if medium != "" && medium != "Memory" {
+			messages = append(messages, fmt.Sprintf("empty_dirs[%d].medium must be empty or 'Memory'", i))
+		}
 	}
 	return messages
 }

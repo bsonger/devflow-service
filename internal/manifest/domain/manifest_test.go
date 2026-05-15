@@ -44,4 +44,11 @@ func TestManifestContract(t *testing.T) {
 	if probesField.Type != reflect.TypeOf(workloadconfigdomain.WorkloadProbes{}) {
 		t.Fatalf("ManifestWorkloadConfig.Probes type = %v", probesField.Type)
 	}
+	emptyDirsField, ok := reflect.TypeOf(ManifestWorkloadConfig{}).FieldByName("EmptyDirs")
+	if !ok {
+		t.Fatal("ManifestWorkloadConfig missing EmptyDirs field")
+	}
+	if emptyDirsField.Type != reflect.TypeOf([]workloadconfigdomain.WorkloadEmptyDir{}) {
+		t.Fatalf("ManifestWorkloadConfig.EmptyDirs type = %v", emptyDirsField.Type)
+	}
 }

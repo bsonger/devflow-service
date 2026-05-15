@@ -65,6 +65,8 @@ type ManifestWorkloadProbesDoc = workloadconfigdomain.WorkloadProbes
 
 type ManifestWorkloadMetricsDoc = workloadconfigdomain.WorkloadMetrics
 
+type ManifestWorkloadEmptyDirDoc = workloadconfigdomain.WorkloadEmptyDir
+
 type ManifestWorkloadConfigDoc struct {
 	ID                 string                                  `json:"id,omitempty"`
 	Replicas           int                                     `json:"replicas"`
@@ -72,6 +74,7 @@ type ManifestWorkloadConfigDoc struct {
 	Resources          ManifestWorkloadResourceRequirementsDoc `json:"resources,omitempty"`
 	Probes             ManifestWorkloadProbesDoc               `json:"probes,omitempty"`
 	Metrics            ManifestWorkloadMetricsDoc              `json:"metrics,omitempty"`
+	EmptyDirs          []ManifestWorkloadEmptyDirDoc           `json:"empty_dirs,omitempty"`
 	Env                []ManifestEnvVarDoc                     `json:"env,omitempty"`
 	Labels             map[string]string                       `json:"labels,omitempty"`
 	Annotations        map[string]string                       `json:"annotations,omitempty"`

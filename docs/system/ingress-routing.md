@@ -127,6 +127,8 @@ Operational constraints that must stay true after every Argo CD upgrade:
 
 - Argo CD external URL must remain `https://argo.bei.com`
 - `argocd-server` must run with `server.insecure=true` because TLS is already terminated at Istio
+- Argo CD SSO must keep the external OIDC configuration that points to `https://dex.bei.com/dex`
+- the trust bundle for that external OIDC issuer must remain present in `configmap/argocd-tls-certs-cm` as `dex.crt`
 - if `server.insecure` is removed while Istio still forwards plain HTTP to port `80`, the browser will hit an infinite redirect loop at `https://argo.bei.com/`
 
 The redirect-loop symptom is usually:
@@ -140,3 +142,11 @@ When this happens, inspect these objects first:
 2. `configmap/argocd-cm` in namespace `argocd`
 3. `deployment/argocd-server` in namespace `argocd`
 4. the Istio `VirtualService` for host `argo.bei.com`
+
+If the UI loses the `LOG IN VIA DEX` button and falls back to local username/password only,
+inspect in this order:
+
+1. `configmap/argocd-cm` for `oidc.config`
+2. `configmap/argocd-tls-certs-cm` for `dex.crt`
+3. `deployment/argocd-server` logs for `sso: true`
+4. the rendered login page for the `LOG IN VIA DEX` button

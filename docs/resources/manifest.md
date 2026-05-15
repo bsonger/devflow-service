@@ -160,6 +160,7 @@ Not frozen on manifest:
 | `resources` | `WorkloadResourceRequirements` | optional | system-managed | Frozen constrained resource contract |
 | `probes` | `WorkloadProbes` | optional | system-managed | Frozen named HTTP probes contract |
 | `metrics` | `WorkloadMetrics` | optional | system-managed | Frozen metrics exposure contract used later by release rendering to expose `METRICS_PORT` and ServiceMonitor labels |
+| `empty_dirs` | `[]WorkloadEmptyDir` | optional | system-managed | Frozen scratch-volume contract later rendered into Kubernetes `emptyDir` volumes and container `volumeMounts` |
 | `env` | `[]EnvVar` | optional | system-managed | Frozen environment variable entries |
 | `labels` | `map[string]string` | optional | system-managed | Frozen metadata labels |
 | `annotations` | `map[string]string` | optional | system-managed | Frozen metadata annotations |

@@ -21,6 +21,13 @@ func TestWorkloadConfigContractUsesConstrainedTypes(t *testing.T) {
 	if got := probesField.Type; got != reflect.TypeOf(WorkloadProbes{}) {
 		t.Fatalf("WorkloadConfig.Probes type = %v, want %v", got, reflect.TypeOf(WorkloadProbes{}))
 	}
+	emptyDirsField, ok := cfgType.FieldByName("EmptyDirs")
+	if !ok {
+		t.Fatal("WorkloadConfig missing EmptyDirs field")
+	}
+	if got := emptyDirsField.Type; got != reflect.TypeOf([]WorkloadEmptyDir{}) {
+		t.Fatalf("WorkloadConfig.EmptyDirs type = %v, want %v", got, reflect.TypeOf([]WorkloadEmptyDir{}))
+	}
 
 	inputType := reflect.TypeOf(WorkloadConfigInput{})
 	inputResourcesField, ok := inputType.FieldByName("Resources")
@@ -36,6 +43,13 @@ func TestWorkloadConfigContractUsesConstrainedTypes(t *testing.T) {
 	}
 	if got := inputProbesField.Type; got != reflect.TypeOf(WorkloadProbes{}) {
 		t.Fatalf("WorkloadConfigInput.Probes type = %v, want %v", got, reflect.TypeOf(WorkloadProbes{}))
+	}
+	inputEmptyDirsField, ok := inputType.FieldByName("EmptyDirs")
+	if !ok {
+		t.Fatal("WorkloadConfigInput missing EmptyDirs field")
+	}
+	if got := inputEmptyDirsField.Type; got != reflect.TypeOf([]WorkloadEmptyDir{}) {
+		t.Fatalf("WorkloadConfigInput.EmptyDirs type = %v, want %v", got, reflect.TypeOf([]WorkloadEmptyDir{}))
 	}
 }
 

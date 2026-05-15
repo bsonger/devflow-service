@@ -82,6 +82,13 @@ type WorkloadMetrics struct {
 	ScrapeProfile WorkloadMetricsScrapeProfile `json:"scrape_profile,omitempty"`
 }
 
+type WorkloadEmptyDir struct {
+	Name      string `json:"name,omitempty"`
+	MountPath string `json:"mount_path,omitempty"`
+	Medium    string `json:"medium,omitempty"`
+	SizeLimit string `json:"size_limit,omitempty"`
+}
+
 // WorkloadConfig stores the application-scoped runtime workload contract used by config-service handlers.
 type WorkloadConfig struct {
 	BaseModel
@@ -92,6 +99,7 @@ type WorkloadConfig struct {
 	Resources          WorkloadResourceRequirements `json:"resources,omitempty" db:"resources"`
 	Probes             WorkloadProbes               `json:"probes,omitempty" db:"probes"`
 	Metrics            WorkloadMetrics              `json:"metrics,omitempty" db:"metrics"`
+	EmptyDirs          []WorkloadEmptyDir           `json:"empty_dirs,omitempty" db:"empty_dirs"`
 	Env                []EnvVar                     `json:"env,omitempty" db:"env"`
 	Labels             map[string]string            `json:"labels,omitempty" db:"labels"`
 	Annotations        map[string]string            `json:"annotations,omitempty" db:"annotations"`
@@ -105,6 +113,7 @@ type WorkloadConfigInput struct {
 	Resources          WorkloadResourceRequirements `json:"resources,omitempty"`
 	Probes             WorkloadProbes               `json:"probes,omitempty"`
 	Metrics            WorkloadMetrics              `json:"metrics,omitempty"`
+	EmptyDirs          []WorkloadEmptyDir           `json:"empty_dirs,omitempty"`
 	Env                []EnvVar                     `json:"env,omitempty"`
 	Labels             map[string]string            `json:"labels,omitempty"`
 	Annotations        map[string]string            `json:"annotations,omitempty"`

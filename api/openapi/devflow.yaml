@@ -555,6 +555,10 @@ definitions:
         type: string
       deleted_at:
         type: string
+      empty_dirs:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir"
+        type: array
       env:
         items:
           "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar"
@@ -584,6 +588,10 @@ definitions:
         type: object
       application_id:
         type: string
+      empty_dirs:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir"
+        type: array
       env:
         items:
           "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.EnvVar"
@@ -599,6 +607,17 @@ definitions:
       resources:
         "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements"
       service_account_name:
+        type: string
+    type: object
+  github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir:
+    properties:
+      medium:
+        type: string
+      mount_path:
+        type: string
+      name:
+        type: string
+      size_limit:
         type: string
     type: object
   github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe:
@@ -1365,6 +1384,10 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      empty_dirs:
+        items:
+          "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir"
+        type: array
       env:
         items:
           "$ref": "#/definitions/internal_manifest_transport_http.ManifestEnvVarDoc"
@@ -1375,6 +1398,8 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      metrics:
+        "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadMetricsDoc"
       probes:
         "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc"
       replicas:
@@ -1383,6 +1408,15 @@ definitions:
         "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc"
       service_account_name:
         type: string
+    type: object
+  internal_manifest_transport_http.ManifestWorkloadMetricsDoc:
+    properties:
+      enabled:
+        type: boolean
+      port:
+        type: integer
+      scrape_profile:
+        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile"
     type: object
   internal_manifest_transport_http.ManifestWorkloadProbesDoc:
     properties:

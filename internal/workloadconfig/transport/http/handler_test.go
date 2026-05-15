@@ -101,6 +101,10 @@ func TestCreateWorkloadConfig(t *testing.T) {
 			Enabled: true,
 			Port:    9090,
 		},
+		EmptyDirs: []domain.WorkloadEmptyDir{{
+			Name:      "tmp",
+			MountPath: "/tmp",
+		}},
 		Env:         []domain.EnvVar{{Name: "LOG_LEVEL", Value: "info"}},
 		Labels:      map[string]string{"team": "platform"},
 		Annotations: map[string]string{"sidecar.istio.io/inject": "true"},
@@ -123,6 +127,9 @@ func TestCreateWorkloadConfig(t *testing.T) {
 	}
 	if !created.Metrics.Enabled || created.Metrics.Port != 9090 {
 		t.Fatalf("unexpected metrics payload: %#v", created.Metrics)
+	}
+	if len(created.EmptyDirs) != 1 || created.EmptyDirs[0].MountPath != "/tmp" {
+		t.Fatalf("unexpected empty_dirs payload: %#v", created.EmptyDirs)
 	}
 	if len(created.Env) != 1 || created.Env[0].Name != "LOG_LEVEL" || created.Env[0].Value != "info" {
 		t.Fatalf("unexpected env payload: %#v", created.Env)

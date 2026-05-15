@@ -2851,6 +2851,12 @@ const docTemplate = `{
                 "deleted_at": {
                     "type": "string"
                 },
+                "empty_dirs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir"
+                    }
+                },
                 "env": {
                     "type": "array",
                     "items": {
@@ -2898,6 +2904,12 @@ const docTemplate = `{
                 "application_id": {
                     "type": "string"
                 },
+                "empty_dirs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir"
+                    }
+                },
                 "env": {
                     "type": "array",
                     "items": {
@@ -2923,6 +2935,23 @@ const docTemplate = `{
                     "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceRequirements"
                 },
                 "service_account_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir": {
+            "type": "object",
+            "properties": {
+                "medium": {
+                    "type": "string"
+                },
+                "mount_path": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "size_limit": {
                     "type": "string"
                 }
             }
@@ -4132,6 +4161,12 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    }
+                },
+                "empty_dirs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadEmptyDir"
                     }
                 },
                 "env": {

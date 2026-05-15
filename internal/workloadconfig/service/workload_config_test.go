@@ -22,6 +22,10 @@ func TestValidateWorkloadConfigAcceptsConstrainedWriteShape(t *testing.T) {
 			Enabled: true,
 			Port:    9090,
 		},
+		EmptyDirs: []domain.WorkloadEmptyDir{{
+			Name:      "tmp",
+			MountPath: "/tmp",
+		}},
 		Env: []domain.EnvVar{{Name: "LOG_LEVEL", Value: ""}, {Name: "FEATURE_FLAG", Value: "enabled"}},
 	}
 
@@ -48,6 +52,11 @@ func TestValidateWorkloadConfigRejectsInvalidContractDrift(t *testing.T) {
 			Port:          0,
 			ScrapeProfile: "burst",
 		},
+		EmptyDirs: []domain.WorkloadEmptyDir{
+			{Name: "", MountPath: "tmp"},
+			{Name: "tmp", MountPath: "/cache", Medium: "Disk"},
+			{Name: "tmp", MountPath: "/cache"},
+		},
 		Env: []domain.EnvVar{{Name: " "}, {Name: "LOG_LEVEL", Value: "info"}, {Name: "LOG_LEVEL", Value: "debug"}},
 	}
 
@@ -68,6 +77,11 @@ func TestValidateWorkloadConfigRejectsInvalidContractDrift(t *testing.T) {
 		"probes.readiness.port is required when probes.readiness.path is set",
 		"metrics.port must be > 0 when metrics.enabled is true",
 		"metrics.scrape_profile must be one of:",
+		"empty_dirs[0].name is required",
+		"empty_dirs[0].mount_path must start with '/'",
+		"empty_dirs[1].medium must be empty or 'Memory'",
+		`empty_dirs[2].name duplicates empty_dirs[1].name "tmp"`,
+		`empty_dirs[2].mount_path duplicates empty_dirs[1].mount_path "/cache"`,
 		"env[0].name is required",
 		"env[2].name duplicates env[1].name \"LOG_LEVEL\"",
 	} {

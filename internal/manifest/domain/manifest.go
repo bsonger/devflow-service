@@ -79,6 +79,7 @@ type ManifestWorkloadConfig struct {
 	Resources          workloadconfigdomain.WorkloadResourceRequirements `json:"resources,omitempty"`
 	Probes             workloadconfigdomain.WorkloadProbes               `json:"probes,omitempty"`
 	Metrics            workloadconfigdomain.WorkloadMetrics              `json:"metrics,omitempty"`
+	EmptyDirs          []workloadconfigdomain.WorkloadEmptyDir           `json:"empty_dirs,omitempty"`
 	Env                []model.EnvVar                                    `json:"env,omitempty"`
 	Labels             map[string]string                                 `json:"labels,omitempty"`
 	Annotations        map[string]string                                 `json:"annotations,omitempty"`
