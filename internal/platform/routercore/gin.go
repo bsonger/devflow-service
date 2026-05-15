@@ -2,6 +2,7 @@ package routercore
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -196,10 +197,12 @@ func GinZapLogger() gin.HandlerFunc {
 			fields = append(fields, zap.String("error_message", err.Error()))
 		}
 
-		log := httpRequestLogger(req.Context(), status)
-		message := httpRequestMessage(status, latency)
+		log := httpRequestLogger(req.Context(), status, c.Errors.Last())
+		message := httpRequestMessage(status, latency, c.Errors.Last())
 
 		switch {
+		case isCanceledRequest(c.Errors.Last()):
+			log.Warn(message, fields...)
 		case status >= 500:
 			log.Error(message, fields...)
 		case status >= 400:
@@ -339,8 +342,10 @@ func shouldIncludeDevflowAccessFields(status int, latency time.Duration) bool {
 	return latency >= time.Second
 }
 
-func httpRequestLogger(ctx context.Context, status int) *zap.Logger {
+func httpRequestLogger(ctx context.Context, status int, err *gin.Error) *zap.Logger {
 	switch {
+	case isCanceledRequest(err):
+		return logger.NamedLoggerFromContext(ctx, "http.access")
 	case status >= 400:
 		return logger.NamedLoggerFromContext(ctx, "http.error")
 	default:
@@ -348,8 +353,10 @@ func httpRequestLogger(ctx context.Context, status int) *zap.Logger {
 	}
 }
 
-func httpRequestMessage(status int, latency time.Duration) string {
+func httpRequestMessage(status int, latency time.Duration, err *gin.Error) string {
 	switch {
+	case isCanceledRequest(err):
+		return "http request canceled"
 	case status >= 500:
 		return "http server error"
 	case status >= 400:
@@ -373,6 +380,20 @@ func shouldSkipHTTPRequestLog(path string, status int, latency time.Duration) bo
 		return false
 	}
 	return latency < time.Second
+}
+
+func isCanceledRequest(err *gin.Error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err.Err, context.Canceled) {
+		return true
+	}
+	if errors.Is(err.Err, http.ErrAbortHandler) {
+		return true
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	return message == "context canceled"
 }
 
 func devflowIdentityFields(c *gin.Context, route string) []zap.Field {

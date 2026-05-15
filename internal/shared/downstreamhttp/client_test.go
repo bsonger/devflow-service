@@ -33,6 +33,12 @@ func TestGetEnvelopeDataPropagatesRequestIDAndTraceContext(t *testing.T) {
 		if got := r.Header.Get("traceparent"); got == "" {
 			t.Fatal("expected traceparent header to be propagated")
 		}
+		if got := r.Header.Get("X-Trace-Id"); got == "" {
+			t.Fatal("expected X-Trace-Id header to be propagated")
+		}
+		if got := r.Header.Get("X-Span-Id"); got == "" {
+			t.Fatal("expected X-Span-Id header to be propagated")
+		}
 		_, _ = io.WriteString(w, `{"data":{"id":"app-1"}}`)
 	}))
 	defer ts.Close()

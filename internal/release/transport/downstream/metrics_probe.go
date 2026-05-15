@@ -10,6 +10,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const defaultMetricsProbeTimeout = 3 * time.Second
@@ -26,6 +27,12 @@ func ProbeMetricsEndpoint(ctx context.Context, url string) error {
 	if requestID := logger.RequestIDFromContext(ctx); requestID != "" {
 		req.Header.Set("X-Request-Id", requestID)
 		req.Header.Set("X-Request-ID", requestID)
+	}
+	if span := trace.SpanFromContext(ctx); span != nil {
+		if sc := span.SpanContext(); sc.IsValid() {
+			req.Header.Set("X-Trace-Id", sc.TraceID().String())
+			req.Header.Set("X-Span-Id", sc.SpanID().String())
+		}
 	}
 	client := &http.Client{
 		Timeout: defaultMetricsProbeTimeout,

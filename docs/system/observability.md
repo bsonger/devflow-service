@@ -82,7 +82,6 @@ It is the place for:
 - `service`
 - `environment`
 - `version`
-- `request_id`
 - `trace_id`
 - startup time and uptime
 - enabled HTTP module list

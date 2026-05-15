@@ -14,6 +14,7 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const defaultTimeout = 10 * time.Second
@@ -136,6 +137,12 @@ func (c *Client) GetEnvelopeDataWithOperation(ctx context.Context, path, operati
 		if requestID := logger.RequestIDFromContext(ctx); requestID != "" {
 			req.Header.Set("X-Request-Id", requestID)
 			req.Header.Set("X-Request-ID", requestID)
+		}
+		if span := trace.SpanFromContext(depCtx); span != nil {
+			if sc := span.SpanContext(); sc.IsValid() {
+				req.Header.Set("X-Trace-Id", sc.TraceID().String())
+				req.Header.Set("X-Span-Id", sc.SpanID().String())
+			}
 		}
 		resp, err := c.http.Do(req)
 		if err != nil {

@@ -1,6 +1,7 @@
 package routercore
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -130,29 +131,37 @@ func TestShouldIncludeDevflowAccessFields(t *testing.T) {
 }
 
 func TestHTTPRequestLoggerNames(t *testing.T) {
-	if got := httpRequestLogger(nil, 200).Name(); got != "http.access" {
+	if got := httpRequestLogger(nil, 200, nil).Name(); got != "http.access" {
 		t.Fatalf("httpRequestLogger(200).Name() = %q", got)
 	}
-	if got := httpRequestLogger(nil, 500).Name(); got != "http.error" {
+	if got := httpRequestLogger(nil, 500, nil).Name(); got != "http.error" {
 		t.Fatalf("httpRequestLogger(500).Name() = %q", got)
 	}
-	if got := httpRequestLogger(nil, 404).Name(); got != "http.error" {
+	if got := httpRequestLogger(nil, 404, nil).Name(); got != "http.error" {
 		t.Fatalf("httpRequestLogger(404).Name() = %q", got)
+	}
+	cancelErr := &gin.Error{Err: context.Canceled}
+	if got := httpRequestLogger(nil, 500, cancelErr).Name(); got != "http.access" {
+		t.Fatalf("httpRequestLogger(canceled).Name() = %q", got)
 	}
 }
 
 func TestHTTPRequestMessage(t *testing.T) {
-	if got := httpRequestMessage(200, 10*time.Millisecond); got != "http request" {
+	if got := httpRequestMessage(200, 10*time.Millisecond, nil); got != "http request" {
 		t.Fatalf("httpRequestMessage(200) = %q", got)
 	}
-	if got := httpRequestMessage(404, 10*time.Millisecond); got != "http client error" {
+	if got := httpRequestMessage(404, 10*time.Millisecond, nil); got != "http client error" {
 		t.Fatalf("httpRequestMessage(404) = %q", got)
 	}
-	if got := httpRequestMessage(500, 10*time.Millisecond); got != "http server error" {
+	if got := httpRequestMessage(500, 10*time.Millisecond, nil); got != "http server error" {
 		t.Fatalf("httpRequestMessage(500) = %q", got)
 	}
-	if got := httpRequestMessage(200, 1500*time.Millisecond); got != "slow http request" {
+	if got := httpRequestMessage(200, 1500*time.Millisecond, nil); got != "slow http request" {
 		t.Fatalf("httpRequestMessage(slow 200) = %q", got)
+	}
+	cancelErr := &gin.Error{Err: context.Canceled}
+	if got := httpRequestMessage(500, 10*time.Millisecond, cancelErr); got != "http request canceled" {
+		t.Fatalf("httpRequestMessage(canceled) = %q", got)
 	}
 }
 
@@ -177,5 +186,20 @@ func TestPanicLoggedFlag(t *testing.T) {
 	c.Set(panicLoggedContextKey, true)
 	if !panicLogged(c) {
 		t.Fatal("expected panic flag to be true after recovery marker")
+	}
+}
+
+func TestIsCanceledRequest(t *testing.T) {
+	if isCanceledRequest(nil) {
+		t.Fatal("expected nil error to be false")
+	}
+	if !isCanceledRequest(&gin.Error{Err: context.Canceled}) {
+		t.Fatal("expected context canceled to be recognized")
+	}
+	if !isCanceledRequest(&gin.Error{Err: http.ErrAbortHandler}) {
+		t.Fatal("expected abort handler to be recognized")
+	}
+	if isCanceledRequest(&gin.Error{Err: context.DeadlineExceeded}) {
+		t.Fatal("expected deadline exceeded to remain a real error")
 	}
 }

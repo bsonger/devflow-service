@@ -21,7 +21,6 @@ edge. These fields are emitted by the logger or Gin middleware when available:
 | `timestamp` | zap encoder | Event time emitted by the application logger. |
 | `severity_text` | zap encoder | Log severity text. Older readers may call this `level`. |
 | `body` | zap encoder | Log message body. Older readers may call this `msg`. |
-| `request_id` | Gin middleware | Compatibility correlation only. Prefer `trace_id` / `span_id` for new log queries and dashboards. |
 | `caller` | zap encoder | Debugging aid only. Keep it in logs, but do not treat it as a primary observability dimension. |
 | `logger.name` | zap logger | Logger name for the running service logger. |
 | `http.request.method` | Gin middleware | Request method. |
@@ -108,7 +107,6 @@ Do not emit duplicate aliases for the same fact in new logs.
 
 Recommended fields:
 
-- `trace_id`, not `request_id`, for primary request correlation
 - `http.request.method`, not `method`
 - `http.route`, not `route`
 - `url.path`, not `path`
@@ -120,7 +118,7 @@ Recommended fields:
 - `service.version`, not `service_version`, only when version identity is explicitly needed
 
 Legacy fields such as `service`, `environment`, `service_version`,
-`request_id`, `method`, `route`, `path`, `status_code`, `client_ip`, and
+`method`, `route`, `path`, `status_code`, `client_ip`, and
 `user_agent` may appear in older logs or metrics, but they are compatibility
 fields and are not recommended for new structured log events.
 
@@ -145,6 +143,7 @@ Current HTTP logger names:
 Current HTTP message bodies:
 
 - normal request completion: `http request`
+- client-canceled request completion: `http request canceled`
 - slow 2xx request completion: `slow http request`
 - HTTP 4xx request completion: `http client error`
 - HTTP 5xx request completion: `http server error`
@@ -167,6 +166,247 @@ Shared baseline fields for structured logs:
 `logger.name` is the category field. `caller` is a debugging field only and must
 not be used as a metric label, Loki stream label, dashboard variable, or primary
 classification key.
+
+Do not treat `service.name`, `service.namespace`, `service.version`, or
+`deployment.environment.name` as shared baseline application fields. Those are
+service resource facts owned by the OpenTelemetry SDK, runtime resource
+configuration, or downstream enrichment. Application loggers must not
+unconditionally attach them to every logger category.
+
+## Per-logger field contract
+
+The active contract is: shared baseline first, then a small category-specific
+field set chosen by `logger.name`.
+
+### `http.access`
+
+Use for:
+
+- ordinary successful request completion
+- slow 2xx request completion
+- client-canceled request completion
+
+Required fields in addition to shared baseline:
+
+- `http.request.method`
+- `http.route`
+- `url.path`
+- `http.response.status_code`
+- `http.response.body.size`
+- `duration_ms`
+- `http.server.request.duration`
+- `client.address`
+- `user_agent.original`
+
+Conditional fields:
+
+- `http.request.body.size` when a body is present or the method is not `GET` / `HEAD`
+- request-scoped `devflow.*.id` fields only for slow requests or requests that otherwise need incident context
+- `error_message` only for client-canceled requests
+
+Do not add by default:
+
+- `result`
+- `component`
+- `event.outcome`
+- unconditional request-scoped `devflow.*.id`
+- unconditional `service.name`
+- unconditional `service.namespace`
+- unconditional `service.version`
+
+### `http.error`
+
+Use for:
+
+- 4xx request completion
+- real 5xx request completion
+- panic recovery
+
+Required fields in addition to shared baseline:
+
+- `http.request.method`
+- `http.route`
+- `url.path`
+- `http.response.status_code`
+- `http.response.body.size`
+- `duration_ms`
+- `http.server.request.duration`
+- `client.address`
+- `user_agent.original`
+
+Conditional fields:
+
+- `http.request.body.size` when present
+- request-scoped `devflow.*.id` fields
+- `error_message`
+- `panic` for panic recovery only
+
+Rules:
+
+- 4xx stays `WARN`
+- real 5xx stays `ERROR`
+- `context canceled` and other client disconnect paths must not be classified as `http.error`
+
+### `dependency.client`
+
+Use for:
+
+- dependency call completion
+- dependency call failure
+
+Required fields in addition to shared baseline:
+
+- `dependency`
+- `action`
+- `result`
+- `dependency_duration_seconds`
+
+Optional fields:
+
+- `dependency_kind`
+- `error`
+- `error_code`
+
+Do not add by default:
+
+- HTTP request fields when the event is not an HTTP request log
+- unconditional `service.name`
+- unconditional `service.namespace`
+- unconditional `service.version`
+
+### `otel.exporter`
+
+Use for:
+
+- OpenTelemetry runtime/exporter failures
+
+Required fields in addition to shared baseline:
+
+- `error`
+
+Add extra context only when it is stable and low-cardinality.
+
+### `release.lifecycle`
+
+Use for:
+
+- release workflow milestones
+- release state transitions
+- release coordination failures
+
+Required fields in addition to shared baseline:
+
+- `operation`
+- `resource`
+
+Common optional fields:
+
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
+- `devflow.release.id`
+- `devflow.application.id`
+- `devflow.environment.id`
+- stable workflow fields such as `step_name`, `step_message`, `status`, `previous_status`
+
+### `runtime.state`
+
+Use for:
+
+- runtime observer sync
+- runtime inspection milestones
+- runtime-side release state decisions
+
+Required fields in addition to shared baseline:
+
+- `operation`
+- `resource`
+
+Common optional fields:
+
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
+- stable runtime fields such as `sync_source`, `strategy`, `task_name`
+
+### `worker.lifecycle`
+
+Use for:
+
+- background worker start/stop/claim/process lifecycle
+
+Required fields in addition to shared baseline:
+
+- `operation`
+- `resource`
+
+Common optional fields:
+
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
+- worker-specific stable identifiers such as `intent_id`
+
+### `service.lifecycle`
+
+Use for:
+
+- domain service create/update/delete or attach/detach milestones
+
+Required fields in addition to shared baseline:
+
+- `operation`
+- `resource`
+
+Common optional fields:
+
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
+- stable domain identifiers such as `devflow.application.id`, `devflow.environment.id`
+
+### `db.query`
+
+Use for:
+
+- database-oriented operation milestones when a dedicated DB lifecycle event is required
+
+Required fields in addition to shared baseline:
+
+- `operation`
+- `resource`
+
+Common optional fields:
+
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
+
+Do not log raw SQL text, bind values, secrets, or tokens.
+
+### `business.event`
+
+Use for:
+
+- business/domain events that do not fit a narrower lifecycle logger
+
+Required fields in addition to shared baseline:
+
+- the smallest stable context needed to explain the event
+
+Preferred fields:
+
+- `operation`
+- `resource`
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
 
 ## Dependency logging contract
 

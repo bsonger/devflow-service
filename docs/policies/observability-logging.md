@@ -66,8 +66,9 @@ Service identity belongs to OpenTelemetry resource metadata and Collector
 enrichment. Do not repeat `service.name`, `service.namespace`,
 `service.version`, or `deployment.environment.name` in every business log.
 
-`request_id` may still appear for compatibility, but new log dashboards and
-contracts must use `trace_id` / `span_id` as the primary correlation keys.
+New log dashboards and contracts must use `trace_id` / `span_id` as the
+primary correlation keys. Do not add `request_id` to new application log
+records.
 
 Legacy fields such as `service`, `environment`, and `service_version` may still appear in older logs or metric labels.
 They are compatibility fields, not recommended structured-log fields for new application log events.
@@ -436,7 +437,6 @@ Recommended fields:
 Conditional fields:
 - `http.request.body.size` when a request body is present or when the method is not `GET` / `HEAD`
 - `trace_flags`
-- `request_id`
 - `devflow.project.id`
 - `devflow.application.id`
 - `devflow.service.id`
@@ -483,6 +483,14 @@ Within `http.error`, 4xx should log as client-side request failures and 5xx
 should log as server-side failures; keep the severity split (`WARN` for 4xx,
 `ERROR` for 5xx).
 
+Client-canceled requests such as `context canceled` must not be classified as
+`http.error` server failures. They should stay under `logger.name="http.access"`
+with a distinct message such as `http request canceled`.
+
+Do not treat `service.name`, `service.namespace`, `service.version`, or
+`deployment.environment.name` as unconditional request-log fields. They are
+service resource facts, not per-request application facts.
+
 ### Repository read or write
 
 Use for repository-owned persistence logs.
@@ -505,6 +513,34 @@ result="success"
 application_name="platform-web"
 trace_id="..."
 ```
+
+### Operation and lifecycle loggers
+
+For operation-style application logs, prefer a dedicated `logger.name` contract
+instead of one catch-all payload. Current examples include:
+
+- `release.lifecycle`
+- `runtime.state`
+- `worker.lifecycle`
+- `service.lifecycle`
+- `db.query`
+- `business.event`
+
+Recommended core fields:
+
+- `operation`
+- `resource`
+
+Common conditional fields:
+
+- `resource_id`
+- `result`
+- `error`
+- `error_code`
+- stable domain identifiers only when they materially help explain the event
+
+Do not unconditionally attach `service.name`, `service.namespace`, or
+`service.version` from application code to these logger categories.
 
 ### Workflow or release step
 

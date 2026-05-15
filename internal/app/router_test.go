@@ -10,10 +10,9 @@ import (
 )
 
 type statusResponse struct {
-	Service   string `json:"service"`
-	Status    string `json:"status"`
-	RequestID string `json:"request_id"`
-	HTTP      struct {
+	Service string `json:"service"`
+	Status  string `json:"status"`
+	HTTP    struct {
 		SwaggerEnabled bool     `json:"swagger_enabled"`
 		Modules        []string `json:"modules"`
 	} `json:"http"`
@@ -63,9 +62,6 @@ func TestNewRouterWithOptionsRegistersMetaServiceRoutesAndIdentity(t *testing.T)
 		}
 		if payload.Service != "meta-service" || payload.Status != tc.wantStatus {
 			t.Fatalf("path %s: unexpected payload %#v", tc.path, payload)
-		}
-		if payload.RequestID == "" {
-			t.Fatalf("path %s: expected request_id in payload", tc.path)
 		}
 		if tc.path == "/internal/status" {
 			if !payload.HTTP.SwaggerEnabled {

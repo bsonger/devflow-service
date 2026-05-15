@@ -66,7 +66,7 @@ func InitZapLogger(config *Config) {
 		panic(err)
 	}
 
-	RootLogger = withResourceFields(logger)
+	RootLogger = logger
 	Logger = RootLogger.Named(ServiceName())
 }
 
@@ -97,9 +97,6 @@ func InjectLogger(ctx context.Context, base *zap.Logger) context.Context {
 			zap.String("trace_id", sc.TraceID().String()),
 			zap.String("span_id", sc.SpanID().String()),
 		)
-	}
-	if requestID := RequestIDFromContext(ctx); requestID != "" {
-		log = log.With(zap.String("request_id", requestID))
 	}
 
 	ctx = context.WithValue(ctx, loggerKey, log)
@@ -240,22 +237,6 @@ func (z *ZapAdapter) Debugf(msg string, args ...interface{}) {
 
 func (z *ZapAdapter) Errorf(msg string, args ...interface{}) {
 	z.sugar.Errorf(msg, args...)
-}
-
-func withResourceFields(l *zap.Logger) *zap.Logger {
-	fields := []zap.Field{
-		zap.String("service.name", ServiceName()),
-		zap.String("service.namespace", ServiceNamespace()),
-		zap.String("service.version", ServiceVersion()),
-	}
-
-	out := l
-	for _, f := range fields {
-		if f.Key != "" {
-			out = out.With(f)
-		}
-	}
-	return out
 }
 
 func firstNonEmpty(values ...string) string {

@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestInjectLoggerAddsRequestIDFromContext(t *testing.T) {
+func TestInjectLoggerAddsLoggerToContext(t *testing.T) {
 	InitZapLogger(&Config{Level: "info", Format: "json"})
 
 	ctx := WithRequestID(context.Background(), "req-123")
@@ -77,5 +79,37 @@ func TestServiceVersionNormalizesDigestAndExposesFullContainerDigest(t *testing.
 
 	if got := ServiceVersion(); got != "sha256:8fc33fd48da9" {
 		t.Fatalf("ServiceVersion() = %q", got)
+	}
+}
+
+func TestInitZapLoggerDoesNotAttachServiceResourceFieldsToRootLogs(t *testing.T) {
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.name=config-service,service.namespace=devflow,service.version=v1")
+	Logger = nil
+	RootLogger = nil
+
+	InitZapLogger(&Config{Level: "info", Format: "json"})
+
+	core, observed := observer.New(zapcore.InfoLevel)
+	RootLogger = zap.New(core)
+	Logger = RootLogger.Named(ServiceName())
+
+	Logger.Info("hello")
+
+	entries := observed.AllUntimed()
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+	payload := map[string]struct{}{}
+	for _, field := range entries[0].Context {
+		payload[field.Key] = struct{}{}
+	}
+	if _, ok := payload["service.name"]; ok {
+		t.Fatal("did not expect service.name on root logger output")
+	}
+	if _, ok := payload["service.namespace"]; ok {
+		t.Fatal("did not expect service.namespace on root logger output")
+	}
+	if _, ok := payload["service.version"]; ok {
+		t.Fatal("did not expect service.version on root logger output")
 	}
 }

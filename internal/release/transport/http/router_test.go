@@ -40,9 +40,8 @@ func TestNewRouterWithOptionsRegistersReleaseSwaggerRoutes(t *testing.T) {
 		}
 
 		var payload struct {
-			Service   string `json:"service"`
-			RequestID string `json:"request_id"`
-			HTTP      struct {
+			Service string `json:"service"`
+			HTTP    struct {
 				Modules []string `json:"modules"`
 			} `json:"http"`
 		}
@@ -51,9 +50,6 @@ func TestNewRouterWithOptionsRegistersReleaseSwaggerRoutes(t *testing.T) {
 		}
 		if payload.Service != "release-service" {
 			t.Fatalf("path %s: unexpected service %q", tc.path, payload.Service)
-		}
-		if payload.RequestID == "" {
-			t.Fatalf("path %s: expected request_id in payload", tc.path)
 		}
 		if tc.path == "/internal/status" && len(payload.HTTP.Modules) == 0 {
 			t.Fatalf("path %s: expected modules in payload", tc.path)
