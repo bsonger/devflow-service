@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const DefaultPageSize = 20
+const DefaultPageSize = 10
 const MaxPageSize = 100
 
 type Pagination struct {
@@ -21,42 +21,33 @@ type Pagination struct {
 }
 
 func ParsePagination(c *gin.Context) (Pagination, error) {
-	var p Pagination
-
 	pageStr := strings.TrimSpace(c.Query("page"))
 	pageSizeStr := strings.TrimSpace(c.Query("page_size"))
-
-	if pageStr != "" || pageSizeStr != "" {
-		p.Enabled = true
+	page := 1
+	if pageStr != "" {
+		parsed, err := strconv.Atoi(pageStr)
+		if err != nil || parsed < 1 {
+			return Pagination{}, fmt.Errorf("invalid page")
+		}
+		page = parsed
 	}
 
-	if pageStr != "" || pageSizeStr != "" {
-		page := 1
-		if pageStr != "" {
-			parsed, err := strconv.Atoi(pageStr)
-			if err != nil || parsed < 1 {
-				return Pagination{}, fmt.Errorf("invalid page")
-			}
-			page = parsed
+	pageSize := DefaultPageSize
+	if pageSizeStr != "" {
+		parsed, err := strconv.Atoi(pageSizeStr)
+		if err != nil || parsed < 1 || parsed > MaxPageSize {
+			return Pagination{}, fmt.Errorf("invalid page_size")
 		}
-
-		pageSize := DefaultPageSize
-		if pageSizeStr != "" {
-			parsed, err := strconv.Atoi(pageSizeStr)
-			if err != nil || parsed < 1 || parsed > MaxPageSize {
-				return Pagination{}, fmt.Errorf("invalid page_size")
-			}
-			pageSize = parsed
-		}
-
-		p.Page = page
-		p.PageSize = pageSize
-		p.Limit = pageSize
-		p.Offset = (page - 1) * pageSize
-		return p, nil
+		pageSize = parsed
 	}
 
-	return p, nil
+	return Pagination{
+		Enabled:  true,
+		Limit:    pageSize,
+		Offset:   (page - 1) * pageSize,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
 }
 
 func PaginateSlice[T any](items []T, p Pagination) []T {

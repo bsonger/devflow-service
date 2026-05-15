@@ -47,7 +47,7 @@ canonical OpenAPI 描述的是 shared ingress external route。
   "data": [],
   "pagination": {
     "page": 1,
-    "page_size": 20,
+    "page_size": 10,
     "total": 100
   }
 }
@@ -89,9 +89,10 @@ canonical OpenAPI 描述的是 shared ingress external route。
 
 当前分页规则：
 
-- 只要请求里带了 `page` 或 `page_size`，分页就视为启用
+- 列表接口默认启用分页
+- 未显式传参时，默认按 `page=1`、`page_size=10`
 - `page` 必须从 `1` 开始
-- 默认 `page_size` 是 `20`
+- 默认 `page_size` 是 `10`
 - 最大 `page_size` 是 `100`
 
 列表响应中的 `pagination` 字段会返回：

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -139,6 +140,24 @@ func TestParsePaginationRejectsTooLargePageSize(t *testing.T) {
 	}
 }
 
+func TestParsePaginationDefaultsToFirstPage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	paging, err := ParsePagination(ctx)
+	if err != nil {
+		t.Fatalf("parse pagination: %v", err)
+	}
+	if !paging.Enabled {
+		t.Fatal("expected pagination to be enabled by default")
+	}
+	if paging.Page != 1 || paging.PageSize != 10 || paging.Limit != 10 || paging.Offset != 0 {
+		t.Fatalf("unexpected default pagination: %#v", paging)
+	}
+}
+
 func TestParsePaginationOrWriteRejectsInvalidValue(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -181,6 +200,37 @@ func TestWritePaginatedList(t *testing.T) {
 		t.Fatalf("unexpected data payload: %#v", body.Data)
 	}
 	if body.Pagination.Total != 2 || body.Pagination.Page != 2 || body.Pagination.PageSize != 1 {
+		t.Fatalf("unexpected pagination payload: %#v", body.Pagination)
+	}
+}
+
+func TestWritePaginatedListUsesDefaultPagination(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	items := make([]gin.H, 12)
+	for i := range items {
+		items[i] = gin.H{"id": strconv.Itoa(i)}
+	}
+
+	ok := WritePaginatedList(ctx, http.StatusOK, items)
+	if !ok {
+		t.Fatal("expected paginated write to succeed")
+	}
+
+	var body struct {
+		Data       []map[string]string `json:"data"`
+		Pagination Pagination          `json:"pagination"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if len(body.Data) != 10 || body.Data[0]["id"] != "0" || body.Data[9]["id"] != "9" {
+		t.Fatalf("unexpected data payload: %#v", body.Data)
+	}
+	if body.Pagination.Total != 12 || body.Pagination.Page != 1 || body.Pagination.PageSize != 10 {
 		t.Fatalf("unexpected pagination payload: %#v", body.Pagination)
 	}
 }
