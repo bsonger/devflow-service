@@ -1,10 +1,8 @@
 package observer
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +17,7 @@ import (
 	releasedownstream "github.com/bsonger/devflow-service/internal/release/transport/downstream"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
+	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
@@ -31,7 +30,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const releaseObserverTokenHeader = "X-Devflow-Observer-Token"
 const releaseMetricsPortName = "metrics"
 
 var releaseRolloutGVR = schema.GroupVersionResource{
@@ -88,24 +86,8 @@ type releaseObservedState struct {
 	FinalizeState *releaseStepWrite
 }
 
-type releaseRolloutWritebackError struct {
-	Path       string
-	StatusCode int
-}
-
-func (e *releaseRolloutWritebackError) Error() string {
-	if e == nil {
-		return ""
-	}
-	return fmt.Sprintf("release rollout writeback failed: path=%s status=%d", e.Path, e.StatusCode)
-}
-
-func (e *releaseRolloutWritebackError) NotFound() bool {
-	return e != nil && e.StatusCode == http.StatusNotFound
-}
-
 func isReleaseRolloutWritebackNotFound(err error) bool {
-	var target *releaseRolloutWritebackError
+	var target *writeback.WritebackError
 	return errors.As(err, &target) && target.NotFound()
 }
 
@@ -114,6 +96,8 @@ func StartReleaseRolloutObserver(ctx context.Context, restCfg *rest.Config, cfg 
 	if !cfg.Enabled || cfg.ReleaseServiceBaseURL == "" {
 		return nil
 	}
+	// Legacy polling path retained as a migration fallback while queue-driven release
+	// reconcile remains feature-flagged and is not yet the default execution lane.
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = defaultObserverInterval
 	}
@@ -452,13 +436,29 @@ func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout 
 	if state == nil {
 		return nil
 	}
+	writer := writeback.NewReleaseWriter(o.releaseBase, o.cfg.ObserverToken, o.httpClient)
+	input := writeback.WriteReleaseStepsInput{
+		ReleaseID:            rollout.ReleaseID,
+		ApplicationID:        rollout.ApplicationID,
+		EnvironmentID:        rollout.EnvironmentID,
+		Namespace:            rollout.Namespace,
+		ObservedWorkloadKind: rollout.ObservedWorkloadKind,
+		ObservedWorkloadName: rollout.ObservedWorkloadName,
+		Phase:                state.Phase,
+		Progress:             state.Progress,
+		Message:              state.Message,
+		StepWrites:           make([]writeback.ReleaseStepWrite, 0, len(state.StepWrites)+1),
+	}
 	for _, step := range state.StepWrites {
-		if err := o.postStep(ctx, rollout.ReleaseID, step.StepCode, step.Status, step.Progress, step.Message); err != nil {
-			return err
-		}
+		input.StepWrites = append(input.StepWrites, writeback.ReleaseStepWrite{
+			StepCode: step.StepCode,
+			Status:   step.Status,
+			Progress: step.Progress,
+			Message:  step.Message,
+		})
 	}
 	if state.FinalizeState == nil {
-		return nil
+		return writer.WriteReleaseSteps(ctx, input)
 	}
 	finalize := *state.FinalizeState
 	if finalize.Status == releasedomain.StepSucceeded {
@@ -467,10 +467,13 @@ func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout 
 			finalize.Message = fmt.Sprintf("metrics endpoint verification failed: %v", err)
 		}
 	}
-	if err := o.postStep(ctx, rollout.ReleaseID, finalize.StepCode, finalize.Status, finalize.Progress, finalize.Message); err != nil {
-		return err
-	}
-	return nil
+	input.StepWrites = append(input.StepWrites, writeback.ReleaseStepWrite{
+		StepCode: finalize.StepCode,
+		Status:   finalize.Status,
+		Progress: finalize.Progress,
+		Message:  finalize.Message,
+	})
+	return writer.WriteReleaseSteps(ctx, input)
 }
 
 func pickPrimaryRollout(observedName, primaryName string, items []unstructured.Unstructured) *unstructured.Unstructured {
@@ -950,33 +953,8 @@ func (o *ReleaseRolloutObserver) postStep(ctx context.Context, releaseID uuid.UU
 }
 
 func (o *ReleaseRolloutObserver) postJSON(ctx context.Context, path string, payload any) error {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
-		Kind:      "http",
-		Target:    "release_service",
-		Operation: "release_rollout_writeback",
-	}, func(depCtx context.Context) error {
-		req, err := http.NewRequestWithContext(depCtx, http.MethodPost, o.releaseBase+path, bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Content-Type", "application/json")
-		if token := strings.TrimSpace(o.cfg.ObserverToken); token != "" {
-			req.Header.Set(releaseObserverTokenHeader, token)
-		}
-		resp, err := o.httpClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return nil
-		}
-		return &releaseRolloutWritebackError{Path: path, StatusCode: resp.StatusCode}
-	})
+	writer := writeback.NewReleaseWriter(o.releaseBase, o.cfg.ObserverToken, o.httpClient)
+	return writer.PostJSON(ctx, path, payload)
 }
 
 func (o *ReleaseRolloutObserver) isProcessed(releaseID, stateKey string) bool {

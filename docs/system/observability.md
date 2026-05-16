@@ -123,6 +123,47 @@ Packaging selection for `config-service`, `network-service`, `release-service`, 
 - release writeback failure -> inspect `docs/system/release-writeback.md`, `internal/release/transport/http/*`, and release config wiring
 - migration-boundary ambiguity -> inspect local system docs first, then `devflow-control` target docs
 
+## Runtime Observer Execution Model
+
+Current runtime processing is split into four lanes:
+
+- workload discovery lane: the legacy Kubernetes runtime observer keeps observer-backed runtime workload and pod state current
+- release polling lane: the legacy release rollout observer remains the compatibility fallback for release writeback
+- release reconcile lane: queue-driven release processing behind `observer.release_runtime_enabled`
+- manifest reconcile lane: queue-driven Tekton manifest processing behind `observer.manifest_runtime_enabled`
+
+Both queue-driven lanes remain default-off until explicitly enabled. When disabled, the current polling observers remain the active execution path.
+
+Release reconcile rules:
+
+- derive candidate release IDs from release-owned observed workload labels already stored in runtime state
+- only process releases whose persisted status is `Running`
+- only process workloads owned by the current `control_plane_id`
+- write release steps through the shared runtime release writer and preserve the existing `/api/v1/verify/release/steps` contract
+
+Manifest reconcile rules:
+
+- derive candidate manifest IDs from Tekton cache snapshots filtered by control plane
+- when `observer.tekton_pipeline` is configured, only reconcile PipelineRuns whose `spec.pipelineRef.name` matches that pipeline
+- reconcile from current snapshot state instead of trusting individual event payloads
+- write manifest status, task, and result callbacks through the existing release-service manifest callback paths
+- preserve legacy Tekton result payload semantics for `commit_hash`, `image_ref`, `image_tag`, and `image_digest`
+- preserve legacy fallback from `/api/v1/release/manifests/tekton/*` to `/api/v1/manifests/tekton/*` when the new path returns not found
+
+Operational posture:
+
+- queue workers reconcile from current cache or store snapshots, not from event payload truth
+- the current manifest runtime bootstrap is wired and feature-flagged, and its default live source is a polling-backed Tekton cache
+- the current manifest runtime is not informer-backed yet; Tekton PipelineRun and TaskRun reads still refresh through periodic list calls
+- disabling either feature flag immediately returns the system to the legacy polling-only behavior
+
+Cutover prerequisite:
+
+- queue-driven release runtime enabled and verified in at least one environment
+- queue-driven manifest runtime enabled and verified in at least one environment
+- legacy polling observers produce no unique writeback behavior missing from reconcile workers
+- runtime and observability docs stay consistent with the enabled execution model
+
 ## Future direction
 
 As the migration proceeds, this observability surface should become simpler, not more layered.

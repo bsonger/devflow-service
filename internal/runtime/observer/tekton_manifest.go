@@ -57,6 +57,8 @@ func StartTektonManifestObserver(ctx context.Context, restCfg *rest.Config, cfg 
 	if !cfg.Enabled {
 		return nil
 	}
+	// Legacy polling path retained as a migration fallback while queue-driven manifest
+	// reconcile remains feature-flagged and live Tekton cache wiring is still incomplete.
 	cfg.TektonNamespace = strings.TrimSpace(cfg.TektonNamespace)
 	if cfg.TektonNamespace == "" {
 		cfg.TektonNamespace = defaultTektonNamespace

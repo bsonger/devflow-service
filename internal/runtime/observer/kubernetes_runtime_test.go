@@ -1,6 +1,7 @@
 package observer
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -8,8 +9,10 @@ import (
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func TestReleaseOwnedSelector(t *testing.T) {
@@ -140,6 +143,62 @@ func TestSummarizeRolloutStatus(t *testing.T) {
 	if got := summarizeRolloutStatus(&degraded); got != "Degraded" {
 		t.Fatalf("degraded status = %q", got)
 	}
+}
+
+func TestListDeploymentsFromCacheOrAPIUsesCacheWhenReady(t *testing.T) {
+	appID := uuid.New()
+	selector, err := labels.Parse(strings.Join([]string{
+		releasedomain.ReleaseApplicationLabel + "=" + appID.String(),
+		releasedomain.ReleaseEnvironmentLabel + "=prod",
+	}, ","))
+	if err != nil {
+		t.Fatalf("labels.Parse failed: %v", err)
+	}
+
+	cache := stubWorkloadCache{
+		ready: true,
+		deployments: []appsv1.Deployment{{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-api",
+				Namespace: "default",
+				Labels: map[string]string{
+					releasedomain.ReleaseApplicationLabel: appID.String(),
+					releasedomain.ReleaseEnvironmentLabel: "prod",
+					releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				},
+			},
+		}},
+	}
+	observer := &KubernetesRuntimeObserver{
+		workloadCache: cache,
+	}
+
+	items, err := observer.listDeploymentsFromCacheOrAPI(context.Background(), "default", selector)
+	if err != nil {
+		t.Fatalf("listDeploymentsFromCacheOrAPI failed: %v", err)
+	}
+	if len(items) != 1 || items[0].Name != "demo-api" {
+		t.Fatalf("items = %#v", items)
+	}
+}
+
+type stubWorkloadCache struct {
+	ready       bool
+	deployments []appsv1.Deployment
+	rollouts    []unstructured.Unstructured
+	pods        []corev1.Pod
+}
+
+func (s stubWorkloadCache) Start(context.Context) error { return nil }
+func (s stubWorkloadCache) Ready() bool                 { return s.ready }
+func (s stubWorkloadCache) ListDeployments(namespace string, selector labels.Selector) ([]appsv1.Deployment, error) {
+	return s.deployments, nil
+}
+func (s stubWorkloadCache) ListRollouts(namespace string, selector labels.Selector) ([]unstructured.Unstructured, error) {
+	return s.rollouts, nil
+}
+func (s stubWorkloadCache) ListPods(namespace string, selector labels.Selector) ([]corev1.Pod, error) {
+	return s.pods, nil
 }
 
 func newTestRollout(name string, appID uuid.UUID, environment string) unstructured.Unstructured {

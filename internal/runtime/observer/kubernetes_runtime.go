@@ -14,12 +14,14 @@ import (
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	runtimeservice "github.com/bsonger/devflow-service/internal/runtime/service"
+	runtimewatch "github.com/bsonger/devflow-service/internal/runtime/watch"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -33,11 +35,12 @@ type KubernetesRuntimeObserverConfig struct {
 }
 
 type KubernetesRuntimeObserver struct {
-	cfg       KubernetesRuntimeObserverConfig
-	clientset kubernetes.Interface
-	dynamic   dynamic.Interface
-	store     repository.Store
-	runtime   runtimeservice.Service
+	cfg           KubernetesRuntimeObserverConfig
+	clientset     kubernetes.Interface
+	dynamic       dynamic.Interface
+	store         repository.Store
+	runtime       runtimeservice.Service
+	workloadCache runtimewatch.WorkloadCache
 }
 
 func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, cfg KubernetesRuntimeObserverConfig) error {
@@ -55,13 +58,24 @@ func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, c
 	if err != nil {
 		return err
 	}
+	workloadCache, err := runtimewatch.NewWorkloadCache(restCfg, runtimewatch.WorkloadCacheConfig{
+		Namespace:    cfg.Namespace,
+		ResyncPeriod: 10 * time.Minute,
+	})
+	if err != nil {
+		return err
+	}
+	if err := workloadCache.Start(ctx); err != nil {
+		return err
+	}
 	store := repository.RuntimeStore
 	observer := &KubernetesRuntimeObserver{
-		cfg:       cfg,
-		clientset: clientset,
-		dynamic:   dynamicClient,
-		store:     store,
-		runtime:   runtimeservice.New(store, nil),
+		cfg:           cfg,
+		clientset:     clientset,
+		dynamic:       dynamicClient,
+		store:         store,
+		runtime:       runtimeservice.New(store, nil),
+		workloadCache: workloadCache,
 	}
 	go observer.run(ctx)
 	return nil
@@ -182,57 +196,26 @@ func (o *KubernetesRuntimeObserver) syncRuntimeSpec(ctx context.Context, spec *d
 	if err != nil {
 		return err
 	}
-
-	var deployments *appsv1.DeploymentList
-	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
-		Kind:      "k8s",
-		Target:    "kubernetes",
-		Operation: "list_release_owned_deployments",
-	}, func(depCtx context.Context) error {
-		var err error
-		deployments, err = o.clientset.AppsV1().Deployments(targetNamespace).List(depCtx, metav1.ListOptions{
-			LabelSelector: selector,
-		})
-		return err
-	})
+	parsedSelector, err := labels.Parse(selector)
 	if err != nil {
 		return err
 	}
-	var rollouts *unstructured.UnstructuredList
-	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
-		Kind:      "k8s",
-		Target:    "argo_rollouts",
-		Operation: "list_release_owned_rollouts",
-	}, func(depCtx context.Context) error {
-		var err error
-		rollouts, err = o.dynamic.Resource(releaseRolloutGVR).Namespace(targetNamespace).List(depCtx, metav1.ListOptions{
-			LabelSelector: selector,
-		})
-		return err
-	})
+	deployments, err := o.listDeploymentsFromCacheOrAPI(ctx, targetNamespace, parsedSelector)
 	if err != nil {
 		return err
 	}
-	if err := o.syncWorkload(ctx, spec, appName, targetNamespace, deployments.Items, rollouts.Items); err != nil {
-		return err
-	}
-
-	var pods *corev1.PodList
-	err = platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
-		Kind:      "k8s",
-		Target:    "kubernetes",
-		Operation: "list_release_owned_pods",
-	}, func(depCtx context.Context) error {
-		var err error
-		pods, err = o.clientset.CoreV1().Pods(targetNamespace).List(depCtx, metav1.ListOptions{
-			LabelSelector: selector,
-		})
-		return err
-	})
+	rollouts, err := o.listRolloutsFromCacheOrAPI(ctx, targetNamespace, parsedSelector)
 	if err != nil {
 		return err
 	}
-	return o.syncPods(ctx, spec, targetNamespace, pods.Items)
+	if err := o.syncWorkload(ctx, spec, appName, targetNamespace, deployments, rollouts); err != nil {
+		return err
+	}
+	pods, err := o.listPodsFromCacheOrAPI(ctx, targetNamespace, parsedSelector)
+	if err != nil {
+		return err
+	}
+	return o.syncPods(ctx, spec, targetNamespace, pods)
 }
 
 func (o *KubernetesRuntimeObserver) runtimeSpecFromDeployment(deployment *appsv1.Deployment) (*domain.RuntimeSpec, string, bool) {
@@ -457,6 +440,84 @@ func deploymentMatchesRuntimeSpec(spec *domain.RuntimeSpec, deployment appsv1.De
 
 func podMatchesRuntimeSpec(spec *domain.RuntimeSpec, pod corev1.Pod) bool {
 	return labelsMatchRuntimeSpec(spec, pod.GetLabels())
+}
+
+func (o *KubernetesRuntimeObserver) listDeploymentsFromCacheOrAPI(ctx context.Context, namespace string, selector labels.Selector) ([]appsv1.Deployment, error) {
+	if o.workloadCache != nil && o.workloadCache.Ready() {
+		items, err := o.workloadCache.ListDeployments(namespace, selector)
+		if err == nil {
+			return items, nil
+		}
+	}
+
+	var result *appsv1.DeploymentList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "list_release_owned_deployments",
+	}, func(depCtx context.Context) error {
+		var err error
+		result, err = o.clientset.AppsV1().Deployments(namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector.String(),
+		})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.Items, nil
+}
+
+func (o *KubernetesRuntimeObserver) listRolloutsFromCacheOrAPI(ctx context.Context, namespace string, selector labels.Selector) ([]unstructured.Unstructured, error) {
+	if o.workloadCache != nil && o.workloadCache.Ready() {
+		items, err := o.workloadCache.ListRollouts(namespace, selector)
+		if err == nil {
+			return items, nil
+		}
+	}
+
+	var result *unstructured.UnstructuredList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "argo_rollouts",
+		Operation: "list_release_owned_rollouts",
+	}, func(depCtx context.Context) error {
+		var err error
+		result, err = o.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector.String(),
+		})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.Items, nil
+}
+
+func (o *KubernetesRuntimeObserver) listPodsFromCacheOrAPI(ctx context.Context, namespace string, selector labels.Selector) ([]corev1.Pod, error) {
+	if o.workloadCache != nil && o.workloadCache.Ready() {
+		items, err := o.workloadCache.ListPods(namespace, selector)
+		if err == nil {
+			return items, nil
+		}
+	}
+
+	var result *corev1.PodList
+	err := platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
+		Kind:      "k8s",
+		Target:    "kubernetes",
+		Operation: "list_release_owned_pods",
+	}, func(depCtx context.Context) error {
+		var err error
+		result, err = o.clientset.CoreV1().Pods(namespace).List(depCtx, metav1.ListOptions{
+			LabelSelector: selector.String(),
+		})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.Items, nil
 }
 
 func labelsMatchRuntimeSpec(spec *domain.RuntimeSpec, labels map[string]string) bool {

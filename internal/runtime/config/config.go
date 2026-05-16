@@ -5,6 +5,7 @@ import (
 	"time"
 
 	platformobservability "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	"github.com/bsonger/devflow-service/internal/runtime/bootstrap"
 	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	runtimehttp "github.com/bsonger/devflow-service/internal/runtime/transport/http"
 	"github.com/spf13/viper"
@@ -33,11 +34,16 @@ type DownstreamConfig struct {
 }
 
 type ObserverConfig struct {
-	SharedToken           string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
-	ControlPlaneID        string `mapstructure:"control_plane_id" json:"control_plane_id" yaml:"control_plane_id"`
-	TektonNamespace       string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
-	PollIntervalSeconds   int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
-	TektonManifestEnabled *bool  `mapstructure:"tekton_manifest_enabled" json:"tekton_manifest_enabled" yaml:"tekton_manifest_enabled"`
+	SharedToken            string `mapstructure:"shared_token" json:"shared_token" yaml:"shared_token"`
+	ControlPlaneID         string `mapstructure:"control_plane_id" json:"control_plane_id" yaml:"control_plane_id"`
+	TektonNamespace        string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
+	TektonPipeline         string `mapstructure:"tekton_pipeline" json:"tekton_pipeline" yaml:"tekton_pipeline"`
+	PollIntervalSeconds    int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
+	TektonManifestEnabled  *bool  `mapstructure:"tekton_manifest_enabled" json:"tekton_manifest_enabled" yaml:"tekton_manifest_enabled"`
+	ManifestRuntimeEnabled *bool  `mapstructure:"manifest_runtime_enabled" json:"manifest_runtime_enabled" yaml:"manifest_runtime_enabled"`
+	ManifestRuntimeWorkers int    `mapstructure:"manifest_runtime_workers" json:"manifest_runtime_workers" yaml:"manifest_runtime_workers"`
+	ReleaseRuntimeEnabled  *bool  `mapstructure:"release_runtime_enabled" json:"release_runtime_enabled" yaml:"release_runtime_enabled"`
+	ReleaseRuntimeWorkers  int    `mapstructure:"release_runtime_workers" json:"release_runtime_workers" yaml:"release_runtime_workers"`
 }
 
 type Config struct {
@@ -58,6 +64,8 @@ var (
 	startTektonManifestObserverFn    = runtimeobserver.StartTektonManifestObserver
 	startKubernetesRuntimeObserverFn = runtimeobserver.StartKubernetesRuntimeObserver
 	startReleaseRolloutObserverFn    = runtimeobserver.StartReleaseRolloutObserver
+	startManifestRuntimeReconcilerFn = bootstrap.StartManifestRuntimeReconciler
+	startReleaseRuntimeReconcilerFn  = bootstrap.StartReleaseRuntimeReconciler
 )
 
 func Load() (*Config, error) {
@@ -105,6 +113,12 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	if err := startReleaseRolloutObserver(ctx, config); err != nil {
 		return shutdown, err
 	}
+	if err := startManifestRuntimeReconciler(ctx, config); err != nil {
+		return shutdown, err
+	}
+	if err := startReleaseRuntimeReconciler(ctx, config); err != nil {
+		return shutdown, err
+	}
 	return shutdown, nil
 }
 
@@ -149,6 +163,36 @@ func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
 		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
 		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
 		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
+	})
+}
+
+func startReleaseRuntimeReconciler(ctx context.Context, config *Config) error {
+	if !boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.ReleaseRuntimeEnabled }, false) {
+		return nil
+	}
+	return startReleaseRuntimeReconcilerFn(ctx, bootstrap.ReleaseRuntimeBootstrapConfig{
+		Enabled:               true,
+		ControlPlaneID:        stringValue(config.Observer, func(v *ObserverConfig) string { return v.ControlPlaneID }),
+		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+		Workers:               intValue(config.Observer, func(v *ObserverConfig) int { return v.ReleaseRuntimeWorkers }),
+		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
+		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
+	})
+}
+
+func startManifestRuntimeReconciler(ctx context.Context, config *Config) error {
+	if !boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.ManifestRuntimeEnabled }, false) {
+		return nil
+	}
+	return startManifestRuntimeReconcilerFn(ctx, bootstrap.ManifestRuntimeBootstrapConfig{
+		Enabled:               true,
+		ControlPlaneID:        stringValue(config.Observer, func(v *ObserverConfig) string { return v.ControlPlaneID }),
+		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
+		Workers:               intValue(config.Observer, func(v *ObserverConfig) int { return v.ManifestRuntimeWorkers }),
+		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
+		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
+		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
+		TektonPipeline:        stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonPipeline }),
 	})
 }
 
