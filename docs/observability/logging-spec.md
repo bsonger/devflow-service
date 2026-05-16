@@ -30,7 +30,6 @@ edge. These fields are emitted by the logger or Gin middleware when available:
 | `http.request.body.size` | Gin middleware | Request body size in bytes when known. Omit empty `GET` / `HEAD` zero-body noise. |
 | `http.response.body.size` | Gin middleware | Response body size in bytes when known. |
 | `duration_ms` | Gin middleware | Request duration in floating-point milliseconds for quick human scanning. |
-| `http.server.request.duration` | Gin middleware | Request duration in seconds for semantic alignment with metrics/traces. |
 | `client.address` | Gin middleware | Client address as observed by Gin. |
 | `user_agent.original` | Gin middleware | Raw user-agent header. |
 | `devflow.project.id` | Gin middleware / business code | From stable headers, query params, or route params when available. |
@@ -84,8 +83,6 @@ Collector-owned fields include:
 |---|---|
 | `k8s.cluster.name` | Collector resource/enrichment config. |
 | `k8s.namespace.name` | `k8sattributes` processor. |
-| `k8s.deployment.name` | `k8sattributes` processor. |
-| `k8s.replicaset.name` | `k8sattributes` processor. |
 | `k8s.pod.name` | `k8sattributes` processor. |
 | `k8s.pod.uid` | `k8sattributes` processor. |
 | `k8s.container.name` | `k8sattributes` processor. |
@@ -194,7 +191,6 @@ Required fields in addition to shared baseline:
 - `http.response.status_code`
 - `http.response.body.size`
 - `duration_ms`
-- `http.server.request.duration`
 - `client.address`
 - `user_agent.original`
 
@@ -230,7 +226,6 @@ Required fields in addition to shared baseline:
 - `http.response.status_code`
 - `http.response.body.size`
 - `duration_ms`
-- `http.server.request.duration`
 - `client.address`
 - `user_agent.original`
 

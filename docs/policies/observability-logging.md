@@ -429,7 +429,6 @@ Recommended fields:
 - `url.path`
 - `http.response.status_code`
 - `duration_ms`
-- `http.server.request.duration`
 - `http.response.body.size`
 - `client.address`
 - `user_agent.original`
@@ -467,7 +466,6 @@ http.route="/api/v1/releases/:id"
 url.path="/api/v1/releases/123"
 http.response.status_code=200
 duration_ms=143.217
-http.server.request.duration=0.143217
 http.response.body.size=244
 client.address="10.0.0.8"
 user_agent.original="curl/8.7.1"

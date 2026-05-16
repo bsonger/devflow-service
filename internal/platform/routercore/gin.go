@@ -181,7 +181,6 @@ func GinZapLogger() gin.HandlerFunc {
 			zap.Int("http.response.status_code", status),
 			zap.Int("http.response.body.size", maxInt(c.Writer.Size(), 0)),
 			zap.Float64("duration_ms", float64(latency)/float64(time.Millisecond)),
-			zap.Float64("http.server.request.duration", latency.Seconds()),
 			zap.String("client.address", c.ClientIP()),
 			zap.String("user_agent.original", req.UserAgent()),
 		}
