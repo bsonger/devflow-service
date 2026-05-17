@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
 	platformobservability "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/runtime/bootstrap"
 	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
@@ -174,6 +175,9 @@ func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
 
 func startReleaseRuntimeReconciler(ctx context.Context, config *Config) error {
 	if !boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.ReleaseRuntimeEnabled }, false) {
+		return nil
+	}
+	if !platformdb.IsInitialized() {
 		return nil
 	}
 	return startReleaseRuntimeReconcilerFn(ctx, bootstrap.ReleaseRuntimeBootstrapConfig{

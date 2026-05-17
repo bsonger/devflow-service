@@ -13,6 +13,10 @@ func InitPostgres(conn *sql.DB) {
 	postgres = conn
 }
 
+func IsInitialized() bool {
+	return postgres != nil
+}
+
 func Postgres() *sql.DB {
 	if postgres == nil {
 		panic("postgres store not initialized")
