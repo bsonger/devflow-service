@@ -90,6 +90,7 @@ func serviceName(opts Options) string {
 func registerModules(api *gin.RouterGroup, opts Options) {
 	release.NewModule().RegisterRoutes(api)
 	NewReleaseHandler(service.ReleaseService).RegisterRoutes(api)
+	RegisterManifestWritebackRoutes(api)
 	RegisterReleaseWritebackRoutes(api)
 }
 
