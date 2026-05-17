@@ -49,6 +49,7 @@ Manifest runtime state is reconciled from the live Kubernetes/Tekton view:
 - startup is controlled only by `observer.manifest_runtime_enabled`
 - the manifest runtime reconciler owns manifest-side Tekton observation and release-service writeback
 - the old `tekton_manifest_enabled` compatibility switch and legacy Tekton manifest observer startup path have been removed
+- the active runtime manifest reconciler posts only to `/api/v1/release/manifests/tekton/status`, `/api/v1/release/manifests/tekton/tasks`, and `/api/v1/release/manifests/tekton/result`
 
 ## Runtime action path
 

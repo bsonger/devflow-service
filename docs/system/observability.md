@@ -151,9 +151,9 @@ Manifest reconcile rules:
 - enqueue reconcile keys from `PipelineRun` and `TaskRun` watch events
 - when `observer.tekton_pipeline` is configured, only reconcile PipelineRuns whose `spec.pipelineRef.name` matches that pipeline
 - reconcile from current snapshot state instead of trusting individual event payloads
-- write manifest status, task, and result callbacks through the existing release-service manifest callback paths
+- write manifest status, task, and result callbacks through `/api/v1/release/manifests/tekton/*`
 - preserve legacy Tekton result payload semantics for `commit_hash`, `image_ref`, `image_tag`, and `image_digest`
-- preserve legacy fallback from `/api/v1/release/manifests/tekton/*` to `/api/v1/manifests/tekton/*` when the new path returns not found
+- runtime-service no longer retries those callbacks against `/api/v1/manifests/tekton/*`
 
 Operational posture:
 

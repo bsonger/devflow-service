@@ -128,6 +128,11 @@ Manifest runtime startup contract:
 - `observer.manifest_runtime_enabled=true` starts the manifest runtime reconciler
 - `observer.manifest_runtime_enabled=false` leaves the manifest runtime lane disabled
 - runtime-service no longer runs a legacy Tekton manifest polling fallback
+- runtime-service no longer contains the legacy `TektonManifestObserver` implementation
+- manifest runtime writeback targets only `/api/v1/release/manifests/tekton/status`
+- manifest runtime writeback targets only `/api/v1/release/manifests/tekton/tasks`
+- manifest runtime writeback targets only `/api/v1/release/manifests/tekton/result`
+- runtime-service no longer falls back to `/api/v1/manifests/tekton/*`
 - `observer.tekton_manifest_enabled` is no longer part of the active runtime-service contract
 
 不要把当前 runtime contract 误读成“全仓库已经不再使用 PostgreSQL”。
