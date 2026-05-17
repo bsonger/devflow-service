@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -44,6 +45,9 @@ func TestReleaseQueueEmitsLifecycleEvents(t *testing.T) {
 }
 
 func TestRunningReleaseSourceEnqueuesMatchingRunningReleases(t *testing.T) {
+	logger.RootLogger = zap.NewNop()
+	defer func() { logger.RootLogger = nil }()
+
 	queue := NewReleaseQueue()
 	defer queue.ShutDown()
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"go.uber.org/zap"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -15,7 +15,7 @@ const runtimeReleaseQueueName = "runtime-release-reconcile"
 var releaseQueueLogf = defaultReleaseQueueLogf
 
 func defaultReleaseQueueLogf(event string, fields ...zap.Field) {
-	platformobs.LogRuntimeStateEvent(event, fields...)
+	logger.RootLogger.Named("runtime.state").Info(event, fields...)
 }
 
 type ReleaseQueue interface {
