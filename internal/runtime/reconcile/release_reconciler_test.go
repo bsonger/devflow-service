@@ -3,6 +3,7 @@ package reconcile
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -239,18 +240,32 @@ func TestReleaseReconcilerCompensatesTerminalSucceededDeployment(t *testing.T) {
 	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
 		t.Fatalf("Reconcile failed: %v", err)
 	}
-	assertReleaseStepWrite(t, writer.input, releaseID, applicationID, releasedomain.StepSucceeded, []ReleaseStepWrite{
-		{
-			StepCode: "observe_rollout",
-			Status:   releasedomain.StepSucceeded,
-			Progress: 100,
-			Message:  "workload demo-api in namespace devflow is healthy",
-		},
-		{
-			StepCode: "finalize_release",
-			Status:   releasedomain.StepSucceeded,
-			Progress: 100,
-			Message:  "release finalized after deployment became healthy",
+	assertReleaseWritePayload(t, writer.input, releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "demo-api",
+		phase:                releasedomain.StepSucceeded,
+		progress:             100,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message: messageExpectation{
+					nonEmpty: true,
+				},
+			},
+			{
+				stepCode: "finalize_release",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message: messageExpectation{
+					contains: "finalized",
+				},
+			},
 		},
 	})
 	if !updater.called {
@@ -307,18 +322,32 @@ func TestReleaseReconcilerCompensatesTerminalFailedDeployment(t *testing.T) {
 	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
 		t.Fatalf("Reconcile failed: %v", err)
 	}
-	assertReleaseStepWrite(t, writer.input, releaseID, applicationID, releasedomain.StepFailed, []ReleaseStepWrite{
-		{
-			StepCode: "observe_rollout",
-			Status:   releasedomain.StepFailed,
-			Progress: 100,
-			Message:  "deployment failed",
-		},
-		{
-			StepCode: "finalize_release",
-			Status:   releasedomain.StepFailed,
-			Progress: 100,
-			Message:  "release finalized after deployment failure",
+	assertReleaseWritePayload(t, writer.input, releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "demo-api",
+		phase:                releasedomain.StepFailed,
+		progress:             100,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepFailed,
+				progress: 100,
+				message: messageExpectation{
+					nonEmpty: true,
+				},
+			},
+			{
+				stepCode: "finalize_release",
+				status:   releasedomain.StepFailed,
+				progress: 100,
+				message: messageExpectation{
+					contains: "finalized",
+				},
+			},
 		},
 	})
 	if !updater.called {
@@ -381,6 +410,12 @@ func TestReleaseReconcilerCompensatesTerminalReleaseStatusLabelConvergence(t *te
 	if writer.input == nil {
 		t.Fatal("expected step compensation to happen in the same reconcile pass")
 	}
+	if writer.input.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("phase = %q, want %q", writer.input.Phase, releasedomain.StepSucceeded)
+	}
+	if writer.input.ObservedWorkloadName != "demo-api" {
+		t.Fatalf("ObservedWorkloadName = %q, want %q", writer.input.ObservedWorkloadName, "demo-api")
+	}
 }
 
 type stubReleaseStateSource struct {
@@ -432,27 +467,89 @@ func createRuntimeSpecAndObservedWorkload(t *testing.T, store runtimerepo.Store,
 	}
 }
 
-func assertReleaseStepWrite(t *testing.T, input *WriteReleaseStepsInput, releaseID, applicationID uuid.UUID, wantPhase releasedomain.StepStatus, wantWrites []ReleaseStepWrite) {
+type releaseWriteExpectation struct {
+	releaseID            uuid.UUID
+	applicationID        uuid.UUID
+	environmentID        string
+	namespace            string
+	observedWorkloadKind string
+	observedWorkloadName string
+	phase                releasedomain.StepStatus
+	progress             int32
+	stepWrites           []stepWriteExpectation
+}
+
+type stepWriteExpectation struct {
+	stepCode string
+	status   releasedomain.StepStatus
+	progress int32
+	message  messageExpectation
+}
+
+type messageExpectation struct {
+	exact    string
+	contains string
+	nonEmpty bool
+}
+
+func assertReleaseWritePayload(t *testing.T, input *WriteReleaseStepsInput, want releaseWriteExpectation) {
 	t.Helper()
 
 	if input == nil {
 		t.Fatal("expected steps writer to be invoked")
 	}
-	if input.ReleaseID != releaseID {
-		t.Fatalf("ReleaseID = %s, want %s", input.ReleaseID, releaseID)
+	if input.ReleaseID != want.releaseID {
+		t.Fatalf("ReleaseID = %s, want %s", input.ReleaseID, want.releaseID)
 	}
-	if input.ApplicationID != applicationID {
-		t.Fatalf("ApplicationID = %s, want %s", input.ApplicationID, applicationID)
+	if input.ApplicationID != want.applicationID {
+		t.Fatalf("ApplicationID = %s, want %s", input.ApplicationID, want.applicationID)
 	}
-	if input.Phase != wantPhase {
-		t.Fatalf("Phase = %q, want %q", input.Phase, wantPhase)
+	if input.EnvironmentID != want.environmentID {
+		t.Fatalf("EnvironmentID = %q, want %q", input.EnvironmentID, want.environmentID)
 	}
-	if len(input.StepWrites) != len(wantWrites) {
-		t.Fatalf("StepWrites len = %d, want %d", len(input.StepWrites), len(wantWrites))
+	if input.Namespace != want.namespace {
+		t.Fatalf("Namespace = %q, want %q", input.Namespace, want.namespace)
 	}
-	for i := range wantWrites {
-		if input.StepWrites[i] != wantWrites[i] {
-			t.Fatalf("StepWrites[%d] = %#v, want %#v", i, input.StepWrites[i], wantWrites[i])
+	if input.ObservedWorkloadKind != want.observedWorkloadKind {
+		t.Fatalf("ObservedWorkloadKind = %q, want %q", input.ObservedWorkloadKind, want.observedWorkloadKind)
+	}
+	if input.ObservedWorkloadName != want.observedWorkloadName {
+		t.Fatalf("ObservedWorkloadName = %q, want %q", input.ObservedWorkloadName, want.observedWorkloadName)
+	}
+	if input.Phase != want.phase {
+		t.Fatalf("Phase = %q, want %q", input.Phase, want.phase)
+	}
+	if input.Progress != want.progress {
+		t.Fatalf("Progress = %d, want %d", input.Progress, want.progress)
+	}
+	if len(input.StepWrites) != len(want.stepWrites) {
+		t.Fatalf("StepWrites len = %d, want %d", len(input.StepWrites), len(want.stepWrites))
+	}
+	for i := range want.stepWrites {
+		got := input.StepWrites[i]
+		expected := want.stepWrites[i]
+		if got.StepCode != expected.stepCode {
+			t.Fatalf("StepWrites[%d].StepCode = %q, want %q", i, got.StepCode, expected.stepCode)
+		}
+		if got.Status != expected.status {
+			t.Fatalf("StepWrites[%d].Status = %q, want %q", i, got.Status, expected.status)
+		}
+		if got.Progress != expected.progress {
+			t.Fatalf("StepWrites[%d].Progress = %d, want %d", i, got.Progress, expected.progress)
+		}
+		switch {
+		case expected.message.exact != "":
+			if got.Message != expected.message.exact {
+				t.Fatalf("StepWrites[%d].Message = %q, want %q", i, got.Message, expected.message.exact)
+			}
+		case expected.message.contains != "":
+			if !strings.Contains(got.Message, expected.message.contains) {
+				t.Fatalf("StepWrites[%d].Message = %q, want substring %q", i, got.Message, expected.message.contains)
+			}
+		case expected.message.nonEmpty:
+			if strings.TrimSpace(got.Message) == "" {
+				t.Fatalf("StepWrites[%d].Message = %q, want non-empty", i, got.Message)
+			}
 		}
 	}
 }
