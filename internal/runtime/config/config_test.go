@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func TestInitRuntimeStartsAllObserversWhenClusterConfigAvailable(t *testing.T) {
+func TestInitRuntimeStartsBaselineObserversWhenClusterConfigAvailable(t *testing.T) {
 	reset := installRuntimeConfigTestHooks()
 	defer reset()
 
@@ -342,6 +342,53 @@ func TestInitRuntimeStartsManifestRuntimeReconcilerWhenEnabled(t *testing.T) {
 	}
 	if manifestRuntimeCfg.TektonPipeline != "build-pipeline" {
 		t.Fatalf("manifest runtime tekton pipeline = %q", manifestRuntimeCfg.TektonPipeline)
+	}
+}
+
+func TestInitRuntimeSkipsManifestRuntimeReconcilerWhenDisabled(t *testing.T) {
+	reset := installRuntimeConfigTestHooks()
+	defer reset()
+
+	disabled := false
+	manifestCalled := false
+
+	inClusterConfig = func() (*rest.Config, error) {
+		return &rest.Config{Host: "https://cluster.example"}, nil
+	}
+	startKubernetesRuntimeObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.KubernetesRuntimeObserverConfig) error {
+		return nil
+	}
+	startReleaseRolloutObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.ReleaseRolloutObserverConfig) error {
+		return nil
+	}
+	startReleaseRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ReleaseRuntimeBootstrapConfig) error {
+		return nil
+	}
+	startManifestRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ManifestRuntimeBootstrapConfig) error {
+		manifestCalled = true
+		return nil
+	}
+
+	cfg := &Config{
+		Observer: &ObserverConfig{
+			ManifestRuntimeEnabled: &disabled,
+			PollIntervalSeconds:    15,
+		},
+		Downstream: &DownstreamConfig{
+			ReleaseServiceBaseURL: "http://release-service.devflow.svc.cluster.local",
+		},
+	}
+
+	shutdown, err := InitRuntime(context.Background(), cfg, "runtime-service")
+	if err != nil {
+		t.Fatalf("InitRuntime returned error: %v", err)
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown returned error: %v", err)
+	}
+
+	if manifestCalled {
+		t.Fatal("expected manifest runtime reconciler to stay disabled")
 	}
 }
 
