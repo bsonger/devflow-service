@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -103,8 +104,116 @@ func TestDefaultReleaseRuntimeBootstrapPrefersWorkloadEventSourceWhenClusterConf
 		t.Fatal("expected release source factory")
 	}
 	source := deps.ReleaseSourceFactory(&stubReleaseQueue{})
-	if _, ok := source.(*watch.ReleaseEventSource); !ok {
-		t.Fatalf("source type = %T, want *watch.ReleaseEventSource", source)
+	sources, ok := source.(releaseRuntimeSources)
+	if !ok {
+		t.Fatalf("source type = %T, want releaseRuntimeSources", source)
+	}
+	if len(sources) != 2 {
+		t.Fatalf("len(sources) = %d, want 2", len(sources))
+	}
+	if _, ok := sources[0].(*watch.ReleaseEventSource); !ok {
+		t.Fatalf("sources[0] type = %T, want *watch.ReleaseEventSource", sources[0])
+	}
+	if _, ok := sources[1].(*watch.RunningReleaseSource); !ok {
+		t.Fatalf("sources[1] type = %T, want *watch.RunningReleaseSource", sources[1])
+	}
+}
+
+func TestDefaultReleaseRuntimeBootstrapDualSourceReenqueuesReleaseThatLeavesRunningSet(t *testing.T) {
+	origCluster := inClusterConfig
+	origWorkloadCache := newWorkloadCache
+	defer func() {
+		inClusterConfig = origCluster
+		newWorkloadCache = origWorkloadCache
+	}()
+
+	inClusterConfig = func() (*rest.Config, error) {
+		return &rest.Config{Host: "https://cluster.example"}, nil
+	}
+
+	newWorkloadCache = func(*rest.Config, watch.WorkloadCacheConfig) (watch.WorkloadCache, error) {
+		return stubBootstrapWorkloadCache{}, nil
+	}
+
+	runtimeStore := runtimerepo.NewMemoryStore()
+	releaseID := uuid.New()
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "staging",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+
+	upsertObservedWorkload := func(status string) {
+		t.Helper()
+		if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+			ID:            uuid.New(),
+			RuntimeSpecID: spec.ID,
+			ApplicationID: appID,
+			Environment:   "staging",
+			Namespace:     "devflow",
+			WorkloadKind:  "Deployment",
+			WorkloadName:  "demo-api",
+			Labels: map[string]string{
+				releasedomain.ReleaseIDLabel:     releaseID.String(),
+				releasedomain.ControlPlaneLabel:  "cp-1",
+				releasedomain.ReleaseStatusLabel: status,
+			},
+			ObservedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("UpsertObservedWorkload failed: %v", err)
+		}
+	}
+
+	upsertObservedWorkload(string(releasedomain.ReleaseRunning))
+
+	queue := &recordingReleaseQueue{}
+	runtimeStoreOrig := runtimerepo.RuntimeStore
+	runtimerepo.RuntimeStore = runtimeStore
+	defer func() {
+		runtimerepo.RuntimeStore = runtimeStoreOrig
+	}()
+
+	deps := defaultReleaseRuntimeBootstrapDeps(ReleaseRuntimeBootstrapConfig{
+		Enabled:        true,
+		ControlPlaneID: "cp-1",
+		PollInterval:   5 * time.Millisecond,
+	})
+	source := deps.ReleaseSourceFactory(queue)
+	sources, ok := source.(releaseRuntimeSources)
+	if !ok {
+		t.Fatalf("source type = %T, want releaseRuntimeSources", source)
+	}
+	if len(sources) != 2 {
+		t.Fatalf("len(sources) = %d, want 2", len(sources))
+	}
+
+	runningSource, ok := sources[1].(*watch.RunningReleaseSource)
+	if !ok {
+		t.Fatalf("sources[1] type = %T, want *watch.RunningReleaseSource", sources[1])
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go runningSource.Run(ctx)
+
+	if _, ok := queue.WaitForCount(1, time.Second); !ok {
+		t.Fatalf("timed out waiting for initial running enqueue, got %v", queue.Added())
+	}
+
+	upsertObservedWorkload(string(releasedomain.ReleaseSucceeded))
+
+	got, ok := queue.WaitForCount(2, time.Second)
+	if !ok {
+		t.Fatalf("timed out waiting for replay enqueue after leaving running set, got %v", queue.Added())
+	}
+	if got[0] != releaseID.String() || got[1] != releaseID.String() {
+		t.Fatalf("enqueued %v, want replay of %s after leaving running set", got, releaseID)
 	}
 }
 
@@ -350,6 +459,62 @@ func (s *stubReleaseQueue) Run(ctx context.Context, workers int, handler func(co
 }
 
 func (s *stubReleaseQueue) ShutDown() {}
+
+type recordingReleaseQueue struct {
+	mu    sync.Mutex
+	cond  *sync.Cond
+	added []string
+}
+
+func (q *recordingReleaseQueue) Add(releaseID string) {
+	q.init()
+	q.mu.Lock()
+	q.added = append(q.added, releaseID)
+	q.cond.Broadcast()
+	q.mu.Unlock()
+}
+
+func (q *recordingReleaseQueue) Run(context.Context, int, func(context.Context, string) error) {}
+
+func (q *recordingReleaseQueue) ShutDown() {}
+
+func (q *recordingReleaseQueue) Added() []string {
+	q.init()
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return append([]string(nil), q.added...)
+}
+
+func (q *recordingReleaseQueue) WaitForCount(want int, timeout time.Duration) ([]string, bool) {
+	q.init()
+	deadline := time.Now().Add(timeout)
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for len(q.added) < want {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return append([]string(nil), q.added...), false
+		}
+		timer := time.AfterFunc(remaining, func() {
+			q.mu.Lock()
+			q.cond.Broadcast()
+			q.mu.Unlock()
+		})
+		q.cond.Wait()
+		if !timer.Stop() && len(q.added) < want && time.Now().After(deadline) {
+			return append([]string(nil), q.added...), false
+		}
+	}
+	return append([]string(nil), q.added...), true
+}
+
+func (q *recordingReleaseQueue) init() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.cond == nil {
+		q.cond = sync.NewCond(&q.mu)
+	}
+}
 
 type stubBootstrapWorkloadCache struct{}
 

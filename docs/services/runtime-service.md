@@ -117,6 +117,8 @@
 - runtime-service release-runtime observation trusts Kubernetes workload labels and live state only
 - `release-service` writes the initial `devflow.io/release-status=running` projection when it renders active workloads
 - runtime-service converges `devflow.io/release-status` from `running` to terminal values on the live workload once rollout observation reaches a terminal outcome
+- the dual-source bootstrap keeps the polling source running-only, but it still re-enqueues a release once when that release leaves the running set so reconcile gets a final pass to emit terminal callback compensation
+- during that replay, reconcile can still recover the release from observed workload labels and re-send callback-owned terminal writes for `observe_rollout` and `finalize_release`
 - when release writeback wiring is present, that rollout observer is a callback sender into the owning `release-service`; it does not become the owner of release status, release steps, or writeback route policy
 - runtime-service does not query PostgreSQL or release-service HTTP to confirm running release state
 - in production, runtime observer writeback targets production `release-service` directly

@@ -142,6 +142,8 @@ Current primary use:
 - this remains a token-gated release-owned callback surface rather than a public user-facing route or a runtime-owned API
 - the stable `step_code` set is the compatibility boundary, and each code has one advancing owner even when multiple components can report facts into release-service
 - for workload-kind questions, separate metadata compatibility from live observation scope: release-owned labels, Argo `Application` metadata, and inspection helpers intentionally support both `Deployment` and `Rollout` primary workloads, and the active in-tree runtime rollout observer now advances the canonical step set according to the observed workload strategy
+- the active runtime bootstrap still polls only running releases, but when a release disappears from that running set it replays the same release key once more; that replay is the intended last-chance compensation path for terminal callback-owned writes
+- this compensation replay may re-send `observe_rollout` and `finalize_release` from observed workload truth, but it must not reopen `start_deployment` or any other release-owned dispatch step
 
 Expected behavior:
 - request body must include a valid `release_id`
