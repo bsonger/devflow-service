@@ -13,6 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -203,6 +206,101 @@ func TestListPodsFromCacheOrAPIUsesCacheWhenReady(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].Name != "demo-pod" {
 		t.Fatalf("items = %#v", items)
+	}
+}
+
+func TestReleaseStatusLabelUpdaterUpdatesDeploymentLabels(t *testing.T) {
+	clientset := kubefake.NewSimpleClientset(&appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo-api",
+			Namespace: "devflow",
+			Labels: map[string]string{
+				releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+					},
+				},
+			},
+		},
+	})
+	updater := NewReleaseStatusLabelUpdater(clientset, nil)
+
+	err := updater.UpdateReleaseStatusLabel(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		Namespace:    "devflow",
+		WorkloadKind: "Deployment",
+		WorkloadName: "demo-api",
+	}, releasedomain.ReleaseSucceeded)
+	if err != nil {
+		t.Fatalf("UpdateReleaseStatusLabel failed: %v", err)
+	}
+
+	item, err := clientset.AppsV1().Deployments("devflow").Get(context.Background(), "demo-api", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if got := item.Labels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("deployment label = %q", got)
+	}
+	if got := item.Spec.Template.Labels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("template label = %q", got)
+	}
+}
+
+func TestReleaseStatusLabelUpdaterUpdatesRolloutLabels(t *testing.T) {
+	scheme := runtime.NewScheme()
+	rollout := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Rollout",
+		"metadata": map[string]any{
+			"name":      "demo-api",
+			"namespace": "devflow",
+			"labels": map[string]any{
+				releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+			},
+		},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"metadata": map[string]any{
+					"labels": map[string]any{
+						releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+					},
+				},
+			},
+		},
+	}}
+	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme, rollout)
+	updater := NewReleaseStatusLabelUpdater(nil, dynamicClient)
+
+	err := updater.UpdateReleaseStatusLabel(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		Namespace:    "devflow",
+		WorkloadKind: "Rollout",
+		WorkloadName: "demo-api",
+	}, releasedomain.ReleaseSucceeded)
+	if err != nil {
+		t.Fatalf("UpdateReleaseStatusLabel failed: %v", err)
+	}
+
+	item, err := dynamicClient.Resource(releaseRolloutGVR).Namespace("devflow").Get(context.Background(), "demo-api", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if got := item.GetLabels()[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("rollout label = %q", got)
+	}
+	templateLabels, found, err := unstructured.NestedStringMap(item.Object, "spec", "template", "metadata", "labels")
+	if err != nil {
+		t.Fatalf("NestedStringMap failed: %v", err)
+	}
+	if !found {
+		t.Fatal("expected rollout template labels")
+	}
+	if got := templateLabels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("rollout template label = %q", got)
 	}
 }
 

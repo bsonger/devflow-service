@@ -43,6 +43,75 @@ type KubernetesRuntimeObserver struct {
 	workloadCache runtimewatch.WorkloadCache
 }
 
+type ReleaseStatusLabelUpdater struct {
+	clientset kubernetes.Interface
+	dynamic   dynamic.Interface
+}
+
+func NewReleaseStatusLabelUpdater(clientset kubernetes.Interface, dynamicClient dynamic.Interface) *ReleaseStatusLabelUpdater {
+	return &ReleaseStatusLabelUpdater{
+		clientset: clientset,
+		dynamic:   dynamicClient,
+	}
+}
+
+func (u *ReleaseStatusLabelUpdater) UpdateReleaseStatusLabel(ctx context.Context, workload *domain.RuntimeObservedWorkload, status releasedomain.ReleaseStatus) error {
+	if u == nil || workload == nil {
+		return nil
+	}
+	namespace := strings.TrimSpace(workload.Namespace)
+	name := strings.TrimSpace(workload.WorkloadName)
+	if namespace == "" || name == "" {
+		return nil
+	}
+
+	switch strings.TrimSpace(workload.WorkloadKind) {
+	case "Deployment":
+		item, err := u.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		labels := item.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[releasedomain.ReleaseStatusLabel] = string(status)
+		item.SetLabels(labels)
+		if item.Spec.Template.Labels == nil {
+			item.Spec.Template.Labels = map[string]string{}
+		}
+		item.Spec.Template.Labels[releasedomain.ReleaseStatusLabel] = string(status)
+		_, err = u.clientset.AppsV1().Deployments(namespace).Update(ctx, item, metav1.UpdateOptions{})
+		return err
+	case "Rollout":
+		item, err := u.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		labels := item.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[releasedomain.ReleaseStatusLabel] = string(status)
+		item.SetLabels(labels)
+		templateLabels, found, err := unstructured.NestedStringMap(item.Object, "spec", "template", "metadata", "labels")
+		if err != nil {
+			return err
+		}
+		if !found || templateLabels == nil {
+			templateLabels = map[string]string{}
+		}
+		templateLabels[releasedomain.ReleaseStatusLabel] = string(status)
+		if err := unstructured.SetNestedStringMap(item.Object, templateLabels, "spec", "template", "metadata", "labels"); err != nil {
+			return err
+		}
+		_, err = u.dynamic.Resource(releaseRolloutGVR).Namespace(namespace).Update(ctx, item, metav1.UpdateOptions{})
+		return err
+	default:
+		return nil
+	}
+}
+
 func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, cfg KubernetesRuntimeObserverConfig) error {
 	if !cfg.Enabled {
 		return nil

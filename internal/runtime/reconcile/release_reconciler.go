@@ -27,6 +27,10 @@ type ReleaseStepsWriter interface {
 	WriteReleaseSteps(ctx context.Context, input WriteReleaseStepsInput) error
 }
 
+type ReleaseStatusLabelUpdater interface {
+	UpdateReleaseStatusLabel(ctx context.Context, workload *runtimedomain.RuntimeObservedWorkload, status releasedomain.ReleaseStatus) error
+}
+
 type ReleaseStepWrite struct {
 	StepCode string
 	Status   releasedomain.StepStatus
@@ -51,14 +55,16 @@ type ReleaseReconciler struct {
 	releases       ReleaseStateSource
 	runtimeStore   runtimerepo.Store
 	stepsWriter    ReleaseStepsWriter
+	labelUpdater   ReleaseStatusLabelUpdater
 	controlPlaneID string
 }
 
-func NewReleaseReconciler(releases ReleaseStateSource, runtimeStore runtimerepo.Store, stepsWriter ReleaseStepsWriter, controlPlaneID string) *ReleaseReconciler {
+func NewReleaseReconciler(releases ReleaseStateSource, runtimeStore runtimerepo.Store, stepsWriter ReleaseStepsWriter, labelUpdater ReleaseStatusLabelUpdater, controlPlaneID string) *ReleaseReconciler {
 	return &ReleaseReconciler{
 		releases:       releases,
 		runtimeStore:   runtimeStore,
 		stepsWriter:    stepsWriter,
+		labelUpdater:   labelUpdater,
 		controlPlaneID: strings.TrimSpace(controlPlaneID),
 	}
 }
@@ -92,6 +98,11 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	}
 
 	phase, progress, message, stepWrites := deriveWritebackState(workload)
+	if phase == releasedomain.StepSucceeded && r.labelUpdater != nil {
+		if err := r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, releasedomain.ReleaseSucceeded); err != nil {
+			return err
+		}
+	}
 	return r.stepsWriter.WriteReleaseSteps(ctx, WriteReleaseStepsInput{
 		ReleaseID:            id,
 		ApplicationID:        release.ApplicationID,

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
@@ -15,6 +16,8 @@ import (
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
 	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	"github.com/google/uuid"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 var ErrReleaseRuntimeNotConfigured = errors.New("release runtime bootstrap is not configured")
@@ -108,10 +111,19 @@ func defaultReleaseRuntimeBootstrapDeps(cfg ReleaseRuntimeBootstrapConfig) relea
 			return watch.NewRunningReleaseSource(newRuntimeStoreRunningReleaseSource(runtimeStore), queue, cfg.ControlPlaneID, cfg.PollInterval)
 		},
 		ReconcilerFactory: func() releaseRuntimeReconciler {
+			var labelUpdater reconcile.ReleaseStatusLabelUpdater
+			if restCfg, err := inClusterConfig(); err == nil {
+				if clientset, err := kubernetes.NewForConfig(restCfg); err == nil {
+					if dynamicClient, err := dynamic.NewForConfig(restCfg); err == nil {
+						labelUpdater = runtimeobserver.NewReleaseStatusLabelUpdater(clientset, dynamicClient)
+					}
+				}
+			}
 			return reconcile.NewReleaseReconciler(
 				newReleaseStateSource(runtimeStore),
 				runtimeStore,
 				newReleaseStepsWriterAdapter(writer),
+				labelUpdater,
 				cfg.ControlPlaneID,
 			)
 		},
