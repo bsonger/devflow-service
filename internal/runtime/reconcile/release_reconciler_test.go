@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,8 +54,10 @@ func TestReleaseReconcilerWritesStepsForMatchingRunningRelease(t *testing.T) {
 		},
 	}, store, writer, updater, "cp-1")
 
-	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
-		t.Fatalf("Reconcile failed: %v", err)
+	err := reconciler.Reconcile(context.Background(), releaseID.String())
+	var requeueErr interface{ RequeueAfter() time.Duration }
+	if !errors.As(err, &requeueErr) {
+		t.Fatalf("Reconcile error = %v, want requeue-after error", err)
 	}
 	if writer.input == nil {
 		t.Fatal("expected steps writer to be invoked")
@@ -187,6 +190,15 @@ func TestReleaseReconcilerConvergesTerminalReleaseStatusLabel(t *testing.T) {
 	}
 	if updater.workload == nil || updater.workload.WorkloadName != "demo-api" {
 		t.Fatalf("workload = %#v", updater.workload)
+	}
+	if writer.input == nil {
+		t.Fatal("expected steps writer to be invoked")
+	}
+	if len(writer.input.StepWrites) != 2 {
+		t.Fatalf("StepWrites len = %d, want 2", len(writer.input.StepWrites))
+	}
+	if writer.input.StepWrites[1].StepCode != "finalize_release" {
+		t.Fatalf("final step = %q", writer.input.StepWrites[1].StepCode)
 	}
 }
 

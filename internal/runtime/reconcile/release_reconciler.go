@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
@@ -59,6 +60,21 @@ type ReleaseReconciler struct {
 	controlPlaneID string
 }
 
+type releaseRequeueAfterError struct {
+	after time.Duration
+}
+
+func (e releaseRequeueAfterError) Error() string {
+	return "release reconcile pending workload health"
+}
+
+func (e releaseRequeueAfterError) RequeueAfter() time.Duration {
+	if e.after <= 0 {
+		return 5 * time.Second
+	}
+	return e.after
+}
+
 func NewReleaseReconciler(releases ReleaseStateSource, runtimeStore runtimerepo.Store, stepsWriter ReleaseStepsWriter, labelUpdater ReleaseStatusLabelUpdater, controlPlaneID string) *ReleaseReconciler {
 	return &ReleaseReconciler{
 		releases:       releases,
@@ -103,7 +119,7 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 			return err
 		}
 	}
-	return r.stepsWriter.WriteReleaseSteps(ctx, WriteReleaseStepsInput{
+	if err := r.stepsWriter.WriteReleaseSteps(ctx, WriteReleaseStepsInput{
 		ReleaseID:            id,
 		ApplicationID:        release.ApplicationID,
 		EnvironmentID:        release.EnvironmentID,
@@ -114,7 +130,13 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		Progress:             progress,
 		Message:              message,
 		StepWrites:           stepWrites,
-	})
+	}); err != nil {
+		return err
+	}
+	if phase == releasedomain.StepRunning {
+		return releaseRequeueAfterError{after: 5 * time.Second}
+	}
+	return nil
 }
 
 func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, releaseID, applicationID uuid.UUID, environmentID string) (*runtimedomain.RuntimeObservedWorkload, error) {

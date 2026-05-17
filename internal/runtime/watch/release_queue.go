@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"k8s.io/client-go/util/workqueue"
@@ -15,6 +16,11 @@ type ReleaseQueue interface {
 
 type releaseQueue struct {
 	queue workqueue.TypedRateLimitingInterface[string]
+}
+
+type requeueAfterError interface {
+	error
+	RequeueAfter() time.Duration
 }
 
 func NewReleaseQueue() ReleaseQueue {
@@ -55,6 +61,12 @@ func (r *releaseQueue) Run(ctx context.Context, workers int, handler func(contex
 					runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 					defer cancel()
 					if err := handler(runCtx, item); err != nil {
+						var requeueErr requeueAfterError
+						if errors.As(err, &requeueErr) {
+							r.queue.Forget(item)
+							r.queue.AddAfter(item, requeueErr.RequeueAfter())
+							return
+						}
 						r.queue.AddRateLimited(item)
 						return
 					}
