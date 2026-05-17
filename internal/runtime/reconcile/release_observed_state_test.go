@@ -215,6 +215,37 @@ func TestNormalizeReleaseObservedStateWorkloadBackedDeploymentDoesNotTreatObserv
 	}
 }
 
+func TestNormalizeReleaseObservedStateFromDeploymentSucceeded(t *testing.T) {
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "demo-api", Generation: 3},
+		Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(3)},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration:  3,
+			UpdatedReplicas:     3,
+			ReadyReplicas:       3,
+			AvailableReplicas:   3,
+			UnavailableReplicas: 0,
+		},
+	}
+
+	state := NormalizeReleaseObservedStateFromDeployment("demo-ns", "demo-api", deployment)
+	if state.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if state.Progress != 100 {
+		t.Fatalf("progress = %d", state.Progress)
+	}
+	if state.FinalizeState == nil || state.FinalizeState.Status != releasedomain.StepSucceeded {
+		t.Fatalf("finalize = %#v", state.FinalizeState)
+	}
+	if len(state.StepWrites) != 1 {
+		t.Fatalf("step writes = %#v", state.StepWrites)
+	}
+	if got := state.StepWrites[0]; got.StepCode != "observe_rollout" || got.Status != releasedomain.StepSucceeded || got.Progress != 100 {
+		t.Fatalf("observe step = %#v", got)
+	}
+}
+
 func TestNormalizeReleaseObservedStateUsesDistinctStateKeysForRunningAndSucceededDeployment(t *testing.T) {
 	running := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "demo-api", Generation: 3},
