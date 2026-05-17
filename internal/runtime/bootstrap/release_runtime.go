@@ -162,8 +162,11 @@ func (s *runtimeStoreRunningReleaseSource) ListRunningReleases(ctx context.Conte
 		return nil, err
 	}
 
-	seen := map[string]struct{}{}
-	items := make([]*watch.RunningRelease, 0, len(specs))
+	type candidate struct {
+		item       *watch.RunningRelease
+		observedAt time.Time
+	}
+	latestByAppEnv := map[string]candidate{}
 	for _, spec := range specs {
 		if spec == nil {
 			continue
@@ -179,12 +182,18 @@ func (s *runtimeStoreRunningReleaseSource) ListRunningReleases(ctx context.Conte
 		if !ok {
 			continue
 		}
-		key := item.ReleaseID.String()
-		if _, exists := seen[key]; exists {
+		key := spec.ApplicationID.String() + "|" + strings.TrimSpace(spec.Environment)
+		current, exists := latestByAppEnv[key]
+		if !exists || workload.ObservedAt.After(current.observedAt) {
+			latestByAppEnv[key] = candidate{item: item, observedAt: workload.ObservedAt}
+		}
+	}
+	items := make([]*watch.RunningRelease, 0, len(latestByAppEnv))
+	for _, entry := range latestByAppEnv {
+		if entry.item == nil {
 			continue
 		}
-		seen[key] = struct{}{}
-		items = append(items, item)
+		items = append(items, entry.item)
 	}
 	return items, nil
 }

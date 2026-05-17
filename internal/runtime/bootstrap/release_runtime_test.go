@@ -237,6 +237,85 @@ func TestRuntimeStoreRunningReleaseSourceSkipsNonRunningReleaseStatus(t *testing
 	}
 }
 
+func TestRuntimeStoreRunningReleaseSourcePrefersNewestRunningReleasePerApplicationEnvironment(t *testing.T) {
+	runtimeStore := runtimerepo.NewMemoryStore()
+	staleReleaseID := uuid.New()
+	currentReleaseID := uuid.New()
+	appID := uuid.New()
+
+	staleObservedAt := time.Now().UTC().Add(-time.Minute)
+	currentObservedAt := staleObservedAt.Add(30 * time.Second)
+
+	staleSpec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "staging",
+		CreatedAt:     staleObservedAt,
+		UpdatedAt:     staleObservedAt,
+	}
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), staleSpec); err != nil {
+		t.Fatalf("CreateRuntimeSpec(stale) failed: %v", err)
+	}
+	if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: staleSpec.ID,
+		ApplicationID: appID,
+		Environment:   "staging",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     staleReleaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: staleObservedAt,
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload(stale) failed: %v", err)
+	}
+
+	currentSpec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "staging",
+		CreatedAt:     currentObservedAt,
+		UpdatedAt:     currentObservedAt,
+	}
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), currentSpec); err != nil {
+		t.Fatalf("CreateRuntimeSpec(current) failed: %v", err)
+	}
+	if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: currentSpec.ID,
+		ApplicationID: appID,
+		Environment:   "staging",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     currentReleaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: currentObservedAt,
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload(current) failed: %v", err)
+	}
+
+	source := newRuntimeStoreRunningReleaseSource(runtimeStore)
+
+	items, err := source.ListRunningReleases(context.Background())
+	if err != nil {
+		t.Fatalf("ListRunningReleases failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].ReleaseID != currentReleaseID {
+		t.Fatalf("ReleaseID = %s, want %s", items[0].ReleaseID, currentReleaseID)
+	}
+}
+
 func TestReleaseStateSourceReadsControlPlaneFromObservedWorkload(t *testing.T) {
 	runtimeStore := runtimerepo.NewMemoryStore()
 	releaseID := uuid.New()
