@@ -11,6 +11,14 @@ import (
 	"go.uber.org/zap"
 )
 
+func LogRuntimeStateEvent(event string, fields ...zap.Field) {
+	log := logger.RootLogger
+	if log == nil {
+		log = zap.NewNop()
+	}
+	log.Named("runtime.state").Info(event, fields...)
+}
+
 func OperationLogger(ctx context.Context, component, operation, resource string, fields ...zap.Field) *zap.Logger {
 	log := logger.NamedLoggerFromContext(ctx, operationLoggerName(component))
 	if log == nil {

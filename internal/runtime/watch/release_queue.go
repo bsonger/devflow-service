@@ -5,8 +5,18 @@ import (
 	"errors"
 	"time"
 
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	"go.uber.org/zap"
 	"k8s.io/client-go/util/workqueue"
 )
+
+const runtimeReleaseQueueName = "runtime-release-reconcile"
+
+var releaseQueueLogf = defaultReleaseQueueLogf
+
+func defaultReleaseQueueLogf(event string, fields ...zap.Field) {
+	platformobs.LogRuntimeStateEvent(event, fields...)
+}
 
 type ReleaseQueue interface {
 	Add(releaseID string)
@@ -28,7 +38,7 @@ func NewReleaseQueue() ReleaseQueue {
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "runtime-release-reconcile",
+				Name: runtimeReleaseQueueName,
 			},
 		),
 	}
@@ -38,6 +48,10 @@ func (r *releaseQueue) Add(releaseID string) {
 	if releaseID == "" {
 		return
 	}
+	releaseQueueLogf("queue_add",
+		zap.String("queue", runtimeReleaseQueueName),
+		zap.String("release_id", releaseID),
+	)
 	r.queue.Add(releaseID)
 }
 
@@ -60,16 +74,37 @@ func (r *releaseQueue) Run(ctx context.Context, workers int, handler func(contex
 					defer r.queue.Done(item)
 					runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 					defer cancel()
+					releaseQueueLogf("queue_handle_start",
+						zap.String("queue", runtimeReleaseQueueName),
+						zap.String("release_id", item),
+						zap.Int("workers", workers),
+					)
 					if err := handler(runCtx, item); err != nil {
 						var requeueErr requeueAfterError
 						if errors.As(err, &requeueErr) {
+							releaseQueueLogf("queue_handle_requeue_after",
+								zap.String("queue", runtimeReleaseQueueName),
+								zap.String("release_id", item),
+								zap.Int("workers", workers),
+								zap.Duration("requeue_after", requeueErr.RequeueAfter()),
+							)
 							r.queue.Forget(item)
 							r.queue.AddAfter(item, requeueErr.RequeueAfter())
 							return
 						}
+						releaseQueueLogf("queue_handle_rate_limited",
+							zap.String("queue", runtimeReleaseQueueName),
+							zap.String("release_id", item),
+							zap.Int("workers", workers),
+						)
 						r.queue.AddRateLimited(item)
 						return
 					}
+					releaseQueueLogf("queue_handle_done",
+						zap.String("queue", runtimeReleaseQueueName),
+						zap.String("release_id", item),
+						zap.Int("workers", workers),
+					)
 					r.queue.Forget(item)
 				}()
 			}

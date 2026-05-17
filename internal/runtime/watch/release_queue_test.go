@@ -2,12 +2,46 @@ package watch
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
+
+func TestReleaseQueueEmitsLifecycleEvents(t *testing.T) {
+	queue := NewReleaseQueue()
+	defer queue.ShutDown()
+
+	var events []string
+	releaseQueueLogf = func(event string, fields ...zap.Field) {
+		events = append(events, event)
+	}
+	defer func() { releaseQueueLogf = defaultReleaseQueueLogf }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go queue.Run(ctx, 1, func(context.Context, string) error {
+		cancel()
+		return nil
+	})
+
+	queue.Add("release-1")
+	<-ctx.Done()
+
+	if !slices.Contains(events, "queue_add") {
+		t.Fatalf("events = %v, want queue_add", events)
+	}
+	if !slices.Contains(events, "queue_handle_start") {
+		t.Fatalf("events = %v, want queue_handle_start", events)
+	}
+	if !slices.Contains(events, "queue_handle_done") {
+		t.Fatalf("events = %v, want queue_handle_done", events)
+	}
+}
 
 func TestRunningReleaseSourceEnqueuesMatchingRunningReleases(t *testing.T) {
 	queue := NewReleaseQueue()
