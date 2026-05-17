@@ -3,11 +3,17 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	model "github.com/bsonger/devflow-service/internal/release/domain"
+	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
+	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
@@ -194,6 +200,60 @@ func TestNewDefaultManifestRuntimeTektonSourceReturnsNilWhenClusterConfigUnavail
 	}
 	if cache != nil || source != nil {
 		t.Fatalf("expected nil source/cache when cluster config is unavailable, got cache=%T source=%T", cache, source)
+	}
+}
+
+func TestManifestWriterPostsOnlyReleaseOwnedPaths(t *testing.T) {
+	var observedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observedPaths = append(observedPaths, r.URL.Path)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	writer := newManifestWriterAdapter(writeback.NewReleaseWriter(
+		server.URL,
+		"observer-token",
+		server.Client(),
+	))
+
+	ctx := context.Background()
+	if err := writer.WriteStatus(ctx, reconcile.ManifestStatusWrite{
+		ManifestID: "manifest-1",
+		PipelineID: "pipe-1",
+		Status:     model.ManifestRunning,
+		Message:    "building",
+	}); err != nil {
+		t.Fatalf("WriteStatus() error = %v", err)
+	}
+	if err := writer.WriteTask(ctx, reconcile.ManifestTaskWrite{
+		ManifestID: "manifest-1",
+		PipelineID: "pipe-1",
+		TaskName:   "git-clone",
+		TaskRun:    "pipe-1-git-clone",
+		Status:     model.StepRunning,
+		Message:    "cloning",
+	}); err != nil {
+		t.Fatalf("WriteTask() error = %v", err)
+	}
+	if err := writer.WriteResult(ctx, reconcile.ManifestResultWrite{
+		ManifestID:  "manifest-1",
+		PipelineID:  "pipe-1",
+		CommitHash:  "abc123",
+		ImageRef:    "repo/demo@sha256:abc",
+		ImageTag:    "20260517",
+		ImageDigest: "sha256:abc",
+	}); err != nil {
+		t.Fatalf("WriteResult() error = %v", err)
+	}
+
+	want := []string{
+		manifestTektonStatusPath,
+		manifestTektonTasksPath,
+		manifestTektonResultPath,
+	}
+	if !reflect.DeepEqual(observedPaths, want) {
+		t.Fatalf("observed paths = %v, want %v", observedPaths, want)
 	}
 }
 

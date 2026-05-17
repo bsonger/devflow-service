@@ -17,14 +17,11 @@ import (
 )
 
 const (
-	manifestTektonStatusPath       = "/api/v1/release/manifests/tekton/status"
-	manifestTektonResultPath       = "/api/v1/release/manifests/tekton/result"
-	manifestTektonTasksPath        = "/api/v1/release/manifests/tekton/tasks"
-	manifestTektonStatusLegacyPath = "/api/v1/manifests/tekton/status"
-	manifestTektonResultLegacyPath = "/api/v1/manifests/tekton/result"
-	manifestTektonTasksLegacyPath  = "/api/v1/manifests/tekton/tasks"
-	defaultManifestPollInterval    = 15 * time.Second
-	defaultTektonNamespace         = "tekton-pipelines"
+	manifestTektonStatusPath    = "/api/v1/release/manifests/tekton/status"
+	manifestTektonResultPath    = "/api/v1/release/manifests/tekton/result"
+	manifestTektonTasksPath     = "/api/v1/release/manifests/tekton/tasks"
+	defaultManifestPollInterval = 15 * time.Second
+	defaultTektonNamespace      = "tekton-pipelines"
 )
 
 var ErrManifestRuntimeNotConfigured = errors.New("manifest runtime bootstrap is not configured")
@@ -278,69 +275,41 @@ func newManifestWriterAdapter(writer *writeback.ReleaseWriter) reconcile.Manifes
 }
 
 func (a *manifestWriterAdapter) WriteStatus(ctx context.Context, input reconcile.ManifestStatusWrite) error {
-	return a.postJSON(ctx, map[string]any{
+	return a.postJSON(ctx, manifestTektonStatusPath, map[string]any{
 		"manifest_id": strings.TrimSpace(input.ManifestID),
 		"pipeline_id": strings.TrimSpace(input.PipelineID),
 		"status":      string(input.Status),
 		"message":     strings.TrimSpace(input.Message),
-	}, manifestTektonStatusPath, manifestTektonStatusLegacyPath)
+	})
 }
 
 func (a *manifestWriterAdapter) WriteTask(ctx context.Context, input reconcile.ManifestTaskWrite) error {
-	return a.postJSON(ctx, map[string]any{
+	return a.postJSON(ctx, manifestTektonTasksPath, map[string]any{
 		"manifest_id": strings.TrimSpace(input.ManifestID),
 		"pipeline_id": strings.TrimSpace(input.PipelineID),
 		"task_name":   strings.TrimSpace(input.TaskName),
 		"task_run":    strings.TrimSpace(input.TaskRun),
 		"status":      string(input.Status),
 		"message":     strings.TrimSpace(input.Message),
-	}, manifestTektonTasksPath, manifestTektonTasksLegacyPath)
+	})
 }
 
 func (a *manifestWriterAdapter) WriteResult(ctx context.Context, input reconcile.ManifestResultWrite) error {
-	return a.postJSON(ctx, map[string]any{
+	return a.postJSON(ctx, manifestTektonResultPath, map[string]any{
 		"manifest_id":  strings.TrimSpace(input.ManifestID),
 		"pipeline_id":  strings.TrimSpace(input.PipelineID),
 		"commit_hash":  strings.TrimSpace(input.CommitHash),
 		"image_ref":    strings.TrimSpace(input.ImageRef),
 		"image_tag":    strings.TrimSpace(input.ImageTag),
 		"image_digest": strings.TrimSpace(input.ImageDigest),
-	}, manifestTektonResultPath, manifestTektonResultLegacyPath)
+	})
 }
 
-func (a *manifestWriterAdapter) postJSON(ctx context.Context, payload any, paths ...string) error {
+func (a *manifestWriterAdapter) postJSON(ctx context.Context, path string, payload any) error {
 	if a == nil || a.writer == nil {
 		return ErrManifestRuntimeNotConfigured
 	}
-	var lastErr error
-	for _, path := range uniqueManifestPaths(paths) {
-		err := a.writer.PostJSON(ctx, path, payload)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-		if !writeback.IsNotFound(err) {
-			return err
-		}
-	}
-	return lastErr
-}
-
-func uniqueManifestPaths(paths []string) []string {
-	seen := make(map[string]struct{}, len(paths))
-	out := make([]string, 0, len(paths))
-	for _, path := range paths {
-		path = strings.TrimSpace(path)
-		if path == "" {
-			continue
-		}
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		seen[path] = struct{}{}
-		out = append(out, path)
-	}
-	return out
+	return a.writer.PostJSON(ctx, path, payload)
 }
 
 type stubManifestQueue struct{}
