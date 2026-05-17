@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
@@ -123,12 +124,14 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	releaseReconcileLogf("release_reconcile_start", baseFields...)
 	if workload == nil {
 		releaseReconcileLogf("release_reconcile_workload_missing", baseFields...)
+		platformobs.RecordRuntimeReleaseReconcile(ctx, "", "ok")
 		return nil
 	}
 
 	state := normalizeObservedStateForReconcile(workload)
 	stateFields := releaseReconcileFields(id, release.ApplicationID, release.EnvironmentID, workload, state.Phase, state.Progress)
 	releaseReconcileLogf("release_reconcile_state_computed", stateFields...)
+	platformobs.RecordRuntimeReleaseReconcile(ctx, string(state.Phase), "ok")
 	stepWrites := append([]ReleaseStepWrite{}, state.StepWrites...)
 	if state.FinalizeState != nil {
 		stepWrites = append(stepWrites, *state.FinalizeState)
@@ -141,6 +144,7 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	if terminalStatus != "" && r.labelUpdater != nil {
 		terminalLabelUpdateErr = r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, terminalStatus)
 		if terminalLabelUpdateErr != nil {
+			platformobs.RecordRuntimeTerminalLabelUpdate(ctx, workload.WorkloadKind, "error", "update_failed")
 			releaseReconcileLogf("release_reconcile_terminal_label_update_failed",
 				append(stateFields,
 					zap.String("action", "update_release_status_label"),
@@ -148,6 +152,8 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 					zap.Error(terminalLabelUpdateErr),
 				)...,
 			)
+		} else {
+			platformobs.RecordRuntimeTerminalLabelUpdate(ctx, workload.WorkloadKind, "ok", "")
 		}
 	}
 	if terminalStatus != "" {
@@ -179,6 +185,7 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	}
 	if state.Phase == releasedomain.StepRunning {
 		releaseReconcileLogf("release_reconcile_requeue_scheduled", stateFields...)
+		platformobs.RecordRuntimeReleaseReconcile(ctx, string(state.Phase), "requeue")
 		return releaseRequeueAfterError{after: 5 * time.Second}
 	}
 	return nil

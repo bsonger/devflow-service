@@ -133,7 +133,7 @@ func (w *ReleaseWriter) postStep(ctx context.Context, releaseID uuid.UUID, stepC
 		"progress":   progress,
 		"message":    strings.TrimSpace(message),
 	}
-	return w.PostJSONWithCall(ctx, "/api/v1/verify/release/steps", payload, platformobs.DependencyCall{
+	err := w.PostJSONWithCall(ctx, "/api/v1/verify/release/steps", payload, platformobs.DependencyCall{
 		Kind:      "http",
 		Target:    "release_service",
 		Operation: "release_rollout_writeback",
@@ -142,4 +142,15 @@ func (w *ReleaseWriter) postStep(ctx context.Context, releaseID uuid.UUID, stepC
 			zap.String("step_code", strings.TrimSpace(stepCode)),
 		},
 	})
+	statusCode := "none"
+	result := "ok"
+	var writebackErr *WritebackError
+	if errors.As(err, &writebackErr) {
+		statusCode = fmt.Sprintf("%d", writebackErr.StatusCode)
+	}
+	if err != nil {
+		result = "error"
+	}
+	platformobs.RecordRuntimeReleaseWriteback(ctx, stepCode, result, statusCode)
+	return err
 }

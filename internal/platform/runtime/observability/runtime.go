@@ -4,11 +4,14 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/otel"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/pyroscopex"
 	gootel "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -24,6 +27,15 @@ type RuntimeOptions struct {
 	PyroscopeAddr          string
 	ServiceOverride        string
 }
+
+var (
+	runtimeMetricsOnce               sync.Once
+	runtimeMetricsInitErr            error
+	runtimeReleaseReconcileTotal     metric.Int64Counter
+	runtimeReleaseWritebackTotal     metric.Int64Counter
+	runtimeTerminalLabelUpdateTotal  metric.Int64Counter
+	runtimeObservedWorkloadStateTotal metric.Int64Counter
+)
 
 func Init(ctx context.Context, opts RuntimeOptions) (func(context.Context) error, error) {
 	serviceName := ResolveServiceName(opts.ServiceOverride, opts.OtelService)
@@ -101,4 +113,172 @@ func StartServiceSpan(ctx context.Context, spanName string, opts ...trace.SpanSt
 
 func StartWorkerSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return StartSpan(ctx, gootel.Tracer("release-worker"), spanName, opts...)
+}
+
+func RecordRuntimeReleaseReconcile(ctx context.Context, phase, result string) {
+	runtimeMetricsOnce.Do(initRuntimeReleaseMetrics)
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	phase = normalizeRuntimePhaseLabel(phase)
+	result = normalizeRuntimeResultLabel(result)
+	if phase == "" || result == "" {
+		return
+	}
+	runtimeReleaseReconcileTotal.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("phase", phase),
+		attribute.String("result", result),
+	))
+}
+
+func RecordRuntimeReleaseWriteback(ctx context.Context, stepCode, result, statusCode string) {
+	runtimeMetricsOnce.Do(initRuntimeReleaseMetrics)
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	stepCode = normalizeRuntimeStepCodeLabel(stepCode)
+	result = normalizeRuntimeResultLabel(result)
+	statusCode = normalizeRuntimeStatusCodeLabel(statusCode)
+	if stepCode == "" || result == "" || statusCode == "" {
+		return
+	}
+	runtimeReleaseWritebackTotal.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("step_code", stepCode),
+		attribute.String("result", result),
+		attribute.String("status_code", statusCode),
+	))
+}
+
+func RecordRuntimeTerminalLabelUpdate(ctx context.Context, workloadKind, result, errorCode string) {
+	runtimeMetricsOnce.Do(initRuntimeReleaseMetrics)
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	workloadKind = normalizeRuntimeWorkloadKindLabel(workloadKind)
+	result = normalizeRuntimeResultLabel(result)
+	errorCode = normalizeRuntimeErrorCodeLabel(errorCode)
+	if workloadKind == "" || result == "" || errorCode == "" {
+		return
+	}
+	runtimeTerminalLabelUpdateTotal.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("workload_kind", workloadKind),
+		attribute.String("result", result),
+		attribute.String("error_code", errorCode),
+	))
+}
+
+func RecordRuntimeObservedWorkloadState(ctx context.Context, summaryStatus, observeState string) {
+	runtimeMetricsOnce.Do(initRuntimeReleaseMetrics)
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	summaryStatus = normalizeRuntimeSummaryStatusLabel(summaryStatus)
+	observeState = normalizeRuntimeObserveStateLabel(observeState)
+	if summaryStatus == "" || observeState == "" {
+		return
+	}
+	runtimeObservedWorkloadStateTotal.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("summary_status", summaryStatus),
+		attribute.String("observe_state", observeState),
+	))
+}
+
+func initRuntimeReleaseMetrics() {
+	meter := gootel.Meter("devflow/runtime")
+	runtimeReleaseReconcileTotal, runtimeMetricsInitErr = meter.Int64Counter("runtime_release_reconcile_total", metric.WithUnit("{reconcile}"))
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	runtimeReleaseWritebackTotal, runtimeMetricsInitErr = meter.Int64Counter("runtime_release_writeback_total", metric.WithUnit("{writeback}"))
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	runtimeTerminalLabelUpdateTotal, runtimeMetricsInitErr = meter.Int64Counter("runtime_terminal_label_update_total", metric.WithUnit("{update}"))
+	if runtimeMetricsInitErr != nil {
+		return
+	}
+	runtimeObservedWorkloadStateTotal, runtimeMetricsInitErr = meter.Int64Counter("runtime_observed_workload_state_total", metric.WithUnit("{state}"))
+}
+
+func normalizeRuntimePhaseLabel(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "pending", "running", "succeeded", "failed":
+		return strings.TrimSpace(strings.ToLower(value))
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeRuntimeResultLabel(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "ok", "error", "requeue":
+		return strings.TrimSpace(strings.ToLower(value))
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeRuntimeStepCodeLabel(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "unknown"
+	}
+	value = strings.ReplaceAll(value, " ", "_")
+	if len(value) > 64 {
+		value = value[:64]
+	}
+	return value
+}
+
+func normalizeRuntimeStatusCodeLabel(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "none"
+	}
+	if len(value) > 16 {
+		return value[:16]
+	}
+	return value
+}
+
+func normalizeRuntimeWorkloadKindLabel(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "deployment", "rollout":
+		return strings.TrimSpace(strings.ToLower(value))
+	default:
+		return "unknown"
+	}
+}
+
+func normalizeRuntimeErrorCodeLabel(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "none"
+	}
+	if len(value) > 64 {
+		value = value[:64]
+	}
+	return value
+}
+
+func normalizeRuntimeSummaryStatusLabel(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "unknown"
+	}
+	if len(value) > 64 {
+		value = value[:64]
+	}
+	return value
+}
+
+func normalizeRuntimeObserveStateLabel(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "unknown"
+	}
+	if len(value) > 64 {
+		value = value[:64]
+	}
+	return value
 }

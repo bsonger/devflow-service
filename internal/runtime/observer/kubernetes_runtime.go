@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
@@ -374,7 +375,7 @@ func (o *KubernetesRuntimeObserver) syncWorkload(ctx context.Context, spec *doma
 	}
 
 	restartAt := parseRestartAt(deployment.Spec.Template.Annotations)
-	_, err = o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
+	observed, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
 		ApplicationID:       spec.ApplicationID,
 		Environment:         spec.Environment,
 		Namespace:           namespace,
@@ -394,6 +395,9 @@ func (o *KubernetesRuntimeObserver) syncWorkload(ctx context.Context, spec *doma
 		ObservedAt:          time.Now().UTC(),
 		RestartAt:           restartAt,
 	})
+	if err == nil {
+		platformobs.RecordRuntimeObservedWorkloadState(ctx, observed.SummaryStatus, observed.Labels[platformobserver.ObserveStateLabel])
+	}
 	return err
 }
 
@@ -402,7 +406,7 @@ func (o *KubernetesRuntimeObserver) syncRollout(ctx context.Context, spec *domai
 		return nil
 	}
 	restartAt := parseRestartAt(rolloutTemplateAnnotations(rollout))
-	_, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
+	observed, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
 		ApplicationID:       spec.ApplicationID,
 		Environment:         spec.Environment,
 		Namespace:           namespace,
@@ -422,6 +426,9 @@ func (o *KubernetesRuntimeObserver) syncRollout(ctx context.Context, spec *domai
 		ObservedAt:          time.Now().UTC(),
 		RestartAt:           restartAt,
 	})
+	if err == nil {
+		platformobs.RecordRuntimeObservedWorkloadState(ctx, observed.SummaryStatus, observed.Labels[platformobserver.ObserveStateLabel])
+	}
 	return err
 }
 
