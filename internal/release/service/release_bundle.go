@@ -613,7 +613,7 @@ func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string
 		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
-		model.ReleaseStatusLabel:      string(release.Status),
+		model.ReleaseStatusLabel:      releaseObserverStatusLabel(release),
 		observer.ObserveStateLabel:    observer.ObserveStateRunning,
 	}
 	if controlPlaneID := strings.TrimSpace(releasesupport.CurrentRuntimeConfig().ControlPlaneID); controlPlaneID != "" {
@@ -630,6 +630,20 @@ func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string
 		labels[key] = value
 	}
 	return labels
+}
+
+func releaseObserverStatusLabel(release *model.Release) string {
+	if release == nil {
+		return string(model.ReleaseRunning)
+	}
+	switch release.Status {
+	case model.ReleasePending, model.ReleaseSyncing:
+		return string(model.ReleaseRunning)
+	case "":
+		return string(model.ReleaseRunning)
+	default:
+		return string(release.Status)
+	}
 }
 
 var releaseDriftProneAnnotationKeys = map[string]struct{}{

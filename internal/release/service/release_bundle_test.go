@@ -188,6 +188,24 @@ func TestRenderDeploymentBundle(t *testing.T) {
 	}
 }
 
+func TestReleaseWorkloadLabelsMapSyncingToRunningForObserver(t *testing.T) {
+	release := &model.Release{
+		BaseModel:     model.BaseModel{ID: uuid.New()},
+		ApplicationID: uuid.New(),
+		EnvironmentID: "production",
+		Status:        model.ReleaseSyncing,
+	}
+
+	labels := releaseWorkloadLabels("demo-api", nil, release)
+
+	if got := labels[model.ReleaseStatusLabel]; got != string(model.ReleaseRunning) {
+		t.Fatalf("release status label = %#v want %q", got, model.ReleaseRunning)
+	}
+	if got := labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
+		t.Fatalf("observe-state label = %#v want %q", got, observer.ObserveStateRunning)
+	}
+}
+
 func TestBuildReleaseBundleFallsBackToApplicationIDWithoutServiceName(t *testing.T) {
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
