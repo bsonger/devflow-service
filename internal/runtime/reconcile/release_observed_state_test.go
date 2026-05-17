@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func TestNormalizeReleaseObservedStateDeploymentSucceeded(t *testing.T) {
+func TestNormalizeReleaseObservedStateWorkloadBackedDeploymentRemainsRunningWithoutSpecGeneration(t *testing.T) {
 	workload := &runtimedomain.RuntimeObservedWorkload{
 		Namespace:           "devflow",
 		WorkloadKind:        "Deployment",
@@ -24,13 +24,13 @@ func TestNormalizeReleaseObservedStateDeploymentSucceeded(t *testing.T) {
 	}
 
 	state := NormalizeReleaseObservedState(workload)
-	if state.Phase != releasedomain.StepSucceeded {
+	if state.Phase != releasedomain.StepRunning {
 		t.Fatalf("phase = %q", state.Phase)
 	}
-	if state.Progress != 100 {
+	if state.Progress >= 100 {
 		t.Fatalf("progress = %d", state.Progress)
 	}
-	if state.FinalizeState == nil || state.FinalizeState.Status != releasedomain.StepSucceeded {
+	if state.FinalizeState != nil {
 		t.Fatalf("finalize = %#v", state.FinalizeState)
 	}
 	if len(state.StepWrites) != 1 {
@@ -133,6 +133,85 @@ func TestNormalizeReleaseObservedStateBlueGreenSucceeded(t *testing.T) {
 	}
 	if state.StepWrites[0].StepCode != "deploy_preview" || state.StepWrites[3].StepCode != "verify_active" {
 		t.Fatalf("step writes = %#v", state.StepWrites)
+	}
+}
+
+func TestNormalizeReleaseObservedStateWorkloadBackedCanarySucceededUsesRolloutContract(t *testing.T) {
+	workload := &runtimedomain.RuntimeObservedWorkload{
+		Namespace:          "demo-ns",
+		WorkloadKind:       "Rollout",
+		WorkloadName:       "demo-api",
+		DesiredReplicas:    2,
+		ReadyReplicas:      2,
+		AvailableReplicas:  2,
+		SummaryStatus:      "Healthy",
+		ObservedGeneration: 4,
+	}
+
+	state := NormalizeReleaseObservedState(workload)
+	if state.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if state.FinalizeState == nil || state.FinalizeState.Status != releasedomain.StepSucceeded {
+		t.Fatalf("finalize = %#v", state.FinalizeState)
+	}
+	if got := state.StepWrites[len(state.StepWrites)-1]; got.StepCode != "canary_100" || got.Status != releasedomain.StepSucceeded {
+		t.Fatalf("last step write = %#v", got)
+	}
+}
+
+func TestNormalizeReleaseObservedStateWorkloadBackedBlueGreenSucceededUsesRolloutContract(t *testing.T) {
+	workload := &runtimedomain.RuntimeObservedWorkload{
+		Namespace:          "demo-ns",
+		WorkloadKind:       "Rollout",
+		WorkloadName:       "demo-api",
+		DesiredReplicas:    2,
+		ReadyReplicas:      2,
+		AvailableReplicas:  2,
+		SummaryStatus:      "Healthy",
+		ObservedGeneration: 4,
+		Conditions: []runtimedomain.RuntimeObservedWorkloadCondition{
+			{
+				Type:   "BlueGreen",
+				Status: "True",
+			},
+		},
+	}
+
+	state := NormalizeReleaseObservedState(workload)
+	if state.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if len(state.StepWrites) != 4 {
+		t.Fatalf("step writes = %#v", state.StepWrites)
+	}
+	if state.StepWrites[0].StepCode != "deploy_preview" || state.StepWrites[3].StepCode != "verify_active" {
+		t.Fatalf("step writes = %#v", state.StepWrites)
+	}
+}
+
+func TestNormalizeReleaseObservedStateWorkloadBackedDeploymentDoesNotTreatObservedGenerationAsFreshSpecGeneration(t *testing.T) {
+	workload := &runtimedomain.RuntimeObservedWorkload{
+		Namespace:           "demo-ns",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "demo-api",
+		DesiredReplicas:     2,
+		ReadyReplicas:       2,
+		UpdatedReplicas:     2,
+		AvailableReplicas:   2,
+		UnavailableReplicas: 0,
+		ObservedGeneration:  3,
+	}
+
+	state := NormalizeReleaseObservedState(workload)
+	if state.Phase != releasedomain.StepRunning {
+		t.Fatalf("phase = %q", state.Phase)
+	}
+	if state.FinalizeState != nil {
+		t.Fatalf("finalize = %#v", state.FinalizeState)
+	}
+	if state.Progress >= 100 {
+		t.Fatalf("progress = %d", state.Progress)
 	}
 }
 

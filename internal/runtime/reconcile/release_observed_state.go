@@ -91,68 +91,12 @@ func normalizeReleaseObservedWorkloadDeployment(workload *runtimedomain.RuntimeO
 }
 
 func normalizeReleaseObservedWorkloadRollout(workload *runtimedomain.RuntimeObservedWorkload) NormalizedReleaseObservedState {
-	summary := strings.ToLower(strings.TrimSpace(workloadSummaryStatus(workload)))
-	name := workloadName(workload)
-	namespace := workloadNamespace(workload)
-	ready := int32(workloadReadyReplicas(workload))
-	available := int32(workloadAvailableReplicas(workload))
-	desired := int32(workloadDesiredReplicas(workload))
-
-	switch summary {
-	case "healthy", "completed":
-		return NormalizedReleaseObservedState{
-			Phase:    releasedomain.StepSucceeded,
-			Progress: 100,
-			Message:  fmt.Sprintf("rollout %s is healthy", name),
-			StateKey: fmt.Sprintf("rollout|succeeded|%s|%d|%d|%d", summary, desired, ready, available),
-			StepWrites: []ReleaseStepWrite{{
-				StepCode: "observe_rollout",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  fmt.Sprintf("rollout %s is healthy", name),
-			}},
-			FinalizeState: &ReleaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  "release finalized after rollout became healthy",
-			},
-		}
-	case "degraded", "error", "failed":
-		return NormalizedReleaseObservedState{
-			Phase:    releasedomain.StepFailed,
-			Progress: 100,
-			Message:  fmt.Sprintf("rollout %s failed", name),
-			StateKey: fmt.Sprintf("rollout|failed|%s|%d|%d|%d", summary, desired, ready, available),
-			StepWrites: []ReleaseStepWrite{{
-				StepCode: "observe_rollout",
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  fmt.Sprintf("rollout %s failed", name),
-			}},
-			FinalizeState: &ReleaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  "release finalized after rollout failure",
-			},
-		}
-	default:
-		progress := rolloutProgressCandidate(ready, available, desired, 20)
-		message := fmt.Sprintf("waiting for rollout %s in namespace %s", name, namespace)
-		return NormalizedReleaseObservedState{
-			Phase:    releasedomain.StepRunning,
-			Progress: progress,
-			Message:  message,
-			StateKey: fmt.Sprintf("rollout|running|%s|%d|%d|%d", summary, desired, ready, available),
-			StepWrites: []ReleaseStepWrite{{
-				StepCode: "observe_rollout",
-				Status:   releasedomain.StepRunning,
-				Progress: progress,
-				Message:  message,
-			}},
-		}
-	}
+	return NormalizeReleaseObservedStateFromRollout(
+		workloadNamespace(workload),
+		workloadName(workload),
+		workloadPrimaryName(workload),
+		rolloutFromObservedWorkload(workload),
+	)
 }
 
 func deploymentFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkload) *appsv1.Deployment {
@@ -172,9 +116,6 @@ func deploymentFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkl
 			UnavailableReplicas: int32(workload.UnavailableReplicas),
 			Conditions:          deploymentConditionsFromObservedWorkload(workload.Conditions),
 		},
-	}
-	if workload.ObservedGeneration > 0 {
-		deployment.Generation = workload.ObservedGeneration
 	}
 	return deployment
 }
@@ -205,7 +146,7 @@ func deriveReleaseObservedDeploymentState(namespace, appName string, deployment 
 	ready := int(deployment.Status.ReadyReplicas)
 	available := int(deployment.Status.AvailableReplicas)
 	unavailable := int(deployment.Status.UnavailableReplicas)
-	generationObserved := deployment.Status.ObservedGeneration >= deployment.Generation
+	generationObserved := deployment.Generation > 0 && deployment.Status.ObservedGeneration >= deployment.Generation
 	progressingReason, progressingStatus := deploymentConditionSummary(deployment.Status.Conditions, appsv1.DeploymentProgressing)
 	replicaFailureReason, replicaFailureStatus := deploymentConditionSummary(deployment.Status.Conditions, appsv1.DeploymentReplicaFailure)
 
@@ -254,6 +195,112 @@ func rolloutStrategyType(rollout *unstructured.Unstructured) string {
 		return "canary"
 	}
 	return "canary"
+}
+
+func rolloutFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkload) *unstructured.Unstructured {
+	if workload == nil {
+		return nil
+	}
+	object := map[string]any{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Rollout",
+		"metadata": map[string]any{
+			"name": workloadName(workload),
+		},
+		"spec": map[string]any{
+			"replicas": int64(workloadDesiredReplicas(workload)),
+			"strategy": rolloutStrategyFromObservedWorkload(workload),
+		},
+		"status": map[string]any{
+			"phase":               rolloutPhaseFromObservedWorkload(workload),
+			"message":             rolloutMessageFromObservedWorkload(workload),
+			"observedGeneration":  workload.ObservedGeneration,
+			"updatedReplicas":     int64(workload.UpdatedReplicas),
+			"readyReplicas":       int64(workload.ReadyReplicas),
+			"availableReplicas":   int64(workload.AvailableReplicas),
+			"unavailableReplicas": int64(workload.UnavailableReplicas),
+		},
+	}
+	if workload.ObservedGeneration > 0 {
+		object["metadata"].(map[string]any)["generation"] = workload.ObservedGeneration
+	}
+	if stepIndex, ok := rolloutCurrentStepIndexFromObservedWorkload(workload); ok {
+		object["status"].(map[string]any)["currentStepIndex"] = stepIndex
+	}
+	return &unstructured.Unstructured{Object: object}
+}
+
+func rolloutStrategyFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkload) map[string]any {
+	if observedWorkloadLooksBlueGreen(workload) {
+		return map[string]any{"blueGreen": map[string]any{}}
+	}
+	return map[string]any{"canary": map[string]any{}}
+}
+
+func rolloutPhaseFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkload) string {
+	switch strings.ToLower(workloadSummaryStatus(workload)) {
+	case "healthy", "completed":
+		return "Healthy"
+	case "degraded", "error", "failed":
+		return "Degraded"
+	case "paused":
+		return "Paused"
+	case "progressing":
+		return "Progressing"
+	default:
+		return "Progressing"
+	}
+}
+
+func rolloutMessageFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkload) string {
+	for _, condition := range workloadConditions(workload) {
+		if msg := strings.TrimSpace(condition.Message); msg != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
+func rolloutCurrentStepIndexFromObservedWorkload(workload *runtimedomain.RuntimeObservedWorkload) (int64, bool) {
+	for _, condition := range workloadConditions(workload) {
+		value := strings.TrimSpace(condition.Reason)
+		if value == "" {
+			value = strings.TrimSpace(condition.Message)
+		}
+		if value == "" {
+			continue
+		}
+		stepIndex, ok := canaryStepIndexFromText(value)
+		if ok {
+			return stepIndex, true
+		}
+	}
+	return 0, false
+}
+
+func observedWorkloadLooksBlueGreen(workload *runtimedomain.RuntimeObservedWorkload) bool {
+	for _, condition := range workloadConditions(workload) {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(condition.Type)), "bluegreen") {
+			return true
+		}
+		if strings.Contains(strings.ToLower(strings.TrimSpace(condition.Reason)), "bluegreen") {
+			return true
+		}
+		if strings.Contains(strings.ToLower(strings.TrimSpace(condition.Message)), "blue-green") {
+			return true
+		}
+	}
+	for _, value := range []string{
+		workloadAnnotationValue(workload, "devflow.io/rollout-strategy"),
+		workloadAnnotationValue(workload, "devflow.io/release-strategy"),
+		workloadLabelValue(workload, "devflow.io/rollout-strategy"),
+		workloadLabelValue(workload, "devflow.io/release-strategy"),
+	} {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), "blue") {
+			return true
+		}
+	}
+	return false
 }
 
 func deriveBlueGreenObservedState(namespace, workloadName string, rollout *unstructured.Unstructured) NormalizedReleaseObservedState {
@@ -576,6 +623,16 @@ func workloadName(workload *runtimedomain.RuntimeObservedWorkload) string {
 	return "application"
 }
 
+func workloadPrimaryName(workload *runtimedomain.RuntimeObservedWorkload) string {
+	if workload == nil {
+		return "application"
+	}
+	if value := workloadLabelValue(workload, "app.kubernetes.io/name"); value != "" {
+		return value
+	}
+	return workloadName(workload)
+}
+
 func workloadNamespace(workload *runtimedomain.RuntimeObservedWorkload) string {
 	if workload == nil {
 		return "unknown"
@@ -612,6 +669,43 @@ func workloadAvailableReplicas(workload *runtimedomain.RuntimeObservedWorkload) 
 		return 0
 	}
 	return workload.AvailableReplicas
+}
+
+func workloadConditions(workload *runtimedomain.RuntimeObservedWorkload) []runtimedomain.RuntimeObservedWorkloadCondition {
+	if workload == nil {
+		return nil
+	}
+	return workload.Conditions
+}
+
+func workloadAnnotationValue(workload *runtimedomain.RuntimeObservedWorkload, key string) string {
+	if workload == nil || len(workload.Annotations) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(workload.Annotations[key])
+}
+
+func workloadLabelValue(workload *runtimedomain.RuntimeObservedWorkload, key string) string {
+	if workload == nil || len(workload.Labels) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(workload.Labels[key])
+}
+
+func canaryStepIndexFromText(value string) (int64, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.Contains(normalized, "100"):
+		return 6, true
+	case strings.Contains(normalized, "60"):
+		return 4, true
+	case strings.Contains(normalized, "30"):
+		return 2, true
+	case strings.Contains(normalized, "10"):
+		return 0, true
+	default:
+		return 0, false
+	}
 }
 
 func firstNonEmptyString(values ...string) string {
