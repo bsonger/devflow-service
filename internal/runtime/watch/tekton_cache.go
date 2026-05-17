@@ -3,6 +3,7 @@ package watch
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -205,6 +206,36 @@ func (c *tektonCache) GetManifestSnapshot(manifestID string) (*TektonSnapshot, b
 	}, true
 }
 
+func pipelineRunObjectKey(namespace, name string) string {
+	namespace = strings.TrimSpace(namespace)
+	name = strings.TrimSpace(name)
+	if namespace == "" || name == "" {
+		return ""
+	}
+	return namespace + "/" + name
+}
+
+func pipelineRunKey(pr *tknv1.PipelineRun) string {
+	if pr == nil {
+		return ""
+	}
+	return pipelineRunObjectKey(pr.Namespace, pr.Name)
+}
+
+func taskRunPipelineKey(tr *tknv1.TaskRun) string {
+	if tr == nil {
+		return ""
+	}
+	return pipelineRunObjectKey(tr.Namespace, taskRunPipelineName(tr))
+}
+
+func taskRunPipelineName(tr *tknv1.TaskRun) string {
+	if tr == nil {
+		return ""
+	}
+	return strings.TrimSpace(tr.Labels["tekton.dev/pipelineRun"])
+}
+
 func snapshotPipelineRun(pr *tknv1.PipelineRun) (PipelineRunSnapshot, bool) {
 	if pr == nil {
 		return PipelineRunSnapshot{}, false
@@ -222,6 +253,20 @@ func snapshotPipelineRun(pr *tknv1.PipelineRun) (PipelineRunSnapshot, bool) {
 		Message:        pipelineMessage(pr),
 		StateKey:       pipelineRunStateKey(pr),
 	}, true
+}
+
+func cloneTaskRun(item *tknv1.TaskRun) *tknv1.TaskRun {
+	if item == nil {
+		return nil
+	}
+	return item.DeepCopy()
+}
+
+func clonePipelineRun(item *tknv1.PipelineRun) *tknv1.PipelineRun {
+	if item == nil {
+		return nil
+	}
+	return item.DeepCopy()
 }
 
 func snapshotTaskRuns(manifestID, pipelineID string, taskRuns []tknv1.TaskRun) []TaskRunSnapshot {
@@ -331,6 +376,23 @@ func imageRefFromTaskSnapshot(taskRun TaskRunSnapshot, imageTag, imageDigest str
 	return ""
 }
 
+func taskRunSnapshotsForPipeline(manifestID string, pipelineRun *tknv1.PipelineRun, taskRuns []*tknv1.TaskRun) []TaskRunSnapshot {
+	if pipelineRun == nil || len(taskRuns) == 0 {
+		return nil
+	}
+	items := make([]tknv1.TaskRun, 0, len(taskRuns))
+	for _, taskRun := range taskRuns {
+		if taskRun == nil {
+			continue
+		}
+		if taskRunPipelineKey(taskRun) != pipelineRunKey(pipelineRun) {
+			continue
+		}
+		items = append(items, *taskRun.DeepCopy())
+	}
+	return snapshotTaskRuns(manifestID, strings.TrimSpace(pipelineRun.Name), items)
+}
+
 func moreRecentPipelineRun(left, right PipelineRunSnapshot) bool {
 	leftTime := snapshotStateTime(left)
 	rightTime := snapshotStateTime(right)
@@ -411,6 +473,14 @@ func taskRunName(tr *tknv1.TaskRun) string {
 		return name
 	}
 	return strings.TrimSpace(tr.Name)
+}
+
+func objectKeyString(namespace, name string) string {
+	key := pipelineRunObjectKey(namespace, name)
+	if key == "" {
+		return fmt.Sprintf("%s/%s", strings.TrimSpace(namespace), strings.TrimSpace(name))
+	}
+	return key
 }
 
 func pipelineMessage(pr *tknv1.PipelineRun) string {

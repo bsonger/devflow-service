@@ -31,6 +31,7 @@ var rolloutGVR = schema.GroupVersionResource{
 type WorkloadCache interface {
 	Start(ctx context.Context) error
 	Ready() bool
+	AddEventHandler(cache.ResourceEventHandler) error
 
 	ListDeployments(namespace string, selector labels.Selector) ([]appsv1.Deployment, error)
 	ListRollouts(namespace string, selector labels.Selector) ([]unstructured.Unstructured, error)
@@ -122,6 +123,22 @@ func (c *informerWorkloadCache) Start(ctx context.Context) error {
 
 func (c *informerWorkloadCache) Ready() bool {
 	return c.ready.Load()
+}
+
+func (c *informerWorkloadCache) AddEventHandler(handler cache.ResourceEventHandler) error {
+	if c == nil || handler == nil {
+		return nil
+	}
+	if _, err := c.deployInformer.AddEventHandler(handler); err != nil {
+		return err
+	}
+	if _, err := c.podInformer.AddEventHandler(handler); err != nil {
+		return err
+	}
+	if _, err := c.rolloutInformer.AddEventHandler(handler); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *informerWorkloadCache) ListDeployments(namespace string, selector labels.Selector) ([]appsv1.Deployment, error) {

@@ -413,6 +413,110 @@ func TestInitRuntimeStartsManifestRuntimeReconcilerWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestInitRuntimeSkipsLegacyTektonObserverWhenManifestRuntimeEnabled(t *testing.T) {
+	reset := installRuntimeConfigTestHooks()
+	defer reset()
+
+	enabled := true
+	legacyCalled := false
+	manifestRuntimeCalled := false
+
+	inClusterConfig = func() (*rest.Config, error) {
+		return &rest.Config{Host: "https://cluster.example"}, nil
+	}
+	startTektonManifestObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.TektonManifestObserverConfig) error {
+		legacyCalled = true
+		return nil
+	}
+	startManifestRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ManifestRuntimeBootstrapConfig) error {
+		manifestRuntimeCalled = true
+		return nil
+	}
+	startKubernetesRuntimeObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.KubernetesRuntimeObserverConfig) error {
+		return nil
+	}
+	startReleaseRolloutObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.ReleaseRolloutObserverConfig) error {
+		return nil
+	}
+	startReleaseRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ReleaseRuntimeBootstrapConfig) error {
+		return nil
+	}
+
+	cfg := &Config{
+		Observer: &ObserverConfig{
+			ControlPlaneID:         "cp-1",
+			ManifestRuntimeEnabled: &enabled,
+		},
+	}
+
+	shutdown, err := InitRuntime(context.Background(), cfg, "runtime-service")
+	if err != nil {
+		t.Fatalf("InitRuntime returned error: %v", err)
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown returned error: %v", err)
+	}
+
+	if legacyCalled {
+		t.Fatal("expected legacy tekton observer to stay disabled")
+	}
+	if !manifestRuntimeCalled {
+		t.Fatal("expected manifest runtime reconciler to start")
+	}
+}
+
+func TestInitRuntimeSkipsLegacyReleaseRolloutObserverWhenReleaseRuntimeEnabled(t *testing.T) {
+	reset := installRuntimeConfigTestHooks()
+	defer reset()
+
+	enabled := true
+	legacyCalled := false
+	releaseRuntimeCalled := false
+
+	inClusterConfig = func() (*rest.Config, error) {
+		return &rest.Config{Host: "https://cluster.example"}, nil
+	}
+	startReleaseRolloutObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.ReleaseRolloutObserverConfig) error {
+		legacyCalled = true
+		return nil
+	}
+	startReleaseRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ReleaseRuntimeBootstrapConfig) error {
+		releaseRuntimeCalled = true
+		return nil
+	}
+	startTektonManifestObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.TektonManifestObserverConfig) error {
+		return nil
+	}
+	startManifestRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ManifestRuntimeBootstrapConfig) error {
+		return nil
+	}
+	startKubernetesRuntimeObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.KubernetesRuntimeObserverConfig) error {
+		return nil
+	}
+
+	cfg := &Config{
+		Observer: &ObserverConfig{
+			ControlPlaneID:        "cp-1",
+			ReleaseRuntimeEnabled: &enabled,
+		},
+	}
+
+	shutdown, err := InitRuntime(context.Background(), cfg, "runtime-service")
+	if err != nil {
+		t.Fatalf("InitRuntime returned error: %v", err)
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown returned error: %v", err)
+	}
+
+	if legacyCalled {
+		t.Fatal("expected legacy release rollout observer to stay disabled")
+	}
+	if !releaseRuntimeCalled {
+		t.Fatal("expected release runtime reconciler to start")
+	}
+}
+
 func installRuntimeConfigTestHooks() func() {
 	origCluster := inClusterConfig
 	origTekton := startTektonManifestObserverFn

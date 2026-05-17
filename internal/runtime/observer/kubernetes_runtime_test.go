@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestReleaseOwnedSelector(t *testing.T) {
@@ -182,6 +183,29 @@ func TestListDeploymentsFromCacheOrAPIUsesCacheWhenReady(t *testing.T) {
 	}
 }
 
+func TestListPodsFromCacheOrAPIUsesCacheWhenReady(t *testing.T) {
+	cache := stubWorkloadCache{
+		ready: true,
+		pods: []corev1.Pod{{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "demo-pod",
+				Namespace: "default",
+			},
+		}},
+	}
+	observer := &KubernetesRuntimeObserver{
+		workloadCache: cache,
+	}
+
+	items, err := observer.listPodsFromCacheOrAPI(context.Background(), "default", labels.Everything())
+	if err != nil {
+		t.Fatalf("listPodsFromCacheOrAPI failed: %v", err)
+	}
+	if len(items) != 1 || items[0].Name != "demo-pod" {
+		t.Fatalf("items = %#v", items)
+	}
+}
+
 type stubWorkloadCache struct {
 	ready       bool
 	deployments []appsv1.Deployment
@@ -189,8 +213,9 @@ type stubWorkloadCache struct {
 	pods        []corev1.Pod
 }
 
-func (s stubWorkloadCache) Start(context.Context) error { return nil }
-func (s stubWorkloadCache) Ready() bool                 { return s.ready }
+func (s stubWorkloadCache) Start(context.Context) error                      { return nil }
+func (s stubWorkloadCache) Ready() bool                                      { return s.ready }
+func (s stubWorkloadCache) AddEventHandler(cache.ResourceEventHandler) error { return nil }
 func (s stubWorkloadCache) ListDeployments(namespace string, selector labels.Selector) ([]appsv1.Deployment, error) {
 	return s.deployments, nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestStartManifestRuntimeReconcilerStartsWhenEnabled(t *testing.T) {
@@ -136,7 +137,48 @@ func TestManifestRuntimePollSourceSkipsEnqueueOnRefreshError(t *testing.T) {
 	}
 }
 
-func TestDefaultManifestRuntimeTektonCacheFiltersConfiguredPipeline(t *testing.T) {
+func TestManifestRuntimeInformerSourceEnqueuesExistingManifestsAfterStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	queue := &recordingManifestQueue{}
+	cache := &stubInformerTektonCache{
+		listManifestIDs: func(controlPlaneID string) []string {
+			if controlPlaneID != "cp-1" {
+				t.Fatalf("controlPlaneID = %q, want cp-1", controlPlaneID)
+			}
+			return []string{"m-2", "m-1"}
+		},
+	}
+	source := &manifestRuntimeInformerSource{
+		cache:          cache,
+		queue:          queue,
+		controlPlaneID: "cp-1",
+		eventSource:    watch.NewManifestEventSource(cache, queue, "cp-1"),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		source.Run(ctx)
+		close(done)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	<-done
+
+	if len(queue.added) != 2 || queue.added[0] != "m-2" || queue.added[1] != "m-1" {
+		t.Fatalf("queued manifests = %#v", queue.added)
+	}
+	if !cache.startCalled {
+		t.Fatal("expected informer cache Start to be called")
+	}
+	if !cache.handlerRegistered {
+		t.Fatal("expected manifest event source to register event handlers")
+	}
+}
+
+func TestNewDefaultManifestRuntimeTektonSourceReturnsNilWhenClusterConfigUnavailable(t *testing.T) {
 	origInCluster := inClusterConfig
 	defer func() { inClusterConfig = origInCluster }()
 
@@ -144,14 +186,14 @@ func TestDefaultManifestRuntimeTektonCacheFiltersConfiguredPipeline(t *testing.T
 		return nil, errors.New("not in cluster")
 	}
 
-	cache, err := newDefaultManifestRuntimeTektonCache(ManifestRuntimeBootstrapConfig{
+	cache, source, err := newDefaultManifestRuntimeTektonSource(ManifestRuntimeBootstrapConfig{
 		TektonPipeline: "build-pipeline",
 	})
 	if err != nil {
-		t.Fatalf("newDefaultManifestRuntimeTektonCache() error = %v", err)
+		t.Fatalf("newDefaultManifestRuntimeTektonSource() error = %v", err)
 	}
-	if cache != nil {
-		t.Fatal("expected nil cache when cluster config is unavailable")
+	if cache != nil || source != nil {
+		t.Fatalf("expected nil source/cache when cluster config is unavailable, got cache=%T source=%T", cache, source)
 	}
 }
 
@@ -193,3 +235,34 @@ func (q *recordingManifestQueue) Run(ctx context.Context, workers int, handler f
 }
 
 func (q *recordingManifestQueue) ShutDown() {}
+
+type stubInformerTektonCache struct {
+	startCalled       bool
+	handlerRegistered bool
+	listManifestIDs   func(string) []string
+}
+
+func (s *stubInformerTektonCache) Start(context.Context) error {
+	s.startCalled = true
+	return nil
+}
+
+func (s *stubInformerTektonCache) Ready() bool {
+	return true
+}
+
+func (s *stubInformerTektonCache) AddEventHandler(cache.ResourceEventHandler) error {
+	s.handlerRegistered = true
+	return nil
+}
+
+func (s *stubInformerTektonCache) ListManifestIDs(controlPlaneID string) []string {
+	if s.listManifestIDs == nil {
+		return nil
+	}
+	return s.listManifestIDs(controlPlaneID)
+}
+
+func (s *stubInformerTektonCache) GetManifestSnapshot(string) (*watch.TektonSnapshot, bool) {
+	return nil, false
+}

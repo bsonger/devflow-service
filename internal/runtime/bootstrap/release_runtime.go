@@ -18,6 +18,7 @@ import (
 )
 
 var ErrReleaseRuntimeNotConfigured = errors.New("release runtime bootstrap is not configured")
+var newWorkloadCache = watch.NewWorkloadCache
 
 type ReleaseRuntimeBootstrapConfig struct {
 	Enabled               bool
@@ -96,12 +97,16 @@ func defaultReleaseRuntimeBootstrapDeps(cfg ReleaseRuntimeBootstrapConfig) relea
 			return watch.NewReleaseQueue()
 		},
 		ReleaseSourceFactory: func(queue watch.ReleaseQueue) releaseRuntimeSource {
-			return watch.NewRunningReleaseSource(
-				newRuntimeStoreRunningReleaseSource(runtimeStore, releaseStore),
-				queue,
-				cfg.ControlPlaneID,
-				cfg.PollInterval,
-			)
+			restCfg, err := inClusterConfig()
+			if err == nil {
+				cache, cacheErr := newWorkloadCache(restCfg, watch.WorkloadCacheConfig{
+					ResyncPeriod: cfg.PollInterval,
+				})
+				if cacheErr == nil && cache != nil {
+					return watch.NewReleaseEventSource(cache, queue, cfg.ControlPlaneID)
+				}
+			}
+			return watch.NewRunningReleaseSource(newRuntimeStoreRunningReleaseSource(runtimeStore, releaseStore), queue, cfg.ControlPlaneID, cfg.PollInterval)
 		},
 		ReconcilerFactory: func() releaseRuntimeReconciler {
 			return reconcile.NewReleaseReconciler(

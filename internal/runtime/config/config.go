@@ -123,6 +123,9 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 }
 
 func startTektonManifestObserver(ctx context.Context, config *Config) error {
+	if boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.ManifestRuntimeEnabled }, false) {
+		return nil
+	}
 	if !boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.TektonManifestEnabled }, true) {
 		return nil
 	}
@@ -153,6 +156,9 @@ func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
 }
 
 func startReleaseRolloutObserver(ctx context.Context, config *Config) error {
+	if boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.ReleaseRuntimeEnabled }, false) {
+		return nil
+	}
 	restCfg, err := inClusterConfig()
 	if err != nil {
 		return nil

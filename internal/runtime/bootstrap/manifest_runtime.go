@@ -102,8 +102,11 @@ func startManifestRuntimeReconciler(ctx context.Context, deps manifestRuntimeBoo
 }
 
 func defaultManifestRuntimeBootstrapDeps(cfg ManifestRuntimeBootstrapConfig) manifestRuntimeBootstrapDeps {
-	cache, err := newDefaultManifestRuntimeTektonCache(cfg)
+	cache, source, err := newDefaultManifestRuntimeTektonSource(cfg)
 	if err != nil {
+		return manifestRuntimeBootstrapDeps{}
+	}
+	if cache == nil || source == nil {
 		return manifestRuntimeBootstrapDeps{}
 	}
 	writer := newManifestWriterAdapter(writeback.NewReleaseWriter(
@@ -117,12 +120,8 @@ func defaultManifestRuntimeBootstrapDeps(cfg ManifestRuntimeBootstrapConfig) man
 			return watch.NewManifestQueue()
 		},
 		ManifestSourceFactory: func(queue watch.ManifestQueue) manifestRuntimeSource {
-			return &manifestRuntimePollSource{
-				cache:          cache,
-				queue:          queue,
-				controlPlaneID: strings.TrimSpace(cfg.ControlPlaneID),
-				pollInterval:   cfg.PollInterval,
-			}
+			source.bindQueue(queue)
+			return source
 		},
 		ReconcilerFactory: func() manifestRuntimeReconciler {
 			return reconcile.NewManifestReconciler(cache, writer)
@@ -130,11 +129,20 @@ func defaultManifestRuntimeBootstrapDeps(cfg ManifestRuntimeBootstrapConfig) man
 	}
 }
 
+type defaultManifestRuntimeSource interface {
+	manifestRuntimeSource
+	bindQueue(watch.ManifestQueue)
+}
+
 type manifestRuntimePollSource struct {
 	cache          manifestRuntimeRefreshingSource
 	queue          watch.ManifestQueue
 	controlPlaneID string
 	pollInterval   time.Duration
+}
+
+func (s *manifestRuntimePollSource) bindQueue(queue watch.ManifestQueue) {
+	s.queue = queue
 }
 
 func (s *manifestRuntimePollSource) Run(ctx context.Context) {
@@ -171,20 +179,71 @@ func (s *manifestRuntimePollSource) enqueue() {
 	}
 }
 
-func newDefaultManifestRuntimeTektonCache(cfg ManifestRuntimeBootstrapConfig) (manifestRuntimeRefreshingSource, error) {
+type manifestRuntimeInformerSource struct {
+	cache          watch.InformerTektonCache
+	eventSource    *watch.ManifestEventSource
+	queue          watch.ManifestQueue
+	controlPlaneID string
+}
+
+func (s *manifestRuntimeInformerSource) bindQueue(queue watch.ManifestQueue) {
+	s.queue = queue
+	if s.eventSource != nil {
+		s.eventSource = watch.NewManifestEventSource(s.cache, queue, s.controlPlaneID)
+	}
+}
+
+func (s *manifestRuntimeInformerSource) Run(ctx context.Context) {
+	if s == nil || s.cache == nil {
+		<-ctx.Done()
+		return
+	}
+	if s.eventSource != nil {
+		if err := s.eventSource.Start(); err != nil {
+			<-ctx.Done()
+			return
+		}
+	}
+	if err := s.cache.Start(ctx); err != nil {
+		return
+	}
+	for _, manifestID := range s.cache.ListManifestIDs(s.controlPlaneID) {
+		if s.queue != nil {
+			s.queue.Add(manifestID)
+		}
+	}
+	<-ctx.Done()
+}
+
+func newDefaultManifestRuntimeTektonSource(cfg ManifestRuntimeBootstrapConfig) (watch.TektonCache, defaultManifestRuntimeSource, error) {
 	restCfg, err := inClusterConfig()
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	clientset, err := tektonclient.NewForConfig(restCfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	namespace := strings.TrimSpace(cfg.TektonNamespace)
 	if namespace == "" {
 		namespace = defaultTektonNamespace
 	}
-	return watch.NewPollingTektonCache(
+
+	informerCache, err := watch.NewInformerTektonCache(restCfg, watch.InformerTektonCacheConfig{
+		Namespace:    namespace,
+		PipelineName: strings.TrimSpace(cfg.TektonPipeline),
+		ResyncPeriod: cfg.PollInterval,
+	})
+	if err == nil && informerCache != nil {
+		source := &manifestRuntimeInformerSource{
+			cache:          informerCache,
+			controlPlaneID: strings.TrimSpace(cfg.ControlPlaneID),
+		}
+		source.eventSource = watch.NewManifestEventSource(informerCache, nil, strings.TrimSpace(cfg.ControlPlaneID))
+		return informerCache, source, nil
+	}
+
+	pollingCache := watch.NewPollingTektonCache(
 		func(ctx context.Context) ([]tknv1.PipelineRun, error) {
 			list, err := clientset.TektonV1().PipelineRuns(namespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
@@ -202,7 +261,12 @@ func newDefaultManifestRuntimeTektonCache(cfg ManifestRuntimeBootstrapConfig) (m
 			return append([]tknv1.TaskRun(nil), list.Items...), nil
 		},
 		strings.TrimSpace(cfg.TektonPipeline),
-	), nil
+	)
+	return pollingCache, &manifestRuntimePollSource{
+		cache:          pollingCache,
+		controlPlaneID: strings.TrimSpace(cfg.ControlPlaneID),
+		pollInterval:   cfg.PollInterval,
+	}, nil
 }
 
 type manifestWriterAdapter struct {

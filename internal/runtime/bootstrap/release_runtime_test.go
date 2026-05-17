@@ -10,12 +10,18 @@ import (
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	releaserepo "github.com/bsonger/devflow-service/internal/release/repository"
-	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
+	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
 	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	"github.com/google/uuid"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestStartReleaseRuntimeReconcilerStartsQueueDrivenWorkers(t *testing.T) {
@@ -23,9 +29,9 @@ func TestStartReleaseRuntimeReconcilerStartsQueueDrivenWorkers(t *testing.T) {
 	defer cancel()
 
 	var (
-		queueCreated       atomic.Bool
-		sourceStarted      atomic.Bool
-		reconcilerCreated  atomic.Bool
+		queueCreated      atomic.Bool
+		sourceStarted     atomic.Bool
+		reconcilerCreated atomic.Bool
 	)
 
 	err := startReleaseRuntimeReconciler(ctx, releaseRuntimeBootstrapDeps{
@@ -74,6 +80,36 @@ func TestStartReleaseRuntimeReconcilerStartsWithDefaultDepsWhenEnabled(t *testin
 	})
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
+	}
+}
+
+func TestDefaultReleaseRuntimeBootstrapPrefersWorkloadEventSourceWhenClusterConfigAvailable(t *testing.T) {
+	origCluster := inClusterConfig
+	origWorkloadCache := newWorkloadCache
+	defer func() {
+		inClusterConfig = origCluster
+		newWorkloadCache = origWorkloadCache
+	}()
+
+	inClusterConfig = func() (*rest.Config, error) {
+		return &rest.Config{Host: "https://cluster.example"}, nil
+	}
+
+	newWorkloadCache = func(*rest.Config, watch.WorkloadCacheConfig) (watch.WorkloadCache, error) {
+		return stubBootstrapWorkloadCache{}, nil
+	}
+
+	deps := defaultReleaseRuntimeBootstrapDeps(ReleaseRuntimeBootstrapConfig{
+		Enabled:        true,
+		ControlPlaneID: "cp-1",
+		PollInterval:   15 * time.Second,
+	})
+	if deps.ReleaseSourceFactory == nil {
+		t.Fatal("expected release source factory")
+	}
+	source := deps.ReleaseSourceFactory(&stubReleaseQueue{})
+	if _, ok := source.(*watch.ReleaseEventSource); !ok {
+		t.Fatalf("source type = %T, want *watch.ReleaseEventSource", source)
 	}
 }
 
@@ -166,10 +202,10 @@ func TestReleaseStateSourceReadsControlPlaneFromObservedWorkload(t *testing.T) {
 	source := newReleaseStateSource(runtimeStore, stubReleaseStore{
 		getFn: func(context.Context, uuid.UUID) (*releasedomain.Release, error) {
 			return &releasedomain.Release{
-				BaseModel:      releasedomain.BaseModel{ID: releaseID},
-				ApplicationID:  appID,
-				EnvironmentID:  "prod",
-				Status:         releasedomain.ReleaseRunning,
+				BaseModel:     releasedomain.BaseModel{ID: releaseID},
+				ApplicationID: appID,
+				EnvironmentID: "prod",
+				Status:        releasedomain.ReleaseRunning,
 			}, nil
 		},
 	})
@@ -233,6 +269,23 @@ func (s *stubReleaseQueue) Run(ctx context.Context, workers int, handler func(co
 
 func (s *stubReleaseQueue) ShutDown() {}
 
+type stubBootstrapWorkloadCache struct{}
+
+func (s stubBootstrapWorkloadCache) Start(context.Context) error { return nil }
+func (s stubBootstrapWorkloadCache) Ready() bool                 { return true }
+func (s stubBootstrapWorkloadCache) AddEventHandler(cache.ResourceEventHandler) error {
+	return nil
+}
+func (s stubBootstrapWorkloadCache) ListDeployments(string, labels.Selector) ([]appsv1.Deployment, error) {
+	return nil, nil
+}
+func (s stubBootstrapWorkloadCache) ListRollouts(string, labels.Selector) ([]unstructured.Unstructured, error) {
+	return nil, nil
+}
+func (s stubBootstrapWorkloadCache) ListPods(string, labels.Selector) ([]corev1.Pod, error) {
+	return nil, nil
+}
+
 type releaseRuntimeSourceFunc func(context.Context)
 
 func (f releaseRuntimeSourceFunc) Run(ctx context.Context) {
@@ -258,7 +311,7 @@ func (s stubReleaseStore) Delete(context.Context, uuid.UUID) error { return nil 
 func (s stubReleaseStore) List(context.Context, releaserepo.ListFilter) ([]*releasedomain.Release, error) {
 	return nil, nil
 }
-func (s stubReleaseStore) UpdateRow(context.Context, *releasedomain.Release) error { return nil }
+func (s stubReleaseStore) UpdateRow(context.Context, *releasedomain.Release) error   { return nil }
 func (s stubReleaseStore) UpdateSteps(context.Context, *releasedomain.Release) error { return nil }
 func (s stubReleaseStore) UpdateArgoMetadata(context.Context, uuid.UUID, string, string, time.Time) error {
 	return nil
