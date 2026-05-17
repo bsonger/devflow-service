@@ -111,6 +111,7 @@ The verifier should fail fast and prove:
 - `release-service` builds from the active root layout with verify ingress absorbed into it
 - `runtime-service` builds from the active root layout for extracted runtime APIs
 - `go test ./...` still passes
+- `verify.sh` validates repo-local code, docs, and scripts only; it does not claim to validate Kubernetes manifests that no longer live in this repository
 
 The target proof stack for the repo is:
 

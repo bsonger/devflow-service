@@ -39,7 +39,7 @@ make ci
 - metadata proof docs under `docs/resources/metadata-*.md` are tracked evidence artifacts, not alternate authorities; they should route readers back to the canonical system docs for normative semantics
 - focused Go seam tests prove behavioral seams such as callback ownership, rollout-writeback normalization, and finalized-release terminality; `bash scripts/verify-metadata-audit.sh` proves metadata/doc routing consistency only; `bash scripts/verify.sh` remains the final repo-wide anti-drift rerun
 - observability, logging, and trace-correlation changes must follow `docs/policies/observability-logging.md`
-- trace retention changes must keep `deployments/pre-production/otel-trace-gateway.yaml` aligned with `docs/observability/trace-retention-policy.md`; application SDK sampling remains `always_on` and Collector-side tail sampling owns downsampling
+- trace retention changes must keep `docs/observability/trace-retention-policy.md` aligned with the owning deployment/config repositories; application SDK sampling remains `always_on` and Collector-side tail sampling owns downsampling
 - pre-production service manifests must not encode static calendar `service.version` values in service config; release-rendered workloads should source `SERVICE_NAME` from the pod label `app.kubernetes.io/name`, keep `OTEL_SERVICE_NAMESPACE` and `SERVICE_VERSION` explicit, and avoid duplicating deprecated compatibility env such as `OTEL_SERVICE_NAME`, `DEPLOYMENT_ENVIRONMENT`, or `OTEL_RESOURCE_ATTRIBUTES` in new manifests
 - live exemplar verification uses `scripts/verify-exemplars.sh` when Prometheus has recent 5xx samples; repo-local `scripts/verify.sh` checks the script and exemplar policy surfaces but does not depend on live Prometheus data
 - API error envelope and handler mapping changes must follow `docs/policies/error-handling.md`
@@ -102,13 +102,7 @@ bash scripts/verify-metadata-audit.sh
 
 ## Canonical pre-production operator proof route
 
-For the operator-facing S04 proof path, anchor verification to the committed pre-production manifests and the shared ingress host before interpreting any seam-local test output.
-
-Manifest/application anchors:
-
-1. `kubectl apply -f deployments/pre-production/release-service.yaml`
-2. `kubectl apply -f deployments/pre-production/runtime-service.yaml`
-3. `kubectl apply -f deployments/pre-production/istio/shared-ingress.yaml`
+For the operator-facing S04 proof path, anchor verification to the live shared ingress host and the owning deployment/config repositories before interpreting any seam-local test output.
 
 Shared-ingress host and routes under proof:
 

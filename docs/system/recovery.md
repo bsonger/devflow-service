@@ -25,7 +25,7 @@ After reading it, a fresh engineer or agent should know:
 - Active doc layering: `docs/api/` now owns API-wide contract guidance, and `docs/guides/` now owns developer workflow guides
 - Active runtime assembly: `cmd/meta-service` now boots through `internal/app` and `internal/platform/{config,db,runtime}`
 - Active image packaging: root `Dockerfile` still defaults to a multi-stage build for `cmd/meta-service`; service-specific image selection still uses committed Tekton `SERVICE_NAME` params, while manifest-triggered build dispatch now reads only its Tekton namespace/pipeline/PVC target from `release-service` runtime config
-- Active database baseline: Kubernetes PostgreSQL now targets the parallel `database/pg18-next` cluster, with repo-managed bootstrap artifacts under `deployments/pre-production/database/`
+- Active database baseline: Kubernetes PostgreSQL now targets the parallel `database/pg18-next` cluster, but deployment/bootstrap manifests no longer live in this repository
 
 This repository is in an intentional transition state.
 Current local docs are authoritative even when the code migration is not complete yet.
@@ -59,7 +59,7 @@ bash scripts/verify.sh
 ```
 
 Local ad-hoc Docker builds are intentionally not part of the recovery proof stack.
-When packaging work is involved, use the committed Tekton manifests under `deployments/tekton/` instead of treating a local Docker build as authoritative.
+When packaging or deployment work is involved, use the owning deployment/config repositories instead of treating this repository as the source of Kubernetes manifests.
 
 During the migration, some of those commands may still require path updates before they pass against the final root layout.
 When that happens, fix the repo contract and verification together instead of treating failures as expected noise.
@@ -101,12 +101,8 @@ Inspect next:
 
 Inspect next:
 1. `docs/system/postgresql.md`
-2. `deployments/pre-production/database/`
-3. `deployments/pre-production/meta-service.yaml`
-4. `deployments/pre-production/config-service.yaml`
-5. `deployments/pre-production/network-service.yaml`
-6. `deployments/pre-production/release-service.yaml`
-7. `deployments/pre-production/runtime-service.yaml`
+2. the active database cluster and migration SQL in the owning infrastructure repository
+3. the active service deployment/config repository for the affected environment
 
 ### If release writeback or observer callbacks fail
 
