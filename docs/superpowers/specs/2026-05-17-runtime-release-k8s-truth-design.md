@@ -46,6 +46,9 @@ The user-approved constraints are:
   `control_plane_id`
 - release activity filtering should be driven by a workload label projection of
   release status
+- `release-service` writes the initial `running` workload label projection
+- `runtime-service` is responsible for converging `devflow.io/release-status`
+  from `running` to terminal workload-observed states
 
 ## Current problem
 
@@ -79,6 +82,9 @@ Concretely:
 - `runtime-service` watches workloads and only processes workloads whose
   `devflow.control-plane/id` matches local config and whose
   `devflow.io/release-status=running`
+- when runtime observation reaches a terminal outcome, `runtime-service`
+  updates the workload label from `running` to the terminal release-status
+  projection
 
 Pros:
 
@@ -93,6 +99,8 @@ Cons:
 - requires a stronger workload metadata contract
 - if release-service fails to project the label, runtime-service will miss that
   workload
+- runtime-service now needs a bounded Kubernetes metadata update path for
+  terminal state convergence
 
 Recommendation: **accept**.
 
@@ -172,6 +180,8 @@ At minimum for this slice:
   `devflow.io/release-status=running`
 - the label must be present on the workload object metadata and the pod template
   metadata where release identity labels are already projected
+- release-service does not own terminal workload label convergence for this
+  field in the active runtime path
 
 This slice does not require a full multi-status workload projection model.
 It only requires `running` to be projected correctly so runtime observers can
@@ -190,7 +200,9 @@ The release-runtime queue path should become:
 4. event handlers apply the same filter for add/update/delete events
 5. reconciler reconstructs release identity only from workload labels and
    runtime observed state
-6. reconciler writes runtime observation back to release-service without first
+6. when runtime observation reaches a terminal outcome, runtime-service updates
+   the workload `devflow.io/release-status` label to the terminal value
+7. reconciler writes runtime observation back to release-service without first
    reading release business state from storage
 
 If a workload is missing any required label, runtime-service should skip it.
@@ -206,12 +218,16 @@ That means:
 - `GetRunningRelease` should no longer call the release repository
 - the reconciler input should be reconstructed from workload labels and
   runtime-store-observed workload state
+- terminal workload observation should trigger a Kubernetes metadata update that
+  changes `devflow.io/release-status` away from `running`
 - top-level release writeback should describe runtime observation only:
   workload kind, workload name, rollout phase, progress, and step statuses
 
 This keeps the boundary clean:
 
 - runtime-service reports observed rollout/runtime facts
+- runtime-service converges the workload label from `running` to a terminal
+  projected value
 - release-service decides how those facts affect final release truth
 
 ### Informer bootstrap and event filtering
@@ -243,6 +259,8 @@ This design changes the failure model:
 - missing or stale workload labels are now a release metadata contract failure,
   not a reason for runtime-service to fall back to PostgreSQL
 - runtime-service should fail closed by skipping invalid workloads
+- if terminal label convergence fails, runtime-service should keep writeback
+  behavior independent and surface the Kubernetes update failure explicitly
 - tests and docs should make clear that an unlabeled or incorrectly labeled
   workload is invisible to release-runtime observation
 
@@ -255,6 +273,8 @@ This change should add or update tests for:
   running-status workloads
 - release-runtime event handling skips workloads without the running-status label
 - release-runtime reconcile no longer depends on a release PostgreSQL store
+- runtime-service updates workload `devflow.io/release-status` from `running`
+  to terminal values when rollout observation becomes terminal
 - runtime-service startup and queue-driven reconcile still succeed without any
   PostgreSQL initialization
 
@@ -268,7 +288,9 @@ This design should be implemented in the following order:
 1. add and test workload label projection in release-service
 2. remove runtime-side release PostgreSQL reads and switch release-runtime
    filtering to workload labels
-3. update docs and verification expectations to describe the new truth-source
+3. add runtime-side terminal label convergence for observed completed or failed
+   workloads
+4. update docs and verification expectations to describe the new truth-source
    contract
 
 ## Documentation updates required
@@ -286,6 +308,8 @@ The updated docs should explicitly say that:
 - runtime-service release-runtime observation trusts Kubernetes workload labels
   and live state only
 - `devflow.io/release-status` is part of the workload metadata contract
+- `release-service` writes the initial `running` projection and
+  `runtime-service` converges it to terminal values from runtime observation
 - runtime-service does not query PostgreSQL or release-service HTTP to confirm
   running release state
 
@@ -295,6 +319,8 @@ The updated docs should explicitly say that:
   miss release observation for that workload
 - if workload labels drift from release truth, runtime observation can continue
   longer than intended
+- if runtime-service fails to persist the terminal label update, workloads can
+  remain stuck at `running` even after rollout convergence
 - if only workload metadata is updated but pod-template metadata is not, some
   downstream runtime identity reconstruction paths can become inconsistent
 
@@ -321,6 +347,8 @@ This design is complete when all of the following are true:
   runtime observed state only
 - `release-service` projects `devflow.io/release-status=running` into active
   workloads
+- `runtime-service` updates workload `devflow.io/release-status` from `running`
+  to terminal values when rollout observation reaches a terminal outcome
 - runtime-service release observation works without PostgreSQL initialization
 - current runtime docs consistently describe this Kubernetes-only truth-source
   contract

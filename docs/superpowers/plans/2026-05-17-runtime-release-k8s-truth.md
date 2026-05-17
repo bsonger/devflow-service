@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove the remaining PostgreSQL dependency from the `runtime-service` release-runtime path and make runtime release observation depend only on Kubernetes workload labels plus live state.
+**Goal:** Remove the remaining PostgreSQL dependency from the `runtime-service` release-runtime path, make runtime release observation depend only on Kubernetes workload labels plus live state, and let runtime-service converge workload `devflow.io/release-status` from `running` to terminal values.
 
-**Architecture:** `release-service` becomes responsible for projecting release activity onto workload metadata via `devflow.io/release-status=running`. `runtime-service` then filters informer bootstrap and event handling using `devflow.control-plane/id` and `devflow.io/release-status`, reconstructs release identity from workload labels, and writes runtime observation back without reading release storage.
+**Architecture:** `release-service` becomes responsible for projecting release activity onto workload metadata via `devflow.io/release-status=running`. `runtime-service` then filters informer bootstrap and event handling using `devflow.control-plane/id` and `devflow.io/release-status`, reconstructs release identity from workload labels, writes runtime observation back without reading release storage, and updates the live workload label to terminal values when rollout observation reaches a terminal outcome.
 
 **Tech Stack:** Go, Kubernetes client-go informers, Argo Rollouts unstructured workloads, existing runtime memory store, Go test
 
@@ -30,6 +30,10 @@
   - stop depending on release status fetched from storage; reconcile from workload labels and runtime state only
 - Modify: `internal/runtime/reconcile/release_reconciler_test.go`
   - verify the reconciler only writes back for workloads labeled `release-status=running`
+- Modify: `internal/runtime/observer/kubernetes_runtime.go`
+  - expose a narrow workload label update path for runtime-side terminal release-status convergence
+- Modify: `internal/runtime/observer/kubernetes_runtime_test.go`
+  - verify runtime-side label convergence updates workload and pod-template metadata
 - Modify: `internal/runtime/config/config.go`
   - remove the temporary PostgreSQL guard once runtime release bootstrap is PostgreSQL-free
 - Modify: `internal/runtime/config/config_test.go`
@@ -309,7 +313,164 @@ git add internal/runtime/watch/release_event_source.go internal/runtime/watch/re
 git commit -m "refactor: remove runtime release postgres dependency"
 ```
 
-### Task 3: Align Documentation With Kubernetes-Only Runtime Truth
+### Task 3: Converge Workload Release Status To Terminal Values
+
+**Files:**
+- Modify: `internal/runtime/reconcile/release_reconciler.go`
+- Modify: `internal/runtime/reconcile/release_reconciler_test.go`
+- Modify: `internal/runtime/observer/kubernetes_runtime.go`
+- Modify: `internal/runtime/observer/kubernetes_runtime_test.go`
+- Modify: `internal/runtime/bootstrap/release_runtime.go`
+
+- [ ] **Step 1: Write the failing terminal label convergence test**
+
+Add a focused test to `internal/runtime/reconcile/release_reconciler_test.go` that starts with a workload labeled `devflow.io/release-status=running` and expects a terminal label update when the workload becomes healthy:
+
+```go
+if got := updater.labels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+	t.Fatalf("release status label = %q", got)
+}
+```
+
+Use a healthy observed workload fixture:
+
+```go
+&runtimedomain.RuntimeObservedWorkload{
+	DesiredReplicas:     3,
+	ReadyReplicas:       3,
+	UnavailableReplicas: 0,
+	Labels: map[string]string{
+		releasedomain.ReleaseIDLabel:     releaseID.String(),
+		releasedomain.ControlPlaneLabel:  "cp-1",
+		releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+	},
+}
+```
+
+- [ ] **Step 2: Run the targeted reconcile test to verify it fails**
+
+Run:
+
+```bash
+go test ./internal/runtime/reconcile -run 'TestReleaseReconciler' -v
+```
+
+Expected:
+
+- FAIL because the reconciler does not yet update workload release-status labels
+
+- [ ] **Step 3: Add a narrow label updater dependency**
+
+Extend `internal/runtime/reconcile/release_reconciler.go`:
+
+```go
+type ReleaseStatusLabelUpdater interface {
+	UpdateReleaseStatusLabel(ctx context.Context, workload *runtimedomain.RuntimeObservedWorkload, status releasedomain.ReleaseStatus) error
+}
+```
+
+Add it to `ReleaseReconciler` and the constructor:
+
+```go
+type ReleaseReconciler struct {
+	releases       ReleaseStateSource
+	runtimeStore   runtimerepo.Store
+	stepsWriter    ReleaseStepsWriter
+	labelUpdater   ReleaseStatusLabelUpdater
+	controlPlaneID string
+}
+```
+
+- [ ] **Step 4: Implement terminal label convergence in the reconciler**
+
+In `internal/runtime/reconcile/release_reconciler.go`, after `deriveWritebackState(workload)`:
+
+```go
+if phase == releasedomain.StepSucceeded && r.labelUpdater != nil {
+	if err := r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, releasedomain.ReleaseSucceeded); err != nil {
+		return err
+	}
+}
+```
+
+Do not change non-terminal behavior. This slice only requires runtime to converge the label away from `running` when observation is terminal.
+
+- [ ] **Step 5: Implement the workload label updater**
+
+Add a minimal runtime-owned updater in `internal/runtime/observer/kubernetes_runtime.go` that:
+
+- resolves the live workload object from `RuntimeObservedWorkload`
+- updates `metadata.labels[devflow.io/release-status]`
+- updates `spec.template.metadata.labels[devflow.io/release-status]` when a pod template exists
+
+Follow the existing unstructured label update pattern already used in release code:
+
+```go
+labels := obj.GetLabels()
+if labels == nil {
+	labels = map[string]string{}
+}
+labels[releasedomain.ReleaseStatusLabel] = string(status)
+obj.SetLabels(labels)
+```
+
+And for rollout/deployment templates:
+
+```go
+templateLabels, _, _ := unstructured.NestedStringMap(obj.Object, "spec", "template", "metadata", "labels")
+if templateLabels == nil {
+	templateLabels = map[string]string{}
+}
+templateLabels[releasedomain.ReleaseStatusLabel] = string(status)
+_ = unstructured.SetNestedStringMap(obj.Object, templateLabels, "spec", "template", "metadata", "labels")
+```
+
+- [ ] **Step 6: Wire the updater into release runtime bootstrap**
+
+Update `internal/runtime/bootstrap/release_runtime.go` so `reconcile.NewReleaseReconciler(...)` receives the concrete runtime workload label updater.
+
+- [ ] **Step 7: Add the observer-level update tests**
+
+Add focused tests to `internal/runtime/observer/kubernetes_runtime_test.go` covering:
+
+- one `Deployment`
+- one rollout-like `unstructured.Unstructured`
+
+Both should begin with:
+
+```go
+releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning)
+```
+
+and end with:
+
+```go
+releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseSucceeded)
+```
+
+on both workload metadata and pod-template metadata.
+
+- [ ] **Step 8: Run the runtime terminal convergence verification**
+
+Run:
+
+```bash
+go test ./internal/runtime/reconcile ./internal/runtime/observer ./internal/runtime/bootstrap -v
+```
+
+Expected:
+
+- PASS
+- runtime can converge workload release-status labels to terminal values without using PostgreSQL
+
+- [ ] **Step 9: Commit the slice**
+
+```bash
+git add internal/runtime/reconcile/release_reconciler.go internal/runtime/reconcile/release_reconciler_test.go internal/runtime/observer/kubernetes_runtime.go internal/runtime/observer/kubernetes_runtime_test.go internal/runtime/bootstrap/release_runtime.go
+git commit -m "feat: converge runtime workload release status labels"
+```
+
+### Task 4: Align Documentation With Kubernetes-Only Runtime Truth
 
 **Files:**
 - Modify: `docs/services/runtime-service.md`
@@ -336,6 +497,7 @@ Add language to `docs/services/runtime-service.md` that explicitly states:
 ```text
 runtime-service release-runtime observation trusts Kubernetes workload labels and live state only.
 The workload metadata contract includes devflow.io/release-status=running alongside release_id, application_id, environment_id, and control_plane_id.
+release-service writes the initial running projection and runtime-service converges it to terminal values from runtime observation.
 runtime-service does not query PostgreSQL or release-service HTTP to confirm running release state.
 ```
 
@@ -346,6 +508,7 @@ Add language to `docs/system/runtime-storage-model.md` that says:
 ```text
 The release-runtime queue path filters observed workloads by devflow.control-plane/id and devflow.io/release-status=running.
 Release-runtime candidate selection is rebuilt from workload labels and runtime observed state rather than release PostgreSQL reads.
+When rollout observation becomes terminal, runtime-service updates devflow.io/release-status on the live workload object.
 ```
 
 - [ ] **Step 4: Update current implementation reality**
@@ -353,7 +516,7 @@ Release-runtime candidate selection is rebuilt from workload labels and runtime 
 Update `docs/system/current-service-extraction-reality.md` so the runtime-service row and follow-up notes say that:
 
 ```text
-release-runtime observation is label-projected from Kubernetes workloads and remains PostgreSQL-free
+release-runtime observation is label-projected from Kubernetes workloads, remains PostgreSQL-free, and converges terminal workload release-status labels
 ```
 
 - [ ] **Step 5: Run the documentation sanity check**
@@ -374,7 +537,7 @@ Expected:
 Run:
 
 ```bash
-go test ./internal/release/service ./internal/runtime/watch ./internal/runtime/bootstrap ./internal/runtime/reconcile ./internal/runtime/config -v
+go test ./internal/release/service ./internal/runtime/watch ./internal/runtime/bootstrap ./internal/runtime/reconcile ./internal/runtime/observer ./internal/runtime/config -v
 go build -o /tmp/release-service ./cmd/release-service
 go build -o /tmp/runtime-service ./cmd/runtime-service
 ```
@@ -398,7 +561,7 @@ git commit -m "docs: align runtime release kubernetes truth"
 - [ ] **Step 1: Run the full targeted backend verification**
 
 ```bash
-go test ./internal/release/service ./internal/runtime/watch ./internal/runtime/bootstrap ./internal/runtime/reconcile ./internal/runtime/config -v
+go test ./internal/release/service ./internal/runtime/watch ./internal/runtime/bootstrap ./internal/runtime/reconcile ./internal/runtime/observer ./internal/runtime/config -v
 go build -o /tmp/release-service ./cmd/release-service
 go build -o /tmp/runtime-service ./cmd/runtime-service
 ```
@@ -419,4 +582,3 @@ Expected:
 
 - only the planned release/runtime/doc files changed
 - no accidental PostgreSQL dependency remains under `internal/runtime/**`
-
