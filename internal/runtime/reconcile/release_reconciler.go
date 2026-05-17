@@ -120,10 +120,9 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	if state.FinalizeState != nil {
 		stepWrites = append(stepWrites, *state.FinalizeState)
 	}
+	var terminalLabelUpdateErr error
 	if terminalStatus, ok := terminalReleaseStatus(state.Phase); ok && r.labelUpdater != nil {
-		if err := r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, terminalStatus); err != nil {
-			return err
-		}
+		terminalLabelUpdateErr = r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, terminalStatus)
 	}
 	if terminalStatus, ok := terminalReleaseStatus(state.Phase); ok {
 		clearObservedWorkloadReleaseTracking(workload, terminalStatus)
@@ -146,6 +145,9 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		StepWrites:           stepWrites,
 	}); err != nil {
 		return err
+	}
+	if terminalLabelUpdateErr != nil {
+		return nil
 	}
 	if state.Phase == releasedomain.StepRunning {
 		return releaseRequeueAfterError{after: 5 * time.Second}

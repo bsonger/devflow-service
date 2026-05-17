@@ -226,6 +226,93 @@ func TestReleaseReconcilerConvergesTerminalReleaseStatusLabel(t *testing.T) {
 	}
 }
 
+func TestReleaseReconcilerStillWritesTerminalStepsWhenLabelUpdateFails(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+	createRuntimeSpecAndObservedWorkload(t, store, applicationID, &runtimedomain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		ApplicationID:       applicationID,
+		Environment:         "env-1",
+		Namespace:           "devflow",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "runtime-service",
+		ObservedGeneration:  1,
+		DesiredReplicas:     1,
+		UpdatedReplicas:     1,
+		ReadyReplicas:       1,
+		AvailableReplicas:   1,
+		UnavailableReplicas: 0,
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: time.Now().UTC(),
+	})
+
+	writer := &stubReleaseStepsWriter{}
+	updater := &stubReleaseStatusLabelUpdater{err: errors.New("forbidden")}
+	reconciler := NewReleaseReconciler(stubReleaseStateSource{
+		item: &ReleaseRecord{
+			ReleaseID:      releaseID,
+			ApplicationID:  applicationID,
+			EnvironmentID:  "env-1",
+			ControlPlaneID: "cp-1",
+			Status:         "running",
+		},
+	}, store, writer, updater, "cp-1")
+
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("Reconcile failed: %v", err)
+	}
+	if !updater.called {
+		t.Fatal("expected terminal status updater to be called")
+	}
+	assertReleaseWritePayload(t, writer.input, releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "runtime-service",
+		phase:                releasedomain.StepSucceeded,
+		progress:             100,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message:  messageExpectation{contains: "deployment healthy"},
+			},
+			{
+				stepCode: "finalize_release",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message:  messageExpectation{contains: "finalized"},
+			},
+		},
+	})
+
+	specs, err := store.ListRuntimeSpecs(context.Background())
+	if err != nil {
+		t.Fatalf("ListRuntimeSpecs failed: %v", err)
+	}
+	workload, err := store.GetObservedWorkload(context.Background(), specs[0].ID)
+	if err != nil {
+		t.Fatalf("GetObservedWorkload failed: %v", err)
+	}
+	if got := workload.Labels[releasedomain.ReleaseIDLabel]; got != "" {
+		t.Fatalf("release id label = %q, want empty", got)
+	}
+	if got := workload.Labels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("release status label = %q, want %q", got, releasedomain.ReleaseSucceeded)
+	}
+	if got := workload.Labels[platformobserver.ObserveStateLabel]; got != platformobserver.ObserveStateDone {
+		t.Fatalf("observe-state label = %q, want %q", got, platformobserver.ObserveStateDone)
+	}
+}
+
 func TestReleaseReconcilerFindsMatchingObservedWorkloadWhenEarlierSpecBelongsToAnotherRelease(t *testing.T) {
 	releaseID := uuid.New()
 	staleReleaseID := uuid.New()
@@ -824,6 +911,7 @@ type stubReleaseStatusLabelUpdater struct {
 	called   bool
 	workload *runtimedomain.RuntimeObservedWorkload
 	status   releasedomain.ReleaseStatus
+	err      error
 }
 
 func (s *stubReleaseStatusLabelUpdater) UpdateReleaseStatusLabel(_ context.Context, workload *runtimedomain.RuntimeObservedWorkload, status releasedomain.ReleaseStatus) error {
@@ -849,7 +937,7 @@ func (s *stubReleaseStatusLabelUpdater) UpdateReleaseStatusLabel(_ context.Conte
 		s.workload = nil
 	}
 	s.status = status
-	return nil
+	return s.err
 }
 
 func createRuntimeSpecAndObservedWorkload(t *testing.T, store runtimerepo.Store, applicationID uuid.UUID, workload *runtimedomain.RuntimeObservedWorkload) {
