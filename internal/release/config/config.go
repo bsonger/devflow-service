@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	manifesthttp "github.com/bsonger/devflow-service/internal/manifest/transport/http"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"github.com/bsonger/devflow-service/internal/platform/runtime/observability"
@@ -139,7 +138,6 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 	}
 	observerToken := stringValue(config.Observer, func(v *model.ObserverConfig) string { return v.SharedToken })
 	releasehttp.ObserverSharedToken = observerToken
-	manifesthttp.ManifestObserverSharedToken = observerToken
 	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{
 		ImageRegistry:           imageRegistryCfg,
 		ManifestRegistry:        bundlePublicationRegistryCfg,
