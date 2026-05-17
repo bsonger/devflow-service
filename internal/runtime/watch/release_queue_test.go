@@ -3,6 +3,7 @@ package watch
 import (
 	"context"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,31 +17,74 @@ func TestReleaseQueueEmitsLifecycleEvents(t *testing.T) {
 	queue := NewReleaseQueue()
 	defer queue.ShutDown()
 
-	var events []string
+	var (
+		mu              sync.Mutex
+		events          []string
+		queueHandleDone = make(chan struct{})
+	)
 	releaseQueueLogf = func(event string, fields ...zap.Field) {
+		mu.Lock()
 		events = append(events, event)
+		mu.Unlock()
+		if event == "queue_handle_done" {
+			select {
+			case <-queueHandleDone:
+			default:
+				close(queueHandleDone)
+			}
+		}
 	}
-	defer func() { releaseQueueLogf = defaultReleaseQueueLogf }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go queue.Run(ctx, 1, func(context.Context, string) error {
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		queue.Run(ctx, 1, func(context.Context, string) error {
+			return nil
+		})
+	}()
+	defer func() {
 		cancel()
-		return nil
-	})
+		select {
+		case <-runDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for release queue to stop")
+		}
+		releaseQueueLogf = defaultReleaseQueueLogf
+	}()
 
 	queue.Add("release-1")
-	<-ctx.Done()
 
-	if !slices.Contains(events, "queue_add") {
-		t.Fatalf("events = %v, want queue_add", events)
+	select {
+	case <-queueHandleDone:
+	case <-time.After(5 * time.Second):
+		mu.Lock()
+		got := append([]string(nil), events...)
+		mu.Unlock()
+		t.Fatalf("timed out waiting for queue_handle_done; events = %v", got)
 	}
-	if !slices.Contains(events, "queue_handle_start") {
-		t.Fatalf("events = %v, want queue_handle_start", events)
+
+	cancel()
+	select {
+	case <-runDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for release queue run loop")
 	}
-	if !slices.Contains(events, "queue_handle_done") {
-		t.Fatalf("events = %v, want queue_handle_done", events)
+
+	mu.Lock()
+	got := append([]string(nil), events...)
+	mu.Unlock()
+
+	if !slices.Contains(got, "queue_add") {
+		t.Fatalf("events = %v, want queue_add", got)
+	}
+	if !slices.Contains(got, "queue_handle_start") {
+		t.Fatalf("events = %v, want queue_handle_start", got)
+	}
+	if !slices.Contains(got, "queue_handle_done") {
+		t.Fatalf("events = %v, want queue_handle_done", got)
 	}
 }
 
