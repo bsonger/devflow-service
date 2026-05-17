@@ -3,16 +3,29 @@ package reconcile
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+func TestMain(m *testing.M) {
+	logger.RootLogger = zap.NewNop()
+	code := m.Run()
+	logger.RootLogger = nil
+	os.Exit(code)
+}
 
 func TestReleaseReconcilerWritesStepsForMatchingRunningRelease(t *testing.T) {
 	releaseID := uuid.New()
@@ -253,6 +266,7 @@ func TestReleaseReconcilerStillWritesTerminalStepsWhenLabelUpdateFails(t *testin
 
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{err: errors.New("forbidden")}
+	logs := captureReleaseReconcileLogs(t)
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
 		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
@@ -311,6 +325,18 @@ func TestReleaseReconcilerStillWritesTerminalStepsWhenLabelUpdateFails(t *testin
 	if got := workload.Labels[platformobserver.ObserveStateLabel]; got != platformobserver.ObserveStateDone {
 		t.Fatalf("observe-state label = %q, want %q", got, platformobserver.ObserveStateDone)
 	}
+	logs.assertEventWithFields(t, "release_reconcile_terminal_label_update_failed", map[string]string{
+		"release_id":     releaseID.String(),
+		"application_id": applicationID.String(),
+		"environment_id": "env-1",
+		"workload_kind":  "Deployment",
+		"workload_name":  "runtime-service",
+		"phase":          string(releasedomain.StepSucceeded),
+		"progress":       "100",
+		"action":         "update_release_status_label",
+		"target_status":  string(releasedomain.ReleaseSucceeded),
+		"error":          "forbidden",
+	})
 }
 
 func TestReleaseReconcilerFindsMatchingObservedWorkloadWhenEarlierSpecBelongsToAnotherRelease(t *testing.T) {
@@ -782,6 +808,7 @@ func TestReleaseReconcilerStopsReemittingAfterTerminalCleanup(t *testing.T) {
 
 	writer := &recordingReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
+	logs := captureReleaseReconcileLogs(t)
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
 		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
@@ -824,6 +851,15 @@ func TestReleaseReconcilerStopsReemittingAfterTerminalCleanup(t *testing.T) {
 				message:  messageExpectation{contains: "finalized"},
 			},
 		},
+	})
+	logs.assertEventWithFields(t, "release_reconcile_cleanup_completed", map[string]string{
+		"release_id":     releaseID.String(),
+		"application_id": applicationID.String(),
+		"environment_id": "env-1",
+		"workload_kind":  "Deployment",
+		"workload_name":  "demo-api",
+		"phase":          string(releasedomain.StepSucceeded),
+		"progress":       "100",
 	})
 }
 
@@ -938,6 +974,70 @@ func (s *stubReleaseStatusLabelUpdater) UpdateReleaseStatusLabel(_ context.Conte
 	}
 	s.status = status
 	return s.err
+}
+
+type capturedReleaseReconcileLogs struct {
+	mu     sync.Mutex
+	events []capturedReleaseReconcileEvent
+}
+
+type capturedReleaseReconcileEvent struct {
+	name   string
+	fields map[string]string
+}
+
+func captureReleaseReconcileLogs(t *testing.T) *capturedReleaseReconcileLogs {
+	t.Helper()
+
+	logs := &capturedReleaseReconcileLogs{}
+	releaseReconcileLogf = func(event string, fields ...zap.Field) {
+		logs.mu.Lock()
+		defer logs.mu.Unlock()
+		logs.events = append(logs.events, capturedReleaseReconcileEvent{
+			name:   event,
+			fields: fieldsToStringMap(fields),
+		})
+	}
+	t.Cleanup(func() {
+		releaseReconcileLogf = defaultReleaseReconcileLogf
+	})
+	return logs
+}
+
+func (c *capturedReleaseReconcileLogs) assertEventWithFields(t *testing.T, event string, want map[string]string) {
+	t.Helper()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, candidate := range c.events {
+		if candidate.name != event {
+			continue
+		}
+		match := true
+		for key, expected := range want {
+			if candidate.fields[key] != expected {
+				match = false
+				break
+			}
+		}
+		if match {
+			return
+		}
+	}
+	t.Fatalf("event %q with fields %v not found in %#v", event, want, c.events)
+}
+
+func fieldsToStringMap(fields []zap.Field) map[string]string {
+	encoder := zapcore.NewMapObjectEncoder()
+	for _, field := range fields {
+		field.AddTo(encoder)
+	}
+	out := make(map[string]string, len(encoder.Fields))
+	for key, value := range encoder.Fields {
+		out[key] = fmt.Sprint(value)
+	}
+	return out
 }
 
 func createRuntimeSpecAndObservedWorkload(t *testing.T, store runtimerepo.Store, applicationID uuid.UUID, workload *runtimedomain.RuntimeObservedWorkload) {

@@ -5,11 +5,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +38,12 @@ type ReleaseStatusLabelUpdater interface {
 }
 
 const defaultObservedReleaseTTL = 45 * time.Minute
+
+var releaseReconcileLogf = defaultReleaseReconcileLogf
+
+func defaultReleaseReconcileLogf(event string, fields ...zap.Field) {
+	logger.RootLogger.Named("runtime.state").Info(event, fields...)
+}
 
 type ReleaseStepWrite struct {
 	StepCode string
@@ -111,24 +119,43 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	if err != nil {
 		return err
 	}
+	baseFields := releaseReconcileFields(id, release.ApplicationID, release.EnvironmentID, nil, "", 0)
+	releaseReconcileLogf("release_reconcile_start", baseFields...)
 	if workload == nil {
+		releaseReconcileLogf("release_reconcile_workload_missing", baseFields...)
 		return nil
 	}
 
 	state := normalizeObservedStateForReconcile(workload)
+	stateFields := releaseReconcileFields(id, release.ApplicationID, release.EnvironmentID, workload, state.Phase, state.Progress)
+	releaseReconcileLogf("release_reconcile_state_computed", stateFields...)
 	stepWrites := append([]ReleaseStepWrite{}, state.StepWrites...)
 	if state.FinalizeState != nil {
 		stepWrites = append(stepWrites, *state.FinalizeState)
 	}
 	var terminalLabelUpdateErr error
-	if terminalStatus, ok := terminalReleaseStatus(state.Phase); ok && r.labelUpdater != nil {
-		terminalLabelUpdateErr = r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, terminalStatus)
+	var terminalStatus releasedomain.ReleaseStatus
+	if status, ok := terminalReleaseStatus(state.Phase); ok {
+		terminalStatus = status
 	}
-	if terminalStatus, ok := terminalReleaseStatus(state.Phase); ok {
+	if terminalStatus != "" && r.labelUpdater != nil {
+		terminalLabelUpdateErr = r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, terminalStatus)
+		if terminalLabelUpdateErr != nil {
+			releaseReconcileLogf("release_reconcile_terminal_label_update_failed",
+				append(stateFields,
+					zap.String("action", "update_release_status_label"),
+					zap.String("target_status", string(terminalStatus)),
+					zap.Error(terminalLabelUpdateErr),
+				)...,
+			)
+		}
+	}
+	if terminalStatus != "" {
 		clearObservedWorkloadReleaseTracking(workload, terminalStatus)
 		if err := r.runtimeStore.UpsertObservedWorkload(ctx, workload); err != nil {
 			return err
 		}
+		releaseReconcileLogf("release_reconcile_cleanup_completed", stateFields...)
 	}
 	// Queue/event sources own duplicate suppression. A repeated reconcile should
 	// re-emit the currently observed state, including terminal compensation.
@@ -146,13 +173,33 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	}); err != nil {
 		return err
 	}
+	releaseReconcileLogf("release_reconcile_writeback_completed", stateFields...)
 	if terminalLabelUpdateErr != nil {
 		return nil
 	}
 	if state.Phase == releasedomain.StepRunning {
+		releaseReconcileLogf("release_reconcile_requeue_scheduled", stateFields...)
 		return releaseRequeueAfterError{after: 5 * time.Second}
 	}
 	return nil
+}
+
+func releaseReconcileFields(releaseID, applicationID uuid.UUID, environmentID string, workload *runtimedomain.RuntimeObservedWorkload, phase releasedomain.StepStatus, progress int32) []zap.Field {
+	workloadKind := ""
+	workloadName := ""
+	if workload != nil {
+		workloadKind = strings.TrimSpace(workload.WorkloadKind)
+		workloadName = strings.TrimSpace(workload.WorkloadName)
+	}
+	return []zap.Field{
+		zap.String("release_id", releaseID.String()),
+		zap.String("application_id", applicationID.String()),
+		zap.String("environment_id", strings.TrimSpace(environmentID)),
+		zap.String("workload_kind", workloadKind),
+		zap.String("workload_name", workloadName),
+		zap.String("phase", string(phase)),
+		zap.Int32("progress", progress),
+	}
 }
 
 func terminalReleaseStatus(phase releasedomain.StepStatus) (releasedomain.ReleaseStatus, bool) {
