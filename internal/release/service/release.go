@@ -397,6 +397,9 @@ func (s *releaseService) Update(ctx context.Context, release *model.Release) err
 	if err != nil {
 		return err
 	}
+	if isReleaseTerminalStatus(current.Status) {
+		return nil
+	}
 	release.CreatedAt = current.CreatedAt
 	release.DeletedAt = current.DeletedAt
 	release.WithUpdateDefault()
@@ -407,6 +410,9 @@ func (s *releaseService) UpdateArtifact(ctx context.Context, releaseID uuid.UUID
 	release, err := s.loadRelease(ctx, releaseID)
 	if err != nil {
 		return err
+	}
+	if isReleaseTerminalStatus(release.Status) {
+		return nil
 	}
 	repository = strings.TrimSpace(repository)
 	tag = strings.TrimSpace(tag)
@@ -477,8 +483,7 @@ func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, 
 	if err != nil {
 		return err
 	}
-	switch release.Status {
-	case model.ReleaseSucceeded, model.ReleaseFailed, model.ReleaseRolledBack, model.ReleaseSyncFailed:
+	if isReleaseTerminalStatus(release.Status) {
 		return nil
 	}
 	if release.Status == status {
@@ -711,8 +716,7 @@ func (s *releaseService) UpdateStep(ctx context.Context, releaseID uuid.UUID, st
 	if err != nil {
 		return err
 	}
-	switch release.Status {
-	case model.ReleaseSucceeded, model.ReleaseFailed, model.ReleaseRolledBack, model.ReleaseSyncFailed:
+	if isReleaseTerminalStatus(release.Status) {
 		return nil
 	}
 	nextSteps := cloneReleaseSteps(release.Steps)
@@ -753,6 +757,15 @@ func cloneReleaseSteps(steps []model.ReleaseStep) []model.ReleaseStep {
 	cloned := make([]model.ReleaseStep, len(steps))
 	copy(cloned, steps)
 	return cloned
+}
+
+func isReleaseTerminalStatus(status model.ReleaseStatus) bool {
+	switch status {
+	case model.ReleaseSucceeded, model.ReleaseFailed, model.ReleaseRolledBack, model.ReleaseSyncFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func applyReleaseStepUpdate(steps []model.ReleaseStep, stepName string, status model.StepStatus, progress int32, message string, start, end *time.Time) {

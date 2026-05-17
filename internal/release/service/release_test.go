@@ -8,10 +8,10 @@ import (
 	"time"
 
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
-	"github.com/bsonger/devflow-service/internal/platform/observer"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	store "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/platform/dbsql"
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
@@ -23,9 +23,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	kubefake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/kubernetes"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 	_ "modernc.org/sqlite"
 )
 
@@ -752,7 +752,7 @@ func TestGetBundlePreviewUsesPersistedBundleWhenManifestSnapshotWouldNowBeMissin
 							"spec": map[string]any{
 								"containers": []map[string]any{{
 									"image": "registry.example.com/demo-api@sha256:abc",
-									"env": []map[string]any{{"name": "FROZEN_ONLY", "value": "true"}},
+									"env":   []map[string]any{{"name": "FROZEN_ONLY", "value": "true"}},
 									"resources": map[string]any{
 										"requests": map[string]any{"cpu": "250m", "memory": "256Mi"},
 										"limits":   map[string]any{"cpu": "1", "memory": "1Gi"},
@@ -787,9 +787,9 @@ func TestGetBundlePreviewUsesPersistedBundleWhenManifestSnapshotWouldNowBeMissin
 					Ports: []manifestdomain.ManifestServicePort{{Name: "http", ServicePort: 80, TargetPort: 8080, Protocol: "TCP"}},
 				}},
 				WorkloadConfigSnapshot: manifestdomain.ManifestWorkloadConfig{
-					Replicas: 4,
+					Replicas:  4,
 					Resources: manifestdomain.ManifestWorkloadConfig{}.Resources,
-					Env: []model.EnvVar{{Name: "FROZEN_ONLY", Value: "true"}},
+					Env:       []model.EnvVar{{Name: "FROZEN_ONLY", Value: "true"}},
 				},
 			}, nil
 		},
@@ -1384,6 +1384,84 @@ func TestUpdateStepIgnoresLateFinalizeFailureAfterTerminalSuccess(t *testing.T) 
 		return
 	}
 	t.Fatal("finalize_release step not found")
+}
+
+func TestUpdateArtifactIgnoresTerminalRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, artifact_repository, artifact_tag, artifact_digest, artifact_ref, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade','repo-old','tag-old','sha256:old','repo-old@sha256:old',$4,'Succeeded',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	if err := svc.UpdateArtifact(context.Background(), releaseID, "repo-new", "tag-new", "sha256:new", "repo-new@sha256:new", "late artifact", model.StepSucceeded, 100); err != nil {
+		t.Fatalf("UpdateArtifact() error = %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.ArtifactRepository != "repo-old" || release.ArtifactTag != "tag-old" || release.ArtifactDigest != "sha256:old" || release.ArtifactRef != "repo-old@sha256:old" {
+		t.Fatalf("artifact fields changed unexpectedly: %+v", release)
+	}
+}
+
+func TestUpdateIgnoresTerminalRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	stepsJSON, _ := marshalJSON(steps, "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (id, application_id, manifest_id, env, type, strategy, artifact_repository, steps, status, created_at, updated_at, deleted_at)
+		values ($1,$2,$3,'staging','Upgrade','rolling','repo-old',$4,'Failed',$5,$6,null)
+	`, releaseID.String(), appID.String(), manifestID.String(), stepsJSON, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	update := &model.Release{
+		BaseModel:          model.BaseModel{ID: releaseID},
+		ApplicationID:      appID,
+		ManifestID:         manifestID,
+		EnvironmentID:      "prod",
+		Strategy:           "blue-green",
+		ArtifactRepository: "repo-new",
+		Type:               model.ReleaseUpgrade,
+		Steps:              steps,
+		Status:             model.ReleaseRunning,
+	}
+	if err := svc.Update(context.Background(), update); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", release.Status, model.ReleaseFailed)
+	}
+	if release.EnvironmentID != "staging" {
+		t.Fatalf("environment = %q, want staging", release.EnvironmentID)
+	}
+	if release.Strategy != string(model.ReleaseStrategyRolling) {
+		t.Fatalf("strategy = %q, want %q", release.Strategy, model.ReleaseStrategyRolling)
+	}
+	if release.ArtifactRepository != "repo-old" {
+		t.Fatalf("artifact repository = %q, want repo-old", release.ArtifactRepository)
+	}
 }
 
 func TestUpdateStepIgnoresLateFinalizeSuccessAfterTerminalFailure(t *testing.T) {

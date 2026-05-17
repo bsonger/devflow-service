@@ -463,7 +463,7 @@ func TestUpdateBuildResultDoesNotChangeRuntimeReportedStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateStepStatusDoesNotPromoteManifestStatus(t *testing.T) {
+func TestUpdateStepStatusIgnoresTerminalManifest(t *testing.T) {
 	setupManifestTestDB(t)
 	svc := &manifestService{}
 	manifestID := uuid.New()
@@ -498,8 +498,8 @@ func TestUpdateStepStatusDoesNotPromoteManifestStatus(t *testing.T) {
 	if got.Status != model.ManifestAvailable {
 		t.Fatalf("status = %q, want %q", got.Status, model.ManifestAvailable)
 	}
-	if got.Steps[1].Status != model.StepSucceeded {
-		t.Fatalf("step status = %q, want %q", got.Steps[1].Status, model.StepSucceeded)
+	if got.Steps[1].Status != model.StepRunning {
+		t.Fatalf("step status = %q, want %q", got.Steps[1].Status, model.StepRunning)
 	}
 }
 
@@ -636,5 +636,66 @@ func TestUpdateManifestStatusByIDNoopWhenConverged(t *testing.T) {
 	}
 	if !after.UpdatedAt.Equal(before.UpdatedAt) {
 		t.Fatalf("updated_at changed on noop status write: before=%s after=%s", before.UpdatedAt, after.UpdatedAt)
+	}
+}
+
+func TestManifestTerminalStateFreezesWritebackFields(t *testing.T) {
+	setupManifestTestDB(t)
+	svc := &manifestService{}
+	manifestID := uuid.New()
+	appID := uuid.New()
+	now := time.Now()
+	manifest := &manifestdomain.Manifest{
+		BaseModel:     model.BaseModel{ID: manifestID, CreatedAt: now, UpdatedAt: now},
+		ApplicationID: appID,
+		PipelineID:    "pipe-terminal",
+		Status:        model.ManifestAvailable,
+		CommitHash:    "old-commit",
+		ImageRef:      "registry.example.com/devflow/demo-api@sha256:old",
+		ImageTag:      "old-tag",
+		ImageDigest:   "sha256:old",
+		Steps: []model.ImageTask{
+			{TaskName: "git-clone", Status: model.StepSucceeded, TaskRun: "tr-old"},
+			{TaskName: "image-build-and-push", Status: model.StepSucceeded},
+		},
+	}
+	if err := svc.repoStore().Insert(context.Background(), manifest); err != nil {
+		t.Fatalf("insert manifest: %v", err)
+	}
+
+	if err := svc.AssignPipelineID(context.Background(), manifestID, "pipe-new"); err != nil {
+		t.Fatalf("AssignPipelineID() error = %v", err)
+	}
+	if err := svc.UpdateManifestStatusByID(context.Background(), manifestID, model.ManifestRunning); err != nil {
+		t.Fatalf("UpdateManifestStatusByID() error = %v", err)
+	}
+	if err := svc.UpdateStepStatus(context.Background(), manifest.PipelineID, "git-clone", model.StepFailed, "late failure", nil, nil); err != nil {
+		t.Fatalf("UpdateStepStatus() error = %v", err)
+	}
+	if err := svc.BindTaskRun(context.Background(), manifest.PipelineID, "git-clone", "tr-new"); err != nil {
+		t.Fatalf("BindTaskRun() error = %v", err)
+	}
+	if err := svc.UpdateBuildResult(context.Background(), manifest.PipelineID, "new-commit", "registry.example.com/devflow/demo-api@sha256:new", "new-tag", "sha256:new"); err != nil {
+		t.Fatalf("UpdateBuildResult() error = %v", err)
+	}
+
+	got, err := svc.Get(context.Background(), manifestID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if got.PipelineID != "pipe-terminal" {
+		t.Fatalf("pipeline_id = %q, want pipe-terminal", got.PipelineID)
+	}
+	if got.Status != model.ManifestAvailable {
+		t.Fatalf("status = %q, want %q", got.Status, model.ManifestAvailable)
+	}
+	if got.Steps[0].Status != model.StepSucceeded {
+		t.Fatalf("step status = %q, want %q", got.Steps[0].Status, model.StepSucceeded)
+	}
+	if got.Steps[0].TaskRun != "tr-old" {
+		t.Fatalf("task run = %q, want tr-old", got.Steps[0].TaskRun)
+	}
+	if got.CommitHash != "old-commit" || got.ImageRef != "registry.example.com/devflow/demo-api@sha256:old" || got.ImageTag != "old-tag" || got.ImageDigest != "sha256:old" {
+		t.Fatalf("build result changed unexpectedly: %+v", got)
 	}
 }

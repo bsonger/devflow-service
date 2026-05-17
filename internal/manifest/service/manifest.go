@@ -296,6 +296,13 @@ func (s *manifestService) AssignPipelineID(ctx context.Context, manifestID uuid.
 	if manifestID == uuid.Nil {
 		return sharederrs.InvalidArgument("manifest id cannot be zero")
 	}
+	current, err := s.Get(ctx, manifestID)
+	if err != nil {
+		return err
+	}
+	if isManifestTerminalStatus(current.Status) {
+		return nil
+	}
 	return s.repoStore().AssignPipelineID(ctx, manifestID, strings.TrimSpace(pipelineID))
 }
 
@@ -309,6 +316,9 @@ func (s *manifestService) UpdateManifestStatusByID(ctx context.Context, manifest
 	current, err := s.Get(ctx, manifestID)
 	if err != nil {
 		return err
+	}
+	if isManifestTerminalStatus(current.Status) {
+		return nil
 	}
 	nextStatus := normalizeRuntimeManifestStatus(status, current.Status)
 	if current.Status == nextStatus {
@@ -332,6 +342,9 @@ func (s *manifestService) UpdateStepStatus(ctx context.Context, pipelineID, task
 	manifest, err := s.GetByPipelineID(ctx, pipelineID)
 	if err != nil {
 		return err
+	}
+	if isManifestTerminalStatus(manifest.Status) {
+		return nil
 	}
 	changed := false
 	for i := range manifest.Steps {
@@ -363,6 +376,9 @@ func (s *manifestService) BindTaskRun(ctx context.Context, pipelineID, taskName,
 	if err != nil {
 		return err
 	}
+	if isManifestTerminalStatus(manifest.Status) {
+		return nil
+	}
 	changed := false
 	for i := range manifest.Steps {
 		if manifest.Steps[i].TaskName == taskName {
@@ -385,6 +401,9 @@ func (s *manifestService) UpdateManifestStatus(ctx context.Context, pipelineID s
 	manifest, err := s.GetByPipelineID(ctx, pipelineID)
 	if err != nil {
 		return err
+	}
+	if isManifestTerminalStatus(manifest.Status) {
+		return nil
 	}
 	nextStatus := normalizeRuntimeManifestStatus(status, manifest.Status)
 	if manifest.Status == nextStatus {
@@ -424,6 +443,9 @@ func (s *manifestService) UpdateBuildResult(ctx context.Context, pipelineID, com
 	if err != nil {
 		return err
 	}
+	if isManifestTerminalStatus(manifest.Status) {
+		return nil
+	}
 	commitHash = strings.TrimSpace(commitHash)
 	imageRef = strings.TrimSpace(imageRef)
 	imageTag = strings.TrimSpace(imageTag)
@@ -456,6 +478,15 @@ func normalizeRuntimeManifestStatus(requested, current model.ManifestStatus) mod
 			return model.ManifestPending
 		}
 		return current
+	}
+}
+
+func isManifestTerminalStatus(status model.ManifestStatus) bool {
+	switch status {
+	case model.ManifestAvailable, model.ManifestUnavailable:
+		return true
+	default:
+		return false
 	}
 }
 
