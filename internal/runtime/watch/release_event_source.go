@@ -57,7 +57,7 @@ func (s *ReleaseEventSource) handleObject(obj any) {
 	if s.controlPlaneID != "" && strings.TrimSpace(labels[releasedomain.ControlPlaneLabel]) != s.controlPlaneID {
 		return
 	}
-	if strings.TrimSpace(labels[releasedomain.ReleaseStatusLabel]) != string(releasedomain.ReleaseRunning) {
+	if !strings.EqualFold(strings.TrimSpace(labels[releasedomain.ReleaseStatusLabel]), string(releasedomain.ReleaseRunning)) {
 		return
 	}
 	s.queue.Add(releaseID)

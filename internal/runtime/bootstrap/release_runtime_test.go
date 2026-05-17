@@ -295,6 +295,52 @@ func TestReleaseStateSourceSkipsNonRunningReleaseStatus(t *testing.T) {
 	}
 }
 
+func TestReleaseStateSourceAcceptsLowercaseRunningReleaseStatus(t *testing.T) {
+	runtimeStore := runtimerepo.NewMemoryStore()
+	releaseID := uuid.New()
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "prod",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+	if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: spec.ID,
+		ApplicationID: appID,
+		Environment:   "prod",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-prod",
+			releasedomain.ReleaseStatusLabel: "running",
+		},
+		ObservedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload failed: %v", err)
+	}
+
+	source := newReleaseStateSource(runtimeStore)
+
+	item, err := source.GetRunningRelease(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("GetRunningRelease failed: %v", err)
+	}
+	if item == nil {
+		t.Fatal("expected running release")
+	}
+	if item.ReleaseID != releaseID {
+		t.Fatalf("ReleaseID = %s", item.ReleaseID)
+	}
+}
+
 type stubReleaseQueue struct{}
 
 func (s *stubReleaseQueue) Add(string) {}

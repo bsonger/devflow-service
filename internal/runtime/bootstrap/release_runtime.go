@@ -223,7 +223,7 @@ func runningReleaseFromObservedWorkload(spec *runtimedomain.RuntimeSpec, workloa
 		return nil, false
 	}
 	status := strings.TrimSpace(workload.Labels[releasedomain.ReleaseStatusLabel])
-	if status != string(releasedomain.ReleaseRunning) {
+	if !strings.EqualFold(status, string(releasedomain.ReleaseRunning)) {
 		return nil, false
 	}
 	return &watch.RunningRelease{

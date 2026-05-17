@@ -75,6 +75,27 @@ func TestReleaseEventSourceSkipsNonRunningReleaseStatus(t *testing.T) {
 	}
 }
 
+func TestReleaseEventSourceAcceptsLowercaseRunningReleaseStatus(t *testing.T) {
+	queue := &recordingReleaseQueueForEventSource{}
+	source := NewReleaseEventSource(nil, queue, "cp-1")
+
+	source.handleObject(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo-pod",
+			Namespace: "default",
+			Labels: map[string]string{
+				releasedomain.ReleaseIDLabel:     "44444444-4444-4444-4444-444444444444",
+				releasedomain.ControlPlaneLabel:  "cp-1",
+				releasedomain.ReleaseStatusLabel: "running",
+			},
+		},
+	})
+
+	if !reflect.DeepEqual(queue.added, []string{"44444444-4444-4444-4444-444444444444"}) {
+		t.Fatalf("queued release ids = %#v", queue.added)
+	}
+}
+
 func TestReleaseLabelsFromObjectSupportsRolloutDeleteTombstone(t *testing.T) {
 	labels := releaseLabelsFromObject(cache.DeletedFinalStateUnknown{
 		Obj: &unstructured.Unstructured{Object: map[string]any{
