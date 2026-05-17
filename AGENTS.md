@@ -134,6 +134,7 @@ Naming guardrails:
 - When changing API-related code, you must check the affected `docs/resources/*.md`, `docs/api/*.md`, the affected service OpenAPI file, and `api/openapi/devflow.yaml`.
 - Do not add new dependencies unless the current repo cannot reasonably support the change with existing code and libraries.
 - If a detail is uncertain, record it in `Assumptions`; do not write uncertain behavior as if it were confirmed.
+- Git workflow policy for this repo: do not create agent-only remote branches by default. Unless the user explicitly asks for an isolated branch, commit directly on `main` and push `main`.
 
 ## Before handoff
 
