@@ -16,6 +16,7 @@ import (
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	releasedownstream "github.com/bsonger/devflow-service/internal/release/transport/downstream"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
+	runtimereconcile "github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	"github.com/google/uuid"
@@ -70,21 +71,8 @@ type ReleaseRolloutObserver struct {
 	processed   map[string]string
 }
 
-type releaseStepWrite struct {
-	StepCode string
-	Status   releasedomain.StepStatus
-	Progress int32
-	Message  string
-}
-
-type releaseObservedState struct {
-	Phase         releasedomain.StepStatus
-	Progress      int32
-	Message       string
-	StateKey      string
-	StepWrites    []releaseStepWrite
-	FinalizeState *releaseStepWrite
-}
+type releaseStepWrite = runtimereconcile.ReleaseStepWrite
+type releaseObservedState = runtimereconcile.NormalizedReleaseObservedState
 
 func isReleaseRolloutWritebackNotFound(err error) bool {
 	var target *writeback.WritebackError
@@ -364,36 +352,8 @@ func (o *ReleaseRolloutObserver) lookupObservedState(ctx context.Context, rollou
 		if err != nil {
 			return nil, err
 		}
-		phase, message, progress, stateKey := deriveReleaseRolloutState(rollout.Namespace, rollout.ObservedWorkloadName, deployment)
-		state := &releaseObservedState{
-			Phase:    phase,
-			Progress: progress,
-			Message:  message,
-			StateKey: stateKey,
-			StepWrites: []releaseStepWrite{{
-				StepCode: "observe_rollout",
-				Status:   phase,
-				Progress: progress,
-				Message:  message,
-			}},
-		}
-		switch phase {
-		case releasedomain.StepSucceeded:
-			state.FinalizeState = &releaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  "release finalized after deployment became healthy",
-			}
-		case releasedomain.StepFailed:
-			state.FinalizeState = &releaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  "release finalized after deployment failure",
-			}
-		}
-		return state, nil
+		state := runtimereconcile.NormalizeReleaseObservedStateFromDeployment(rollout.Namespace, rollout.ObservedWorkloadName, deployment)
+		return &state, nil
 	}
 }
 
@@ -429,7 +389,8 @@ func (o *ReleaseRolloutObserver) lookupRolloutState(ctx context.Context, rollout
 		return nil, err
 	}
 	item := pickPrimaryRollout(rollout.ObservedWorkloadName, rollout.PrimaryWorkloadName, rollouts.Items)
-	return deriveReleaseObservedStateFromRollout(rollout.Namespace, rollout.ObservedWorkloadName, rollout.PrimaryWorkloadName, item), nil
+	state := runtimereconcile.NormalizeReleaseObservedStateFromRollout(rollout.Namespace, rollout.ObservedWorkloadName, rollout.PrimaryWorkloadName, item)
+	return &state, nil
 }
 
 func (o *ReleaseRolloutObserver) writeReleaseSteps(ctx context.Context, rollout releaseRolloutContext, state *releaseObservedState) error {
@@ -500,339 +461,8 @@ func pickPrimaryRollout(observedName, primaryName string, items []unstructured.U
 }
 
 func deriveReleaseObservedStateFromRollout(namespace, observedName, primaryName string, rollout *unstructured.Unstructured) *releaseObservedState {
-	workloadName := firstNonEmptyString(observedName, primaryName, "application")
-	if rollout == nil {
-		message := fmt.Sprintf("waiting for rollout %s in namespace %s", workloadName, firstNonEmptyString(namespace, "unknown"))
-		return &releaseObservedState{
-			Phase:    releasedomain.StepRunning,
-			Progress: 10,
-			Message:  message,
-			StateKey: "rollout|missing",
-			StepWrites: []releaseStepWrite{{
-				StepCode: "deploy_canary",
-				Status:   releasedomain.StepRunning,
-				Progress: 10,
-				Message:  message,
-			}},
-		}
-	}
-
-	strategyType := rolloutStrategyType(rollout)
-	switch strategyType {
-	case "bluegreen":
-		return deriveBlueGreenObservedState(namespace, workloadName, rollout)
-	default:
-		return deriveCanaryObservedState(namespace, workloadName, rollout)
-	}
-}
-
-func rolloutStrategyType(rollout *unstructured.Unstructured) string {
-	if rollout == nil {
-		return "canary"
-	}
-	if _, ok, _ := unstructured.NestedMap(rollout.Object, "spec", "strategy", "blueGreen"); ok {
-		return "bluegreen"
-	}
-	if _, ok, _ := unstructured.NestedMap(rollout.Object, "spec", "strategy", "canary"); ok {
-		return "canary"
-	}
-	return "canary"
-}
-
-func deriveBlueGreenObservedState(namespace, workloadName string, rollout *unstructured.Unstructured) *releaseObservedState {
-	phase := strings.ToLower(strings.TrimSpace(nestedString(rollout.Object, "status", "phase")))
-	message := firstNonEmptyString(nestedString(rollout.Object, "status", "message"))
-	ready, available, desired := rolloutReplicaSummary(rollout)
-	stateKey := fmt.Sprintf("bluegreen|%s|%d|%d|%d|%s", phase, desired, ready, available, nestedString(rollout.Object, "metadata", "generation"))
-	switch phase {
-	case "healthy", "completed":
-		stepWrites := []releaseStepWrite{
-			{StepCode: "deploy_preview", Status: releasedomain.StepSucceeded, Progress: 100, Message: blueGreenStepMessage("preview deployment ready", message)},
-			{StepCode: "observe_preview", Status: releasedomain.StepSucceeded, Progress: 100, Message: blueGreenStepMessage("preview rollout observed healthy", message)},
-			{StepCode: "switch_traffic", Status: releasedomain.StepSucceeded, Progress: 100, Message: blueGreenStepMessage("traffic switched to active workload", message)},
-			{StepCode: "verify_active", Status: releasedomain.StepSucceeded, Progress: 100, Message: blueGreenStepMessage("active workload verified healthy", message)},
-		}
-		return &releaseObservedState{
-			Phase:      releasedomain.StepSucceeded,
-			Progress:   100,
-			Message:    blueGreenStepMessage(fmt.Sprintf("blue-green rollout healthy (ready=%d/%d, available=%d/%d)", ready, desired, available, desired), message),
-			StateKey:   stateKey,
-			StepWrites: stepWrites,
-			FinalizeState: &releaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  "release finalized after blue-green rollout became healthy",
-			},
-		}
-	case "degraded", "error", "failed":
-		return &releaseObservedState{
-			Phase:    releasedomain.StepFailed,
-			Progress: 100,
-			Message:  blueGreenStepMessage(fmt.Sprintf("blue-green rollout failed (ready=%d/%d, available=%d/%d)", ready, desired, available, desired), message),
-			StateKey: stateKey,
-			StepWrites: []releaseStepWrite{{
-				StepCode: "observe_preview",
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  blueGreenStepMessage("preview rollout failed", message),
-			}},
-			FinalizeState: &releaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  "release finalized after blue-green rollout failure",
-			},
-		}
-	default:
-		progress := rolloutProgressCandidate(ready, available, desired, 25)
-		stepWrites := []releaseStepWrite{
-			{StepCode: "deploy_preview", Status: releasedomain.StepSucceeded, Progress: 100, Message: "preview deployment created"},
-			{StepCode: "observe_preview", Status: releasedomain.StepRunning, Progress: progress, Message: blueGreenStepMessage(fmt.Sprintf("preview rollout progressing (ready=%d/%d, available=%d/%d)", ready, desired, available, desired), message)},
-		}
-		return &releaseObservedState{
-			Phase:      releasedomain.StepRunning,
-			Progress:   progress,
-			Message:    blueGreenStepMessage(fmt.Sprintf("blue-green rollout progressing (ready=%d/%d, available=%d/%d)", ready, desired, available, desired), message),
-			StateKey:   stateKey,
-			StepWrites: stepWrites,
-		}
-	}
-}
-
-func deriveCanaryObservedState(namespace, workloadName string, rollout *unstructured.Unstructured) *releaseObservedState {
-	phase := strings.ToLower(strings.TrimSpace(nestedString(rollout.Object, "status", "phase")))
-	message := firstNonEmptyString(nestedString(rollout.Object, "status", "message"))
-	stepIndex, hasStepIndex := nestedInt64(rollout.Object, "status", "currentStepIndex")
-	ready, available, desired := rolloutReplicaSummary(rollout)
-	stateKey := fmt.Sprintf("canary|%s|%t|%d|%d|%d|%d|%s", phase, hasStepIndex, stepIndex, desired, ready, available, nestedString(rollout.Object, "metadata", "generation"))
-	activeStep := canaryStepForIndex(stepIndex)
-
-	switch phase {
-	case "healthy", "completed":
-		stepWrites := []releaseStepWrite{
-			{StepCode: "deploy_canary", Status: releasedomain.StepSucceeded, Progress: 100, Message: "canary workload deployed"},
-			{StepCode: "canary_10", Status: releasedomain.StepSucceeded, Progress: 100, Message: "canary 10% traffic completed"},
-			{StepCode: "canary_30", Status: releasedomain.StepSucceeded, Progress: 100, Message: "canary 30% traffic completed"},
-			{StepCode: "canary_60", Status: releasedomain.StepSucceeded, Progress: 100, Message: "canary 60% traffic completed"},
-			{StepCode: "canary_100", Status: releasedomain.StepSucceeded, Progress: 100, Message: canaryStepMessage("canary 100% traffic completed", message)},
-		}
-		return &releaseObservedState{
-			Phase:      releasedomain.StepSucceeded,
-			Progress:   100,
-			Message:    canaryStepMessage(fmt.Sprintf("canary rollout healthy (ready=%d/%d, available=%d/%d)", ready, desired, available, desired), message),
-			StateKey:   stateKey,
-			StepWrites: stepWrites,
-			FinalizeState: &releaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  "release finalized after canary rollout became healthy",
-			},
-		}
-	case "degraded", "error", "failed":
-		failedStep := firstNonEmptyString(activeStep, "deploy_canary")
-		return &releaseObservedState{
-			Phase:    releasedomain.StepFailed,
-			Progress: 100,
-			Message:  canaryStepMessage(fmt.Sprintf("canary rollout failed at %s (ready=%d/%d, available=%d/%d)", failedStep, ready, desired, available, desired), message),
-			StateKey: stateKey,
-			StepWrites: append(canarySucceededWritesBefore(activeStep), releaseStepWrite{
-				StepCode: failedStep,
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  canaryStepMessage(fmt.Sprintf("%s failed", strings.ReplaceAll(failedStep, "_", " ")), message),
-			}),
-			FinalizeState: &releaseStepWrite{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepFailed,
-				Progress: 100,
-				Message:  "release finalized after canary rollout failure",
-			},
-		}
-	default:
-		if !hasStepIndex || stepIndex < 0 {
-			progress := rolloutProgressCandidate(ready, available, desired, 20)
-			msg := canaryStepMessage(fmt.Sprintf("deploying canary workload (ready=%d/%d, available=%d/%d)", ready, desired, available, desired), message)
-			return &releaseObservedState{
-				Phase:    releasedomain.StepRunning,
-				Progress: progress,
-				Message:  msg,
-				StateKey: stateKey,
-				StepWrites: []releaseStepWrite{{
-					StepCode: "deploy_canary",
-					Status:   releasedomain.StepRunning,
-					Progress: progress,
-					Message:  msg,
-				}},
-			}
-		}
-		progress := canaryProgressForIndex(stepIndex)
-		stepWrites := canarySucceededWritesBefore(activeStep)
-		if stepIndex == 1 || stepIndex == 3 || stepIndex == 5 {
-			stepWrites = append(stepWrites, releaseStepWrite{
-				StepCode: activeStep,
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  canaryStepMessage(fmt.Sprintf("%s completed", strings.ReplaceAll(activeStep, "_", " ")), message),
-			})
-			nextStep := canaryNextStep(activeStep)
-			if nextStep != "" {
-				stepWrites = append(stepWrites, releaseStepWrite{
-					StepCode: nextStep,
-					Status:   releasedomain.StepRunning,
-					Progress: progress,
-					Message:  canaryStepMessage(fmt.Sprintf("%s pending promotion", strings.ReplaceAll(nextStep, "_", " ")), message),
-				})
-			}
-		} else {
-			stepWrites = append(stepWrites, releaseStepWrite{
-				StepCode: activeStep,
-				Status:   releasedomain.StepRunning,
-				Progress: progress,
-				Message:  canaryStepMessage(fmt.Sprintf("%s in progress", strings.ReplaceAll(activeStep, "_", " ")), message),
-			})
-		}
-		return &releaseObservedState{
-			Phase:      releasedomain.StepRunning,
-			Progress:   progress,
-			Message:    canaryStepMessage(fmt.Sprintf("canary rollout progressing at %s (ready=%d/%d, available=%d/%d)", activeStep, ready, desired, available, desired), message),
-			StateKey:   stateKey,
-			StepWrites: stepWrites,
-		}
-	}
-}
-
-func canarySucceededWritesBefore(activeStep string) []releaseStepWrite {
-	all := []string{"deploy_canary", "canary_10", "canary_30", "canary_60", "canary_100"}
-	out := make([]releaseStepWrite, 0, len(all))
-	for _, step := range all {
-		if step == activeStep {
-			break
-		}
-		out = append(out, releaseStepWrite{
-			StepCode: step,
-			Status:   releasedomain.StepSucceeded,
-			Progress: 100,
-			Message:  fmt.Sprintf("%s completed", strings.ReplaceAll(step, "_", " ")),
-		})
-	}
-	return out
-}
-
-func canaryStepForIndex(index int64) string {
-	switch index {
-	case 0, 1:
-		return "canary_10"
-	case 2, 3:
-		return "canary_30"
-	case 4, 5:
-		return "canary_60"
-	case 6:
-		return "canary_100"
-	default:
-		return "deploy_canary"
-	}
-}
-
-func canaryNextStep(step string) string {
-	switch step {
-	case "canary_10":
-		return "canary_30"
-	case "canary_30":
-		return "canary_60"
-	case "canary_60":
-		return "canary_100"
-	default:
-		return ""
-	}
-}
-
-func canaryProgressForIndex(index int64) int32 {
-	switch index {
-	case 0:
-		return 30
-	case 1:
-		return 35
-	case 2:
-		return 50
-	case 3:
-		return 55
-	case 4:
-		return 70
-	case 5:
-		return 75
-	case 6:
-		return 90
-	default:
-		return 20
-	}
-}
-
-func rolloutReplicaSummary(rollout *unstructured.Unstructured) (ready, available, desired int32) {
-	if rollout == nil {
-		return 0, 0, 0
-	}
-	desired = int32(nestedInt64Default(rollout.Object, 1, "spec", "replicas"))
-	ready = int32(nestedInt64Default(rollout.Object, 0, "status", "readyReplicas"))
-	available = int32(nestedInt64Default(rollout.Object, int64(ready), "status", "availableReplicas"))
-	return ready, available, desired
-}
-
-func rolloutProgressCandidate(ready, available, desired int32, floor int32) int32 {
-	progress := floor
-	if desired > 0 {
-		candidate := (maxInt32(ready, available) * 100) / desired
-		if candidate > progress {
-			progress = candidate
-		}
-	}
-	if progress > 99 {
-		progress = 99
-	}
-	return progress
-}
-
-func canaryStepMessage(base, details string) string {
-	if strings.TrimSpace(details) == "" {
-		return base
-	}
-	return fmt.Sprintf("%s (%s)", base, strings.TrimSpace(details))
-}
-
-func blueGreenStepMessage(base, details string) string {
-	if strings.TrimSpace(details) == "" {
-		return base
-	}
-	return fmt.Sprintf("%s (%s)", base, strings.TrimSpace(details))
-}
-
-func nestedString(obj map[string]any, fields ...string) string {
-	value, _, _ := unstructured.NestedString(obj, fields...)
-	return strings.TrimSpace(value)
-}
-
-func nestedInt64(obj map[string]any, fields ...string) (int64, bool) {
-	value, ok, _ := unstructured.NestedInt64(obj, fields...)
-	return value, ok
-}
-
-func nestedInt64Default(obj map[string]any, fallback int64, fields ...string) int64 {
-	value, ok := nestedInt64(obj, fields...)
-	if !ok {
-		return fallback
-	}
-	return value
-}
-
-func maxInt32(values ...int32) int32 {
-	var max int32
-	for i, value := range values {
-		if i == 0 || value > max {
-			max = value
-		}
-	}
-	return max
+	state := runtimereconcile.NormalizeReleaseObservedStateFromRollout(namespace, observedName, primaryName, rollout)
+	return &state
 }
 
 func (o *ReleaseRolloutObserver) verifyMetricsEndpoint(ctx context.Context, rollout releaseRolloutContext) error {
@@ -894,51 +524,26 @@ func pickPrimaryDeployment(appName string, items []appsv1.Deployment) *appsv1.De
 }
 
 func deriveReleaseRolloutState(namespace, appName string, deployment *appsv1.Deployment) (releasedomain.StepStatus, string, int32, string) {
-	if deployment == nil {
-		message := fmt.Sprintf("waiting for deployment %s in namespace %s", firstNonEmptyString(appName, "application"), firstNonEmptyString(namespace, "unknown"))
-		return releasedomain.StepRunning, message, 10, "missing"
-	}
-	desired := int32Value(deployment.Spec.Replicas)
-	updated := int(deployment.Status.UpdatedReplicas)
-	ready := int(deployment.Status.ReadyReplicas)
-	available := int(deployment.Status.AvailableReplicas)
-	unavailable := int(deployment.Status.UnavailableReplicas)
-	generationObserved := deployment.Status.ObservedGeneration >= deployment.Generation
-	progressingReason, progressingStatus := deploymentConditionSummary(deployment.Status.Conditions, appsv1.DeploymentProgressing)
-	replicaFailureReason, replicaFailureStatus := deploymentConditionSummary(deployment.Status.Conditions, appsv1.DeploymentReplicaFailure)
-
-	if progressingReason == "ProgressDeadlineExceeded" || replicaFailureStatus == "True" {
-		message := fmt.Sprintf("deployment failed (progressing_reason=%s, replica_failure_reason=%s, ready=%d/%d, updated=%d/%d)", firstNonEmptyString(progressingReason, "unknown"), firstNonEmptyString(replicaFailureReason, "unknown"), ready, desired, updated, desired)
-		return releasedomain.StepFailed, message, 100, "failed|" + progressingReason + "|" + replicaFailureReason
-	}
-
-	if desired > 0 && generationObserved && updated >= desired && ready >= desired && available >= desired && unavailable == 0 {
-		message := fmt.Sprintf("deployment healthy (ready=%d/%d, updated=%d/%d, available=%d/%d)", ready, desired, updated, desired, available, desired)
-		return releasedomain.StepSucceeded, message, 100, fmt.Sprintf("succeeded|%d|%d|%d|%d", desired, updated, ready, available)
-	}
-
-	progress := int32(25)
-	if desired > 0 {
-		candidate := int32((available * 100) / desired)
-		if candidate > progress {
-			progress = candidate
-		}
-	}
-	if progress > 99 {
-		progress = 99
-	}
-	message := fmt.Sprintf("deployment progressing (ready=%d/%d, updated=%d/%d, available=%d/%d, unavailable=%d, observed_generation=%t, progressing_status=%s)", ready, desired, updated, desired, available, desired, unavailable, generationObserved, firstNonEmptyString(progressingStatus, "Unknown"))
-	return releasedomain.StepRunning, message, progress, fmt.Sprintf("running|%d|%d|%d|%d|%d|%t|%s|%s", desired, updated, ready, available, unavailable, generationObserved, progressingStatus, progressingReason)
+	state := runtimereconcile.NormalizeReleaseObservedStateFromDeployment(namespace, appName, deployment)
+	return state.Phase, state.Message, state.Progress, state.StateKey
 }
 
-func deploymentConditionSummary(conditions []appsv1.DeploymentCondition, conditionType appsv1.DeploymentConditionType) (string, string) {
-	for _, condition := range conditions {
-		if condition.Type != conditionType {
-			continue
-		}
-		return strings.TrimSpace(condition.Reason), string(condition.Status)
+func nestedString(obj map[string]any, fields ...string) string {
+	value, _, _ := unstructured.NestedString(obj, fields...)
+	return strings.TrimSpace(value)
+}
+
+func nestedInt64(obj map[string]any, fields ...string) (int64, bool) {
+	value, ok, _ := unstructured.NestedInt64(obj, fields...)
+	return value, ok
+}
+
+func nestedInt64Default(obj map[string]any, fallback int64, fields ...string) int64 {
+	value, ok := nestedInt64(obj, fields...)
+	if !ok {
+		return fallback
 	}
-	return "", ""
+	return value
 }
 
 func (o *ReleaseRolloutObserver) postStep(ctx context.Context, releaseID uuid.UUID, stepCode string, status releasedomain.StepStatus, progress int32, message string) error {
