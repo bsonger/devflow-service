@@ -83,6 +83,7 @@ Use the docs in this order so lifecycle wording stays aligned:
 - stage 3 (`Release` freeze), stage 4 (deployment bundle render), stage 5 (bundle publish), and stage 6 (Argo handoff) are release-owned stages
 - stage 7 (runtime observation and release writeback) is split: `runtime-service` may observe and send callbacks, but `release-service` remains the owner of release truth and the callback surface
 - terminal callback compensation stays inside that same split: runtime reconcile may get one replay after a release leaves the running set and can re-send callback-owned terminal step writes, but release truth ownership does not move away from `release-service`
+- once `finalize_release` closes a release, late compensated callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
 - release metadata labels, rendered workload identity, and Argo handoff inspection are intentionally compatible with both `Deployment` and `Rollout` primary workloads, and runtime-side rollout observation now follows the observed workload kind for rolling, blue-green, and canary releases
 - the stable release `steps[*].code` set is the compatibility boundary, and each code keeps one advancing owner even when other components send supporting writeback facts
 

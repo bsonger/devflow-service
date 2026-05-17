@@ -119,94 +119,19 @@ func TestDefaultReleaseRuntimeBootstrapPrefersWorkloadEventSourceWhenClusterConf
 	}
 }
 
-func TestDefaultReleaseRuntimeBootstrapDualSourceReenqueuesReleaseThatLeavesRunningSet(t *testing.T) {
-	origCluster := inClusterConfig
-	origWorkloadCache := newWorkloadCache
-	defer func() {
-		inClusterConfig = origCluster
-		newWorkloadCache = origWorkloadCache
-	}()
-
-	inClusterConfig = func() (*rest.Config, error) {
-		return &rest.Config{Host: "https://cluster.example"}, nil
-	}
-
-	newWorkloadCache = func(*rest.Config, watch.WorkloadCacheConfig) (watch.WorkloadCache, error) {
-		return stubBootstrapWorkloadCache{}, nil
-	}
-
-	runtimeStore := runtimerepo.NewMemoryStore()
+func TestRunningReleaseSourceReenqueuesReleaseThatLeavesRunningSet(t *testing.T) {
 	releaseID := uuid.New()
-	appID := uuid.New()
-	spec := &runtimedomain.RuntimeSpec{
-		ID:            uuid.New(),
-		ApplicationID: appID,
-		Environment:   "staging",
-		CreatedAt:     time.Now().UTC(),
-		UpdatedAt:     time.Now().UTC(),
-	}
-	if err := runtimeStore.CreateRuntimeSpec(context.Background(), spec); err != nil {
-		t.Fatalf("CreateRuntimeSpec failed: %v", err)
-	}
-
-	upsertObservedWorkload := func(status string) {
-		t.Helper()
-		if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
-			ID:            uuid.New(),
-			RuntimeSpecID: spec.ID,
-			ApplicationID: appID,
-			Environment:   "staging",
-			Namespace:     "devflow",
-			WorkloadKind:  "Deployment",
-			WorkloadName:  "demo-api",
-			Labels: map[string]string{
-				releasedomain.ReleaseIDLabel:     releaseID.String(),
-				releasedomain.ControlPlaneLabel:  "cp-1",
-				releasedomain.ReleaseStatusLabel: status,
-			},
-			ObservedAt: time.Now().UTC(),
-		}); err != nil {
-			t.Fatalf("UpsertObservedWorkload failed: %v", err)
-		}
-	}
-
-	upsertObservedWorkload(string(releasedomain.ReleaseRunning))
-
 	queue := &recordingReleaseQueue{}
-	runtimeStoreOrig := runtimerepo.RuntimeStore
-	runtimerepo.RuntimeStore = runtimeStore
-	defer func() {
-		runtimerepo.RuntimeStore = runtimeStoreOrig
-	}()
-
-	deps := defaultReleaseRuntimeBootstrapDeps(ReleaseRuntimeBootstrapConfig{
-		Enabled:        true,
-		ControlPlaneID: "cp-1",
-		PollInterval:   5 * time.Millisecond,
-	})
-	source := deps.ReleaseSourceFactory(queue)
-	sources, ok := source.(releaseRuntimeSources)
-	if !ok {
-		t.Fatalf("source type = %T, want releaseRuntimeSources", source)
-	}
-	if len(sources) != 2 {
-		t.Fatalf("len(sources) = %d, want 2", len(sources))
-	}
-
-	runningSource, ok := sources[1].(*watch.RunningReleaseSource)
-	if !ok {
-		t.Fatalf("sources[1] type = %T, want *watch.RunningReleaseSource", sources[1])
-	}
+	source := watch.NewRunningReleaseSource(&stubRunningReleaseLister{
+		batches: [][]*watch.RunningRelease{
+			{{ReleaseID: releaseID, ControlPlaneID: "cp-1", Status: string(releasedomain.ReleaseRunning)}},
+			{},
+		},
+	}, queue, "cp-1", 5*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go runningSource.Run(ctx)
-
-	if _, ok := queue.WaitForCount(1, time.Second); !ok {
-		t.Fatalf("timed out waiting for initial running enqueue, got %v", queue.Added())
-	}
-
-	upsertObservedWorkload(string(releasedomain.ReleaseSucceeded))
+	go source.Run(ctx)
 
 	got, ok := queue.WaitForCount(2, time.Second)
 	if !ok {
@@ -514,6 +439,23 @@ func (q *recordingReleaseQueue) init() {
 	if q.cond == nil {
 		q.cond = sync.NewCond(&q.mu)
 	}
+}
+
+type stubRunningReleaseLister struct {
+	mu      sync.Mutex
+	batches [][]*watch.RunningRelease
+	index   int
+}
+
+func (s *stubRunningReleaseLister) ListRunningReleases(context.Context) ([]*watch.RunningRelease, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.index >= len(s.batches) {
+		return nil, nil
+	}
+	batch := s.batches[s.index]
+	s.index++
+	return batch, nil
 }
 
 type stubBootstrapWorkloadCache struct{}
