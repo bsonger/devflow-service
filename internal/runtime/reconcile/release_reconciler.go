@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
@@ -33,6 +34,8 @@ type ReleaseStepsWriter interface {
 type ReleaseStatusLabelUpdater interface {
 	UpdateReleaseStatusLabel(ctx context.Context, workload *runtimedomain.RuntimeObservedWorkload, status releasedomain.ReleaseStatus) error
 }
+
+const defaultObservedReleaseTTL = 45 * time.Minute
 
 type ReleaseStepWrite struct {
 	StepCode string
@@ -122,6 +125,12 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 			return err
 		}
 	}
+	if terminalStatus, ok := terminalReleaseStatus(state.Phase); ok {
+		clearObservedWorkloadReleaseTracking(workload, terminalStatus)
+		if err := r.runtimeStore.UpsertObservedWorkload(ctx, workload); err != nil {
+			return err
+		}
+	}
 	// Queue/event sources own duplicate suppression. A repeated reconcile should
 	// re-emit the currently observed state, including terminal compensation.
 	if err := r.stepsWriter.WriteReleaseSteps(ctx, WriteReleaseStepsInput{
@@ -203,6 +212,7 @@ func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, re
 		return nil, err
 	}
 	var matched *runtimedomain.RuntimeObservedWorkload
+	now := time.Now().UTC()
 	for _, spec := range specs {
 		if spec == nil {
 			continue
@@ -226,9 +236,32 @@ func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, re
 		if workload.DeletedAt != nil {
 			continue
 		}
+		if workload.ObservedAt.IsZero() || now.Sub(workload.ObservedAt) > defaultObservedReleaseTTL {
+			clearObservedWorkloadReleaseTracking(workload, "")
+			if err := r.runtimeStore.UpsertObservedWorkload(ctx, workload); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		if matched == nil || workload.ObservedAt.After(matched.ObservedAt) {
 			matched = workload
 		}
 	}
 	return matched, nil
+}
+
+func clearObservedWorkloadReleaseTracking(workload *runtimedomain.RuntimeObservedWorkload, terminalStatus releasedomain.ReleaseStatus) {
+	if workload == nil {
+		return
+	}
+	if workload.Labels == nil {
+		workload.Labels = map[string]string{}
+	}
+	delete(workload.Labels, releasedomain.ReleaseIDLabel)
+	if terminalStatus != "" {
+		workload.Labels[releasedomain.ReleaseStatusLabel] = string(terminalStatus)
+	} else {
+		delete(workload.Labels, releasedomain.ReleaseStatusLabel)
+	}
+	workload.Labels[platformobserver.ObserveStateLabel] = platformobserver.ObserveStateDone
 }

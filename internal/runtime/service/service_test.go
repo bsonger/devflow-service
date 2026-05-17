@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
+	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
@@ -347,6 +349,52 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	}
 	if metricAction != "sync_runtime_workload" {
 		t.Fatalf("metric action = %q, want sync_runtime_workload", metricAction)
+	}
+}
+
+func TestSyncObservedWorkloadDropsReleaseTrackingWhenObserveStateDone(t *testing.T) {
+	applicationID := uuid.New()
+	runtimeSpecID := uuid.New()
+	var captured *runtimedomain.RuntimeObservedWorkload
+
+	svc := New(stubStore{
+		ensureRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
+			return &runtimedomain.RuntimeSpec{ID: runtimeSpecID, ApplicationID: applicationID, Environment: "production"}, nil
+		},
+		resolveTargetNamespaceFunc: func(context.Context, uuid.UUID, string) (string, error) {
+			return "devflow", nil
+		},
+		upsertObservedWorkloadFunc: func(_ context.Context, item *runtimedomain.RuntimeObservedWorkload) error {
+			captured = item
+			return nil
+		},
+	}, nil)
+
+	_, err := svc.SyncObservedWorkload(context.Background(), SyncObservedWorkloadInput{
+		ApplicationID: applicationID,
+		Environment:   "production",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "network-service",
+		Labels: map[string]string{
+			platformobserver.ObserveStateLabel: platformobserver.ObserveStateDone,
+			releasedomain.ReleaseIDLabel:       uuid.New().String(),
+			releasedomain.ReleaseStatusLabel:   string(releasedomain.ReleaseSucceeded),
+		},
+	})
+	if err != nil {
+		t.Fatalf("SyncObservedWorkload() error = %v", err)
+	}
+	if captured == nil {
+		t.Fatal("expected captured workload")
+	}
+	if got := captured.Labels[releasedomain.ReleaseIDLabel]; got != "" {
+		t.Fatalf("release id label = %q, want empty", got)
+	}
+	if got := captured.Labels[releasedomain.ReleaseStatusLabel]; got != "" {
+		t.Fatalf("release status label = %q, want empty", got)
+	}
+	if got := captured.Labels[platformobserver.ObserveStateLabel]; got != platformobserver.ObserveStateDone {
+		t.Fatalf("observe-state label = %q, want %q", got, platformobserver.ObserveStateDone)
 	}
 }
 

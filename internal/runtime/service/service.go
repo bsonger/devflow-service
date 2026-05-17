@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
+	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/runtime/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/repository"
@@ -411,7 +413,7 @@ func (s *runtimeService) SyncObservedWorkload(ctx context.Context, in SyncObserv
 		SummaryStatus:       in.SummaryStatus,
 		Images:              trimStringSlice(in.Images),
 		Conditions:          mapObservedWorkloadConditions(in.Conditions),
-		Labels:              copyLabels(in.Labels),
+		Labels:              normalizeObservedWorkloadLabels(in.Labels),
 		Annotations:         copyLabels(in.Annotations),
 		ObservedAt:          observedAt,
 		RestartAt:           in.RestartAt,
@@ -920,6 +922,21 @@ func copyLabels(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
 	for key, value := range in {
 		out[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+	return out
+}
+
+func normalizeObservedWorkloadLabels(in map[string]string) map[string]string {
+	out := copyLabels(in)
+	if len(out) == 0 {
+		return nil
+	}
+	if strings.EqualFold(out[platformobserver.ObserveStateLabel], platformobserver.ObserveStateDone) {
+		delete(out, releasedomain.ReleaseIDLabel)
+		delete(out, releasedomain.ReleaseStatusLabel)
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

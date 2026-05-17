@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
@@ -507,6 +508,19 @@ func TestReleaseReconcilerCompensatesTerminalSucceededDeployment(t *testing.T) {
 	if updater.status != releasedomain.ReleaseSucceeded {
 		t.Fatalf("status = %q, want %q", updater.status, releasedomain.ReleaseSucceeded)
 	}
+	workload, err := store.GetObservedWorkload(context.Background(), updater.workload.RuntimeSpecID)
+	if err != nil {
+		t.Fatalf("GetObservedWorkload failed: %v", err)
+	}
+	if got := workload.Labels[releasedomain.ReleaseIDLabel]; got != "" {
+		t.Fatalf("release id label = %q, want empty", got)
+	}
+	if got := workload.Labels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("release status label = %q, want %q", got, releasedomain.ReleaseSucceeded)
+	}
+	if got := workload.Labels[platformobserver.ObserveStateLabel]; got != platformobserver.ObserveStateDone {
+		t.Fatalf("observe-state label = %q, want %q", got, platformobserver.ObserveStateDone)
+	}
 }
 
 func TestReleaseReconcilerCompensatesTerminalFailedDeployment(t *testing.T) {
@@ -654,7 +668,7 @@ func TestReleaseReconcilerCompensatesTerminalReleaseStatusLabelConvergence(t *te
 	}
 }
 
-func TestReleaseReconcilerReemitsTerminalCompensationWithoutLocalSuppression(t *testing.T) {
+func TestReleaseReconcilerStopsReemittingAfterTerminalCleanup(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()
 	store := runtimerepo.NewMemoryStore()
@@ -697,8 +711,8 @@ func TestReleaseReconcilerReemitsTerminalCompensationWithoutLocalSuppression(t *
 	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
 		t.Fatalf("second Reconcile failed: %v", err)
 	}
-	if len(writer.inputs) != 2 {
-		t.Fatalf("write count = %d, want 2", len(writer.inputs))
+	if len(writer.inputs) != 1 {
+		t.Fatalf("write count = %d, want 1", len(writer.inputs))
 	}
 	assertReleaseWritePayload(t, writer.inputs[0], releaseWriteExpectation{
 		releaseID:            releaseID,
@@ -724,30 +738,59 @@ func TestReleaseReconcilerReemitsTerminalCompensationWithoutLocalSuppression(t *
 			},
 		},
 	})
-	assertReleaseWritePayload(t, writer.inputs[1], releaseWriteExpectation{
-		releaseID:            releaseID,
-		applicationID:        applicationID,
-		environmentID:        "env-1",
-		namespace:            "devflow",
-		observedWorkloadKind: "Deployment",
-		observedWorkloadName: "demo-api",
-		phase:                releasedomain.StepSucceeded,
-		progress:             100,
-		stepWrites: []stepWriteExpectation{
-			{
-				stepCode: "observe_rollout",
-				status:   releasedomain.StepSucceeded,
-				progress: 100,
-				message:  messageExpectation{nonEmpty: true},
-			},
-			{
-				stepCode: "finalize_release",
-				status:   releasedomain.StepSucceeded,
-				progress: 100,
-				message:  messageExpectation{contains: "finalized"},
-			},
+}
+
+func TestReleaseReconcilerExpiresStaleObservedReleaseTracking(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+	createRuntimeSpecAndObservedWorkload(t, store, applicationID, &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
 		},
+		ObservedAt: time.Now().UTC().Add(-defaultObservedReleaseTTL - time.Minute),
 	})
+
+	writer := &stubReleaseStepsWriter{}
+	updater := &stubReleaseStatusLabelUpdater{}
+	reconciler := NewReleaseReconciler(stubReleaseStateSource{
+		item: &ReleaseRecord{
+			ReleaseID:      releaseID,
+			ApplicationID:  applicationID,
+			EnvironmentID:  "env-1",
+			ControlPlaneID: "cp-1",
+			Status:         "running",
+		},
+	}, store, writer, updater, "cp-1")
+
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("Reconcile failed: %v", err)
+	}
+	if writer.input != nil {
+		t.Fatal("did not expect stale observed workload to emit writeback")
+	}
+	specs, err := store.ListRuntimeSpecs(context.Background())
+	if err != nil {
+		t.Fatalf("ListRuntimeSpecs failed: %v", err)
+	}
+	workload, err := store.GetObservedWorkload(context.Background(), specs[0].ID)
+	if err != nil {
+		t.Fatalf("GetObservedWorkload failed: %v", err)
+	}
+	if got := workload.Labels[releasedomain.ReleaseIDLabel]; got != "" {
+		t.Fatalf("release id label = %q, want empty", got)
+	}
+	if got := workload.Labels[platformobserver.ObserveStateLabel]; got != platformobserver.ObserveStateDone {
+		t.Fatalf("observe-state label = %q, want %q", got, platformobserver.ObserveStateDone)
+	}
 }
 
 type stubReleaseStateSource struct {
@@ -785,7 +828,26 @@ type stubReleaseStatusLabelUpdater struct {
 
 func (s *stubReleaseStatusLabelUpdater) UpdateReleaseStatusLabel(_ context.Context, workload *runtimedomain.RuntimeObservedWorkload, status releasedomain.ReleaseStatus) error {
 	s.called = true
-	s.workload = workload
+	if workload != nil {
+		copyWorkload := *workload
+		copyWorkload.Images = append([]string(nil), workload.Images...)
+		copyWorkload.Conditions = append([]runtimedomain.RuntimeObservedWorkloadCondition(nil), workload.Conditions...)
+		if workload.Labels != nil {
+			copyWorkload.Labels = make(map[string]string, len(workload.Labels))
+			for key, value := range workload.Labels {
+				copyWorkload.Labels[key] = value
+			}
+		}
+		if workload.Annotations != nil {
+			copyWorkload.Annotations = make(map[string]string, len(workload.Annotations))
+			for key, value := range workload.Annotations {
+				copyWorkload.Annotations[key] = value
+			}
+		}
+		s.workload = &copyWorkload
+	} else {
+		s.workload = nil
+	}
 	s.status = status
 	return nil
 }
