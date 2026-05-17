@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
@@ -156,6 +157,9 @@ func (c *informerTektonCache) ListManifestIDs(controlPlaneID string) []string {
 		for key := range keys {
 			pr := c.pipelineRuns[key]
 			if pr == nil {
+				continue
+			}
+			if strings.TrimSpace(pr.Labels[observer.ObserveStateLabel]) == observer.ObserveStateDone {
 				continue
 			}
 			if controlPlaneID != "" && strings.TrimSpace(pr.Labels[releasedomain.ControlPlaneLabel]) != controlPlaneID {

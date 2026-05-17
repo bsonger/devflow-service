@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
 	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	tektonclient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
@@ -280,6 +282,14 @@ func (a *manifestWriterAdapter) WriteStatus(ctx context.Context, input reconcile
 		"pipeline_id": strings.TrimSpace(input.PipelineID),
 		"status":      string(input.Status),
 		"message":     strings.TrimSpace(input.Message),
+	}, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "release_service",
+		Operation: "manifest_tekton_status_writeback",
+		LogFields: []zap.Field{
+			zap.String("manifest_id", strings.TrimSpace(input.ManifestID)),
+			zap.String("pipeline_id", strings.TrimSpace(input.PipelineID)),
+		},
 	})
 }
 
@@ -291,6 +301,16 @@ func (a *manifestWriterAdapter) WriteTask(ctx context.Context, input reconcile.M
 		"task_run":    strings.TrimSpace(input.TaskRun),
 		"status":      string(input.Status),
 		"message":     strings.TrimSpace(input.Message),
+	}, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "release_service",
+		Operation: "manifest_tekton_tasks_writeback",
+		LogFields: []zap.Field{
+			zap.String("manifest_id", strings.TrimSpace(input.ManifestID)),
+			zap.String("pipeline_id", strings.TrimSpace(input.PipelineID)),
+			zap.String("task_name", strings.TrimSpace(input.TaskName)),
+			zap.String("task_run", strings.TrimSpace(input.TaskRun)),
+		},
 	})
 }
 
@@ -302,14 +322,22 @@ func (a *manifestWriterAdapter) WriteResult(ctx context.Context, input reconcile
 		"image_ref":    strings.TrimSpace(input.ImageRef),
 		"image_tag":    strings.TrimSpace(input.ImageTag),
 		"image_digest": strings.TrimSpace(input.ImageDigest),
+	}, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "release_service",
+		Operation: "manifest_tekton_result_writeback",
+		LogFields: []zap.Field{
+			zap.String("manifest_id", strings.TrimSpace(input.ManifestID)),
+			zap.String("pipeline_id", strings.TrimSpace(input.PipelineID)),
+		},
 	})
 }
 
-func (a *manifestWriterAdapter) postJSON(ctx context.Context, path string, payload any) error {
+func (a *manifestWriterAdapter) postJSON(ctx context.Context, path string, payload any, call platformobs.DependencyCall) error {
 	if a == nil || a.writer == nil {
 		return ErrManifestRuntimeNotConfigured
 	}
-	return a.writer.PostJSON(ctx, path, payload)
+	return a.writer.PostJSONWithCall(ctx, path, payload, call)
 }
 
 type stubManifestQueue struct{}

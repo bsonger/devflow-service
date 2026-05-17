@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
@@ -27,6 +28,7 @@ type PipelineRunSnapshot struct {
 	Status         string
 	Message        string
 	StateKey       string
+	Done           bool
 }
 
 type TaskRunSnapshot struct {
@@ -150,6 +152,9 @@ func (c *tektonCache) ListManifestIDs(controlPlaneID string) []string {
 		if manifestID == "" {
 			continue
 		}
+		if item.Done {
+			continue
+		}
 		if controlPlaneID != "" && strings.TrimSpace(item.ControlPlaneID) != controlPlaneID {
 			continue
 		}
@@ -252,6 +257,7 @@ func snapshotPipelineRun(pr *tknv1.PipelineRun) (PipelineRunSnapshot, bool) {
 		Status:         string(mapPipelineRunStatus(pr)),
 		Message:        pipelineMessage(pr),
 		StateKey:       pipelineRunStateKey(pr),
+		Done:           strings.TrimSpace(pr.Labels[observer.ObserveStateLabel]) == observer.ObserveStateDone,
 	}, true
 }
 

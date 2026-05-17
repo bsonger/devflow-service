@@ -13,6 +13,7 @@ import (
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const ReleaseObserverTokenHeader = "X-Devflow-Observer-Token"
@@ -85,15 +86,25 @@ func (w *ReleaseWriter) WriteReleaseSteps(ctx context.Context, input WriteReleas
 }
 
 func (w *ReleaseWriter) PostJSON(ctx context.Context, path string, payload any) error {
+	return w.PostJSONWithCall(ctx, path, payload, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "release_service",
+		Operation: "release_rollout_writeback",
+	})
+}
+
+func (w *ReleaseWriter) PostJSONWithCall(ctx context.Context, path string, payload any, call platformobs.DependencyCall) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	return platformobs.ObserveDependency(ctx, platformobs.DependencyCall{
-		Kind:      "http",
-		Target:    "release_service",
-		Operation: "release_rollout_writeback",
-	}, func(depCtx context.Context) error {
+	if strings.TrimSpace(call.Kind) == "" {
+		call.Kind = "http"
+	}
+	if strings.TrimSpace(call.Target) == "" {
+		call.Target = "release_service"
+	}
+	return platformobs.ObserveDependency(ctx, call, func(depCtx context.Context) error {
 		req, err := http.NewRequestWithContext(depCtx, http.MethodPost, w.baseURL+path, bytes.NewReader(body))
 		if err != nil {
 			return err
@@ -122,5 +133,13 @@ func (w *ReleaseWriter) postStep(ctx context.Context, releaseID uuid.UUID, stepC
 		"progress":   progress,
 		"message":    strings.TrimSpace(message),
 	}
-	return w.PostJSON(ctx, "/api/v1/verify/release/steps", payload)
+	return w.PostJSONWithCall(ctx, "/api/v1/verify/release/steps", payload, platformobs.DependencyCall{
+		Kind:      "http",
+		Target:    "release_service",
+		Operation: "release_rollout_writeback",
+		LogFields: []zap.Field{
+			zap.String("release_id", releaseID.String()),
+			zap.String("step_code", strings.TrimSpace(stepCode)),
+		},
+	})
 }

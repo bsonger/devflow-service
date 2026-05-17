@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -132,5 +133,29 @@ func TestInformerTektonCacheBuildsSnapshotWithTaskResults(t *testing.T) {
 	}
 	if result.CommitHash != "abc123" || result.ImageTag != "20260517" || result.ImageDigest != "sha256:def" || result.ImageRef != "registry.example.com/devflow/demo@sha256:def" {
 		t.Fatalf("result snapshot = %#v", result)
+	}
+}
+
+func TestInformerTektonCacheSkipsDoneManifestIDs(t *testing.T) {
+	cache := newInformerTektonCacheForTest("build-pipeline")
+	cache.upsertPipelineRun(&tknv1.PipelineRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pr-1",
+			Namespace: "tekton-pipelines",
+			Labels: map[string]string{
+				manifestIDLabel:            "m-1",
+				observer.ObserveStateLabel: observer.ObserveStateDone,
+			},
+		},
+		Spec: tknv1.PipelineRunSpec{
+			PipelineRef: &tknv1.PipelineRef{Name: "build-pipeline"},
+		},
+	})
+
+	if got := cache.ListManifestIDs(""); len(got) != 0 {
+		t.Fatalf("ListManifestIDs() = %#v, want none", got)
+	}
+	if _, ok := cache.GetManifestSnapshot("m-1"); !ok {
+		t.Fatal("expected done manifest snapshot to remain readable")
 	}
 }

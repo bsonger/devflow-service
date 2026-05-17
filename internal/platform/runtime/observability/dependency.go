@@ -27,6 +27,7 @@ type DependencyCall struct {
 	Kind      string
 	Target    string
 	Operation string
+	LogFields []zap.Field
 }
 
 func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context.Context) error) error {
@@ -56,23 +57,27 @@ func ObserveDependency(ctx context.Context, call DependencyCall, fn func(context
 			Result:    "error",
 			Message:   "dependency call failed",
 		})
-		log.Error("dependency call failed",
+		fields := []zap.Field{
 			zap.String("dependency", call.Target),
 			zap.String("action", safeAction(call.Operation)),
 			zap.String("result", "error"),
 			zap.String("dependency_kind", call.Kind),
 			zap.Float64("dependency_duration_seconds", duration),
 			zap.Error(err),
-		)
+		}
+		fields = append(fields, call.LogFields...)
+		log.Error("dependency call failed", fields...)
 	} else {
 		span.SetStatus(codes.Ok, "ok")
-		log.Info("dependency call completed",
+		fields := []zap.Field{
 			zap.String("dependency", call.Target),
 			zap.String("action", safeAction(call.Operation)),
 			zap.String("result", "ok"),
 			zap.String("dependency_kind", call.Kind),
 			zap.Float64("dependency_duration_seconds", duration),
-		)
+		}
+		fields = append(fields, call.LogFields...)
+		log.Info("dependency call completed", fields...)
 	}
 
 	if dependencyMetricsInitErr == nil {

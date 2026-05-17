@@ -20,12 +20,14 @@ func TestManifestReconcilerPostsStatusTasksAndResult(t *testing.T) {
 						Name:       "pr-1",
 						Status:     string(releasedomain.ManifestAvailable),
 						Message:    "pipeline completed",
+						StateKey:   "pr-1|rv-1",
 					},
 					{
 						ManifestID: "m-1",
 						Name:       "pr-older",
 						Status:     string(releasedomain.ManifestPending),
 						Message:    "older pipeline",
+						StateKey:   "pr-older|rv-0",
 					},
 				},
 				TaskRuns: map[string][]watch.TaskRunSnapshot{
@@ -105,6 +107,45 @@ func TestManifestReconcilerNoopsWhenSnapshotMissing(t *testing.T) {
 	}
 	if len(writer.statuses) != 0 || len(writer.tasks) != 0 || len(writer.results) != 0 {
 		t.Fatalf("writer recorded unexpected calls: statuses=%d tasks=%d results=%d", len(writer.statuses), len(writer.tasks), len(writer.results))
+	}
+}
+
+func TestManifestReconcilerSkipsDuplicateState(t *testing.T) {
+	writer := &stubManifestWriter{}
+	reconciler := NewManifestReconciler(
+		stubTektonSnapshotSource{
+			snapshot: &watch.TektonSnapshot{
+				PipelineRuns: []watch.PipelineRunSnapshot{{
+					ManifestID: "m-1",
+					Name:       "pr-1",
+					Status:     string(releasedomain.ManifestAvailable),
+					Message:    "pipeline completed",
+					StateKey:   "pr-1|rv-1",
+				}},
+				TaskRuns: map[string][]watch.TaskRunSnapshot{
+					"m-1": {{
+						ManifestID: "m-1",
+						PipelineID: "pr-1",
+						TaskName:   "build-image",
+						TaskRun:    "tr-1",
+						Status:     string(releasedomain.StepSucceeded),
+						Message:    "build completed",
+					}},
+				},
+			},
+		},
+		writer,
+	)
+
+	if err := reconciler.Reconcile(context.Background(), "m-1"); err != nil {
+		t.Fatalf("first Reconcile failed: %v", err)
+	}
+	if err := reconciler.Reconcile(context.Background(), "m-1"); err != nil {
+		t.Fatalf("second Reconcile failed: %v", err)
+	}
+
+	if len(writer.statuses) != 1 || len(writer.tasks) != 1 || len(writer.results) != 0 {
+		t.Fatalf("writer calls = statuses:%d tasks:%d results:%d, want 1/1/0", len(writer.statuses), len(writer.tasks), len(writer.results))
 	}
 }
 

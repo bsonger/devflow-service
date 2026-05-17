@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	"k8s.io/client-go/tools/cache"
@@ -55,6 +56,9 @@ func (s *ManifestEventSource) handleObject(obj any) error {
 			return nil
 		}
 		if s.controlPlaneID != "" && strings.TrimSpace(item.Labels[releasedomain.ControlPlaneLabel]) != s.controlPlaneID {
+			return nil
+		}
+		if strings.TrimSpace(item.Labels[observer.ObserveStateLabel]) == observer.ObserveStateDone {
 			return nil
 		}
 		s.queue.Add(manifestID)

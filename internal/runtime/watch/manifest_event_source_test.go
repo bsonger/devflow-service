@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,6 +110,34 @@ func TestManifestEventSourceSkipsDifferentControlPlane(t *testing.T) {
 			Labels: map[string]string{
 				manifestIDLabel:                 "m-2",
 				releasedomain.ControlPlaneLabel: "cp-2",
+			},
+		},
+		Spec: tknv1.PipelineRunSpec{
+			PipelineRef: &tknv1.PipelineRef{Name: "build-pipeline"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("handleObject error = %v", err)
+	}
+
+	if len(queue.added) != 0 {
+		t.Fatalf("queued manifests = %#v, want none", queue.added)
+	}
+}
+
+func TestManifestEventSourceSkipsDonePipelineRun(t *testing.T) {
+	cache := newInformerTektonCacheForTest("build-pipeline")
+	queue := &recordingManifestQueueForEventSource{}
+	source := NewManifestEventSource(cache, queue, "cp-1")
+
+	err := source.handleObject(&tknv1.PipelineRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pr-3",
+			Namespace: "tekton-pipelines",
+			Labels: map[string]string{
+				manifestIDLabel:                 "m-3",
+				releasedomain.ControlPlaneLabel: "cp-1",
+				observer.ObserveStateLabel:      observer.ObserveStateDone,
 			},
 		},
 		Spec: tknv1.PipelineRunSpec{

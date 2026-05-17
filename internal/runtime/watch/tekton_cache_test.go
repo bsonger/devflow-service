@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	tknv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,7 +20,7 @@ func TestTektonSnapshotListsOnlyMatchingControlPlaneManifests(t *testing.T) {
 		pipelineRuns: []PipelineRunSnapshot{
 			{ManifestID: "m-1", Name: "pr-1", ControlPlaneID: "cp-1"},
 			{ManifestID: "m-2", Name: "pr-2", ControlPlaneID: "cp-2"},
-			{ManifestID: "m-1", Name: "pr-3", ControlPlaneID: "cp-1"},
+			{ManifestID: "m-1", Name: "pr-3", ControlPlaneID: "cp-1", Done: true},
 			{ManifestID: "", Name: "pr-4", ControlPlaneID: "cp-1"},
 		},
 	}
@@ -27,6 +28,20 @@ func TestTektonSnapshotListsOnlyMatchingControlPlaneManifests(t *testing.T) {
 	items := cache.ListManifestIDs("cp-1")
 	if len(items) != 1 || items[0] != "m-1" {
 		t.Fatalf("items = %#v, want [m-1]", items)
+	}
+}
+
+func TestTektonSnapshotSkipsDoneManifestsWhenListing(t *testing.T) {
+	cache := &tektonCache{
+		pipelineRuns: []PipelineRunSnapshot{
+			{ManifestID: "m-1", Name: "pr-1", ControlPlaneID: "cp-1", Done: true},
+			{ManifestID: "m-2", Name: "pr-2", ControlPlaneID: "cp-1"},
+		},
+	}
+
+	items := cache.ListManifestIDs("cp-1")
+	if len(items) != 1 || items[0] != "m-2" {
+		t.Fatalf("items = %#v, want [m-2]", items)
 	}
 }
 
@@ -183,6 +198,42 @@ func TestPollingTektonCacheRefreshPopulatesSnapshots(t *testing.T) {
 	}
 	if task.Results["IMAGE_DIGEST"] != "sha256:abc" || task.Results["commit"] != "abc123" {
 		t.Fatalf("task results = %#v", task.Results)
+	}
+}
+
+func TestPollingTektonCacheRefreshSkipsDoneManifestIDsButKeepsSnapshot(t *testing.T) {
+	cache := NewPollingTektonCache(
+		func(context.Context) ([]tknv1.PipelineRun, error) {
+			return []tknv1.PipelineRun{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pr-1",
+						Namespace: "tekton-builds",
+						Labels: map[string]string{
+							manifestIDLabel:            "m-1",
+							observer.ObserveStateLabel: observer.ObserveStateDone,
+						},
+					},
+					Spec: tknv1.PipelineRunSpec{
+						PipelineRef: &tknv1.PipelineRef{Name: "build-pipeline"},
+					},
+				},
+			}, nil
+		},
+		func(context.Context, string, string) ([]tknv1.TaskRun, error) {
+			return nil, nil
+		},
+		"build-pipeline",
+	)
+
+	if err := cache.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if got := cache.ListManifestIDs(""); len(got) != 0 {
+		t.Fatalf("ListManifestIDs() = %#v, want none", got)
+	}
+	if _, ok := cache.GetManifestSnapshot("m-1"); !ok {
+		t.Fatal("expected done manifest snapshot to remain readable")
 	}
 }
 

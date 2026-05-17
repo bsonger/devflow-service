@@ -2,7 +2,10 @@ package reconcile
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
+	"sync"
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
@@ -46,12 +49,15 @@ type ManifestWriter interface {
 type ManifestReconciler struct {
 	source ManifestSnapshotSource
 	writer ManifestWriter
+	mu     sync.Mutex
+	last   map[string]string
 }
 
 func NewManifestReconciler(source ManifestSnapshotSource, writer ManifestWriter) *ManifestReconciler {
 	return &ManifestReconciler{
 		source: source,
 		writer: writer,
+		last:   map[string]string{},
 	}
 }
 
@@ -73,6 +79,10 @@ func (r *ManifestReconciler) Reconcile(ctx context.Context, manifestID string) e
 	pipeline := snapshot.PipelineRuns[0]
 	pipelineID := strings.TrimSpace(pipeline.Name)
 	if pipelineID == "" {
+		return nil
+	}
+	stateKey := manifestSnapshotStateKey(pipeline, snapshot.TaskRuns[manifestID])
+	if r.isProcessed(manifestID, stateKey) {
 		return nil
 	}
 
@@ -101,15 +111,76 @@ func (r *ManifestReconciler) Reconcile(ctx context.Context, manifestID string) e
 
 	result := watch.BuildManifestResultSnapshot(taskSnapshots)
 	if result == nil {
+		r.markProcessed(manifestID, stateKey)
 		return nil
 	}
 
-	return r.writer.WriteResult(ctx, ManifestResultWrite{
+	if err := r.writer.WriteResult(ctx, ManifestResultWrite{
 		ManifestID:  manifestID,
 		PipelineID:  pipelineID,
 		CommitHash:  result.CommitHash,
 		ImageRef:    result.ImageRef,
 		ImageTag:    result.ImageTag,
 		ImageDigest: result.ImageDigest,
-	})
+	}); err != nil {
+		return err
+	}
+	r.markProcessed(manifestID, stateKey)
+	return nil
+}
+
+func (r *ManifestReconciler) isProcessed(manifestID, stateKey string) bool {
+	if r == nil {
+		return false
+	}
+	manifestID = strings.TrimSpace(manifestID)
+	stateKey = strings.TrimSpace(stateKey)
+	if manifestID == "" || stateKey == "" {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.last[manifestID] == stateKey
+}
+
+func (r *ManifestReconciler) markProcessed(manifestID, stateKey string) {
+	if r == nil {
+		return
+	}
+	manifestID = strings.TrimSpace(manifestID)
+	stateKey = strings.TrimSpace(stateKey)
+	if manifestID == "" || stateKey == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.last[manifestID] = stateKey
+}
+
+func manifestSnapshotStateKey(pipeline watch.PipelineRunSnapshot, tasks []watch.TaskRunSnapshot) string {
+	parts := []string{
+		strings.TrimSpace(pipeline.StateKey),
+		strings.TrimSpace(pipeline.Status),
+		strings.TrimSpace(pipeline.Message),
+	}
+	taskKeys := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		taskKeys = append(taskKeys, fmt.Sprintf("%s|%s|%s|%s",
+			strings.TrimSpace(task.TaskName),
+			strings.TrimSpace(task.TaskRun),
+			strings.TrimSpace(task.Status),
+			strings.TrimSpace(task.Message),
+		))
+	}
+	sort.Strings(taskKeys)
+	parts = append(parts, taskKeys...)
+	if result := watch.BuildManifestResultSnapshot(tasks); result != nil {
+		parts = append(parts,
+			strings.TrimSpace(result.CommitHash),
+			strings.TrimSpace(result.ImageRef),
+			strings.TrimSpace(result.ImageTag),
+			strings.TrimSpace(result.ImageDigest),
+		)
+	}
+	return strings.Join(parts, "\n")
 }
