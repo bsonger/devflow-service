@@ -177,7 +177,7 @@ Current `PipelineRun` metadata written at creation:
 
 | Key | Surface | Kind | Written by | Notes | Downstream consumption |
 |---|---|---|---|---|---|
-| `devflow.manifest/id` | `metadata.labels` | label | `buildManifestPipelineRun` | Canonical build/manifest identity key for the Tekton run. | `TektonManifestObserver.sync` lists PipelineRuns with label selector `devflow.manifest/id`; `syncPipelineRun` reads the label; task/image/status writeback payloads use it as the manifest identifier. |
+| `devflow.manifest/id` | `metadata.labels` | label | `buildManifestPipelineRun` | Canonical build/manifest identity key for the Tekton run. | The manifest runtime reconciler filters Tekton snapshots by this label and uses it as the manifest identifier for task/image/status writeback callbacks. |
 | `devflow.manifest/id` | `metadata.annotations` | annotation | `buildManifestPipelineRun` | Duplicate annotation copy of the same manifest identity. | Current runtime Tekton observer does **not** rely on the annotation; label is the active lookup surface. |
 | `otel.devflow.io/trace-id` | `metadata.annotations` | annotation | `submitManifestBuild` via `oci.TraceIDAnnotation` | Set from the span context immediately before create. | Diagnostic correlation only. |
 | `otel.devflow.io/parent-span-id` | `metadata.annotations` | annotation | `submitManifestBuild` via `oci.SpanAnnotation` | Set from the span context immediately before create. | Diagnostic correlation only. |

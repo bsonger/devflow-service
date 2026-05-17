@@ -299,9 +299,9 @@ graph LR
 
   Registry[("OCI Registry<br/>zot.zot.svc:5000")]
 
-  Observe["runtime-service<br/>Tekton observer<br/>poll PipelineRun"]
+  Observe["runtime-service<br/>manifest runtime reconciler<br/>observe PipelineRun"]
 
-  Writeback["POST /api/v1/manifests/tekton/*<br/>status / tasks / result"]
+  Writeback["POST /api/v1/release/manifests/tekton/*<br/>status / tasks / result"]
 
   ManifestDone["📦 Manifest<br/>status: succeeded<br/>image_ref, digest ready"]
 
@@ -311,7 +311,7 @@ graph LR
   Build --> Push
   Push --> Registry
 
-  Observe -->|"poll status"| TektonPipeline
+  Observe -->|"observe status"| TektonPipeline
   Observe -->|"callback"| Writeback
   Writeback -->|"update manifest"| ManifestDone
 
