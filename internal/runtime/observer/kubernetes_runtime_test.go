@@ -3,11 +3,17 @@ package observer
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
+	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
+	runtimeservice "github.com/bsonger/devflow-service/internal/runtime/service"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +24,88 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 )
+
+func TestKubernetesRuntimeObserverLogsObservedStateTransitions(t *testing.T) {
+	appID := uuid.New()
+	specID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+	service := runtimeservice.New(store, nil)
+	observer := &KubernetesRuntimeObserver{
+		store:   store,
+		runtime: service,
+	}
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            specID,
+		ApplicationID: appID,
+		Environment:   "prod",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := store.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+
+	var mu sync.Mutex
+	var events []string
+	runtimeObserverLogf = func(event string, fields ...zap.Field) {
+		mu.Lock()
+		defer mu.Unlock()
+		events = append(events, event)
+	}
+	defer func() { runtimeObserverLogf = defaultRuntimeObserverLogf }()
+
+	deployment := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "demo-api",
+			Namespace: "devflow",
+			Labels: map[string]string{
+				releasedomain.ReleaseApplicationLabel: appID.String(),
+				releasedomain.ReleaseEnvironmentLabel: "prod",
+				releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				releasedomain.ReleaseStatusLabel:      string(releasedomain.ReleaseRunning),
+				platformobserver.ObserveStateLabel:    platformobserver.ObserveStateRunning,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32PtrForObserverTest(2),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
+				},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			ReadyReplicas:       1,
+			UpdatedReplicas:     1,
+			AvailableReplicas:   1,
+			UnavailableReplicas: 1,
+			ObservedGeneration:  1,
+		},
+	}
+
+	if err := observer.syncWorkload(context.Background(), spec, "demo-api", "devflow", []appsv1.Deployment{deployment}, nil); err != nil {
+		t.Fatalf("first syncWorkload failed: %v", err)
+	}
+	if err := observer.syncWorkload(context.Background(), spec, "demo-api", "devflow", []appsv1.Deployment{deployment}, nil); err != nil {
+		t.Fatalf("second syncWorkload failed: %v", err)
+	}
+
+	deployment.Status.ReadyReplicas = 2
+	deployment.Status.UpdatedReplicas = 2
+	deployment.Status.AvailableReplicas = 2
+	deployment.Status.UnavailableReplicas = 0
+	deployment.Labels[platformobserver.ObserveStateLabel] = platformobserver.ObserveStateDone
+	deployment.Labels[releasedomain.ReleaseStatusLabel] = string(releasedomain.ReleaseSucceeded)
+	if err := observer.syncWorkload(context.Background(), spec, "demo-api", "devflow", []appsv1.Deployment{deployment}, nil); err != nil {
+		t.Fatalf("third syncWorkload failed: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got := countObserverEvents(events, "runtime_workload_state_changed"); got != 2 {
+		t.Fatalf("state change event count = %d, want 2; events=%v", got, events)
+	}
+}
 
 func TestReleaseOwnedSelector(t *testing.T) {
 	appID := uuid.New()
@@ -337,4 +425,18 @@ func newTestRollout(name string, appID uuid.UUID, environment string) unstructur
 			},
 		},
 	}}
+}
+
+func int32PtrForObserverTest(value int32) *int32 {
+	return &value
+}
+
+func countObserverEvents(events []string, target string) int {
+	count := 0
+	for _, event := range events {
+		if event == target {
+			count++
+		}
+	}
+	return count
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
@@ -27,6 +28,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
+
+var runtimeObserverLogf = defaultRuntimeObserverLogf
+
+func defaultRuntimeObserverLogf(event string, fields ...zap.Field) {
+	logger.RootLogger.Named("runtime.state").Info(event, fields...)
+}
 
 type KubernetesRuntimeObserverConfig struct {
 	Enabled        bool
@@ -374,6 +381,7 @@ func (o *KubernetesRuntimeObserver) syncWorkload(ctx context.Context, spec *doma
 		return err
 	}
 
+	previous, _ := o.store.GetObservedWorkload(ctx, spec.ID)
 	restartAt := parseRestartAt(deployment.Spec.Template.Annotations)
 	observed, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
 		ApplicationID:       spec.ApplicationID,
@@ -396,6 +404,7 @@ func (o *KubernetesRuntimeObserver) syncWorkload(ctx context.Context, spec *doma
 		RestartAt:           restartAt,
 	})
 	if err == nil {
+		logObservedWorkloadStateChange(spec, previous, observed)
 		platformobs.RecordRuntimeObservedWorkloadState(ctx, observed.SummaryStatus, observed.Labels[platformobserver.ObserveStateLabel])
 	}
 	return err
@@ -405,6 +414,7 @@ func (o *KubernetesRuntimeObserver) syncRollout(ctx context.Context, spec *domai
 	if rollout == nil {
 		return nil
 	}
+	previous, _ := o.store.GetObservedWorkload(ctx, spec.ID)
 	restartAt := parseRestartAt(rolloutTemplateAnnotations(rollout))
 	observed, err := o.runtime.SyncObservedWorkload(ctx, runtimeservice.SyncObservedWorkloadInput{
 		ApplicationID:       spec.ApplicationID,
@@ -427,9 +437,101 @@ func (o *KubernetesRuntimeObserver) syncRollout(ctx context.Context, spec *domai
 		RestartAt:           restartAt,
 	})
 	if err == nil {
+		logObservedWorkloadStateChange(spec, previous, observed)
 		platformobs.RecordRuntimeObservedWorkloadState(ctx, observed.SummaryStatus, observed.Labels[platformobserver.ObserveStateLabel])
 	}
 	return err
+}
+
+func logObservedWorkloadStateChange(spec *domain.RuntimeSpec, previous, current *domain.RuntimeObservedWorkload) {
+	if spec == nil || current == nil {
+		return
+	}
+	if !observedWorkloadStateChanged(previous, current) {
+		return
+	}
+	runtimeObserverLogf("runtime_workload_state_changed",
+		zap.String("application_id", spec.ApplicationID.String()),
+		zap.String("environment_id", strings.TrimSpace(spec.Environment)),
+		zap.String("workload_kind", strings.TrimSpace(current.WorkloadKind)),
+		zap.String("workload_name", strings.TrimSpace(current.WorkloadName)),
+		zap.String("previous_summary_status", observedSummaryStatus(previous)),
+		zap.String("current_summary_status", observedSummaryStatus(current)),
+		zap.Int("previous_ready_replicas", observedReadyReplicas(previous)),
+		zap.Int("current_ready_replicas", observedReadyReplicas(current)),
+		zap.Int("previous_available_replicas", observedAvailableReplicas(previous)),
+		zap.Int("current_available_replicas", observedAvailableReplicas(current)),
+		zap.Int("previous_updated_replicas", observedUpdatedReplicas(previous)),
+		zap.Int("current_updated_replicas", observedUpdatedReplicas(current)),
+		zap.String("previous_observe_state", observedObserveState(previous)),
+		zap.String("current_observe_state", observedObserveState(current)),
+		zap.String("previous_release_status", observedReleaseStatus(previous)),
+		zap.String("current_release_status", observedReleaseStatus(current)),
+		zap.String("previous_release_id", observedReleaseID(previous)),
+		zap.String("current_release_id", observedReleaseID(current)),
+	)
+}
+
+func observedWorkloadStateChanged(previous, current *domain.RuntimeObservedWorkload) bool {
+	if previous == nil && current == nil {
+		return false
+	}
+	return observedSummaryStatus(previous) != observedSummaryStatus(current) ||
+		observedReadyReplicas(previous) != observedReadyReplicas(current) ||
+		observedAvailableReplicas(previous) != observedAvailableReplicas(current) ||
+		observedUpdatedReplicas(previous) != observedUpdatedReplicas(current) ||
+		observedObserveState(previous) != observedObserveState(current) ||
+		observedReleaseStatus(previous) != observedReleaseStatus(current) ||
+		observedReleaseID(previous) != observedReleaseID(current)
+}
+
+func observedSummaryStatus(item *domain.RuntimeObservedWorkload) string {
+	if item == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.SummaryStatus)
+}
+
+func observedReadyReplicas(item *domain.RuntimeObservedWorkload) int {
+	if item == nil {
+		return 0
+	}
+	return item.ReadyReplicas
+}
+
+func observedAvailableReplicas(item *domain.RuntimeObservedWorkload) int {
+	if item == nil {
+		return 0
+	}
+	return item.AvailableReplicas
+}
+
+func observedUpdatedReplicas(item *domain.RuntimeObservedWorkload) int {
+	if item == nil {
+		return 0
+	}
+	return item.UpdatedReplicas
+}
+
+func observedObserveState(item *domain.RuntimeObservedWorkload) string {
+	if item == nil || item.Labels == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.Labels[platformobserver.ObserveStateLabel])
+}
+
+func observedReleaseStatus(item *domain.RuntimeObservedWorkload) string {
+	if item == nil || item.Labels == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.Labels[releasedomain.ReleaseStatusLabel])
+}
+
+func observedReleaseID(item *domain.RuntimeObservedWorkload) string {
+	if item == nil || item.Labels == nil {
+		return ""
+	}
+	return strings.TrimSpace(item.Labels[releasedomain.ReleaseIDLabel])
 }
 
 func (o *KubernetesRuntimeObserver) syncPods(ctx context.Context, spec *domain.RuntimeSpec, namespace string, pods []corev1.Pod) error {
