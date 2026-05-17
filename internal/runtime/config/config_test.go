@@ -2,12 +2,10 @@ package config
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
-	platformdb "github.com/bsonger/devflow-service/internal/platform/db"
 	"github.com/bsonger/devflow-service/internal/runtime/bootstrap"
 	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -289,8 +287,6 @@ func TestInitRuntimeStartsReleaseRuntimeReconcilerWhenEnabled(t *testing.T) {
 	startManifestRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ManifestRuntimeBootstrapConfig) error {
 		return nil
 	}
-	platformdb.InitPostgres(newTestDBHandle())
-	defer platformdb.InitPostgres(nil)
 
 	cfg := &Config{
 		Observer: &ObserverConfig{
@@ -336,7 +332,7 @@ func TestInitRuntimeStartsReleaseRuntimeReconcilerWhenEnabled(t *testing.T) {
 	}
 }
 
-func TestInitRuntimeSkipsReleaseRuntimeReconcilerWhenPostgresUnavailable(t *testing.T) {
+func TestInitRuntimeStartsReleaseRuntimeReconcilerWithoutPostgres(t *testing.T) {
 	reset := installRuntimeConfigTestHooks()
 	defer reset()
 
@@ -362,7 +358,6 @@ func TestInitRuntimeSkipsReleaseRuntimeReconcilerWhenPostgresUnavailable(t *test
 	startManifestRuntimeReconcilerFn = func(_ context.Context, _ bootstrap.ManifestRuntimeBootstrapConfig) error {
 		return nil
 	}
-	platformdb.InitPostgres(nil)
 
 	cfg := &Config{
 		Observer: &ObserverConfig{
@@ -379,8 +374,8 @@ func TestInitRuntimeSkipsReleaseRuntimeReconcilerWhenPostgresUnavailable(t *test
 		t.Fatalf("shutdown returned error: %v", err)
 	}
 
-	if releaseRuntimeCalled {
-		t.Fatal("expected release runtime reconciler to stay disabled without postgres")
+	if !releaseRuntimeCalled {
+		t.Fatal("expected release runtime reconciler to start without postgres")
 	}
 }
 
@@ -545,8 +540,6 @@ func TestInitRuntimeSkipsLegacyReleaseRolloutObserverWhenReleaseRuntimeEnabled(t
 	startKubernetesRuntimeObserverFn = func(_ context.Context, _ *rest.Config, _ runtimeobserver.KubernetesRuntimeObserverConfig) error {
 		return nil
 	}
-	platformdb.InitPostgres(newTestDBHandle())
-	defer platformdb.InitPostgres(nil)
 
 	cfg := &Config{
 		Observer: &ObserverConfig{
@@ -596,7 +589,3 @@ func installRuntimeConfigTestHooks() func() {
 }
 
 var _ = metav1.NamespaceAll
-
-func newTestDBHandle() *sql.DB {
-	return &sql.DB{}
-}

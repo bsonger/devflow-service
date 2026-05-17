@@ -9,8 +9,8 @@ import (
 	"time"
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
-	releaserepo "github.com/bsonger/devflow-service/internal/release/repository"
 	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
+	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
 	"github.com/bsonger/devflow-service/internal/runtime/writeback"
@@ -85,7 +85,6 @@ func startReleaseRuntimeReconciler(ctx context.Context, deps releaseRuntimeBoots
 
 func defaultReleaseRuntimeBootstrapDeps(cfg ReleaseRuntimeBootstrapConfig) releaseRuntimeBootstrapDeps {
 	runtimeStore := runtimerepo.RuntimeStore
-	releaseStore := releaserepo.NewPostgresStore()
 	writer := writeback.NewReleaseWriter(
 		strings.TrimSpace(cfg.ReleaseServiceBaseURL),
 		strings.TrimSpace(cfg.ObserverToken),
@@ -106,11 +105,11 @@ func defaultReleaseRuntimeBootstrapDeps(cfg ReleaseRuntimeBootstrapConfig) relea
 					return watch.NewReleaseEventSource(cache, queue, cfg.ControlPlaneID)
 				}
 			}
-			return watch.NewRunningReleaseSource(newRuntimeStoreRunningReleaseSource(runtimeStore, releaseStore), queue, cfg.ControlPlaneID, cfg.PollInterval)
+			return watch.NewRunningReleaseSource(newRuntimeStoreRunningReleaseSource(runtimeStore), queue, cfg.ControlPlaneID, cfg.PollInterval)
 		},
 		ReconcilerFactory: func() releaseRuntimeReconciler {
 			return reconcile.NewReleaseReconciler(
-				newReleaseStateSource(runtimeStore, releaseStore),
+				newReleaseStateSource(runtimeStore),
 				runtimeStore,
 				newReleaseStepsWriterAdapter(writer),
 				cfg.ControlPlaneID,
@@ -121,13 +120,11 @@ func defaultReleaseRuntimeBootstrapDeps(cfg ReleaseRuntimeBootstrapConfig) relea
 
 type runtimeStoreRunningReleaseSource struct {
 	runtimeStore runtimerepo.Store
-	releaseStore releaserepo.Store
 }
 
-func newRuntimeStoreRunningReleaseSource(runtimeStore runtimerepo.Store, releaseStore releaserepo.Store) watch.RunningReleaseLister {
+func newRuntimeStoreRunningReleaseSource(runtimeStore runtimerepo.Store) watch.RunningReleaseLister {
 	return &runtimeStoreRunningReleaseSource{
 		runtimeStore: runtimeStore,
-		releaseStore: releaseStore,
 	}
 }
 
@@ -150,77 +147,37 @@ func (s *runtimeStoreRunningReleaseSource) ListRunningReleases(ctx context.Conte
 		if err != nil {
 			return nil, err
 		}
-		releaseID, err := uuid.Parse(strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]))
-		if err != nil || releaseID == uuid.Nil {
+		item, ok := runningReleaseFromObservedWorkload(spec, workload)
+		if !ok {
 			continue
 		}
-		key := releaseID.String()
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		release, err := s.releaseStore.Get(ctx, releaseID)
-		if err == sql.ErrNoRows || release == nil {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if release.Status != releasedomain.ReleaseRunning {
+		key := item.ReleaseID.String()
+		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
-		items = append(items, &watch.RunningRelease{
-			ReleaseID:      releaseID,
-			ControlPlaneID: strings.TrimSpace(workload.Labels[releasedomain.ControlPlaneLabel]),
-			Status:         string(release.Status),
-		})
+		items = append(items, item)
 	}
 	return items, nil
 }
 
 type releaseStateSourceWithRuntimeStore struct {
-	releaseStore releaserepo.Store
 	runtimeStore runtimerepo.Store
 }
 
-func newReleaseStateSource(runtimeStore runtimerepo.Store, releaseStore releaserepo.Store) reconcile.ReleaseStateSource {
+func newReleaseStateSource(runtimeStore runtimerepo.Store) reconcile.ReleaseStateSource {
 	return &releaseStateSourceWithRuntimeStore{
-		releaseStore: releaseStore,
 		runtimeStore: runtimeStore,
 	}
 }
 
 func (s *releaseStateSourceWithRuntimeStore) GetRunningRelease(ctx context.Context, releaseID uuid.UUID) (*reconcile.RunningRelease, error) {
-	release, err := s.releaseStore.Get(ctx, releaseID)
+	specs, err := s.runtimeStore.ListRuntimeSpecs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if release == nil || release.Status != releasedomain.ReleaseRunning {
-		return nil, nil
-	}
-	controlPlaneID, _ := s.lookupControlPlaneID(ctx, release)
-	return &reconcile.RunningRelease{
-		ReleaseID:      release.ID,
-		ApplicationID:  release.ApplicationID,
-		EnvironmentID:  strings.TrimSpace(release.EnvironmentID),
-		ControlPlaneID: controlPlaneID,
-		Status:         string(release.Status),
-	}, nil
-}
-
-func (s *releaseStateSourceWithRuntimeStore) lookupControlPlaneID(ctx context.Context, release *releasedomain.Release) (string, error) {
-	if s == nil || s.runtimeStore == nil || release == nil {
-		return "", nil
-	}
-	specs, err := s.runtimeStore.ListRuntimeSpecs(ctx)
-	if err != nil {
-		return "", err
-	}
 	for _, spec := range specs {
 		if spec == nil {
-			continue
-		}
-		if spec.ApplicationID != release.ApplicationID || strings.TrimSpace(spec.Environment) != strings.TrimSpace(release.EnvironmentID) {
 			continue
 		}
 		workload, err := s.runtimeStore.GetObservedWorkload(ctx, spec.ID)
@@ -228,14 +185,40 @@ func (s *releaseStateSourceWithRuntimeStore) lookupControlPlaneID(ctx context.Co
 			continue
 		}
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		if strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]) != release.ID.String() {
+		item, ok := runningReleaseFromObservedWorkload(spec, workload)
+		if !ok || item.ReleaseID != releaseID {
 			continue
 		}
-		return strings.TrimSpace(workload.Labels[releasedomain.ControlPlaneLabel]), nil
+		return &reconcile.RunningRelease{
+			ReleaseID:      item.ReleaseID,
+			ApplicationID:  spec.ApplicationID,
+			EnvironmentID:  strings.TrimSpace(spec.Environment),
+			ControlPlaneID: item.ControlPlaneID,
+			Status:         item.Status,
+		}, nil
 	}
-	return "", nil
+	return nil, nil
+}
+
+func runningReleaseFromObservedWorkload(spec *runtimedomain.RuntimeSpec, workload *runtimedomain.RuntimeObservedWorkload) (*watch.RunningRelease, bool) {
+	if spec == nil || workload == nil {
+		return nil, false
+	}
+	releaseID, err := uuid.Parse(strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]))
+	if err != nil || releaseID == uuid.Nil {
+		return nil, false
+	}
+	status := strings.TrimSpace(workload.Labels[releasedomain.ReleaseStatusLabel])
+	if status != string(releasedomain.ReleaseRunning) {
+		return nil, false
+	}
+	return &watch.RunningRelease{
+		ReleaseID:      releaseID,
+		ControlPlaneID: strings.TrimSpace(workload.Labels[releasedomain.ControlPlaneLabel]),
+		Status:         status,
+	}, true
 }
 
 type releaseStepsWriterAdapter struct {

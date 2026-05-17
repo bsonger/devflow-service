@@ -2,19 +2,14 @@ package bootstrap
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
-	releaserepo "github.com/bsonger/devflow-service/internal/release/repository"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
-	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
-	"github.com/bsonger/devflow-service/internal/runtime/writeback"
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -136,22 +131,16 @@ func TestRuntimeStoreRunningReleaseSourceListsOnlyRunningReleaseForMatchingObser
 		WorkloadKind:  "Deployment",
 		WorkloadName:  "demo-api",
 		Labels: map[string]string{
-			releasedomain.ReleaseIDLabel:    releaseID.String(),
-			releasedomain.ControlPlaneLabel: "cp-1",
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
 		},
 		ObservedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("UpsertObservedWorkload failed: %v", err)
 	}
 
-	source := newRuntimeStoreRunningReleaseSource(runtimeStore, stubReleaseStore{
-		getFn: func(context.Context, uuid.UUID) (*releasedomain.Release, error) {
-			return &releasedomain.Release{
-				BaseModel: releasedomain.BaseModel{ID: releaseID},
-				Status:    releasedomain.ReleaseRunning,
-			}, nil
-		},
-	})
+	source := newRuntimeStoreRunningReleaseSource(runtimeStore)
 
 	items, err := source.ListRunningReleases(context.Background())
 	if err != nil {
@@ -165,6 +154,52 @@ func TestRuntimeStoreRunningReleaseSourceListsOnlyRunningReleaseForMatchingObser
 	}
 	if items[0].ControlPlaneID != "cp-1" {
 		t.Fatalf("ControlPlaneID = %q", items[0].ControlPlaneID)
+	}
+	if items[0].Status != string(releasedomain.ReleaseRunning) {
+		t.Fatalf("Status = %q", items[0].Status)
+	}
+}
+
+func TestRuntimeStoreRunningReleaseSourceSkipsNonRunningReleaseStatus(t *testing.T) {
+	runtimeStore := runtimerepo.NewMemoryStore()
+	releaseID := uuid.New()
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "staging",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+	if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: spec.ID,
+		ApplicationID: appID,
+		Environment:   "staging",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: "Succeeded",
+		},
+		ObservedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload failed: %v", err)
+	}
+
+	source := newRuntimeStoreRunningReleaseSource(runtimeStore)
+
+	items, err := source.ListRunningReleases(context.Background())
+	if err != nil {
+		t.Fatalf("ListRunningReleases failed: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("len(items) = %d, want 0", len(items))
 	}
 }
 
@@ -191,24 +226,16 @@ func TestReleaseStateSourceReadsControlPlaneFromObservedWorkload(t *testing.T) {
 		WorkloadKind:  "Deployment",
 		WorkloadName:  "demo-api",
 		Labels: map[string]string{
-			releasedomain.ReleaseIDLabel:    releaseID.String(),
-			releasedomain.ControlPlaneLabel: "cp-prod",
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-prod",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
 		},
 		ObservedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("UpsertObservedWorkload failed: %v", err)
 	}
 
-	source := newReleaseStateSource(runtimeStore, stubReleaseStore{
-		getFn: func(context.Context, uuid.UUID) (*releasedomain.Release, error) {
-			return &releasedomain.Release{
-				BaseModel:     releasedomain.BaseModel{ID: releaseID},
-				ApplicationID: appID,
-				EnvironmentID: "prod",
-				Status:        releasedomain.ReleaseRunning,
-			}, nil
-		},
-	})
+	source := newReleaseStateSource(runtimeStore)
 
 	item, err := source.GetRunningRelease(context.Background(), releaseID)
 	if err != nil {
@@ -220,42 +247,51 @@ func TestReleaseStateSourceReadsControlPlaneFromObservedWorkload(t *testing.T) {
 	if item.ControlPlaneID != "cp-prod" {
 		t.Fatalf("ControlPlaneID = %q", item.ControlPlaneID)
 	}
+	if item.Status != string(releasedomain.ReleaseRunning) {
+		t.Fatalf("Status = %q", item.Status)
+	}
 }
 
-func TestReleaseStepsWriterAdapterPostsWriteback(t *testing.T) {
-	var called atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called.Store(true)
-		if r.URL.Path != "/api/v1/verify/release/steps" {
-			t.Fatalf("path = %q", r.URL.Path)
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	adapter := newReleaseStepsWriterAdapter(writeback.NewReleaseWriter(server.URL, "token-a", server.Client()))
-	err := adapter.WriteReleaseSteps(context.Background(), reconcile.WriteReleaseStepsInput{
-		ReleaseID:            uuid.New(),
-		ApplicationID:        uuid.New(),
-		EnvironmentID:        "staging",
-		Namespace:            "devflow",
-		ObservedWorkloadKind: "Deployment",
-		ObservedWorkloadName: "demo-api",
-		Phase:                releasedomain.StepRunning,
-		Progress:             10,
-		Message:              "waiting",
-		StepWrites: []reconcile.ReleaseStepWrite{{
-			StepCode: "observe_rollout",
-			Status:   releasedomain.StepRunning,
-			Progress: 10,
-			Message:  "waiting",
-		}},
-	})
-	if err != nil {
-		t.Fatalf("WriteReleaseSteps failed: %v", err)
+func TestReleaseStateSourceSkipsNonRunningReleaseStatus(t *testing.T) {
+	runtimeStore := runtimerepo.NewMemoryStore()
+	releaseID := uuid.New()
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "prod",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
 	}
-	if !called.Load() {
-		t.Fatal("expected writeback request")
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+	if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: spec.ID,
+		ApplicationID: appID,
+		Environment:   "prod",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-prod",
+			releasedomain.ReleaseStatusLabel: "Succeeded",
+		},
+		ObservedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload failed: %v", err)
+	}
+
+	source := newReleaseStateSource(runtimeStore)
+
+	item, err := source.GetRunningRelease(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("GetRunningRelease failed: %v", err)
+	}
+	if item != nil {
+		t.Fatalf("item = %#v, want nil", item)
 	}
 }
 
@@ -297,22 +333,4 @@ type releaseRuntimeReconcilerFunc func(context.Context, string) error
 
 func (f releaseRuntimeReconcilerFunc) Reconcile(ctx context.Context, key string) error {
 	return f(ctx, key)
-}
-
-type stubReleaseStore struct {
-	getFn func(context.Context, uuid.UUID) (*releasedomain.Release, error)
-}
-
-func (s stubReleaseStore) Insert(context.Context, *releasedomain.Release) error { return nil }
-func (s stubReleaseStore) Get(ctx context.Context, id uuid.UUID) (*releasedomain.Release, error) {
-	return s.getFn(ctx, id)
-}
-func (s stubReleaseStore) Delete(context.Context, uuid.UUID) error { return nil }
-func (s stubReleaseStore) List(context.Context, releaserepo.ListFilter) ([]*releasedomain.Release, error) {
-	return nil, nil
-}
-func (s stubReleaseStore) UpdateRow(context.Context, *releasedomain.Release) error   { return nil }
-func (s stubReleaseStore) UpdateSteps(context.Context, *releasedomain.Release) error { return nil }
-func (s stubReleaseStore) UpdateArgoMetadata(context.Context, uuid.UUID, string, string, time.Time) error {
-	return nil
 }

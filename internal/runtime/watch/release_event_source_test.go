@@ -25,6 +25,7 @@ func TestReleaseEventSourceEnqueuesReleaseOwnedDeployment(t *testing.T) {
 			Labels: map[string]string{
 				releasedomain.ReleaseIDLabel:    "11111111-1111-1111-1111-111111111111",
 				releasedomain.ControlPlaneLabel: "cp-1",
+				releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
 			},
 		},
 	})
@@ -45,6 +46,26 @@ func TestReleaseEventSourceSkipsDifferentControlPlane(t *testing.T) {
 			Labels: map[string]string{
 				releasedomain.ReleaseIDLabel:    "22222222-2222-2222-2222-222222222222",
 				releasedomain.ControlPlaneLabel: "cp-2",
+				releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+			},
+		},
+	})
+
+	if len(queue.added) != 0 {
+		t.Fatalf("queued release ids = %#v, want none", queue.added)
+	}
+}
+
+func TestReleaseEventSourceSkipsNonRunningReleaseStatus(t *testing.T) {
+	queue := &recordingReleaseQueueForEventSource{}
+	source := NewReleaseEventSource(nil, queue, "cp-1")
+
+	source.handleObject(&appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				releasedomain.ReleaseIDLabel:     "11111111-1111-1111-1111-111111111111",
+				releasedomain.ControlPlaneLabel:  "cp-1",
+				releasedomain.ReleaseStatusLabel: "succeeded",
 			},
 		},
 	})
