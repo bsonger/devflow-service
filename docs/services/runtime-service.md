@@ -106,6 +106,7 @@
 - the runtime index is not durable local storage inside `runtime-service`
 - after restart, runtime state is expected to be rebuilt by the in-process observers
 - release-owned Kubernetes metadata is the runtime identity contract: rendered workloads, pod templates, and the Argo CD `Application` handoff object must all carry `app.kubernetes.io/name`, `devflow.io/release-id`, `devflow.application/id`, and `devflow.environment/id`
+- `devflow.io/release-status` is also part of the active workload metadata contract
 - `devflow.control-plane/id` is also part of the active runtime ownership contract; observers only process workloads that belong to the local control plane when `observer.control_plane_id` is configured
 - `observer.control_plane_id` must match the owning `release-service` value for the same control plane; mismatches look like stale writeback or missing release records
 - runtime-service consumes those labels as the authoritative release/application/environment lookup surface; it must not require annotations for identity recovery
@@ -113,7 +114,11 @@
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
 - release rollout observation is also started by the active runtime startup path, but it consumes the same in-memory runtime observer state instead of a runtime-domain PostgreSQL store
+- runtime-service release-runtime observation trusts Kubernetes workload labels and live state only
+- `release-service` writes the initial `devflow.io/release-status=running` projection when it renders active workloads
+- runtime-service converges `devflow.io/release-status` from `running` to terminal values on the live workload once rollout observation reaches a terminal outcome
 - when release writeback wiring is present, that rollout observer is a callback sender into the owning `release-service`; it does not become the owner of release status, release steps, or writeback route policy
+- runtime-service does not query PostgreSQL or release-service HTTP to confirm running release state
 - in production, runtime observer writeback targets production `release-service` directly
 - release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, and the active in-tree runtime rollout observer now derives live rollout progress from the observed workload kind
 - once `finalize_release` closes a release, runtime-side late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details

@@ -36,7 +36,7 @@ When older plans or newer discussions use different names, read them like this:
 | `config-service` | Runnable entrypoint and owner of config resources | `AppConfig` still resolves some metadata through same-repo support/service code; `WorkloadConfig` does not currently prove application existence through a downstream `meta-service` HTTP call |
 | `network-service` | Runnable entrypoint and owner of network resources | `Service` and `Route` use network-owned persistence and validation; they do not currently prove application/environment existence through downstream `meta-service` HTTP calls |
 | `release-service` | Runnable entrypoint and release composer | Uses downstream adapters for config/network/meta-facing reads in release and manifest flows, while still owning release persistence locally through Postgres stores |
-| `runtime-service` | Runnable entrypoint for runtime read/action APIs | Default runtime service uses in-memory `RuntimeStore`; active runtime-domain storage is PostgreSQL-free; release rollout observer startup is active and consumes observer state plus Kubernetes labels |
+| `runtime-service` | Runnable entrypoint for runtime read/action APIs | Default runtime service uses in-memory `RuntimeStore`; active runtime-domain storage is PostgreSQL-free; release rollout observation is driven by Kubernetes labels and live state, and runtime-service converges terminal workload `devflow.io/release-status` labels |
 
 ## What is already real
 
@@ -52,6 +52,7 @@ When older plans or newer discussions use different names, read them like this:
 - Several domains still share a root Go module, shared platform code, and direct repository stores.
 - Some validation that should logically belong across service boundaries is still local or absent.
 - Runtime default read/action state is memory-backed, and the active runtime-domain path is PostgreSQL-free even though other repo areas still use PostgreSQL.
+- Runtime release observation now trusts Kubernetes workload labels and live state only; `release-service` writes the initial `running` projection and `runtime-service` converges terminal workload release-status labels.
 - After restart, runtime observer state is intentionally rebuilt in memory and can remain temporarily empty until Kubernetes sync repopulates it.
 
 ## Rules for future docs

@@ -36,6 +36,7 @@ The observer:
 
 - watches Deployments and Pods in Kubernetes
 - requires release labels such as `devflow.application/id` and `devflow.environment/id`
+- requires `devflow.io/release-status=running` when release-runtime observation selects active release workloads
 - calls `EnsureRuntimeSpecByApplicationEnv`
 - writes observed workloads and pods into the runtime store
 
@@ -62,6 +63,15 @@ If observer state is missing or stale, actions can fail even when the workload s
 This guard is intentionally narrower than a repo-wide PostgreSQL ban.
 Shared platform startup and non-runtime services may still use PostgreSQL, but runtime-service's active runtime-domain store contract is PostgreSQL-free.
 
+## Release-runtime truth path
+
+The release-runtime queue path is also Kubernetes-first:
+
+- active release candidates are filtered by `devflow.control-plane/id` and `devflow.io/release-status=running`
+- release candidate selection is rebuilt from workload labels and runtime observed state rather than release PostgreSQL reads
+- `release-service` writes the initial `running` label projection onto workloads
+- runtime-service updates `devflow.io/release-status` on the live workload object when rollout observation becomes terminal
+
 ## Documentation rule
 
 When documenting runtime-service:
@@ -70,4 +80,5 @@ When documenting runtime-service:
 - say "observer sync rebuilds in-memory state" instead of "runtime reads directly from Kubernetes"
 - say "runtime-service active/runtime-domain storage is PostgreSQL-free" while keeping shared platform startup outside `cmd/runtime-service` separate
 - mention release rollout observation as an active observer-startup path, but do not describe it as a runtime-domain PostgreSQL store path
+- document `devflow.io/release-status` as a workload metadata contract rather than a database-backed runtime lookup
 - keep shared ingress paths separate from backend-local runtime routes; see `docs/system/ingress-routing.md`
