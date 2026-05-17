@@ -123,6 +123,13 @@
 - release/application/environment metadata and inspection surfaces remain compatible with both `Deployment` and `Rollout`, and the active in-tree runtime rollout observer now derives live rollout progress from the observed workload kind
 - once `finalize_release` closes a release, runtime-side late callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
 
+Manifest runtime startup contract:
+
+- `observer.manifest_runtime_enabled=true` starts the manifest runtime reconciler
+- `observer.manifest_runtime_enabled=false` leaves the manifest runtime lane disabled
+- runtime-service no longer runs a legacy Tekton manifest polling fallback
+- `observer.tekton_manifest_enabled` is no longer part of the active runtime-service contract
+
 不要把当前 runtime contract 误读成“全仓库已经不再使用 PostgreSQL”。
 当前只是在 operator-facing 的 runtime workload / pod 路径上，默认采用 observer/index-backed、memory-backed 的方式。
 

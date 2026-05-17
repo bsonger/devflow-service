@@ -42,6 +42,14 @@ The observer:
 
 After a service restart, memory-backed runtime state starts empty until observer sync repopulates it.
 
+## Manifest-runtime truth path
+
+Manifest runtime state is reconciled from the live Kubernetes/Tekton view:
+
+- startup is controlled only by `observer.manifest_runtime_enabled`
+- the manifest runtime reconciler owns manifest-side Tekton observation and release-service writeback
+- the old `tekton_manifest_enabled` compatibility switch and legacy Tekton manifest observer startup path have been removed
+
 ## Runtime action path
 
 Runtime actions are executed through the runtime service and Kubernetes executor:

@@ -125,15 +125,18 @@ Packaging selection for `config-service`, `network-service`, `release-service`, 
 
 ## Runtime Observer Execution Model
 
-Current runtime processing is split into three active lanes plus two legacy fallback lanes:
+Current runtime processing is split into three active lanes plus one legacy release fallback lane:
 
 - workload discovery lane: the Kubernetes runtime observer keeps runtime workload and pod state current and now prefers informer-backed cache reads for workload inspection
 - release reconcile lane: queue-driven release processing behind `observer.release_runtime_enabled`, with candidate enqueue driven by workload watch events when cluster config is available
 - manifest reconcile lane: queue-driven Tekton manifest processing behind `observer.manifest_runtime_enabled`, with informer-backed Tekton snapshots and Tekton watch-driven enqueue when cluster config is available
 - legacy release polling lane: the old release rollout observer remains compatibility fallback only when `observer.release_runtime_enabled=false`
-- legacy manifest polling lane: the old Tekton manifest observer remains compatibility fallback only when `observer.manifest_runtime_enabled=false`
 
-Both queue-driven lanes remain feature-flagged, but once enabled they suppress the corresponding legacy pollers instead of running in parallel.
+Manifest runtime no longer has a polling compatibility lane.
+`observer.manifest_runtime_enabled` is now the only manifest startup switch:
+
+- when `observer.manifest_runtime_enabled=true`, runtime-service starts the manifest runtime reconciler
+- when `observer.manifest_runtime_enabled=false`, runtime-service does not start the manifest runtime lane
 
 Release reconcile rules:
 
@@ -155,16 +158,17 @@ Manifest reconcile rules:
 Operational posture:
 
 - queue workers reconcile from current cache or store snapshots, not from event payload truth
-- manifest runtime is informer-backed when cluster config is available, and falls back to polling only when informer bootstrap cannot be constructed
+- manifest runtime is informer-backed when cluster config is available; there is no separate legacy manifest poller startup path anymore
 - release runtime prefers workload watch events when cluster config is available, and falls back to the older running-release polling source only when workload watch bootstrap cannot be constructed
-- enabling a queue-driven lane disables its matching legacy poller so duplicate writebacks are not produced by parallel execution
-- disabling either feature flag returns that responsibility to the legacy polling-only behavior
+- enabling the release queue-driven lane disables its matching legacy release poller so duplicate writebacks are not produced by parallel execution
+- disabling `observer.manifest_runtime_enabled` leaves manifest runtime disabled instead of returning to a legacy polling mode
+- disabling `observer.release_runtime_enabled` returns release runtime responsibility to the legacy release polling behavior
 
 Cutover prerequisite:
 
 - queue-driven release runtime enabled and verified in at least one environment
 - queue-driven manifest runtime enabled and verified in at least one environment
-- legacy polling observers produce no unique writeback behavior missing from reconcile workers
+- the removed legacy manifest poller produces no unique writeback behavior missing from reconcile workers
 - runtime and observability docs stay consistent with the enabled execution model
 
 ## Future direction
