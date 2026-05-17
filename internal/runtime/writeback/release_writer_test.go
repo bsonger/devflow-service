@@ -3,9 +3,11 @@ package writeback
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,5 +108,38 @@ func TestReleaseWriterPostJSONReturnsTypedNotFoundError(t *testing.T) {
 	}
 	if !IsNotFound(err) {
 		t.Fatalf("expected typed not-found writeback error, got %v", err)
+	}
+}
+
+func TestReleaseWriterReturnsWritebackErrorWithResponseExcerpt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"error":{"code":"conflict","message":"manifest not available"}}`)
+	}))
+	defer server.Close()
+
+	writer := NewReleaseWriter(server.URL, "", server.Client())
+	err := writer.WriteReleaseSteps(context.Background(), WriteReleaseStepsInput{
+		ReleaseID: uuid.New(),
+		StepWrites: []ReleaseStepWrite{{
+			StepCode: "observe_rollout",
+			Status:   releasedomain.StepFailed,
+			Progress: 0,
+			Message:  "failed",
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	var target *WritebackError
+	if !errors.As(err, &target) {
+		t.Fatalf("err = %v, want WritebackError", err)
+	}
+	if target.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want %d", target.StatusCode, http.StatusConflict)
+	}
+	if !strings.Contains(target.ResponseBody, "manifest not available") {
+		t.Fatalf("ResponseBody = %q", target.ResponseBody)
 	}
 }

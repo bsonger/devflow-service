@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -45,15 +46,19 @@ type ReleaseWriter struct {
 }
 
 type WritebackError struct {
-	Path       string
-	StatusCode int
+	Path         string
+	StatusCode   int
+	ResponseBody string
 }
 
 func (e *WritebackError) Error() string {
 	if e == nil {
 		return ""
 	}
-	return fmt.Sprintf("release rollout writeback failed: path=%s status=%d", e.Path, e.StatusCode)
+	if e.ResponseBody == "" {
+		return fmt.Sprintf("release rollout writeback failed: path=%s status=%d", e.Path, e.StatusCode)
+	}
+	return fmt.Sprintf("release rollout writeback failed: path=%s status=%d body=%q", e.Path, e.StatusCode, e.ResponseBody)
 }
 
 func (e *WritebackError) NotFound() bool {
@@ -121,7 +126,22 @@ func (w *ReleaseWriter) PostJSONWithCall(ctx context.Context, path string, paylo
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return nil
 		}
-		return &WritebackError{Path: path, StatusCode: resp.StatusCode}
+		responseBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if readErr != nil {
+			return readErr
+		}
+		excerpt := trimResponseBodyExcerpt(string(responseBody), 512)
+		if excerpt != "" {
+			call.LogFields = append(call.LogFields,
+				zap.String("status_code", fmt.Sprintf("%d", resp.StatusCode)),
+				zap.String("response_body_excerpt", excerpt),
+			)
+		} else {
+			call.LogFields = append(call.LogFields,
+				zap.String("status_code", fmt.Sprintf("%d", resp.StatusCode)),
+			)
+		}
+		return &WritebackError{Path: path, StatusCode: resp.StatusCode, ResponseBody: excerpt}
 	})
 }
 
@@ -153,4 +173,18 @@ func (w *ReleaseWriter) postStep(ctx context.Context, releaseID uuid.UUID, stepC
 	}
 	platformobs.RecordRuntimeReleaseWriteback(ctx, stepCode, result, statusCode)
 	return err
+}
+
+func trimResponseBodyExcerpt(body string, limit int) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	if limit <= 0 {
+		return ""
+	}
+	if len(body) > limit {
+		return body[:limit]
+	}
+	return body
 }
