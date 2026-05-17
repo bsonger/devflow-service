@@ -145,7 +145,7 @@ func RecordRuntimeReleaseWriteback(ctx context.Context, stepCode, result, status
 	runtimeReleaseWritebackTotal.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("step_code", stepCode),
 		attribute.String("result", result),
-		attribute.String("status_code", statusCode),
+		attribute.String("http_response_status_code", statusCode),
 	))
 }
 

@@ -90,6 +90,44 @@ It is the place for:
 
 It must not expose secrets, tokens, kubeconfigs, or large internal payloads.
 
+## Runtime release signals
+
+The active runtime release lane now exposes focused business diagnostics through
+structured `runtime.state` logs plus low-cardinality Prometheus metrics.
+
+Current runtime release lifecycle logs include:
+
+- `queue_add`
+- `queue_handle_start`
+- `queue_handle_requeue_after`
+- `queue_handle_rate_limited`
+- `queue_handle_done`
+- `release_reconcile_start`
+- `release_reconcile_workload_missing`
+- `release_reconcile_state_computed`
+- `release_reconcile_terminal_label_update_failed`
+- `release_reconcile_cleanup_completed`
+- `release_reconcile_writeback_completed`
+- `release_reconcile_requeue_scheduled`
+- `runtime_workload_state_changed`
+
+Those events are intended to answer, without joining multiple systems by hand:
+
+- whether a `Running` release was actually enqueued
+- whether reconcile found the expected release-owned workload
+- whether the computed rollout phase was still `running` or already terminal
+- whether terminal label convergence failed before or after writeback
+- whether observed workload state actually changed or the observer is only replaying the same fact
+
+Current runtime release metrics stay intentionally low-cardinality:
+
+- `runtime_release_reconcile_total` with labels `phase`, `result`
+- `runtime_release_writeback_total` with labels `step_code`, `result`, `http_response_status_code`
+- `runtime_terminal_label_update_total` with labels `workload_kind`, `result`, `error_code`
+- `runtime_observed_workload_state_total` with labels `summary_status`, `observe_state`
+
+These metrics must not include `release_id`, `request_id`, or other per-object identifiers.
+
 ## Verification signal
 
 The target verification signal for this repo is:

@@ -145,6 +145,7 @@ Current primary use:
 - the active runtime bootstrap still polls only running releases, but when a release disappears from that running set it replays the same release key once more; that replay is the intended last-chance compensation path for terminal callback-owned writes
 - this compensation replay may re-send `observe_rollout` and `finalize_release` from observed workload truth, but it must not reopen `start_deployment` or any other release-owned dispatch step
 - once `finalize_release` closes a release, late compensated callbacks must not rewrite top-level terminal truth or overwrite already-finalized callback-owned step details
+- runtime writeback failures now preserve both HTTP `status_code` and a trimmed response-body excerpt in the runtime-side `WritebackError`, so callback `404`, `409`, or token/ownership drift can be diagnosed from one failure surface instead of requiring a second request replay
 
 Expected behavior:
 - request body must include a valid `release_id`
@@ -163,6 +164,7 @@ Preferred step targeting rule:
 - for rolling releases, callback senders should target `observe_rollout` and `finalize_release` only; `start_deployment` stays release-service-owned
 - if callback payload omits `message`, release-service should synthesize a default operator-facing message from `step_code`, `status`, and `progress`
 - when convergence stalls, inspect the callback layer in this order: missing `release_id` or token rejection at the writeback route, unexpected `step_code` normalization, then release-service step/status convergence state
+- when runtime writeback returns a non-2xx response, inspect the preserved `status_code` plus response-body excerpt before retrying; treat `404 not_found` as ownership/stale-release first, and treat conflict-style `409` responses as release-state sequencing drift first
 
 ### `POST /api/v1/verify/release/artifact`
 
