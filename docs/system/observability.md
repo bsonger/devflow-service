@@ -125,25 +125,27 @@ Packaging selection for `config-service`, `network-service`, `release-service`, 
 
 ## Runtime Observer Execution Model
 
-Current runtime processing is split into four lanes:
+Current runtime processing is split into three active lanes plus two legacy fallback lanes:
 
-- workload discovery lane: the legacy Kubernetes runtime observer keeps observer-backed runtime workload and pod state current
-- release polling lane: the legacy release rollout observer remains the compatibility fallback for release writeback
-- release reconcile lane: queue-driven release processing behind `observer.release_runtime_enabled`
-- manifest reconcile lane: queue-driven Tekton manifest processing behind `observer.manifest_runtime_enabled`
+- workload discovery lane: the Kubernetes runtime observer keeps runtime workload and pod state current and now prefers informer-backed cache reads for workload inspection
+- release reconcile lane: queue-driven release processing behind `observer.release_runtime_enabled`, with candidate enqueue driven by workload watch events when cluster config is available
+- manifest reconcile lane: queue-driven Tekton manifest processing behind `observer.manifest_runtime_enabled`, with informer-backed Tekton snapshots and Tekton watch-driven enqueue when cluster config is available
+- legacy release polling lane: the old release rollout observer remains compatibility fallback only when `observer.release_runtime_enabled=false`
+- legacy manifest polling lane: the old Tekton manifest observer remains compatibility fallback only when `observer.manifest_runtime_enabled=false`
 
-Both queue-driven lanes remain default-off until explicitly enabled. When disabled, the current polling observers remain the active execution path.
+Both queue-driven lanes remain feature-flagged, but once enabled they suppress the corresponding legacy pollers instead of running in parallel.
 
 Release reconcile rules:
 
-- derive candidate release IDs from release-owned observed workload labels already stored in runtime state
+- derive candidate release IDs from release-owned workload watch events when runtime workload cache is available, with polling retained only as compatibility fallback
 - only process releases whose persisted status is `Running`
 - only process workloads owned by the current `control_plane_id`
 - write release steps through the shared runtime release writer and preserve the existing `/api/v1/verify/release/steps` contract
 
 Manifest reconcile rules:
 
-- derive candidate manifest IDs from Tekton cache snapshots filtered by control plane
+- derive candidate manifest IDs from informer-backed Tekton snapshots filtered by control plane
+- enqueue reconcile keys from `PipelineRun` and `TaskRun` watch events
 - when `observer.tekton_pipeline` is configured, only reconcile PipelineRuns whose `spec.pipelineRef.name` matches that pipeline
 - reconcile from current snapshot state instead of trusting individual event payloads
 - write manifest status, task, and result callbacks through the existing release-service manifest callback paths
@@ -153,9 +155,10 @@ Manifest reconcile rules:
 Operational posture:
 
 - queue workers reconcile from current cache or store snapshots, not from event payload truth
-- the current manifest runtime bootstrap is wired and feature-flagged, and its default live source is a polling-backed Tekton cache
-- the current manifest runtime is not informer-backed yet; Tekton PipelineRun and TaskRun reads still refresh through periodic list calls
-- disabling either feature flag immediately returns the system to the legacy polling-only behavior
+- manifest runtime is informer-backed when cluster config is available, and falls back to polling only when informer bootstrap cannot be constructed
+- release runtime prefers workload watch events when cluster config is available, and falls back to the older running-release polling source only when workload watch bootstrap cannot be constructed
+- enabling a queue-driven lane disables its matching legacy poller so duplicate writebacks are not produced by parallel execution
+- disabling either feature flag returns that responsibility to the legacy polling-only behavior
 
 Cutover prerequisite:
 
