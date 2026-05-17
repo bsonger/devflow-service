@@ -202,6 +202,7 @@ func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, re
 	if err != nil {
 		return nil, err
 	}
+	var matched *runtimedomain.RuntimeObservedWorkload
 	for _, spec := range specs {
 		if spec == nil {
 			continue
@@ -222,7 +223,12 @@ func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, re
 		if strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]) != releaseID.String() {
 			continue
 		}
-		return workload, nil
+		if workload.DeletedAt != nil {
+			continue
+		}
+		if matched == nil || workload.ObservedAt.After(matched.ObservedAt) {
+			matched = workload
+		}
 	}
-	return nil, nil
+	return matched, nil
 }

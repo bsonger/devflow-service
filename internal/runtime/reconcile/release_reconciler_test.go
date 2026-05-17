@@ -322,6 +322,117 @@ func TestReleaseReconcilerFindsMatchingObservedWorkloadWhenEarlierSpecBelongsToA
 	}
 }
 
+func TestReleaseReconcilerPrefersNewestObservedWorkloadForSameRelease(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+
+	olderObservedAt := time.Now().UTC().Add(-2 * time.Minute)
+	newerObservedAt := olderObservedAt.Add(90 * time.Second)
+
+	staleSpec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		CreatedAt:     olderObservedAt,
+		UpdatedAt:     olderObservedAt,
+	}
+	if err := store.CreateRuntimeSpec(context.Background(), staleSpec); err != nil {
+		t.Fatalf("CreateRuntimeSpec(stale) failed: %v", err)
+	}
+	if err := store.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		RuntimeSpecID:       staleSpec.ID,
+		ApplicationID:       applicationID,
+		Environment:         "env-1",
+		Namespace:           "devflow",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "network-service",
+		ObservedGeneration:  1,
+		DesiredReplicas:     1,
+		UpdatedReplicas:     1,
+		ReadyReplicas:       0,
+		AvailableReplicas:   0,
+		UnavailableReplicas: 1,
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: olderObservedAt,
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload(stale) failed: %v", err)
+	}
+
+	currentSpec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		CreatedAt:     newerObservedAt,
+		UpdatedAt:     newerObservedAt,
+	}
+	if err := store.CreateRuntimeSpec(context.Background(), currentSpec); err != nil {
+		t.Fatalf("CreateRuntimeSpec(current) failed: %v", err)
+	}
+	if err := store.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		RuntimeSpecID:       currentSpec.ID,
+		ApplicationID:       applicationID,
+		Environment:         "env-1",
+		Namespace:           "devflow",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "network-service",
+		ObservedGeneration:  1,
+		DesiredReplicas:     1,
+		UpdatedReplicas:     1,
+		ReadyReplicas:       1,
+		AvailableReplicas:   1,
+		UnavailableReplicas: 0,
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: newerObservedAt,
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload(current) failed: %v", err)
+	}
+
+	writer := &stubReleaseStepsWriter{}
+	updater := &stubReleaseStatusLabelUpdater{}
+	reconciler := NewReleaseReconciler(stubReleaseStateSource{
+		item: &ReleaseRecord{
+			ReleaseID:      releaseID,
+			ApplicationID:  applicationID,
+			EnvironmentID:  "env-1",
+			ControlPlaneID: "cp-1",
+			Status:         "running",
+		},
+	}, store, writer, updater, "cp-1")
+
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("Reconcile failed: %v", err)
+	}
+	if writer.input == nil {
+		t.Fatal("expected steps writer to be invoked")
+	}
+	if writer.input.Phase != releasedomain.StepSucceeded {
+		t.Fatalf("Phase = %q, want %q", writer.input.Phase, releasedomain.StepSucceeded)
+	}
+	if len(writer.input.StepWrites) != 2 {
+		t.Fatalf("StepWrites len = %d, want 2", len(writer.input.StepWrites))
+	}
+	if writer.input.StepWrites[1].StepCode != "finalize_release" {
+		t.Fatalf("final step = %q, want finalize_release", writer.input.StepWrites[1].StepCode)
+	}
+	if !updater.called {
+		t.Fatal("expected terminal status updater to be called")
+	}
+	if updater.workload == nil || !updater.workload.ObservedAt.Equal(newerObservedAt) {
+		t.Fatalf("updater workload observed_at = %v, want %v", updater.workload.ObservedAt, newerObservedAt)
+	}
+}
+
 func TestReleaseReconcilerCompensatesTerminalSucceededDeployment(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()
