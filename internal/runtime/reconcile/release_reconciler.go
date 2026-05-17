@@ -213,11 +213,14 @@ func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, re
 			continue
 		}
 		workload, err := r.runtimeStore.GetObservedWorkload(ctx, spec.ID)
-		if err != nil || workload == nil {
+		if err != nil {
 			return nil, err
 		}
+		if workload == nil {
+			continue
+		}
 		if strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]) != releaseID.String() {
-			return nil, nil
+			continue
 		}
 		return workload, nil
 	}

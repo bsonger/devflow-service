@@ -225,6 +225,103 @@ func TestReleaseReconcilerConvergesTerminalReleaseStatusLabel(t *testing.T) {
 	}
 }
 
+func TestReleaseReconcilerFindsMatchingObservedWorkloadWhenEarlierSpecBelongsToAnotherRelease(t *testing.T) {
+	releaseID := uuid.New()
+	staleReleaseID := uuid.New()
+	applicationID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+
+	firstSpec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := store.CreateRuntimeSpec(context.Background(), firstSpec); err != nil {
+		t.Fatalf("CreateRuntimeSpec(first) failed: %v", err)
+	}
+	if err := store.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: firstSpec.ID,
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api-old",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     staleReleaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload(first) failed: %v", err)
+	}
+
+	secondSpec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := store.CreateRuntimeSpec(context.Background(), secondSpec); err != nil {
+		t.Fatalf("CreateRuntimeSpec(second) failed: %v", err)
+	}
+	if err := store.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		RuntimeSpecID:       secondSpec.ID,
+		ApplicationID:       applicationID,
+		Environment:         "env-1",
+		Namespace:           "devflow",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "demo-api",
+		ObservedGeneration:  1,
+		DesiredReplicas:     2,
+		UpdatedReplicas:     2,
+		ReadyReplicas:       2,
+		AvailableReplicas:   2,
+		UnavailableReplicas: 0,
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload(second) failed: %v", err)
+	}
+
+	writer := &stubReleaseStepsWriter{}
+	updater := &stubReleaseStatusLabelUpdater{}
+	reconciler := NewReleaseReconciler(stubReleaseStateSource{
+		item: &ReleaseRecord{
+			ReleaseID:      releaseID,
+			ApplicationID:  applicationID,
+			EnvironmentID:  "env-1",
+			ControlPlaneID: "cp-1",
+			Status:         "running",
+		},
+	}, store, writer, updater, "cp-1")
+
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("Reconcile failed: %v", err)
+	}
+	if writer.input == nil {
+		t.Fatal("expected steps writer to be invoked")
+	}
+	if writer.input.ObservedWorkloadName != "demo-api" {
+		t.Fatalf("ObservedWorkloadName = %q, want %q", writer.input.ObservedWorkloadName, "demo-api")
+	}
+	if !updater.called {
+		t.Fatal("expected terminal status updater to be called")
+	}
+	if updater.status != releasedomain.ReleaseSucceeded {
+		t.Fatalf("status = %q, want %q", updater.status, releasedomain.ReleaseSucceeded)
+	}
+}
+
 func TestReleaseReconcilerCompensatesTerminalSucceededDeployment(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()
