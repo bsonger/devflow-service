@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t *testing.T) {
+func TestRenderDeploymentBundle(t *testing.T) {
 	releaseID := uuid.New()
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
@@ -57,6 +57,7 @@ func TestBuildReleaseBundleRendersConfigMapDeploymentServiceAndVirtualService(t 
 		BaseModel:     model.BaseModel{ID: releaseID},
 		ApplicationID: manifest.ApplicationID,
 		EnvironmentID: "production",
+		Status:        model.ReleaseRunning,
 		AppConfigSnapshot: model.ReleaseAppConfig{
 			MountPath: "/etc/app-config",
 			Data:      map[string]string{"application.yaml": "server:\n  port: 8080\n"},
@@ -491,7 +492,7 @@ func TestBuildReleaseBundleWorkloadEnvPreservesExplicitOTELOverrides(t *testing.
 	assertEnvContains(t, env, "METRICS_PORT", "19090")
 }
 
-func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
+func TestRenderDeploymentBundleForCanaryRelease(t *testing.T) {
 	releaseID := uuid.New()
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
@@ -515,6 +516,7 @@ func TestBuildReleaseBundleKeepsRequiredIdentityLabels(t *testing.T) {
 		BaseModel:     model.BaseModel{ID: releaseID},
 		ApplicationID: manifest.ApplicationID,
 		EnvironmentID: "production",
+		Status:        model.ReleaseRunning,
 		Strategy:      string(model.ReleaseStrategyCanary),
 	}
 
@@ -552,6 +554,9 @@ func assertRequiredIdentityLabels(t *testing.T, labels map[string]any, releaseID
 	}
 	if got := labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
 		t.Fatalf("observe-state label = %#v", got)
+	}
+	if got := labels[model.ReleaseStatusLabel]; got != string(model.ReleaseRunning) {
+		t.Fatalf("release status label = %#v", got)
 	}
 }
 

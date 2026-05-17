@@ -84,6 +84,7 @@ const (
 	ReleaseIDLabel          = "devflow.io/release-id"
 	ReleaseApplicationLabel = "devflow.application/id"
 	ReleaseEnvironmentLabel = "devflow.environment/id"
+	ReleaseStatusLabel      = "devflow.io/release-status"
 	ControlPlaneLabel       = "devflow.control-plane/id"
 )
 

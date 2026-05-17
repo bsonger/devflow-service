@@ -613,6 +613,7 @@ func releaseWorkloadLabels(selectorName string, workloadLabels map[string]string
 		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),
 		model.ReleaseEnvironmentLabel: strings.TrimSpace(release.EnvironmentID),
+		model.ReleaseStatusLabel:      string(release.Status),
 		observer.ObserveStateLabel:    observer.ObserveStateRunning,
 	}
 	if controlPlaneID := strings.TrimSpace(releasesupport.CurrentRuntimeConfig().ControlPlaneID); controlPlaneID != "" {
