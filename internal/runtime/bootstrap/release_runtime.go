@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
-	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
+	runtimeobserver "github.com/bsonger/devflow-service/internal/runtime/observer"
+	"github.com/bsonger/devflow-service/internal/runtime/reconcile"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/bsonger/devflow-service/internal/runtime/watch"
 	"github.com/bsonger/devflow-service/internal/runtime/writeback"
@@ -34,6 +34,18 @@ type ReleaseRuntimeBootstrapConfig struct {
 
 type releaseRuntimeSource interface {
 	Run(context.Context)
+}
+
+type releaseRuntimeSources []releaseRuntimeSource
+
+func (sources releaseRuntimeSources) Run(ctx context.Context) {
+	for _, source := range sources {
+		if source == nil {
+			continue
+		}
+		go source.Run(ctx)
+	}
+	<-ctx.Done()
 }
 
 type releaseRuntimeReconciler interface {
@@ -99,16 +111,20 @@ func defaultReleaseRuntimeBootstrapDeps(cfg ReleaseRuntimeBootstrapConfig) relea
 			return watch.NewReleaseQueue()
 		},
 		ReleaseSourceFactory: func(queue watch.ReleaseQueue) releaseRuntimeSource {
+			runningSource := watch.NewRunningReleaseSource(newRuntimeStoreRunningReleaseSource(runtimeStore), queue, cfg.ControlPlaneID, cfg.PollInterval)
 			restCfg, err := inClusterConfig()
 			if err == nil {
 				cache, cacheErr := newWorkloadCache(restCfg, watch.WorkloadCacheConfig{
 					ResyncPeriod: cfg.PollInterval,
 				})
 				if cacheErr == nil && cache != nil {
-					return watch.NewReleaseEventSource(cache, queue, cfg.ControlPlaneID)
+					return releaseRuntimeSources{
+						watch.NewReleaseEventSource(cache, queue, cfg.ControlPlaneID),
+						runningSource,
+					}
 				}
 			}
-			return watch.NewRunningReleaseSource(newRuntimeStoreRunningReleaseSource(runtimeStore), queue, cfg.ControlPlaneID, cfg.PollInterval)
+			return runningSource
 		},
 		ReconcilerFactory: func() releaseRuntimeReconciler {
 			var labelUpdater reconcile.ReleaseStatusLabelUpdater
@@ -209,7 +225,14 @@ func (s *releaseStateSourceWithRuntimeStore) GetRelease(ctx context.Context, rel
 }
 
 func (s *releaseStateSourceWithRuntimeStore) GetRunningRelease(ctx context.Context, releaseID uuid.UUID) (*reconcile.ReleaseRecord, error) {
-	return s.GetRelease(ctx, releaseID)
+	record, err := s.GetRelease(ctx, releaseID)
+	if err != nil || record == nil {
+		return record, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(record.Status), string(releasedomain.ReleaseRunning)) {
+		return nil, nil
+	}
+	return record, nil
 }
 
 func runningReleaseFromObservedWorkload(spec *runtimedomain.RuntimeSpec, workload *runtimedomain.RuntimeObservedWorkload) (*watch.RunningRelease, bool) {
