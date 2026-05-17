@@ -995,7 +995,7 @@ func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release
 		observer.ObserveOwnerIDAnnotation: release.ID.String(),
 	}
 	application.Labels = map[string]string{
-		"status":                      string(model.ReleaseRunning),
+		model.ReleaseStatusLabel:      string(model.ReleaseRunning),
 		"app.kubernetes.io/name":      application.Name,
 		model.ReleaseIDLabel:          release.ID.String(),
 		model.ReleaseApplicationLabel: release.ApplicationID.String(),

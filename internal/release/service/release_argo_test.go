@@ -175,7 +175,7 @@ func TestApplyReleaseApplicationMetadataUsesIdentityLabelsAndTraceAnnotations(t 
 	if got := application.Labels[model.ReleaseEnvironmentLabel]; got != release.EnvironmentID {
 		t.Fatalf("environment label = %q", got)
 	}
-	if got := application.Labels["status"]; got != string(model.ReleaseRunning) {
+	if got := application.Labels[model.ReleaseStatusLabel]; got != string(model.ReleaseRunning) {
 		t.Fatalf("status label = %q", got)
 	}
 	if got := application.Labels[observer.ObserveStateLabel]; got != observer.ObserveStateRunning {
