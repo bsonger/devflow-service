@@ -46,7 +46,7 @@ func TestReleaseReconcilerWritesStepsForMatchingRunningRelease(t *testing.T) {
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
-		item: &RunningRelease{
+		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
 			ApplicationID:  applicationID,
 			EnvironmentID:  "env-1",
@@ -80,7 +80,7 @@ func TestReleaseReconcilerWritesStepsForMatchingRunningRelease(t *testing.T) {
 	}
 }
 
-func TestReleaseReconcilerSkipsNonRunningRelease(t *testing.T) {
+func TestReleaseReconcilerCompensatesNonRunningRelease(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()
 	store := runtimerepo.NewMemoryStore()
@@ -113,7 +113,7 @@ func TestReleaseReconcilerSkipsNonRunningRelease(t *testing.T) {
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
-		item: &RunningRelease{
+		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
 			ApplicationID:  applicationID,
 			EnvironmentID:  "env-1",
@@ -122,14 +122,33 @@ func TestReleaseReconcilerSkipsNonRunningRelease(t *testing.T) {
 		},
 	}, store, writer, updater, "cp-1")
 
-	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
-		t.Fatalf("Reconcile failed: %v", err)
+	err := reconciler.Reconcile(context.Background(), releaseID.String())
+	var requeueErr interface{ RequeueAfter() time.Duration }
+	if !errors.As(err, &requeueErr) {
+		t.Fatalf("Reconcile error = %v, want requeue-after error", err)
 	}
-	if writer.input != nil {
-		t.Fatalf("writer input = %#v, want nil", writer.input)
-	}
+	assertReleaseWritePayload(t, writer.input, releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "demo-api",
+		phase:                releasedomain.StepRunning,
+		progress:             25,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepRunning,
+				progress: 25,
+				message: messageExpectation{
+					contains: "deployment progressing",
+				},
+			},
+		},
+	})
 	if updater.called {
-		t.Fatal("did not expect status updater for non-running release")
+		t.Fatal("did not expect status updater for running workload state")
 	}
 }
 
@@ -155,8 +174,11 @@ func TestReleaseReconcilerConvergesTerminalReleaseStatusLabel(t *testing.T) {
 		Namespace:           "devflow",
 		WorkloadKind:        "Deployment",
 		WorkloadName:        "demo-api",
+		ObservedGeneration:  1,
 		DesiredReplicas:     3,
+		UpdatedReplicas:     3,
 		ReadyReplicas:       3,
+		AvailableReplicas:   3,
 		UnavailableReplicas: 0,
 		Labels: map[string]string{
 			releasedomain.ReleaseIDLabel:     releaseID.String(),
@@ -171,7 +193,7 @@ func TestReleaseReconcilerConvergesTerminalReleaseStatusLabel(t *testing.T) {
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
-		item: &RunningRelease{
+		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
 			ApplicationID:  applicationID,
 			EnvironmentID:  "env-1",
@@ -214,8 +236,11 @@ func TestReleaseReconcilerCompensatesTerminalSucceededDeployment(t *testing.T) {
 		Namespace:           "devflow",
 		WorkloadKind:        "Deployment",
 		WorkloadName:        "demo-api",
+		ObservedGeneration:  1,
 		DesiredReplicas:     3,
+		UpdatedReplicas:     3,
 		ReadyReplicas:       3,
+		AvailableReplicas:   3,
 		UnavailableReplicas: 0,
 		Labels: map[string]string{
 			releasedomain.ReleaseIDLabel:     releaseID.String(),
@@ -228,7 +253,7 @@ func TestReleaseReconcilerCompensatesTerminalSucceededDeployment(t *testing.T) {
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
-		item: &RunningRelease{
+		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
 			ApplicationID:  applicationID,
 			EnvironmentID:  "env-1",
@@ -310,7 +335,7 @@ func TestReleaseReconcilerCompensatesTerminalFailedDeployment(t *testing.T) {
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
-		item: &RunningRelease{
+		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
 			ApplicationID:  applicationID,
 			EnvironmentID:  "env-1",
@@ -369,8 +394,11 @@ func TestReleaseReconcilerCompensatesTerminalReleaseStatusLabelConvergence(t *te
 		Namespace:           "devflow",
 		WorkloadKind:        "Deployment",
 		WorkloadName:        "demo-api",
+		ObservedGeneration:  1,
 		DesiredReplicas:     3,
+		UpdatedReplicas:     3,
 		ReadyReplicas:       3,
+		AvailableReplicas:   3,
 		UnavailableReplicas: 0,
 		Labels: map[string]string{
 			releasedomain.ReleaseIDLabel:     releaseID.String(),
@@ -383,7 +411,7 @@ func TestReleaseReconcilerCompensatesTerminalReleaseStatusLabelConvergence(t *te
 	writer := &stubReleaseStepsWriter{}
 	updater := &stubReleaseStatusLabelUpdater{}
 	reconciler := NewReleaseReconciler(stubReleaseStateSource{
-		item: &RunningRelease{
+		item: &ReleaseRecord{
 			ReleaseID:      releaseID,
 			ApplicationID:  applicationID,
 			EnvironmentID:  "env-1",
@@ -418,11 +446,107 @@ func TestReleaseReconcilerCompensatesTerminalReleaseStatusLabelConvergence(t *te
 	}
 }
 
-type stubReleaseStateSource struct {
-	item *RunningRelease
+func TestReleaseReconcilerReemitsTerminalCompensationWithoutLocalSuppression(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+	createRuntimeSpecAndObservedWorkload(t, store, applicationID, &runtimedomain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		ApplicationID:       applicationID,
+		Environment:         "env-1",
+		Namespace:           "devflow",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "demo-api",
+		ObservedGeneration:  1,
+		DesiredReplicas:     3,
+		UpdatedReplicas:     3,
+		ReadyReplicas:       3,
+		AvailableReplicas:   3,
+		UnavailableReplicas: 0,
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: time.Now().UTC(),
+	})
+
+	writer := &recordingReleaseStepsWriter{}
+	updater := &stubReleaseStatusLabelUpdater{}
+	reconciler := NewReleaseReconciler(stubReleaseStateSource{
+		item: &ReleaseRecord{
+			ReleaseID:      releaseID,
+			ApplicationID:  applicationID,
+			EnvironmentID:  "env-1",
+			ControlPlaneID: "cp-1",
+			Status:         "Succeeded",
+		},
+	}, store, writer, updater, "cp-1")
+
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("first Reconcile failed: %v", err)
+	}
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("second Reconcile failed: %v", err)
+	}
+	if len(writer.inputs) != 2 {
+		t.Fatalf("write count = %d, want 2", len(writer.inputs))
+	}
+	assertReleaseWritePayload(t, writer.inputs[0], releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "demo-api",
+		phase:                releasedomain.StepSucceeded,
+		progress:             100,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message:  messageExpectation{nonEmpty: true},
+			},
+			{
+				stepCode: "finalize_release",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message:  messageExpectation{contains: "finalized"},
+			},
+		},
+	})
+	assertReleaseWritePayload(t, writer.inputs[1], releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "demo-api",
+		phase:                releasedomain.StepSucceeded,
+		progress:             100,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message:  messageExpectation{nonEmpty: true},
+			},
+			{
+				stepCode: "finalize_release",
+				status:   releasedomain.StepSucceeded,
+				progress: 100,
+				message:  messageExpectation{contains: "finalized"},
+			},
+		},
+	})
 }
 
-func (s stubReleaseStateSource) GetRunningRelease(context.Context, uuid.UUID) (*RunningRelease, error) {
+type stubReleaseStateSource struct {
+	item *ReleaseRecord
+}
+
+func (s stubReleaseStateSource) GetRelease(context.Context, uuid.UUID) (*ReleaseRecord, error) {
 	return s.item, nil
 }
 
@@ -432,6 +556,16 @@ type stubReleaseStepsWriter struct {
 
 func (s *stubReleaseStepsWriter) WriteReleaseSteps(_ context.Context, input WriteReleaseStepsInput) error {
 	s.input = &input
+	return nil
+}
+
+type recordingReleaseStepsWriter struct {
+	inputs []*WriteReleaseStepsInput
+}
+
+func (s *recordingReleaseStepsWriter) WriteReleaseSteps(_ context.Context, input WriteReleaseStepsInput) error {
+	copyInput := input
+	s.inputs = append(s.inputs, &copyInput)
 	return nil
 }
 

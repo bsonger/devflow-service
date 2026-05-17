@@ -177,13 +177,13 @@ type releaseStateSourceWithRuntimeStore struct {
 	runtimeStore runtimerepo.Store
 }
 
-func newReleaseStateSource(runtimeStore runtimerepo.Store) reconcile.ReleaseStateSource {
+func newReleaseStateSource(runtimeStore runtimerepo.Store) *releaseStateSourceWithRuntimeStore {
 	return &releaseStateSourceWithRuntimeStore{
 		runtimeStore: runtimeStore,
 	}
 }
 
-func (s *releaseStateSourceWithRuntimeStore) GetRunningRelease(ctx context.Context, releaseID uuid.UUID) (*reconcile.RunningRelease, error) {
+func (s *releaseStateSourceWithRuntimeStore) GetRelease(ctx context.Context, releaseID uuid.UUID) (*reconcile.ReleaseRecord, error) {
 	specs, err := s.runtimeStore.ListRuntimeSpecs(ctx)
 	if err != nil {
 		return nil, err
@@ -199,19 +199,17 @@ func (s *releaseStateSourceWithRuntimeStore) GetRunningRelease(ctx context.Conte
 		if err != nil {
 			return nil, err
 		}
-		item, ok := runningReleaseFromObservedWorkload(spec, workload)
+		item, ok := releaseFromObservedWorkload(spec, workload)
 		if !ok || item.ReleaseID != releaseID {
 			continue
 		}
-		return &reconcile.RunningRelease{
-			ReleaseID:      item.ReleaseID,
-			ApplicationID:  spec.ApplicationID,
-			EnvironmentID:  strings.TrimSpace(spec.Environment),
-			ControlPlaneID: item.ControlPlaneID,
-			Status:         item.Status,
-		}, nil
+		return item, nil
 	}
 	return nil, nil
+}
+
+func (s *releaseStateSourceWithRuntimeStore) GetRunningRelease(ctx context.Context, releaseID uuid.UUID) (*reconcile.ReleaseRecord, error) {
+	return s.GetRelease(ctx, releaseID)
 }
 
 func runningReleaseFromObservedWorkload(spec *runtimedomain.RuntimeSpec, workload *runtimedomain.RuntimeObservedWorkload) (*watch.RunningRelease, bool) {
@@ -230,6 +228,23 @@ func runningReleaseFromObservedWorkload(spec *runtimedomain.RuntimeSpec, workloa
 		ReleaseID:      releaseID,
 		ControlPlaneID: strings.TrimSpace(workload.Labels[releasedomain.ControlPlaneLabel]),
 		Status:         status,
+	}, true
+}
+
+func releaseFromObservedWorkload(spec *runtimedomain.RuntimeSpec, workload *runtimedomain.RuntimeObservedWorkload) (*reconcile.ReleaseRecord, bool) {
+	if spec == nil || workload == nil {
+		return nil, false
+	}
+	releaseID, err := uuid.Parse(strings.TrimSpace(workload.Labels[releasedomain.ReleaseIDLabel]))
+	if err != nil || releaseID == uuid.Nil {
+		return nil, false
+	}
+	return &reconcile.ReleaseRecord{
+		ReleaseID:      releaseID,
+		ApplicationID:  spec.ApplicationID,
+		EnvironmentID:  strings.TrimSpace(spec.Environment),
+		ControlPlaneID: strings.TrimSpace(workload.Labels[releasedomain.ControlPlaneLabel]),
+		Status:         strings.TrimSpace(workload.Labels[releasedomain.ReleaseStatusLabel]),
 	}, true
 }
 

@@ -2,7 +2,6 @@ package reconcile
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -10,13 +9,16 @@ import (
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/google/uuid"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type ReleaseStateSource interface {
-	GetRunningRelease(ctx context.Context, releaseID uuid.UUID) (*RunningRelease, error)
+	GetRelease(ctx context.Context, releaseID uuid.UUID) (*ReleaseRecord, error)
 }
 
-type RunningRelease struct {
+type ReleaseRecord struct {
 	ReleaseID      uuid.UUID
 	ApplicationID  uuid.UUID
 	EnvironmentID  string
@@ -91,7 +93,7 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		return nil
 	}
 
-	release, err := r.releases.GetRunningRelease(ctx, id)
+	release, err := r.releases.GetRelease(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -99,9 +101,6 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		return nil
 	}
 	if strings.TrimSpace(release.ControlPlaneID) != r.controlPlaneID {
-		return nil
-	}
-	if strings.ToLower(strings.TrimSpace(release.Status)) != "running" {
 		return nil
 	}
 
@@ -113,12 +112,18 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		return nil
 	}
 
-	phase, progress, message, stepWrites := deriveWritebackState(workload)
-	if phase == releasedomain.StepSucceeded && r.labelUpdater != nil {
-		if err := r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, releasedomain.ReleaseSucceeded); err != nil {
+	state := normalizeObservedStateForReconcile(workload)
+	stepWrites := append([]ReleaseStepWrite{}, state.StepWrites...)
+	if state.FinalizeState != nil {
+		stepWrites = append(stepWrites, *state.FinalizeState)
+	}
+	if terminalStatus, ok := terminalReleaseStatus(state.Phase); ok && r.labelUpdater != nil {
+		if err := r.labelUpdater.UpdateReleaseStatusLabel(ctx, workload, terminalStatus); err != nil {
 			return err
 		}
 	}
+	// Queue/event sources own duplicate suppression. A repeated reconcile should
+	// re-emit the currently observed state, including terminal compensation.
 	if err := r.stepsWriter.WriteReleaseSteps(ctx, WriteReleaseStepsInput{
 		ReleaseID:            id,
 		ApplicationID:        release.ApplicationID,
@@ -126,17 +131,70 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		Namespace:            strings.TrimSpace(workload.Namespace),
 		ObservedWorkloadKind: strings.TrimSpace(workload.WorkloadKind),
 		ObservedWorkloadName: strings.TrimSpace(workload.WorkloadName),
-		Phase:                phase,
-		Progress:             progress,
-		Message:              message,
+		Phase:                state.Phase,
+		Progress:             state.Progress,
+		Message:              state.Message,
 		StepWrites:           stepWrites,
 	}); err != nil {
 		return err
 	}
-	if phase == releasedomain.StepRunning {
+	if state.Phase == releasedomain.StepRunning {
 		return releaseRequeueAfterError{after: 5 * time.Second}
 	}
 	return nil
+}
+
+func terminalReleaseStatus(phase releasedomain.StepStatus) (releasedomain.ReleaseStatus, bool) {
+	switch phase {
+	case releasedomain.StepSucceeded:
+		return releasedomain.ReleaseSucceeded, true
+	case releasedomain.StepFailed:
+		return releasedomain.ReleaseFailed, true
+	default:
+		return "", false
+	}
+}
+
+func normalizeObservedStateForReconcile(workload *runtimedomain.RuntimeObservedWorkload) NormalizedReleaseObservedState {
+	if workload == nil || !strings.EqualFold(strings.TrimSpace(workload.WorkloadKind), "deployment") {
+		return NormalizeReleaseObservedState(workload)
+	}
+
+	replicas := int32(workload.DesiredReplicas)
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       strings.TrimSpace(workload.WorkloadName),
+			Generation: workload.ObservedGeneration,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration:  workload.ObservedGeneration,
+			UpdatedReplicas:     int32(workload.UpdatedReplicas),
+			ReadyReplicas:       int32(workload.ReadyReplicas),
+			AvailableReplicas:   int32(workload.AvailableReplicas),
+			UnavailableReplicas: int32(workload.UnavailableReplicas),
+			Conditions:          deploymentConditionsForReconcile(workload.Conditions),
+		},
+	}
+	return NormalizeReleaseObservedStateFromDeployment(strings.TrimSpace(workload.Namespace), strings.TrimSpace(workload.WorkloadName), deployment)
+}
+
+func deploymentConditionsForReconcile(conditions []runtimedomain.RuntimeObservedWorkloadCondition) []appsv1.DeploymentCondition {
+	if len(conditions) == 0 {
+		return nil
+	}
+	out := make([]appsv1.DeploymentCondition, 0, len(conditions))
+	for _, condition := range conditions {
+		out = append(out, appsv1.DeploymentCondition{
+			Type:    appsv1.DeploymentConditionType(strings.TrimSpace(condition.Type)),
+			Status:  corev1.ConditionStatus(strings.TrimSpace(condition.Status)),
+			Reason:  strings.TrimSpace(condition.Reason),
+			Message: strings.TrimSpace(condition.Message),
+		})
+	}
+	return out
 }
 
 func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, releaseID, applicationID uuid.UUID, environmentID string) (*runtimedomain.RuntimeObservedWorkload, error) {
@@ -164,56 +222,4 @@ func (r *ReleaseReconciler) getObservedWorkloadByRelease(ctx context.Context, re
 		return workload, nil
 	}
 	return nil, nil
-}
-
-func deriveWritebackState(workload *runtimedomain.RuntimeObservedWorkload) (releasedomain.StepStatus, int32, string, []ReleaseStepWrite) {
-	namespace := strings.TrimSpace(workload.Namespace)
-	workloadName := strings.TrimSpace(workload.WorkloadName)
-	if workloadName == "" {
-		workloadName = "application"
-	}
-	if namespace == "" {
-		namespace = "unknown"
-	}
-
-	runningMessage := fmt.Sprintf("waiting for workload %s in namespace %s", workloadName, namespace)
-	progress := int32(10)
-	if workload != nil && workload.DesiredReplicas > 0 {
-		calculated := int32((workload.ReadyReplicas * 90) / workload.DesiredReplicas)
-		if calculated < 10 {
-			calculated = 10
-		}
-		if calculated > 99 {
-			calculated = 99
-		}
-		progress = calculated
-	}
-
-	if workload != nil &&
-		workload.DesiredReplicas > 0 &&
-		workload.ReadyReplicas >= workload.DesiredReplicas &&
-		workload.UnavailableReplicas == 0 {
-		successMessage := fmt.Sprintf("workload %s in namespace %s is healthy", workloadName, namespace)
-		return releasedomain.StepSucceeded, 100, successMessage, []ReleaseStepWrite{
-			{
-				StepCode: "observe_rollout",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  successMessage,
-			},
-			{
-				StepCode: "finalize_release",
-				Status:   releasedomain.StepSucceeded,
-				Progress: 100,
-				Message:  "release finalized after deployment became healthy",
-			},
-		}
-	}
-
-	return releasedomain.StepRunning, progress, runningMessage, []ReleaseStepWrite{{
-		StepCode: "observe_rollout",
-		Status:   releasedomain.StepRunning,
-		Progress: progress,
-		Message:  runningMessage,
-	}}
 }
