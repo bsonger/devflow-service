@@ -39,7 +39,6 @@ type ObserverConfig struct {
 	TektonNamespace        string `mapstructure:"tekton_namespace" json:"tekton_namespace" yaml:"tekton_namespace"`
 	TektonPipeline         string `mapstructure:"tekton_pipeline" json:"tekton_pipeline" yaml:"tekton_pipeline"`
 	PollIntervalSeconds    int    `mapstructure:"poll_interval_seconds" json:"poll_interval_seconds" yaml:"poll_interval_seconds"`
-	TektonManifestEnabled  *bool  `mapstructure:"tekton_manifest_enabled" json:"tekton_manifest_enabled" yaml:"tekton_manifest_enabled"`
 	ManifestRuntimeEnabled *bool  `mapstructure:"manifest_runtime_enabled" json:"manifest_runtime_enabled" yaml:"manifest_runtime_enabled"`
 	ManifestRuntimeWorkers int    `mapstructure:"manifest_runtime_workers" json:"manifest_runtime_workers" yaml:"manifest_runtime_workers"`
 	ReleaseRuntimeEnabled  *bool  `mapstructure:"release_runtime_enabled" json:"release_runtime_enabled" yaml:"release_runtime_enabled"`
@@ -61,7 +60,6 @@ var (
 	initObservability = platformobservability.Init
 	inClusterConfig   = rest.InClusterConfig
 
-	startTektonManifestObserverFn    = runtimeobserver.StartTektonManifestObserver
 	startKubernetesRuntimeObserverFn = runtimeobserver.StartKubernetesRuntimeObserver
 	startReleaseRolloutObserverFn    = runtimeobserver.StartReleaseRolloutObserver
 	startManifestRuntimeReconcilerFn = bootstrap.StartManifestRuntimeReconciler
@@ -104,9 +102,6 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		return nil, err
 	}
 
-	if err := startTektonManifestObserver(ctx, config); err != nil {
-		return shutdown, err
-	}
 	if err := startKubernetesRuntimeObserver(ctx, config); err != nil {
 		return shutdown, err
 	}
@@ -120,27 +115,6 @@ func InitRuntime(ctx context.Context, config *Config, serviceName string) (func(
 		return shutdown, err
 	}
 	return shutdown, nil
-}
-
-func startTektonManifestObserver(ctx context.Context, config *Config) error {
-	if boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.ManifestRuntimeEnabled }, false) {
-		return nil
-	}
-	if !boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.TektonManifestEnabled }, true) {
-		return nil
-	}
-	restCfg, err := inClusterConfig()
-	if err != nil {
-		return nil
-	}
-	return startTektonManifestObserverFn(ctx, restCfg, runtimeobserver.TektonManifestObserverConfig{
-		Enabled:               boolValueDefault(config.Observer, func(v *ObserverConfig) *bool { return v.TektonManifestEnabled }, true),
-		ControlPlaneID:        stringValue(config.Observer, func(v *ObserverConfig) string { return v.ControlPlaneID }),
-		TektonNamespace:       stringValue(config.Observer, func(v *ObserverConfig) string { return v.TektonNamespace }),
-		PollInterval:          time.Duration(intValue(config.Observer, func(v *ObserverConfig) int { return v.PollIntervalSeconds })) * time.Second,
-		ReleaseServiceBaseURL: stringValue(config.Downstream, func(v *DownstreamConfig) string { return v.ReleaseServiceBaseURL }),
-		ObserverToken:         stringValue(config.Observer, func(v *ObserverConfig) string { return v.SharedToken }),
-	})
 }
 
 func startKubernetesRuntimeObserver(ctx context.Context, config *Config) error {
