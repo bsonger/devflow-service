@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
@@ -405,6 +406,53 @@ func TestReleaseStateSourceSkipsNonRunningReleaseStatus(t *testing.T) {
 	}
 	if item != nil {
 		t.Fatalf("item = %#v, want nil", item)
+	}
+}
+
+func TestReleaseStateSourceReadsTerminalReleaseFromObservedWorkload(t *testing.T) {
+	runtimeStore := runtimerepo.NewMemoryStore()
+	releaseID := uuid.New()
+	appID := uuid.New()
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: appID,
+		Environment:   "prod",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := runtimeStore.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+	if err := runtimeStore.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:            uuid.New(),
+		RuntimeSpecID: spec.ID,
+		ApplicationID: appID,
+		Environment:   "prod",
+		Namespace:     "devflow",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "demo-api",
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:       releaseID.String(),
+			releasedomain.ControlPlaneLabel:    "cp-prod",
+			releasedomain.ReleaseStatusLabel:   string(releasedomain.ReleaseSucceeded),
+			platformobserver.ObserveStateLabel: platformobserver.ObserveStateDone,
+		},
+		ObservedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload failed: %v", err)
+	}
+
+	source := newReleaseStateSource(runtimeStore)
+
+	item, err := source.GetRelease(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("GetRelease failed: %v", err)
+	}
+	if item == nil {
+		t.Fatal("expected terminal release")
+	}
+	if item.Status != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("Status = %q, want %q", item.Status, releasedomain.ReleaseSucceeded)
 	}
 }
 

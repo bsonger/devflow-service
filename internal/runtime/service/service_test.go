@@ -352,10 +352,11 @@ func TestSyncObservedWorkloadStoresObservedSummary(t *testing.T) {
 	}
 }
 
-func TestSyncObservedWorkloadDropsReleaseTrackingWhenObserveStateDone(t *testing.T) {
+func TestSyncObservedWorkloadPreservesReleaseTrackingWhenObserveStateDone(t *testing.T) {
 	applicationID := uuid.New()
 	runtimeSpecID := uuid.New()
 	var captured *runtimedomain.RuntimeObservedWorkload
+	releaseID := uuid.New().String()
 
 	svc := New(stubStore{
 		ensureRuntimeSpecByApplicationEnvFunc: func(context.Context, uuid.UUID, string) (*runtimedomain.RuntimeSpec, error) {
@@ -377,7 +378,7 @@ func TestSyncObservedWorkloadDropsReleaseTrackingWhenObserveStateDone(t *testing
 		WorkloadName:  "network-service",
 		Labels: map[string]string{
 			platformobserver.ObserveStateLabel: platformobserver.ObserveStateDone,
-			releasedomain.ReleaseIDLabel:       uuid.New().String(),
+			releasedomain.ReleaseIDLabel:       releaseID,
 			releasedomain.ReleaseStatusLabel:   string(releasedomain.ReleaseSucceeded),
 		},
 	})
@@ -387,11 +388,11 @@ func TestSyncObservedWorkloadDropsReleaseTrackingWhenObserveStateDone(t *testing
 	if captured == nil {
 		t.Fatal("expected captured workload")
 	}
-	if got := captured.Labels[releasedomain.ReleaseIDLabel]; got != "" {
-		t.Fatalf("release id label = %q, want empty", got)
+	if got := captured.Labels[releasedomain.ReleaseIDLabel]; got != releaseID {
+		t.Fatalf("release id label = %q, want %q", got, releaseID)
 	}
-	if got := captured.Labels[releasedomain.ReleaseStatusLabel]; got != "" {
-		t.Fatalf("release status label = %q, want empty", got)
+	if got := captured.Labels[releasedomain.ReleaseStatusLabel]; got != string(releasedomain.ReleaseSucceeded) {
+		t.Fatalf("release status label = %q, want %q", got, releasedomain.ReleaseSucceeded)
 	}
 	if got := captured.Labels[platformobserver.ObserveStateLabel]; got != platformobserver.ObserveStateDone {
 		t.Fatalf("observe-state label = %q, want %q", got, platformobserver.ObserveStateDone)
