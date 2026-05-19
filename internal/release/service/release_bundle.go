@@ -479,6 +479,9 @@ func buildReleaseWorkloadEnv(_ string, _ string, manifest *manifestdomain.Manife
 	if serviceVersion != "" {
 		appendEnv("SERVICE_VERSION", serviceVersion)
 	}
+	if commitHash := releaseSourceRevision(manifest); commitHash != "" {
+		appendEnv("GIT_COMMIT", commitHash)
+	}
 	if metrics := releaseWorkloadMetrics(manifest); metrics.Enabled && metrics.Port > 0 {
 		appendEnv(releaseMetricsPortEnv, fmt.Sprintf("%d", metrics.Port))
 	}
@@ -516,6 +519,13 @@ func releaseServiceVersion(manifest *manifestdomain.Manifest) string {
 		return shortenReleaseVersion(commitHash)
 	}
 	return "unknown"
+}
+
+func releaseSourceRevision(manifest *manifestdomain.Manifest) string {
+	if manifest == nil {
+		return ""
+	}
+	return shortenReleaseVersion(strings.TrimSpace(manifest.CommitHash))
 }
 
 func shortenReleaseVersion(value string) string {

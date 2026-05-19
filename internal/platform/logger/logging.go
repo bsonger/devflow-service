@@ -157,12 +157,25 @@ func ContainerImageDigest() string {
 	return resolved
 }
 
+func GitCommit() string {
+	return normalizeSourceRevision(resolvedSourceRevision())
+}
+
 func resolvedServiceVersion() string {
 	return firstNonEmpty(
 		resourceAttribute("service.version"),
 		os.Getenv("SERVICE_VERSION"),
 		os.Getenv("VERSION"),
 		"unknown",
+	)
+}
+
+func resolvedSourceRevision() string {
+	return firstNonEmpty(
+		os.Getenv("GIT_COMMIT"),
+		os.Getenv("VCS_REVISION"),
+		os.Getenv("COMMIT_HASH"),
+		"",
 	)
 }
 
@@ -273,7 +286,7 @@ func parseResourceAttributes(value string) map[string]string {
 func normalizeServiceVersion(value string) string {
 	value = strings.TrimSpace(value)
 	if !isDigestValue(value) {
-		return value
+		return normalizeSourceRevision(value)
 	}
 	algorithm, digest, ok := strings.Cut(value, ":")
 	if !ok || digest == "" {
@@ -283,6 +296,14 @@ func normalizeServiceVersion(value string) string {
 		digest = digest[:12]
 	}
 	return algorithm + ":" + digest
+}
+
+func normalizeSourceRevision(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 12 {
+		return value[:12]
+	}
+	return value
 }
 
 func isDigestValue(value string) bool {

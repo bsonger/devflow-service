@@ -1,9 +1,20 @@
 package otel
 
 import (
+	"context"
+	"sync"
+
+	"github.com/bsonger/devflow-service/internal/platform/logger"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+)
+
+var (
+	buildInfoMetricOnce sync.Once
+	buildInfoMetricErr  error
 )
 
 func InitMetricProvider() error {
@@ -43,5 +54,34 @@ func InitMetricProvider() error {
 		)),
 	)
 	otel.SetMeterProvider(provider)
+
+	buildInfoMetricOnce.Do(func() {
+		buildInfoMetricErr = registerBuildInfoMetric()
+	})
+	if buildInfoMetricErr != nil {
+		return buildInfoMetricErr
+	}
 	return nil
+}
+
+func registerBuildInfoMetric() error {
+	meter := otel.Meter("devflow/build")
+	buildInfo, err := meter.Int64ObservableGauge(
+		"build_info",
+		metric.WithUnit("{build}"),
+		metric.WithDescription("Build and version metadata for the running service."),
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
+		observer.ObserveInt64(buildInfo, 1, metric.WithAttributes(
+			attribute.String("service_name", logger.ServiceName()),
+			attribute.String("service_version", logger.ServiceVersion()),
+			attribute.String("git_commit", logger.GitCommit()),
+		))
+		return nil
+	}, buildInfo)
+	return err
 }

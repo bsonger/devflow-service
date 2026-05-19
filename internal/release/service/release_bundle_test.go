@@ -18,6 +18,7 @@ func TestRenderDeploymentBundle(t *testing.T) {
 	manifest := &manifestdomain.Manifest{
 		BaseModel:     model.BaseModel{ID: uuid.New()},
 		ApplicationID: uuid.New(),
+		CommitHash:    "1234567890abcdef1234567890abcdef12345678",
 		ImageRef:      "registry.example.com/devflow/demo-api@sha256:abc",
 		ServicesSnapshot: []manifestdomain.ManifestService{
 			{
@@ -102,6 +103,7 @@ func TestRenderDeploymentBundle(t *testing.T) {
 	assertEnvMissing(t, env, "OTEL_SERVICE_NAME")
 	assertEnvMissing(t, env, "DEPLOYMENT_ENVIRONMENT")
 	assertEnvContains(t, env, "SERVICE_VERSION", "sha256:abc")
+	assertEnvContains(t, env, "GIT_COMMIT", "1234567890ab")
 	assertEnvContains(t, env, "METRICS_PORT", "9090")
 	for _, labels := range []map[string]any{workloadLabels, templateLabels} {
 		assertRequiredIdentityLabels(t, labels, releaseID.String(), manifest.ApplicationID.String(), "production", "demo-api")
