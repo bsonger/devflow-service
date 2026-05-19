@@ -498,6 +498,148 @@ func TestProcessTimeoutsSkipsFreshSyncingRelease(t *testing.T) {
 	}
 }
 
+func TestProcessTimeoutsMarksRunningReleaseFailedWhenFinalizationTimesOut(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "start_deployment":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_rollout":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "deployment healthy"
+		case "finalize_release":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 80
+			steps[i].Message = "waiting for finalize callback"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-5 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	processed, err := svc.ProcessTimeouts(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ProcessTimeouts error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	step := findReleaseStep(stored.Steps, "finalize_release")
+	if step == nil {
+		t.Fatal("finalize_release step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("finalize_release status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if step.Progress != 100 {
+		t.Fatalf("finalize_release progress = %d, want 100", step.Progress)
+	}
+	if !strings.Contains(step.Message, "timed out") {
+		t.Fatalf("finalize_release message = %q, want timeout detail", step.Message)
+	}
+}
+
+func TestProcessTimeoutsKeepsRunningReleaseInRolloutPhaseWithoutObservedSuccess(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "start_deployment":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_rollout":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 60
+			steps[i].Message = "deployment progressing"
+		case "finalize_release":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 10
+			steps[i].Message = "premature finalize state"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-3 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	processed, err := svc.ProcessTimeouts(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ProcessTimeouts error = %v", err)
+	}
+	if processed != 0 {
+		t.Fatalf("processed = %d, want 0", processed)
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseRunning {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseRunning)
+	}
+	finalizeStep := findReleaseStep(stored.Steps, "finalize_release")
+	if finalizeStep == nil {
+		t.Fatal("finalize_release step not found")
+	}
+	if finalizeStep.Status != model.StepRunning {
+		t.Fatalf("finalize_release status = %q, want %q", finalizeStep.Status, model.StepRunning)
+	}
+}
+
 func TestUpdateArtifactPersistsFieldsAndMarksPublishBundle(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()

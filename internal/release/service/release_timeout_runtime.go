@@ -75,7 +75,7 @@ func compatControlStateFromRelease(release *releasedomain.Release) (releasedomai
 	case releasedomain.ReleaseSyncing:
 		state = state.WithStatus(releasedomain.LifecycleDispatching, release.UpdatedAt)
 	case releasedomain.ReleaseRunning:
-		state = state.WithStatus(releasedomain.LifecycleRunning, release.UpdatedAt)
+		state = state.WithStatus(inferRunningLifecycleStatus(release), release.UpdatedAt)
 	case releasedomain.ReleaseSucceeded, releasedomain.ReleaseRolledBack:
 		state = state.WithStatus(releasedomain.LifecycleSucceeded, release.UpdatedAt)
 	case releasedomain.ReleaseFailed, releasedomain.ReleaseSyncFailed:
@@ -126,6 +126,26 @@ func compatReleaseStatusFromControlState(state releasedomain.ReleaseControlState
 		return releasedomain.ReleaseSucceeded, true
 	default:
 		return "", false
+	}
+}
+
+func inferRunningLifecycleStatus(release *releasedomain.Release) releasedomain.LifecycleStatus {
+	if release == nil {
+		return releasedomain.LifecycleRunning
+	}
+	observeRollout := findReleaseStep(release.Steps, "observe_rollout")
+	finalizeRelease := findReleaseStep(release.Steps, "finalize_release")
+	if observeRollout == nil || finalizeRelease == nil {
+		return releasedomain.LifecycleRunning
+	}
+	if observeRollout.Status != releasedomain.StepSucceeded {
+		return releasedomain.LifecycleRunning
+	}
+	switch finalizeRelease.Status {
+	case releasedomain.StepSucceeded, releasedomain.StepFailed:
+		return releasedomain.LifecycleRunning
+	default:
+		return releasedomain.LifecycleFinalizing
 	}
 }
 
