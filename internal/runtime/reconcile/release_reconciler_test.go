@@ -94,6 +94,95 @@ func TestReleaseReconcilerWritesStepsForMatchingRunningRelease(t *testing.T) {
 	}
 }
 
+func TestReleaseReconcilerMarksRunningDeploymentFailedWhenObservationStalls(t *testing.T) {
+	releaseID := uuid.New()
+	applicationID := uuid.New()
+	store := runtimerepo.NewMemoryStore()
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: applicationID,
+		Environment:   "env-1",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := store.CreateRuntimeSpec(context.Background(), spec); err != nil {
+		t.Fatalf("CreateRuntimeSpec failed: %v", err)
+	}
+	if err := store.UpsertObservedWorkload(context.Background(), &runtimedomain.RuntimeObservedWorkload{
+		ID:                  uuid.New(),
+		RuntimeSpecID:       spec.ID,
+		ApplicationID:       applicationID,
+		Environment:         "env-1",
+		Namespace:           "devflow",
+		WorkloadKind:        "Deployment",
+		WorkloadName:        "demo-api",
+		DesiredReplicas:     2,
+		ReadyReplicas:       1,
+		UpdatedReplicas:     1,
+		AvailableReplicas:   1,
+		UnavailableReplicas: 1,
+		ObservedGeneration:  1,
+		Labels: map[string]string{
+			releasedomain.ReleaseIDLabel:     releaseID.String(),
+			releasedomain.ControlPlaneLabel:  "cp-1",
+			releasedomain.ReleaseStatusLabel: string(releasedomain.ReleaseRunning),
+		},
+		ObservedAt: time.Now().UTC().Add(-6 * time.Minute),
+	}); err != nil {
+		t.Fatalf("UpsertObservedWorkload failed: %v", err)
+	}
+
+	writer := &stubReleaseStepsWriter{}
+	updater := &stubReleaseStatusLabelUpdater{}
+	reconciler := NewReleaseReconciler(stubReleaseStateSource{
+		item: &ReleaseRecord{
+			ReleaseID:      releaseID,
+			ApplicationID:  applicationID,
+			EnvironmentID:  "env-1",
+			ControlPlaneID: "cp-1",
+			Status:         "running",
+		},
+	}, store, writer, updater, "cp-1")
+
+	if err := reconciler.Reconcile(context.Background(), releaseID.String()); err != nil {
+		t.Fatalf("Reconcile failed: %v", err)
+	}
+	assertReleaseWritePayload(t, writer.input, releaseWriteExpectation{
+		releaseID:            releaseID,
+		applicationID:        applicationID,
+		environmentID:        "env-1",
+		namespace:            "devflow",
+		observedWorkloadKind: "Deployment",
+		observedWorkloadName: "demo-api",
+		phase:                releasedomain.StepFailed,
+		progress:             100,
+		stepWrites: []stepWriteExpectation{
+			{
+				stepCode: "observe_rollout",
+				status:   releasedomain.StepFailed,
+				progress: 100,
+				message: messageExpectation{
+					contains: "observation stalled",
+				},
+			},
+			{
+				stepCode: "finalize_release",
+				status:   releasedomain.StepFailed,
+				progress: 100,
+				message: messageExpectation{
+					contains: "timeout or observation stall",
+				},
+			},
+		},
+	})
+	if !updater.called {
+		t.Fatal("expected terminal status updater to be called")
+	}
+	if updater.status != releasedomain.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", updater.status, releasedomain.ReleaseFailed)
+	}
+}
+
 func TestReleaseReconcilerCompensatesNonRunningRelease(t *testing.T) {
 	releaseID := uuid.New()
 	applicationID := uuid.New()

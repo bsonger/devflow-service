@@ -3,8 +3,11 @@ package reconcile
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	releasecontrol "github.com/bsonger/devflow-service/internal/release/control"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
+	rollingstrategy "github.com/bsonger/devflow-service/internal/release/strategy/rolling"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,23 +44,7 @@ func NormalizeReleaseObservedStateFromDeployment(namespace, workloadName string,
 			Message:  message,
 		}},
 	}
-	switch phase {
-	case releasedomain.StepSucceeded:
-		state.FinalizeState = &ReleaseStepWrite{
-			StepCode: "finalize_release",
-			Status:   releasedomain.StepSucceeded,
-			Progress: 100,
-			Message:  "release finalized after deployment became healthy",
-		}
-	case releasedomain.StepFailed:
-		state.FinalizeState = &ReleaseStepWrite{
-			StepCode: "finalize_release",
-			Status:   releasedomain.StepFailed,
-			Progress: 100,
-			Message:  "release finalized after deployment failure",
-		}
-	}
-	return state
+	return normalizeDeploymentObservedStateWithEngine(state, time.Now())
 }
 
 func NormalizeReleaseObservedStateFromRollout(namespace, observedName, primaryName string, rollout *unstructured.Unstructured) NormalizedReleaseObservedState {
@@ -172,6 +159,54 @@ func deriveReleaseObservedDeploymentState(namespace, appName string, deployment 
 	}
 	message := fmt.Sprintf("deployment progressing (ready=%d/%d, updated=%d/%d, available=%d/%d, unavailable=%d, observed_generation=%t, progressing_status=%s)", ready, desired, updated, desired, available, desired, unavailable, generationObserved, firstNonEmptyString(progressingStatus, "Unknown"))
 	return releasedomain.StepRunning, message, progress, fmt.Sprintf("running|%d|%d|%d|%d|%d|%t|%s|%s", desired, updated, ready, available, unavailable, generationObserved, progressingStatus, progressingReason)
+}
+
+func normalizeDeploymentObservedStateWithEngine(state NormalizedReleaseObservedState, now time.Time) NormalizedReleaseObservedState {
+	observation := MapNormalizedDeploymentStateToRuntimeObservation(state, now)
+	engine := releasecontrol.NewEngine(rollingReleaseStrategyController())
+	controlState := releasedomain.ReleaseControlState{
+		LifecycleStatus: releasedomain.LifecycleRunning,
+		Strategy:        releasedomain.ReleaseStrategyRolling,
+		UpdatedAt:       now,
+	}
+	decision, err := engine.ApplyObservation(controlState, observation)
+	if err != nil || decision.NextState == nil {
+		return state
+	}
+	for _, write := range decision.StepWrites {
+		if write.StepCode != "observe_rollout" {
+			continue
+		}
+		state.Phase = write.Status
+		state.Progress = int32(write.Progress)
+		state.Message = write.Message
+		state.StepWrites = []ReleaseStepWrite{{
+			StepCode: write.StepCode,
+			Status:   write.Status,
+			Progress: int32(write.Progress),
+			Message:  write.Message,
+		}}
+	}
+	switch decision.NextState.LifecycleStatus {
+	case releasedomain.LifecycleFinalizing:
+		finalize := ReleaseStepWrite{
+			StepCode: "finalize_release",
+			Progress: 100,
+		}
+		if decision.NextState.FailureReason == releasedomain.FailureRolloutFailed {
+			finalize.Status = releasedomain.StepFailed
+			finalize.Message = "release finalized after deployment failure"
+		} else {
+			finalize.Status = releasedomain.StepSucceeded
+			finalize.Message = "release finalized after deployment became healthy"
+		}
+		state.FinalizeState = &finalize
+	}
+	return state
+}
+
+func rollingReleaseStrategyController() releasecontrol.StrategyController {
+	return rollingstrategy.NewController()
 }
 
 func deploymentConditionSummary(conditions []appsv1.DeploymentCondition, conditionType appsv1.DeploymentConditionType) (string, string) {

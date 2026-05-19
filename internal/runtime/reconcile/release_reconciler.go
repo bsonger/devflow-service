@@ -8,7 +8,9 @@ import (
 	"github.com/bsonger/devflow-service/internal/platform/logger"
 	platformobserver "github.com/bsonger/devflow-service/internal/platform/observer"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
+	releasecontrol "github.com/bsonger/devflow-service/internal/release/control"
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
+	rollingstrategy "github.com/bsonger/devflow-service/internal/release/strategy/rolling"
 	runtimedomain "github.com/bsonger/devflow-service/internal/runtime/domain"
 	runtimerepo "github.com/bsonger/devflow-service/internal/runtime/repository"
 	"github.com/google/uuid"
@@ -39,6 +41,7 @@ type ReleaseStatusLabelUpdater interface {
 }
 
 const defaultObservedReleaseTTL = 45 * time.Minute
+const defaultRunningReleaseProgressTimeout = 10 * time.Minute
 
 var releaseReconcileLogf = defaultReleaseReconcileLogf
 
@@ -129,6 +132,7 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 	}
 
 	state := normalizeObservedStateForReconcile(workload)
+	state = r.applyRunningReleaseTimeouts(release, workload, state)
 	stateFields := releaseReconcileFields(id, release.ApplicationID, release.EnvironmentID, workload, state.Phase, state.Progress)
 	releaseReconcileLogf("release_reconcile_state_computed", stateFields...)
 	platformobs.RecordRuntimeReleaseReconcile(ctx, string(state.Phase), "ok")
@@ -189,6 +193,63 @@ func (r *ReleaseReconciler) Reconcile(ctx context.Context, releaseID string) err
 		return releaseRequeueAfterError{after: 5 * time.Second}
 	}
 	return nil
+}
+
+func (r *ReleaseReconciler) applyRunningReleaseTimeouts(
+	release *ReleaseRecord,
+	workload *runtimedomain.RuntimeObservedWorkload,
+	state NormalizedReleaseObservedState,
+) NormalizedReleaseObservedState {
+	if release == nil || workload == nil {
+		return state
+	}
+	if !strings.EqualFold(strings.TrimSpace(workload.WorkloadKind), "deployment") {
+		return state
+	}
+	if !strings.EqualFold(strings.TrimSpace(release.Status), string(releasedomain.ReleaseRunning)) {
+		return state
+	}
+	if state.Phase != releasedomain.StepRunning {
+		return state
+	}
+
+	now := time.Now().UTC()
+	lastObservation := MapNormalizedDeploymentStateToRuntimeObservation(state, workload.ObservedAt)
+	controlState := releasedomain.ReleaseControlState{
+		LifecycleStatus: releasedomain.LifecycleRunning,
+		Strategy:        releasedomain.ReleaseStrategyRolling,
+		StrategyPhase:   releasedomain.PhaseRollingProgressing,
+		UpdatedAt:       workload.ObservedAt,
+	}
+	evaluator := releasecontrol.TimeoutEvaluator{}
+	policy := rollingstrategy.NewController().TimeoutPolicy(controlState)
+	if policy.ProgressTimeout <= 0 {
+		policy.ProgressTimeout = defaultRunningReleaseProgressTimeout
+	}
+	decision := evaluator.Evaluate(controlState, &lastObservation, policy, now)
+	if decision.NextState == nil || decision.NextState.FailureReason == "" {
+		return state
+	}
+	for _, write := range decision.StepWrites {
+		if write.StepCode == "observe_rollout" {
+			state.Phase = write.Status
+			state.Progress = int32(write.Progress)
+			state.Message = write.Message
+			state.StepWrites = []ReleaseStepWrite{{
+				StepCode: write.StepCode,
+				Status:   write.Status,
+				Progress: int32(write.Progress),
+				Message:  write.Message,
+			}}
+		}
+	}
+	state.FinalizeState = &ReleaseStepWrite{
+		StepCode: "finalize_release",
+		Status:   releasedomain.StepFailed,
+		Progress: 100,
+		Message:  "release finalized after timeout or observation stall",
+	}
+	return state
 }
 
 func releaseReconcileFields(releaseID, applicationID uuid.UUID, environmentID string, workload *runtimedomain.RuntimeObservedWorkload, phase releasedomain.StepStatus, progress int32) []zap.Field {

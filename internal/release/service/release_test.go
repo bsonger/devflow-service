@@ -392,6 +392,112 @@ func TestUpdateStatusAllowsNonTerminalTransition(t *testing.T) {
 	}
 }
 
+func TestProcessTimeoutsMarksSyncingReleaseAsSyncFailedWhenDispatchTimesOut(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-5 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:        model.ReleaseSyncing,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	processed, err := svc.ProcessTimeouts(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ProcessTimeouts error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseSyncFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseSyncFailed)
+	}
+	step := findReleaseStep(stored.Steps, "start_deployment")
+	if step == nil {
+		t.Fatal("start_deployment step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("start_deployment status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if step.Progress != 100 {
+		t.Fatalf("start_deployment progress = %d, want 100", step.Progress)
+	}
+	if !strings.Contains(step.Message, "timed out") {
+		t.Fatalf("start_deployment message = %q, want timeout detail", step.Message)
+	}
+}
+
+func TestProcessTimeoutsSkipsFreshSyncingRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-2 * time.Minute),
+			UpdatedAt: now.Add(-30 * time.Second),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:        model.ReleaseSyncing,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	processed, err := svc.ProcessTimeouts(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ProcessTimeouts error = %v", err)
+	}
+	if processed != 0 {
+		t.Fatalf("processed = %d, want 0", processed)
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseSyncing {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseSyncing)
+	}
+	step := findReleaseStep(stored.Steps, "start_deployment")
+	if step == nil {
+		t.Fatal("start_deployment step not found")
+	}
+	if step.Status != model.StepPending {
+		t.Fatalf("start_deployment status = %q, want %q", step.Status, model.StepPending)
+	}
+}
+
 func TestUpdateArtifactPersistsFieldsAndMarksPublishBundle(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
