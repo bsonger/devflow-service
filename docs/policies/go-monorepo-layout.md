@@ -252,6 +252,9 @@ Interfaces should be named by role or behavior, not with `I` prefixes.
 - keep one root `go.mod`
 - do not introduce `go.work` during the current repo stage
 - do not split into per-service modules unless the repo later has a real release-management reason to do so
+- local Go build outputs must be written under repo-root `bin/`
+- do not emit runnable binaries into the repo root or service-named top-level paths such as `./release-service` or `./runtime-service`
+- `bin/` is an ignored generated-artifact directory, not a source location
 
 ## Current repo-specific notes
 

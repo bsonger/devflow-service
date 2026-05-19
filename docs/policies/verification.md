@@ -33,6 +33,7 @@ make ci
 - formatting, vet, lint, tests, build, and repo verification must agree
 - repo docs and verification must describe the same paths and command order
 - failures are real contract drift to fix, not accepted migration noise
+- local binary artifacts must be emitted under repo-root `bin/` only; root-level executable outputs such as `./release-service` and `./runtime-service` are contract drift and should be removed
 - the release → Argo → runtime contract must remain discoverable from canonical verifier surfaces: rerun the focused proof command first to localize failures, then use `bash scripts/verify.sh` as the repo-wide anti-drift gate
 - release-flow contract drift between code, docs, and verifier surfaces is a real verifier failure; when `start_deployment`, `observe_rollout`, `finalize_release`, or release writeback ownership wording drifts, treat that mismatch as contract drift and update the authoritative docs plus verifier surfaces together
 - use `docs/system/flow-overview.md`, `docs/system/release-steps.md`, and `docs/system/release-writeback.md` as the lifecycle/writeback authority when verifying release-flow wording in `docs/resources/*`, `docs/services/*`, recovery guidance, or script guidance
