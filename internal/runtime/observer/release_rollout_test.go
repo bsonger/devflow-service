@@ -201,7 +201,7 @@ func TestDeriveReleaseRolloutStateMissingDeployment(t *testing.T) {
 	if status != releasedomain.StepRunning {
 		t.Fatalf("status = %q", status)
 	}
-	if progress != 10 {
+	if progress != 25 {
 		t.Fatalf("progress = %d", progress)
 	}
 	if stateKey != "missing" {

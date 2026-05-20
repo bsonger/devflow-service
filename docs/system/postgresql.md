@@ -106,6 +106,14 @@ As of `2026-04-28`, the live schema includes:
   - removed legacy release-era columns such as `environment_id`, `image_id`, `routes_snapshot`, `app_config_snapshot`, `rendered_yaml`, `rendered_objects`, `artifact_*`, and `tag`
 - `releases` aligned to the current release-service model:
   - kept `env`, `manifest_id`, `routes_snapshot`, `app_config_snapshot`, `strategy`, `artifact_*`, `argocd_application_name`, `external_ref`, `steps`, `status`
+  - rollback control additions required by the current release rollback flow:
+    - `remediation_status`
+    - `remediation_reason`
+    - `rollback_source_release_id`
+    - `rollback_target_artifact_repository`
+    - `rollback_target_artifact_tag`
+    - `rollback_target_artifact_digest`
+    - `rollback_target_artifact_ref`
   - removed legacy `image_id`
 - `configurations` aligned to the new AppConfig model:
   - one active record per `application_id + env`
@@ -116,3 +124,28 @@ As of `2026-04-28`, the live schema includes:
 - primary keys, unique indexes, support indexes, and foreign keys required by the current repository implementations
 
 When repository-owned persistence changes, update the live schema and refresh `init.sql` together instead of letting bootstrap drift from production reality.
+
+## Release rollback schema note
+
+The current release rollback control flow is not schema-compatible with an older `releases` table that only contains `artifact_*` fields.
+
+Before rolling out the current `release-service`, the live `releases` table must also include:
+
+```sql
+ALTER TABLE releases
+  ADD COLUMN IF NOT EXISTS remediation_status TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS remediation_reason TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS rollback_source_release_id UUID NULL,
+  ADD COLUMN IF NOT EXISTS rollback_target_artifact_repository TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS rollback_target_artifact_tag TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS rollback_target_artifact_digest TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS rollback_target_artifact_ref TEXT NOT NULL DEFAULT '';
+```
+
+Operational intent of those fields:
+
+- `remediation_status` / `remediation_reason` track whether a failed or canceled release still needs cleanup or rollback
+- `rollback_source_release_id` keeps the audit link to the historical succeeded release chosen as the rollback source
+- `rollback_target_artifact_*` freezes the OCI deployment bundle that rollback must actually sync to
+
+If the live schema is missing these columns, rollback creation or terminal remediation updates can fail even when the application code is current.
