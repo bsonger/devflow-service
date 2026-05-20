@@ -15,6 +15,60 @@ Run this from the repo root before handoff or after changing docs, verification 
 bash scripts/verify.sh
 ```
 
+## Platform deploy helper
+
+When you need to deploy through the DevFlow platform release flow instead of applying Kubernetes YAML directly, use:
+
+```sh
+PLATFORM_BASE_URL=https://devflow.bei.com \
+APPLICATION_ID=<application-uuid> \
+ENVIRONMENT_ID=<environment-uuid> \
+SERVICE_NAME=<service-name> \
+PLATFORM_AUTH_HEADER='Authorization: Bearer <token>' \
+bash scripts/deploy-platform-release.sh
+```
+
+The helper:
+- optionally validates `SERVICE_NAME` against the application's network-service records before release creation
+- creates or reuses an `Available` manifest for `APPLICATION_ID + GIT_REVISION`
+- waits for the manifest to become `Available`
+- creates a release with `manifest_id + environment_id + strategy`
+- optionally polls the release until it reaches a terminal status
+
+Useful knobs:
+- `GIT_REVISION` defaults to `main`
+- `STRATEGY` defaults to `rolling`
+- `SERVICE_NAME` lets the operator assert which application service they intend to deploy
+- `WAIT_FOR_MANIFEST` and `WAIT_FOR_RELEASE` default to `true`
+- `MANIFEST_TIMEOUT_SECONDS` defaults to `900`
+- `RELEASE_TIMEOUT_SECONDS` defaults to `1800`
+
+Current contract note:
+- the active backend manifest/release APIs are still application-scoped, so `SERVICE_NAME` is currently used as a safety validation input rather than a backend single-service release selector
+
+This script is the repo-local way to trigger a platform deployment from the service repository. It intentionally does not call `kubectl apply` or depend on repo-local Kubernetes manifests.
+
+## Platform staging helper
+
+When you want to deploy the 5 backend services to one staging environment in sequence through the platform, use:
+
+```sh
+PLATFORM_BASE_URL=https://devflow.bei.com \
+PROJECT_ID=<project-uuid> \
+ENVIRONMENT_ID=<staging-environment-uuid> \
+PLATFORM_AUTH_HEADER='Authorization: Bearer <token>' \
+bash scripts/deploy-platform-staging-all.sh
+```
+
+Default service set:
+- `meta-service`
+- `config-service`
+- `network-service`
+- `release-service`
+- `runtime-service`
+
+This helper first resolves application IDs from `PROJECT_ID`, then delegates each deployment to `scripts/deploy-platform-release.sh`.
+
 ## Exemplar smoke test
 
 When Prometheus has recent pre-production 5xx samples, run:

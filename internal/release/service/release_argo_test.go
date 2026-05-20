@@ -44,7 +44,7 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 		ProjectName: "checkout",
 	}, target)
 
-	if app.Name != "demo-api" {
+	if app.Name != "demo-api-production" {
 		t.Fatalf("application name = %q", app.Name)
 	}
 	if app.Labels != nil {
@@ -135,6 +135,20 @@ func TestBuildReleaseSyncOperationUsesPruneReplaceAndForce(t *testing.T) {
 	}
 	if !operation.Sync.SyncStrategy.Apply.Force {
 		t.Fatal("expected apply.force=true")
+	}
+}
+
+func TestDeriveArgoApplicationNameIncludesEnvironment(t *testing.T) {
+	release := &model.Release{
+		ApplicationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		EnvironmentID: "ce3e0499-e862-4322-98e2-264fa6f09286",
+	}
+	app := &releasesupport.ApplicationProjection{Name: "meta-service"}
+
+	got := deriveArgoApplicationName(release, app)
+	want := "meta-service-ce3e0499-e862-4322-98e2-264fa6f09286"
+	if got != want {
+		t.Fatalf("deriveArgoApplicationName() = %q, want %q", got, want)
 	}
 }
 
@@ -443,7 +457,7 @@ func TestPersistArgoApplicationMetadataUpdatesRelease(t *testing.T) {
 		t.Fatalf("get failed: %v", err)
 	}
 
-	if err := newReleaseHandoffController(svc).persistArgoApplicationMetadata(context.Background(), release, "demo-api"); err != nil {
+	if err := newReleaseHandoffController(svc).persistArgoApplicationMetadata(context.Background(), release, "demo-api-staging"); err != nil {
 		t.Fatalf("persistArgoApplicationMetadata failed: %v", err)
 	}
 
@@ -451,10 +465,10 @@ func TestPersistArgoApplicationMetadataUpdatesRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get updated failed: %v", err)
 	}
-	if updated.ArgoCDApplicationName != "demo-api" {
+	if updated.ArgoCDApplicationName != "demo-api-staging" {
 		t.Fatalf("argocd_application_name = %q", updated.ArgoCDApplicationName)
 	}
-	if updated.ExternalRef != "demo-api" {
+	if updated.ExternalRef != "demo-api-staging" {
 		t.Fatalf("external_ref = %q", updated.ExternalRef)
 	}
 }
@@ -487,7 +501,7 @@ func TestPersistArgoApplicationMetadataDoesNotOverwriteUpdatedSteps(t *testing.T
 		t.Fatalf("UpdateStep create_argocd_application failed: %v", err)
 	}
 
-	if err := newReleaseHandoffController(svc).persistArgoApplicationMetadata(context.Background(), staleRelease, "demo-api"); err != nil {
+	if err := newReleaseHandoffController(svc).persistArgoApplicationMetadata(context.Background(), staleRelease, "demo-api-staging"); err != nil {
 		t.Fatalf("persistArgoApplicationMetadata failed: %v", err)
 	}
 
@@ -509,10 +523,10 @@ func TestPersistArgoApplicationMetadataDoesNotOverwriteUpdatedSteps(t *testing.T
 	if createStep.Status != model.StepRunning {
 		t.Fatalf("create_argocd_application status = %q", createStep.Status)
 	}
-	if updated.ArgoCDApplicationName != "demo-api" {
+	if updated.ArgoCDApplicationName != "demo-api-staging" {
 		t.Fatalf("argocd_application_name = %q", updated.ArgoCDApplicationName)
 	}
-	if updated.ExternalRef != "demo-api" {
+	if updated.ExternalRef != "demo-api-staging" {
 		t.Fatalf("external_ref = %q", updated.ExternalRef)
 	}
 }

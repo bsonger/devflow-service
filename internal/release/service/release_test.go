@@ -348,8 +348,8 @@ func TestReleaseRepositoryPersistsArgoCDApplicationName(t *testing.T) {
 		values ($1,$2,$3,'staging','rolling','[]','{}','','','','','Upgrade',$4,'Pending',$5,$6,$7,$8,null)
 	`, releaseID.String(), appID.String(), manifestID.String(),
 		stepsJSON,
-		"demo-api",
-		"demo-api",
+		"demo-api-staging",
+		"demo-api-staging",
 		time.Now(),
 		time.Now())
 	if err != nil {
@@ -361,10 +361,10 @@ func TestReleaseRepositoryPersistsArgoCDApplicationName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
-	if release.ArgoCDApplicationName != "demo-api" {
+	if release.ArgoCDApplicationName != "demo-api-staging" {
 		t.Fatalf("argocd_application_name = %q", release.ArgoCDApplicationName)
 	}
-	if release.ExternalRef != "demo-api" {
+	if release.ExternalRef != "demo-api-staging" {
 		t.Fatalf("external_ref = %q", release.ExternalRef)
 	}
 }

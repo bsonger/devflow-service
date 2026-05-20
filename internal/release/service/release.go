@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -59,6 +60,8 @@ var (
 		return dynamic.NewForConfig(model.KubeConfig)
 	}
 )
+
+var argoApplicationNameSanitizer = regexp.MustCompile(`[^a-z0-9-]+`)
 
 var (
 	ErrReleaseManifestNotFound     = sharederrs.NotFound("manifest not found")
@@ -740,10 +743,7 @@ func buildReleaseSyncOperation() *appv1.Operation {
 }
 
 func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) *appv1.Application {
-	name := app.Name
-	if name == "" {
-		name = release.ApplicationID.String()
-	}
+	name := deriveArgoApplicationName(release, app)
 	return &appv1.Application{
 		TypeMeta:   metav1.TypeMeta{Kind: "Application", APIVersion: "argoproj.io/v1alpha1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -754,6 +754,49 @@ func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manif
 			IgnoreDifferences: releaseApplicationIgnoreDifferences(release),
 		},
 	}
+}
+
+func deriveArgoApplicationName(release *model.Release, app *releasesupport.ApplicationProjection) string {
+	base := ""
+	if app != nil {
+		base = strings.TrimSpace(app.Name)
+	}
+	if base == "" && release != nil {
+		base = release.ApplicationID.String()
+	}
+	base = sanitizeArgoApplicationName(base)
+	if base == "" {
+		return ""
+	}
+
+	env := ""
+	if release != nil {
+		env = sanitizeArgoApplicationName(release.EnvironmentID)
+	}
+	if env == "" {
+		return base
+	}
+	return trimArgoApplicationName(base + "-" + env)
+}
+
+func sanitizeArgoApplicationName(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	value = strings.ReplaceAll(value, "_", "-")
+	value = argoApplicationNameSanitizer.ReplaceAllString(value, "-")
+	value = strings.Trim(value, "-")
+	return trimArgoApplicationName(value)
+}
+
+func trimArgoApplicationName(value string) string {
+	const maxLen = 63
+	value = strings.Trim(value, "-")
+	if len(value) <= maxLen {
+		return value
+	}
+	return strings.Trim(value[:maxLen], "-")
 }
 
 func releaseApplicationIgnoreDifferences(release *model.Release) appv1.IgnoreDifferences {
