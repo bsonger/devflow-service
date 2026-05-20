@@ -33,7 +33,7 @@ func (c *releasePhaseController) runHandoffDeployment(ctx context.Context, relea
 }
 
 func (c *releasePhaseController) runObserveDeployment(ctx context.Context, release *model.Release, status model.ReleaseStatus) {
-	c.service.markReleaseObservationTerminal(ctx, release, status)
+	newReleaseObserveController(c.service).runTerminal(ctx, release, status)
 }
 
 func (c *releasePrepareController) run(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
