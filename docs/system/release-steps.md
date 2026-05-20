@@ -22,6 +22,7 @@ Use it when you need to answer questions such as:
 This document is about execution semantics.
 The resource contract for `Release` still lives in `docs/resources/release.md`.
 The writeback route contract still lives in `docs/system/release-writeback.md`.
+The current code ownership map lives in `docs/system/release-code-map.md`.
 
 ## Core model
 

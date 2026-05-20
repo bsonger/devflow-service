@@ -214,6 +214,7 @@ Production release records and production callback state belong to production
 继续深入时，优先看：
 
 - `docs/system/release-writeback.md` for the callback contract
+- `docs/system/release-code-map.md` for the current lifecycle code ownership map
 - `docs/services/runtime-service.md` for the runtime observer/read-model side of the same seam
 
 ## Downstream Consumers
