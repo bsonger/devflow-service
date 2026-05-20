@@ -503,9 +503,42 @@ func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, 
 		zap.String("previous_status", string(previousStatus)),
 		zap.String("status", string(status)),
 	)
+	if err := s.syncRollbackSourceRemediation(ctx, release, status); err != nil {
+		return err
+	}
 	observeReleaseTerminal(ctx, release, status)
 	s.markReleaseObservationTerminal(ctx, release, status)
 	return nil
+}
+
+func (s *releaseService) syncRollbackSourceRemediation(ctx context.Context, release *model.Release, status model.ReleaseStatus) error {
+	if release == nil || !strings.EqualFold(strings.TrimSpace(release.Type), model.ReleaseRollback) || release.RollbackSourceReleaseID == nil {
+		return nil
+	}
+
+	var (
+		nextStatus model.RemediationKind
+		reason     string
+	)
+	switch status {
+	case model.ReleaseRolledBack:
+		nextStatus = model.RemediationRollbackDone
+		reason = "rollback release succeeded"
+	case model.ReleaseFailed, model.ReleaseSyncFailed:
+		nextStatus = model.RemediationRollbackFailed
+		reason = "rollback release failed"
+	default:
+		return nil
+	}
+
+	sourceRelease, err := s.loadRelease(ctx, *release.RollbackSourceReleaseID)
+	if err != nil {
+		return err
+	}
+	sourceRelease.RemediationStatus = string(nextStatus)
+	sourceRelease.RemediationReason = reason
+	sourceRelease.UpdatedAt = time.Now()
+	return s.repoStore().UpdateRow(ctx, sourceRelease)
 }
 
 func (s *releaseService) UpdateStatus(ctx context.Context, releaseID uuid.UUID, status model.ReleaseStatus) error {
