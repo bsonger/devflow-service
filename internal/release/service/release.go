@@ -507,7 +507,7 @@ func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, 
 		return err
 	}
 	observeReleaseTerminal(ctx, release, status)
-	s.markReleaseObservationTerminal(ctx, release, status)
+	newReleasePhaseController(s).runObserveDeployment(ctx, release, status)
 	return nil
 }
 
@@ -865,13 +865,11 @@ func (s *releaseService) executeReleasePhases(ctx context.Context, release *mode
 		return err
 	}
 
-	if err := s.renderDeploymentBundle(ctx, release, manifest, app, *target); err != nil {
+	phases := newReleasePhaseController(s)
+	if err := phases.runPrepareRelease(ctx, release, manifest, app, *target); err != nil {
 		return err
 	}
-	if err := s.publishDeploymentBundle(ctx, release, manifest, app, *target); err != nil {
-		return err
-	}
-	if err := s.createArgoApplication(ctx, release, manifest, app, *target); err != nil {
+	if err := phases.runHandoffDeployment(ctx, release, manifest, app, *target); err != nil {
 		return err
 	}
 	log.Info("release phases completed", zap.String("result", "success"))
