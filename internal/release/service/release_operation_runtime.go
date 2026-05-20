@@ -29,7 +29,14 @@ func applyPausedCompatibilityState(release *releasedomain.Release) (*releasedoma
 	return release, false
 }
 
-func currentLifecycleStepCode(state releasedomain.ReleaseControlState) string {
+func currentLifecycleStepCode(release *releasedomain.Release, state releasedomain.ReleaseControlState) string {
+	if release != nil {
+		for _, step := range normalizeReleaseSteps(release) {
+			if step.Status == releasedomain.StepRunning {
+				return step.Code
+			}
+		}
+	}
 	switch state.LifecycleStatus {
 	case releasedomain.LifecycleDispatching:
 		return "create_argocd_application"

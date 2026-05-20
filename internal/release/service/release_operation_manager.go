@@ -9,6 +9,7 @@ import (
 
 	releasedomain "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
+	sharederrs "github.com/bsonger/devflow-service/internal/shared/errs"
 	"github.com/google/uuid"
 )
 
@@ -48,7 +49,7 @@ func (m *releaseOperationManager) applyOperationRequest(ctx context.Context, rel
 			return false, err
 		}
 	case releasedomain.LifecycleFailed:
-		if err := m.applyOperationCancellation(ctx, release.ID, state, operation, now); err != nil {
+		if err := m.applyOperationCancellation(ctx, release, state, operation, now); err != nil {
 			return false, err
 		}
 	case releasedomain.LifecyclePending:
@@ -198,8 +199,11 @@ func (m *releaseOperationManager) applyOperationStepMessage(ctx context.Context,
 	return m.service.repoStore().UpdateSteps(ctx, release)
 }
 
-func (m *releaseOperationManager) applyOperationCancellation(ctx context.Context, releaseID uuid.UUID, state releasedomain.ReleaseControlState, operation releasedomain.ReleaseOperation, now time.Time) error {
-	stepCode := currentLifecycleStepCode(state)
+func (m *releaseOperationManager) applyOperationCancellation(ctx context.Context, release *releasedomain.Release, state releasedomain.ReleaseControlState, operation releasedomain.ReleaseOperation, now time.Time) error {
+	if release == nil {
+		return sharederrs.Required("release")
+	}
+	stepCode := currentLifecycleStepCode(release, state)
 	remediation := releasedomain.AssessRemediationNeed(state, stepCode, operation)
 	message := "release canceled by operator"
 	switch remediation.Kind {
@@ -208,13 +212,13 @@ func (m *releaseOperationManager) applyOperationCancellation(ctx context.Context
 	case releasedomain.RemediationPendingRollback:
 		message = "release canceled by operator; rollback required"
 	}
-	if err := m.applyOperationFailureStep(ctx, releaseID, stepCode, now, message); err != nil {
+	if err := m.applyOperationFailureStep(ctx, release.ID, stepCode, now, message); err != nil {
 		return err
 	}
-	if err := m.applyReleaseRemediation(ctx, releaseID, remediation, now); err != nil {
+	if err := m.applyReleaseRemediation(ctx, release.ID, remediation, now); err != nil {
 		return err
 	}
-	return m.service.UpdateStatus(ctx, releaseID, releasedomain.ReleaseFailed)
+	return m.service.UpdateStatus(ctx, release.ID, releasedomain.ReleaseFailed)
 }
 
 func (m *releaseOperationManager) applyOperationStepTerminalFailure(ctx context.Context, releaseID uuid.UUID, state releasedomain.ReleaseControlState, now time.Time, message string) error {

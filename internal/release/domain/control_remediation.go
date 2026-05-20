@@ -20,19 +20,44 @@ type RemediationDecision struct {
 }
 
 func AssessRemediationNeed(state ReleaseControlState, failedStep string, operation ReleaseOperation) RemediationDecision {
+	step := strings.TrimSpace(failedStep)
+	if decision, ok := assessSharedRuntimeRemediationNeed(state, step, operation); ok {
+		return decision
+	}
 	switch state.Strategy {
 	case ReleaseStrategyRolling:
-		return assessRollingRemediationNeed(state, failedStep, operation)
+		return assessRollingRemediationNeed(state, step, operation)
 	default:
 		return RemediationDecision{
 			Kind:   RemediationNotRequired,
-			Reason: "remediation defaults to not required for unsupported strategy",
+			Reason: "release did not reach runtime activation",
 		}
 	}
 }
 
-func assessRollingRemediationNeed(state ReleaseControlState, failedStep string, operation ReleaseOperation) RemediationDecision {
-	step := strings.TrimSpace(failedStep)
+func assessSharedRuntimeRemediationNeed(state ReleaseControlState, step string, operation ReleaseOperation) (RemediationDecision, bool) {
+	switch step {
+	case "observe_rollout", "finalize_release", "observe_preview", "switch_traffic", "verify_active", "deploy_canary", "canary_10", "canary_30", "canary_60", "canary_100":
+		return RemediationDecision{
+			Kind:   RemediationPendingRollback,
+			Reason: "release may have partially or fully affected live runtime state",
+		}, true
+	}
+
+	switch state.LifecycleStatus {
+	case LifecycleRunning, LifecyclePaused, LifecycleFinalizing:
+		if normalizeReleaseOperation(operation) == ReleaseOperationCancel {
+			return RemediationDecision{
+				Kind:   RemediationPendingRollback,
+				Reason: "canceled release may have active runtime changes",
+			}, true
+		}
+	}
+
+	return RemediationDecision{}, false
+}
+
+func assessRollingRemediationNeed(state ReleaseControlState, step string, operation ReleaseOperation) RemediationDecision {
 	switch step {
 	case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle":
 		return RemediationDecision{
@@ -48,16 +73,6 @@ func assessRollingRemediationNeed(state ReleaseControlState, failedStep string, 
 		return RemediationDecision{
 			Kind:   RemediationPendingRollback,
 			Reason: "release may have partially or fully affected live runtime state",
-		}
-	}
-
-	switch state.LifecycleStatus {
-	case LifecycleRunning, LifecyclePaused, LifecycleFinalizing:
-		if normalizeReleaseOperation(operation) == ReleaseOperationCancel {
-			return RemediationDecision{
-				Kind:   RemediationPendingRollback,
-				Reason: "canceled release may have active runtime changes",
-			}
 		}
 	}
 

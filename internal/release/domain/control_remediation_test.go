@@ -67,3 +67,25 @@ func TestAssessRemediationNeedRollingReturnsRollbackForPausedReleaseCancel(t *te
 		t.Fatalf("kind = %q, want %q", decision.Kind, RemediationPendingRollback)
 	}
 }
+
+func TestAssessRemediationNeedCanaryAndBlueGreenReturnRollbackAfterRuntimeActivation(t *testing.T) {
+	canary := ReleaseControlState{
+		LifecycleStatus: LifecycleRunning,
+		Strategy:        ReleaseStrategyCanary,
+		UpdatedAt:       time.Now(),
+	}
+	decision := AssessRemediationNeed(canary, "canary_30", ReleaseOperationCancel)
+	if decision.Kind != RemediationPendingRollback {
+		t.Fatalf("canary kind = %q, want %q", decision.Kind, RemediationPendingRollback)
+	}
+
+	blueGreen := ReleaseControlState{
+		LifecycleStatus: LifecycleRunning,
+		Strategy:        ReleaseStrategyBlueGreen,
+		UpdatedAt:       time.Now(),
+	}
+	decision = AssessRemediationNeed(blueGreen, "switch_traffic", ReleaseOperationCancel)
+	if decision.Kind != RemediationPendingRollback {
+		t.Fatalf("blue-green kind = %q, want %q", decision.Kind, RemediationPendingRollback)
+	}
+}
