@@ -9,13 +9,10 @@ import (
 	"time"
 
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
-	argoutil "github.com/argoproj/argo-cd/v3/util/argo"
 	appconfigdownstream "github.com/bsonger/devflow-service/internal/appconfig/transport/downstream"
 	intentservice "github.com/bsonger/devflow-service/internal/intent/service"
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
-	"github.com/bsonger/devflow-service/internal/platform/observer"
-	"github.com/bsonger/devflow-service/internal/platform/oci"
 	platformobs "github.com/bsonger/devflow-service/internal/platform/runtime/observability"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
 	"github.com/bsonger/devflow-service/internal/release/repository"
@@ -736,136 +733,6 @@ func inferReleaseType(release *model.Release) model.ReleaseType {
 	return model.Normal
 }
 
-func applyReleaseApplicationMetadata(ctx context.Context, release *model.Release, application *appv1.Application) {
-	if application == nil {
-		return
-	}
-	sc := trace.SpanContextFromContext(ctx)
-	application.Annotations = map[string]string{
-		oci.TraceIDAnnotation:             sc.TraceID().String(),
-		oci.SpanAnnotation:                sc.SpanID().String(),
-		observer.ObserveKindAnnotation:    observer.ObserveKindRelease,
-		observer.ObserveOwnerIDAnnotation: release.ID.String(),
-	}
-	application.Labels = map[string]string{
-		model.ReleaseStatusLabel:      string(model.ReleaseRunning),
-		"app.kubernetes.io/name":      application.Name,
-		model.ReleaseIDLabel:          release.ID.String(),
-		model.ReleaseApplicationLabel: release.ApplicationID.String(),
-		model.ReleaseEnvironmentLabel: releaseTargetEnvironment(release),
-		observer.ObserveStateLabel:    observer.ObserveStateRunning,
-	}
-	if controlPlaneID := strings.TrimSpace(releasesupport.CurrentRuntimeConfig().ControlPlaneID); controlPlaneID != "" {
-		application.Labels[model.ControlPlaneLabel] = controlPlaneID
-	}
-}
-
-func (s *releaseService) createArgoApplication(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
-	start := time.Now()
-	log := platformobs.OperationLogger(ctx, "release_service", "create_argocd_application", "release",
-		zap.String("resource_id", release.ID.String()),
-	)
-	application := buildArgoApplication(release, manifest, app, target)
-	if err := s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepRunning, 25, createArgoApplicationStartMessage(release, application.Name, target), nil, nil); err != nil {
-		return err
-	}
-	if err := s.persistArgoApplicationMetadata(ctx, release, application.Name); err != nil {
-		return err
-	}
-	applyReleaseApplicationMetadata(ctx, release, application)
-
-	err := applyReleaseApplication(ctx, release.Type, application, argoclient.CreateApplication, argoclient.UpdateApplication, s.syncArgoApplication)
-	if err != nil {
-		_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepFailed, 100, createArgoApplicationFailureMessage(application.Name, err), nil, nil)
-		observeArgoApplicationCreate(ctx, release, false, time.Since(start))
-		log.Error("argo sync failed", zap.String("result", "error"), zap.Error(err))
-		return err
-	}
-	_ = s.UpdateStep(ctx, release.ID, "create_argocd_application", model.StepSucceeded, 100, createArgoApplicationSuccessMessage(release, application.Name), nil, nil)
-	observeArgoApplicationCreate(ctx, release, true, time.Since(start))
-	if code, message := releaseDeploymentStartStep(release); code != "" {
-		_ = s.UpdateStep(ctx, release.ID, code, model.StepSucceeded, 100, message, nil, nil)
-	}
-	return nil
-}
-
-func createArgoApplicationStartMessage(release *model.Release, appName string, target releasesupport.DeployTarget) string {
-	appName = strings.TrimSpace(appName)
-	environmentId := releaseTargetEnvironment(release)
-	namespace := strings.TrimSpace(target.Namespace)
-	switch {
-	case appName != "" && environmentId != "" && namespace != "":
-		return fmt.Sprintf("creating argocd application %s for environment %s in namespace %s", appName, environmentId, namespace)
-	case appName != "" && environmentId != "":
-		return fmt.Sprintf("creating argocd application %s for environment %s", appName, environmentId)
-	case appName != "":
-		return fmt.Sprintf("creating argocd application %s", appName)
-	default:
-		return "creating argocd application"
-	}
-}
-
-func createArgoApplicationSuccessMessage(release *model.Release, appName string) string {
-	appName = strings.TrimSpace(appName)
-	environmentId := releaseTargetEnvironment(release)
-	artifactRef := releaseExecutionArtifactRef(release)
-	switch {
-	case appName != "" && environmentId != "" && artifactRef != "":
-		return fmt.Sprintf("argocd application %s created for environment %s and sync requested from %s", appName, environmentId, artifactRef)
-	case appName != "" && artifactRef != "":
-		return fmt.Sprintf("argocd application %s created and sync requested from %s", appName, artifactRef)
-	case appName != "" && environmentId != "":
-		return fmt.Sprintf("argocd application %s created for environment %s and sync requested", appName, environmentId)
-	case appName != "":
-		return fmt.Sprintf("argocd application %s created and sync requested", appName)
-	default:
-		return "argocd application created and sync requested"
-	}
-}
-
-func createArgoApplicationFailureMessage(appName string, err error) string {
-	appName = strings.TrimSpace(appName)
-	if err == nil {
-		if appName != "" {
-			return fmt.Sprintf("argocd application %s failed", appName)
-		}
-		return "argocd application failed"
-	}
-	if appName != "" {
-		return fmt.Sprintf("argocd application %s failed: %s", appName, err.Error())
-	}
-	return err.Error()
-}
-
-func (s *releaseService) persistArgoApplicationMetadata(ctx context.Context, release *model.Release, appName string) error {
-	appName = strings.TrimSpace(appName)
-	if release == nil || appName == "" {
-		return nil
-	}
-	if release.ArgoCDApplicationName == appName && release.ExternalRef == appName {
-		return nil
-	}
-	updatedAt := time.Now()
-	release.ArgoCDApplicationName = appName
-	release.ExternalRef = appName
-	release.UpdatedAt = updatedAt
-	return s.repoStore().UpdateArgoMetadata(ctx, release.ID, appName, appName, updatedAt)
-}
-
-func releaseDeploymentStartStep(release *model.Release) (string, string) {
-	if release == nil {
-		return "", ""
-	}
-	switch model.ReleaseStrategyToType(release.Strategy) {
-	case model.BlueGreen:
-		return "deploy_preview", "preview deployment started"
-	case model.Canary:
-		return "deploy_canary", "canary deployment started"
-	default:
-		return "start_deployment", "deployment sync started"
-	}
-}
-
 func annotateReleaseSpan(ctx context.Context, release *model.Release) {
 	if release == nil {
 		return
@@ -882,22 +749,6 @@ func annotateReleaseSpan(ctx context.Context, release *model.Release) {
 		attribute.String("devflow.environment.id", strings.TrimSpace(release.EnvironmentID)),
 	}
 	span.SetAttributes(attrs...)
-}
-
-func applyReleaseApplication(ctx context.Context, releaseType string, application *appv1.Application, createFn func(context.Context, *appv1.Application) error, updateFn func(context.Context, *appv1.Application) error, syncFn func(context.Context, string) error) error {
-	switch releaseType {
-	case model.ReleaseInstall:
-		if err := createFn(ctx, application); err != nil {
-			return err
-		}
-	case model.ReleaseUpgrade, model.ReleaseRollback:
-		if err := updateFn(ctx, application); err != nil {
-			return err
-		}
-	default:
-		return sharederrs.InvalidArgument("unknown release type")
-	}
-	return syncFn(ctx, application.Name)
 }
 
 func buildReleaseSyncOperation() *appv1.Operation {
@@ -1031,10 +882,4 @@ func releaseExecutionArtifactTag(release *model.Release) string {
 func releaseExecutionArtifactRef(release *model.Release) string {
 	_, _, ref := releaseExecutionArtifactMetadata(release)
 	return ref
-}
-
-func (s *releaseService) syncArgoApplication(ctx context.Context, appName string) error {
-	applications := argoclient.Client.ArgoprojV1alpha1().Applications("argocd")
-	_, err := argoutil.SetAppOperation(applications, appName, buildReleaseSyncOperation())
-	return err
 }

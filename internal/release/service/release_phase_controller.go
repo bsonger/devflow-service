@@ -29,7 +29,7 @@ func (c *releasePhaseController) runPrepareRelease(ctx context.Context, release 
 }
 
 func (c *releasePhaseController) runHandoffDeployment(ctx context.Context, release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) error {
-	return c.service.createArgoApplication(ctx, release, manifest, app, target)
+	return newReleaseHandoffController(c.service).run(ctx, release, manifest, app, target)
 }
 
 func (c *releasePhaseController) runObserveDeployment(ctx context.Context, release *model.Release, status model.ReleaseStatus) {
