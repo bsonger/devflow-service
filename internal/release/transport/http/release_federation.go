@@ -66,7 +66,9 @@ func releaseExpectedControlPlaneIDForEnvironment(environmentName string) string 
 		return ""
 	case "production", "prod":
 		return "devflow-production"
-	case "pre-production", "preproduction", "staging":
+	case "staging":
+		return "devflow-staging"
+	case "pre-production", "preproduction":
 		return "devflow-pre-production"
 	default:
 		return ""

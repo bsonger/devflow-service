@@ -743,7 +743,7 @@ func buildReleaseSyncOperation() *appv1.Operation {
 }
 
 func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manifest, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) *appv1.Application {
-	name := deriveArgoApplicationName(release, app)
+	name := deriveArgoApplicationName(release, app, target)
 	return &appv1.Application{
 		TypeMeta:   metav1.TypeMeta{Kind: "Application", APIVersion: "argoproj.io/v1alpha1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -756,7 +756,7 @@ func buildArgoApplication(release *model.Release, manifest *manifestdomain.Manif
 	}
 }
 
-func deriveArgoApplicationName(release *model.Release, app *releasesupport.ApplicationProjection) string {
+func deriveArgoApplicationName(release *model.Release, app *releasesupport.ApplicationProjection, target releasesupport.DeployTarget) string {
 	base := ""
 	if app != nil {
 		base = strings.TrimSpace(app.Name)
@@ -770,7 +770,10 @@ func deriveArgoApplicationName(release *model.Release, app *releasesupport.Appli
 	}
 
 	env := ""
-	if release != nil {
+	if target.EnvironmentName != "" {
+		env = sanitizeArgoApplicationName(target.EnvironmentName)
+	}
+	if env == "" && release != nil {
 		env = sanitizeArgoApplicationName(release.EnvironmentID)
 	}
 	if env == "" {

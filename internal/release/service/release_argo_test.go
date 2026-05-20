@@ -138,14 +138,29 @@ func TestBuildReleaseSyncOperationUsesPruneReplaceAndForce(t *testing.T) {
 	}
 }
 
-func TestDeriveArgoApplicationNameIncludesEnvironment(t *testing.T) {
+func TestDeriveArgoApplicationNameUsesEnvironmentNameWhenAvailable(t *testing.T) {
+	release := &model.Release{
+		ApplicationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		EnvironmentID: "ce3e0499-e862-4322-98e2-264fa6f09286",
+	}
+	app := &releasesupport.ApplicationProjection{Name: "meta-service"}
+	target := releasesupport.DeployTarget{EnvironmentName: "Pre Production"}
+
+	got := deriveArgoApplicationName(release, app, target)
+	want := "meta-service-pre-production"
+	if got != want {
+		t.Fatalf("deriveArgoApplicationName() = %q, want %q", got, want)
+	}
+}
+
+func TestDeriveArgoApplicationNameFallsBackToEnvironmentID(t *testing.T) {
 	release := &model.Release{
 		ApplicationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 		EnvironmentID: "ce3e0499-e862-4322-98e2-264fa6f09286",
 	}
 	app := &releasesupport.ApplicationProjection{Name: "meta-service"}
 
-	got := deriveArgoApplicationName(release, app)
+	got := deriveArgoApplicationName(release, app, releasesupport.DeployTarget{})
 	want := "meta-service-ce3e0499-e862-4322-98e2-264fa6f09286"
 	if got != want {
 		t.Fatalf("deriveArgoApplicationName() = %q, want %q", got, want)

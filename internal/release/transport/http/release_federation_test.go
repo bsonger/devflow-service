@@ -28,7 +28,7 @@ func TestReleaseShouldProxyByManifestForRemoteProductionTarget(t *testing.T) {
 	manifestID := uuid.New()
 	releaseCurrentRuntimeConfig = func() support.RuntimeConfig {
 		return support.RuntimeConfig{
-			ControlPlaneID: "devflow-pre-production",
+			ControlPlaneID: "devflow-staging",
 			Downstream: model.DownstreamConfig{
 				ReleaseServiceBaseURL: "http://release-service.devflow.svc.cluster.local",
 			},
@@ -52,7 +52,7 @@ func TestReleaseShouldProxyByManifestForRemoteProductionTarget(t *testing.T) {
 	}
 }
 
-func TestReleaseShouldNotProxyByManifestForLocalPreProductionTarget(t *testing.T) {
+func TestReleaseShouldNotProxyByManifestForLocalStagingTarget(t *testing.T) {
 	originalGetLocalManifest := releaseGetLocalManifest
 	originalResolve := releaseResolveDeployTarget
 	originalRuntimeConfig := releaseCurrentRuntimeConfig
@@ -66,7 +66,7 @@ func TestReleaseShouldNotProxyByManifestForLocalPreProductionTarget(t *testing.T
 	manifestID := uuid.New()
 	releaseCurrentRuntimeConfig = func() support.RuntimeConfig {
 		return support.RuntimeConfig{
-			ControlPlaneID: "devflow-pre-production",
+			ControlPlaneID: "devflow-staging",
 			Downstream: model.DownstreamConfig{
 				ReleaseServiceBaseURL: "http://release-service.devflow.svc.cluster.local",
 			},
@@ -76,11 +76,11 @@ func TestReleaseShouldNotProxyByManifestForLocalPreProductionTarget(t *testing.T
 		return &manifestdomain.Manifest{ApplicationID: appID}, nil
 	}
 	releaseResolveDeployTarget = func(context.Context, string, string) (*support.DeployTarget, error) {
-		return &support.DeployTarget{EnvironmentName: "pre-production"}, nil
+		return &support.DeployTarget{EnvironmentName: "staging"}, nil
 	}
 
 	if releaseShouldProxyByManifest(context.Background(), manifestID, "env-pre") {
-		t.Fatal("expected local pre-production target to stay local")
+		t.Fatal("expected local staging target to stay local")
 	}
 }
 
