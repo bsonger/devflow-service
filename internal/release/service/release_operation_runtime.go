@@ -17,16 +17,27 @@ func applyPausedCompatibilityState(release *releasedomain.Release) (*releasedoma
 	if release == nil {
 		return nil, false
 	}
-	observeRollout := findReleaseStep(release.Steps, "observe_rollout")
-	if observeRollout == nil {
-		return release, false
-	}
-	message := strings.ToLower(strings.TrimSpace(observeRollout.Message))
-	if observeRollout.Status == releasedomain.StepRunning && strings.Contains(message, "paused by operator") {
+	if hasPausedRunningStep(release) {
 		copyRelease := *release
 		return &copyRelease, true
 	}
 	return release, false
+}
+
+func hasPausedRunningStep(release *releasedomain.Release) bool {
+	if release == nil {
+		return false
+	}
+	for _, step := range normalizeReleaseSteps(release) {
+		if step.Status != releasedomain.StepRunning {
+			continue
+		}
+		message := strings.ToLower(strings.TrimSpace(step.Message))
+		if strings.Contains(message, "paused by operator") {
+			return true
+		}
+	}
+	return false
 }
 
 func currentLifecycleStepCode(release *releasedomain.Release, state releasedomain.ReleaseControlState) string {

@@ -109,19 +109,24 @@ run_no_mongo_remnants_check() {
   info "Running Mongo removal checks"
   local pattern='go\.mongodb\.org/mongo-driver|mongo-driver|mongodb|primitive\.ObjectID|\bObjectID\b|\bbson\b'
   local matches
+  local search_roots=(
+    go.mod
+    README.md
+    docs
+    internal
+    cmd
+    scripts
+    api
+    gateway
+    test
+  )
+  if [[ -d "$ROOT_DIR/deployments" ]]; then
+    search_roots+=(deployments)
+  fi
   matches="$(
     cd "$ROOT_DIR"
     rg -n -i "$pattern" \
-      go.mod \
-      README.md \
-      docs \
-      internal \
-      cmd \
-      scripts \
-      deployments \
-      api \
-      gateway \
-      test \
+      "${search_roots[@]}" \
       --glob '!docs/archive/**' \
       --glob '!docs/policies/verification.md' \
       --glob '!scripts/README.md' \

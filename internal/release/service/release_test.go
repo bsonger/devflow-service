@@ -810,6 +810,256 @@ func TestApplyOperationRequestResumesPausedRelease(t *testing.T) {
 	}
 }
 
+func TestApplyOperationRequestPausesCanaryRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "deploy_canary":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "canary_10":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 10
+			steps[i].Message = "canary progressing"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyCanary),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationPause, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected pause request to change canary release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	step := findReleaseStep(stored.Steps, "canary_10")
+	if step == nil {
+		t.Fatal("canary_10 step not found")
+	}
+	if step.Status != model.StepRunning {
+		t.Fatalf("canary_10 status = %q, want %q", step.Status, model.StepRunning)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "paused") {
+		t.Fatalf("canary_10 message = %q, want pause detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestResumesPausedCanaryRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "deploy_canary":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "canary_10":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 10
+			steps[i].Message = "deployment paused by operator"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyCanary),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationResume, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected resume request to change canary release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	step := findReleaseStep(stored.Steps, "canary_10")
+	if step == nil {
+		t.Fatal("canary_10 step not found")
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "resumed") {
+		t.Fatalf("canary_10 message = %q, want resume detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestPausesBlueGreenRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.BlueGreen, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "deploy_preview":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_preview":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 50
+			steps[i].Message = "preview healthy check in progress"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyBlueGreen),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationPause, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected pause request to change blue-green release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	step := findReleaseStep(stored.Steps, "observe_preview")
+	if step == nil {
+		t.Fatal("observe_preview step not found")
+	}
+	if step.Status != model.StepRunning {
+		t.Fatalf("observe_preview status = %q, want %q", step.Status, model.StepRunning)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "paused") {
+		t.Fatalf("observe_preview message = %q, want pause detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestResumesPausedBlueGreenRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.BlueGreen, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "deploy_preview":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_preview":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 50
+			steps[i].Message = "deployment paused by operator"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyBlueGreen),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationResume, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected resume request to change blue-green release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	step := findReleaseStep(stored.Steps, "observe_preview")
+	if step == nil {
+		t.Fatal("observe_preview step not found")
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "resumed") {
+		t.Fatalf("observe_preview message = %q, want resume detail", step.Message)
+	}
+}
+
 func TestApplyOperationRequestRejectsResumeWhenNotPaused(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
@@ -1519,7 +1769,7 @@ func TestApplyOperationRequestRejectsRollbackWithoutSucceededArtifactTarget(t *t
 	}
 }
 
-func TestProcessTimeoutsSkipsCanaryReleaseWithoutCompatTimeoutPolicy(t *testing.T) {
+func TestProcessTimeoutsMarksCanaryReleaseFailedWithPendingRollbackWhenCompatTimeoutPolicyExpires(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
 	appID := uuid.New()
@@ -1563,26 +1813,169 @@ func TestProcessTimeoutsSkipsCanaryReleaseWithoutCompatTimeoutPolicy(t *testing.
 	if err != nil {
 		t.Fatalf("ProcessTimeouts error = %v", err)
 	}
-	if processed != 0 {
-		t.Fatalf("processed = %d, want 0", processed)
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
 	}
 
 	stored, err := svc.Get(context.Background(), releaseID)
 	if err != nil {
 		t.Fatalf("get release: %v", err)
 	}
-	if stored.Status != model.ReleaseRunning {
-		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseRunning)
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	if stored.RemediationStatus != string(model.RemediationPendingRollback) {
+		t.Fatalf("remediation_status = %q, want %q", stored.RemediationStatus, model.RemediationPendingRollback)
 	}
 	step := findReleaseStep(stored.Steps, "canary_10")
 	if step == nil {
 		t.Fatal("canary_10 step not found")
 	}
-	if step.Status != model.StepRunning {
-		t.Fatalf("canary_10 status = %q, want %q", step.Status, model.StepRunning)
+	if step.Status != model.StepFailed {
+		t.Fatalf("canary_10 status = %q, want %q", step.Status, model.StepFailed)
 	}
-	if step.Progress != 10 {
-		t.Fatalf("canary_10 progress = %d, want 10", step.Progress)
+	if !strings.Contains(strings.ToLower(step.Message), "timed out") {
+		t.Fatalf("canary_10 message = %q, want timeout detail", step.Message)
+	}
+}
+
+func TestProcessTimeoutsMarksCanaryReleaseFailedWithPendingRollbackWhenProgressTimesOut(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Canary, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "deploy_canary":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "canary_10":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 10
+			steps[i].Message = "waiting for canary analysis"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-20 * time.Minute),
+			UpdatedAt: now.Add(-15 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyCanary),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	processed, err := svc.ProcessTimeouts(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ProcessTimeouts error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	if stored.RemediationStatus != string(model.RemediationPendingRollback) {
+		t.Fatalf("remediation_status = %q, want %q", stored.RemediationStatus, model.RemediationPendingRollback)
+	}
+	step := findReleaseStep(stored.Steps, "canary_10")
+	if step == nil {
+		t.Fatal("canary_10 step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("canary_10 status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "timed out") {
+		t.Fatalf("canary_10 message = %q, want timeout detail", step.Message)
+	}
+}
+
+func TestProcessTimeoutsMarksBlueGreenReleaseFailedWithPendingRollbackWhenProgressTimesOut(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.BlueGreen, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "deploy_preview":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_preview":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 50
+			steps[i].Message = "waiting for preview health"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-20 * time.Minute),
+			UpdatedAt: now.Add(-15 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyBlueGreen),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	processed, err := svc.ProcessTimeouts(context.Background(), now)
+	if err != nil {
+		t.Fatalf("ProcessTimeouts error = %v", err)
+	}
+	if processed != 1 {
+		t.Fatalf("processed = %d, want 1", processed)
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	if stored.RemediationStatus != string(model.RemediationPendingRollback) {
+		t.Fatalf("remediation_status = %q, want %q", stored.RemediationStatus, model.RemediationPendingRollback)
+	}
+	step := findReleaseStep(stored.Steps, "observe_preview")
+	if step == nil {
+		t.Fatal("observe_preview step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("observe_preview status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "timed out") {
+		t.Fatalf("observe_preview message = %q, want timeout detail", step.Message)
 	}
 }
 

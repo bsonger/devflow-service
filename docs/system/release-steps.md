@@ -596,6 +596,7 @@ Practical routing:
   inspect ArgoCD application creation and deployment target metadata
 - stuck at rolling, blue-green, or canary observation steps:
   inspect release writeback routes and whichever callback sender is expected in that environment
+  if the active running or finalizing step exceeds the repo-local timeout window, release truth should now converge to `Failed`; runtime-affecting strategy steps should also record rollback remediation instead of staying indefinitely `Running`
 - stuck at `finalize_release`:
   inspect the last rollout callback and terminal-state writeback path
 

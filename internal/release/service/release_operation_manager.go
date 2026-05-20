@@ -41,11 +41,13 @@ func (m *releaseOperationManager) applyOperationRequest(ctx context.Context, rel
 
 	switch decision.TargetStatus {
 	case releasedomain.LifecyclePaused:
-		if err := m.applyOperationStepMessage(ctx, release.ID, "observe_rollout", "deployment paused by operator", now); err != nil {
+		stepCode := currentLifecycleStepCode(release, state)
+		if err := m.applyOperationStepMessage(ctx, release.ID, stepCode, "deployment paused by operator", now); err != nil {
 			return false, err
 		}
 	case releasedomain.LifecycleRunning:
-		if err := m.applyOperationStepMessage(ctx, release.ID, "observe_rollout", "deployment resumed by operator", now); err != nil {
+		stepCode := currentLifecycleStepCode(release, state)
+		if err := m.applyOperationStepMessage(ctx, release.ID, stepCode, "deployment resumed by operator", now); err != nil {
 			return false, err
 		}
 	case releasedomain.LifecycleFailed:
@@ -219,25 +221,6 @@ func (m *releaseOperationManager) applyOperationCancellation(ctx context.Context
 		return err
 	}
 	return m.service.UpdateStatus(ctx, release.ID, releasedomain.ReleaseFailed)
-}
-
-func (m *releaseOperationManager) applyOperationStepTerminalFailure(ctx context.Context, releaseID uuid.UUID, state releasedomain.ReleaseControlState, now time.Time, message string) error {
-	stepCode := "observe_rollout"
-	switch state.LifecycleStatus {
-	case releasedomain.LifecycleDispatching:
-		stepCode = "start_deployment"
-	case releasedomain.LifecycleFinalizing, releasedomain.LifecyclePaused:
-		stepCode = "finalize_release"
-	}
-	if err := m.service.applyTimeoutStepWrite(ctx, releaseID, releasedomain.StepWrite{
-		StepCode: stepCode,
-		Status:   releasedomain.StepFailed,
-		Progress: 100,
-		Message:  strings.TrimSpace(message),
-	}, now); err != nil {
-		return err
-	}
-	return m.service.UpdateStatus(ctx, releaseID, releasedomain.ReleaseFailed)
 }
 
 func (m *releaseOperationManager) applyOperationFailureStep(ctx context.Context, releaseID uuid.UUID, stepCode string, now time.Time, message string) error {

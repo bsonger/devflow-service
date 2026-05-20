@@ -205,6 +205,7 @@ Production release records and production callback state belong to production
 - `start_deployment` remains the release-service-owned handoff step for rolling releases.
 - `observe_rollout` and `finalize_release` remain callback-owned follow-up steps after that handoff.
 - when a release reaches a terminal workload state and drops out of the runtime running set, runtime bootstrap/reconcile may still replay that release key once so release-service gets one last callback compensation chance for `observe_rollout` / `finalize_release`
+- rolling, blue-green, and canary releases now all use repo-local timeout convergence for stalled running/finalizing phases; when a runtime-affecting strategy stage times out, release truth should converge to `Failed` and record rollback remediation when appropriate
 - release/application/environment identity must continue to ride on labels; annotations stay supplementary diagnostics only.
 - `devflow.control-plane/id` is part of the runtime ownership contract; observers use it to keep pre-production and production truth separated.
 - `devflow.control-plane/id` is sourced from `observer.control_plane_id`; do not derive it from namespace names or ingress hostnames.

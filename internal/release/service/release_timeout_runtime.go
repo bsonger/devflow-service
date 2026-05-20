@@ -53,9 +53,28 @@ func (r releaseTimeoutRuntime) process(ctx context.Context, svc *releaseService,
 	if !decision.StateChanged || decision.NextState == nil {
 		return false, nil
 	}
+	currentStepCode := currentLifecycleStepCode(release, state)
 	for _, write := range decision.StepWrites {
+		if state.LifecycleStatus == releasedomain.LifecycleRunning && strings.TrimSpace(write.StepCode) == "observe_rollout" && currentStepCode != "" {
+			write.StepCode = currentStepCode
+		}
 		if err := svc.applyTimeoutStepWrite(ctx, release.ID, write, now); err != nil {
 			return false, err
+		}
+	}
+	if decision.NextState != nil && decision.NextState.LifecycleStatus == releasedomain.LifecycleFailed {
+		remediation := releasedomain.AssessRemediationNeed(state, currentStepCode, releasedomain.ReleaseOperationCancel)
+		if remediation.Kind != releasedomain.RemediationNone && remediation.Kind != releasedomain.RemediationNotRequired {
+			updatedRelease, err := svc.loadRelease(ctx, release.ID)
+			if err != nil {
+				return false, err
+			}
+			updatedRelease.RemediationStatus = string(remediation.Kind)
+			updatedRelease.RemediationReason = strings.TrimSpace(remediation.Reason)
+			updatedRelease.UpdatedAt = now
+			if err := svc.repoStore().UpdateRow(ctx, updatedRelease); err != nil {
+				return false, err
+			}
 		}
 	}
 	if status, ok := compatReleaseStatusFromControlState(*decision.NextState); ok {
@@ -98,6 +117,11 @@ func compatTimeoutPolicy(state releasedomain.ReleaseControlState) releasecontrol
 			FinalizeTimeout:         2 * time.Minute,
 			ObservationStallTimeout: 5 * time.Minute,
 		}
+	case releasedomain.ReleaseStrategyCanary, releasedomain.ReleaseStrategyBlueGreen:
+		return releasecontrol.TimeoutPolicy{
+			ProgressTimeout: 10 * time.Minute,
+			FinalizeTimeout: 2 * time.Minute,
+		}
 	default:
 		return releasecontrol.TimeoutPolicy{}
 	}
@@ -136,11 +160,8 @@ func inferRunningLifecycleStatus(release *releasedomain.Release) releasedomain.L
 	if release == nil {
 		return releasedomain.LifecycleRunning
 	}
-	if observeRollout := findReleaseStep(release.Steps, "observe_rollout"); observeRollout != nil {
-		message := strings.ToLower(strings.TrimSpace(observeRollout.Message))
-		if observeRollout.Status == releasedomain.StepRunning && strings.Contains(message, "paused by operator") {
-			return releasedomain.LifecyclePaused
-		}
+	if hasPausedRunningStep(release) {
+		return releasedomain.LifecyclePaused
 	}
 	observeRollout := findReleaseStep(release.Steps, "observe_rollout")
 	finalizeRelease := findReleaseStep(release.Steps, "finalize_release")
