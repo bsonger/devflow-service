@@ -49,6 +49,6 @@ func (m *releaseStatusManager) updateStatus(ctx context.Context, releaseID uuid.
 		return err
 	}
 	observeReleaseTerminal(ctx, release, status)
-	newReleasePhaseController(m.service).runObserveDeployment(ctx, release, status)
+	newReleaseObserveController(m.service).runTerminal(ctx, release, status)
 	return nil
 }

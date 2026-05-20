@@ -613,11 +613,13 @@ func (s *releaseService) executeReleasePhases(ctx context.Context, release *mode
 		return err
 	}
 
-	phases := newReleasePhaseController(s)
-	if err := phases.runPrepareRelease(ctx, release, manifest, app, *target); err != nil {
+	if err := s.renderDeploymentBundle(ctx, release, manifest, app, *target); err != nil {
 		return err
 	}
-	if err := phases.runHandoffDeployment(ctx, release, manifest, app, *target); err != nil {
+	if err := s.publishDeploymentBundle(ctx, release, manifest, app, *target); err != nil {
+		return err
+	}
+	if err := newReleaseHandoffController(s).run(ctx, release, manifest, app, *target); err != nil {
 		return err
 	}
 	log.Info("release phases completed", zap.String("result", "success"))
