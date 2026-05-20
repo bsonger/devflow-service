@@ -53,6 +53,11 @@ CREATE TABLE releases (
   artifact_tag TEXT NOT NULL DEFAULT '',
   artifact_digest TEXT NOT NULL DEFAULT '',
   artifact_ref TEXT NOT NULL DEFAULT '',
+  rollback_source_release_id TEXT NULL,
+  rollback_target_artifact_repository TEXT NOT NULL DEFAULT '',
+  rollback_target_artifact_tag TEXT NOT NULL DEFAULT '',
+  rollback_target_artifact_digest TEXT NOT NULL DEFAULT '',
+  rollback_target_artifact_ref TEXT NOT NULL DEFAULT '',
   type TEXT NOT NULL,
   steps TEXT NOT NULL DEFAULT '[]',
   status TEXT NOT NULL,
@@ -983,6 +988,211 @@ func TestApplyOperationRequestCancelsRunningReleaseWithPendingRollback(t *testin
 	}
 	if !strings.Contains(strings.ToLower(step.Message), "rollback") {
 		t.Fatalf("observe_rollout message = %q, want rollback detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestCreatesRollbackReleaseFromPendingRollback(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	previousReleaseID := uuid.New()
+	now := time.Now()
+
+	previousRelease := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        previousReleaseID,
+			CreatedAt: now.Add(-30 * time.Minute),
+			UpdatedAt: now.Add(-20 * time.Minute),
+		},
+		ApplicationID:      appID,
+		ManifestID:         uuid.New(),
+		EnvironmentID:      "staging",
+		Strategy:           string(model.ReleaseStrategyRolling),
+		Type:               model.ReleaseUpgrade,
+		Steps:              model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:             model.ReleaseSucceeded,
+		ArtifactRepository: "oci://registry.example.com/devflow/releases/demo-api",
+		ArtifactTag:        "release-20260520-1",
+		ArtifactDigest:     "sha256:previous",
+		ArtifactRef:        "oci://registry.example.com/devflow/releases/demo-api@sha256:previous",
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), previousRelease); err != nil {
+		t.Fatalf("insert previous release: %v", err)
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID:     appID,
+		ManifestID:        manifestID,
+		EnvironmentID:     "staging",
+		Strategy:          string(model.ReleaseStrategyRolling),
+		Type:              model.ReleaseUpgrade,
+		Steps:             model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:            model.ReleaseFailed,
+		RemediationStatus: string(model.RemediationPendingRollback),
+		RemediationReason: "release may have partially or fully affected live runtime state",
+	}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationRollback, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected rollback request to create rollback release")
+	}
+
+	updated, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get original release: %v", err)
+	}
+	if updated.RemediationStatus != string(model.RemediationRollingBack) {
+		t.Fatalf("remediation_status = %q, want %q", updated.RemediationStatus, model.RemediationRollingBack)
+	}
+
+	items, err := svc.List(context.Background(), ReleaseListFilter{
+		ApplicationID: &appID,
+		EnvironmentID: "staging",
+	})
+	if err != nil {
+		t.Fatalf("list releases: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("release count = %d, want 3", len(items))
+	}
+
+	var rollbackRelease *model.Release
+	for _, item := range items {
+		if item.ID == releaseID {
+			continue
+		}
+		if item.Type == model.ReleaseRollback {
+			rollbackRelease = item
+			break
+		}
+	}
+	if rollbackRelease == nil {
+		t.Fatal("rollback release not found")
+	}
+	if rollbackRelease.ManifestID != manifestID {
+		t.Fatalf("rollback manifest_id = %s, want %s", rollbackRelease.ManifestID, manifestID)
+	}
+	if rollbackRelease.ApplicationID != appID {
+		t.Fatalf("rollback application_id = %s, want %s", rollbackRelease.ApplicationID, appID)
+	}
+	if rollbackRelease.EnvironmentID != "staging" {
+		t.Fatalf("rollback environment_id = %q", rollbackRelease.EnvironmentID)
+	}
+	if rollbackRelease.Status != model.ReleaseSyncing {
+		t.Fatalf("rollback status = %q, want %q", rollbackRelease.Status, model.ReleaseSyncing)
+	}
+	if rollbackRelease.RollbackSourceReleaseID == nil || *rollbackRelease.RollbackSourceReleaseID != previousReleaseID {
+		t.Fatalf("rollback rollback_source_release_id = %v, want %s", rollbackRelease.RollbackSourceReleaseID, previousReleaseID)
+	}
+	if rollbackRelease.RollbackTargetArtifactRef != previousRelease.ArtifactRef {
+		t.Fatalf("rollback rollback_target_artifact_ref = %q, want %q", rollbackRelease.RollbackTargetArtifactRef, previousRelease.ArtifactRef)
+	}
+	if rollbackRelease.RollbackTargetArtifactDigest != previousRelease.ArtifactDigest {
+		t.Fatalf("rollback rollback_target_artifact_digest = %q, want %q", rollbackRelease.RollbackTargetArtifactDigest, previousRelease.ArtifactDigest)
+	}
+	if rollbackRelease.RollbackTargetArtifactRepository != previousRelease.ArtifactRepository {
+		t.Fatalf("rollback rollback_target_artifact_repository = %q, want %q", rollbackRelease.RollbackTargetArtifactRepository, previousRelease.ArtifactRepository)
+	}
+	if rollbackRelease.RollbackTargetArtifactTag != previousRelease.ArtifactTag {
+		t.Fatalf("rollback rollback_target_artifact_tag = %q, want %q", rollbackRelease.RollbackTargetArtifactTag, previousRelease.ArtifactTag)
+	}
+	startStep := findReleaseStep(rollbackRelease.Steps, "deploy_preview")
+	if startStep == nil {
+		startStep = findReleaseStep(rollbackRelease.Steps, "start_deployment")
+	}
+	if startStep == nil {
+		t.Fatal("rollback start step not found")
+	}
+	if startStep.Status != model.StepRunning && startStep.Status != model.StepSucceeded {
+		t.Fatalf("rollback start step status = %q", startStep.Status)
+	}
+}
+
+func TestApplyOperationRequestRejectsRollbackWithoutPendingRollbackRemediation(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:        model.ReleaseFailed,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationRollback, now)
+	if err == nil {
+		t.Fatal("expected rollback rejection error")
+	}
+	if changed {
+		t.Fatal("expected rejected rollback not to mutate release")
+	}
+}
+
+func TestApplyOperationRequestRejectsRollbackWithoutSucceededArtifactTarget(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID:     appID,
+		ManifestID:        manifestID,
+		EnvironmentID:     "staging",
+		Strategy:          string(model.ReleaseStrategyRolling),
+		Type:              model.ReleaseUpgrade,
+		Steps:             model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:            model.ReleaseFailed,
+		RemediationStatus: string(model.RemediationPendingRollback),
+		RemediationReason: "release may have partially or fully affected live runtime state",
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationRollback, now)
+	if err == nil {
+		t.Fatal("expected rollback rejection error")
+	}
+	if changed {
+		t.Fatal("expected rejected rollback not to mutate release")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "previously succeeded release") {
+		t.Fatalf("rollback error = %q", err)
 	}
 }
 

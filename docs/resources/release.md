@@ -276,6 +276,11 @@ Produced by release execution after freeze:
 | `status` | `ReleaseStatus` | system-managed | no | 发布状态 |
 | `remediation_status` | `string` | system-managed | no | 失败或取消后所需处置动作状态，例如 `NotRequired`、`CleanupOnly`、`PendingRollback` |
 | `remediation_reason` | `string` | system-managed | no | remediation 判定原因，供调试和运维判断使用 |
+| `rollback_source_release_id` | `*uuid.UUID` | system-managed | no | 本次回滚所选中的历史成功 release，仅用于审计与追踪，不作为执行主键 |
+| `rollback_target_artifact_repository` | `string` | system-managed | no | 回滚目标 deployment bundle 的 OCI repository |
+| `rollback_target_artifact_tag` | `string` | system-managed | no | 回滚目标 deployment bundle 的 OCI tag |
+| `rollback_target_artifact_digest` | `string` | system-managed | no | 回滚目标 deployment bundle 的 OCI digest |
+| `rollback_target_artifact_ref` | `string` | system-managed | no | 回滚目标 deployment bundle 的完整 OCI 引用；这是 rollback 执行的首选目标标识 |
 | `argocd_application_name` | `string` | system-managed | no | Argo CD `Application` 名称 |
 | `external_ref` | `string` | system-managed | no | 外部系统引用，例如 ArgoCD Application 名称 |
 
@@ -289,6 +294,24 @@ These fields describe the published deployment artifact associated with the rend
 | `artifact_tag` | `string` | system-managed | no | 发布 bundle tag |
 | `artifact_digest` | `string` | system-managed | no | 发布 bundle digest |
 | `artifact_ref` | `string` | system-managed | no | 完整 OCI 引用 |
+
+### Rollback target fields
+
+Rollback execution now freezes its target deployment artifact onto the rollback `Release` itself.
+
+- preferred execution target:
+  - `rollback_target_artifact_ref`
+- fallback compatibility fields:
+  - `rollback_target_artifact_digest`
+  - `rollback_target_artifact_repository`
+  - `rollback_target_artifact_tag`
+- audit-only linkage:
+  - `rollback_source_release_id`
+
+Contract rule:
+
+- rollback must not depend on a mutable historical `release_id` lookup at execution time
+- the control plane should resolve the target from the latest succeeded release with artifact metadata, then freeze that OCI target onto the new rollback release
 
 ## Argo handoff metadata contract
 

@@ -45,6 +45,11 @@ type ReleaseDoc struct {
 	ArtifactTag           string                   `json:"artifact_tag,omitempty"`
 	ArtifactDigest        string                   `json:"artifact_digest,omitempty"`
 	ArtifactRef           string                   `json:"artifact_ref,omitempty"`
+	RollbackSourceReleaseID          *uuid.UUID `json:"rollback_source_release_id,omitempty"`
+	RollbackTargetArtifactRepository string     `json:"rollback_target_artifact_repository,omitempty"`
+	RollbackTargetArtifactTag        string     `json:"rollback_target_artifact_tag,omitempty"`
+	RollbackTargetArtifactDigest     string     `json:"rollback_target_artifact_digest,omitempty"`
+	RollbackTargetArtifactRef        string     `json:"rollback_target_artifact_ref,omitempty"`
 	BundleSummary         *ReleaseBundleSummaryDoc `json:"bundle_summary,omitempty"`
 	Type                  string                   `json:"type"`
 	Steps                 []ReleaseStepDoc         `json:"steps,omitempty"`

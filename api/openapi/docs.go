@@ -3616,6 +3616,21 @@ const docTemplate = `{
                 "remediation_status": {
                     "type": "string"
                 },
+                "rollback_source_release_id": {
+                    "type": "string"
+                },
+                "rollback_target_artifact_digest": {
+                    "type": "string"
+                },
+                "rollback_target_artifact_ref": {
+                    "type": "string"
+                },
+                "rollback_target_artifact_repository": {
+                    "type": "string"
+                },
+                "rollback_target_artifact_tag": {
+                    "type": "string"
+                },
                 "routes_snapshot": {
                     "type": "array",
                     "items": {

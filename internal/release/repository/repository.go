@@ -53,15 +53,15 @@ func (s *PostgresStore) Insert(ctx context.Context, release *model.Release) erro
 	}
 	_, err = db.DB().ExecContext(ctx, `
 		insert into releases (
-			id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, type, steps, status, remediation_status, remediation_reason, argocd_application_name, external_ref, created_at, updated_at, deleted_at
-		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.EnvironmentID, release.Strategy, routesJSON, appConfigJSON, release.ArtifactRepository, release.ArtifactTag, release.ArtifactDigest, release.ArtifactRef, release.Type, stepsJSON, release.Status, release.RemediationStatus, release.RemediationReason, release.ArgoCDApplicationName, release.ExternalRef, release.CreatedAt, release.UpdatedAt, release.DeletedAt)
+			id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, rollback_source_release_id, rollback_target_artifact_repository, rollback_target_artifact_tag, rollback_target_artifact_digest, rollback_target_artifact_ref, type, steps, status, remediation_status, remediation_reason, argocd_application_name, external_ref, created_at, updated_at, deleted_at
+		) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.EnvironmentID, release.Strategy, routesJSON, appConfigJSON, release.ArtifactRepository, release.ArtifactTag, release.ArtifactDigest, release.ArtifactRef, dbsql.NullableUUIDPtr(release.RollbackSourceReleaseID), release.RollbackTargetArtifactRepository, release.RollbackTargetArtifactTag, release.RollbackTargetArtifactDigest, release.RollbackTargetArtifactRef, release.Type, stepsJSON, release.Status, release.RemediationStatus, release.RemediationReason, release.ArgoCDApplicationName, release.ExternalRef, release.CreatedAt, release.UpdatedAt, release.DeletedAt)
 	return err
 }
 
 func (s *PostgresStore) Get(ctx context.Context, id uuid.UUID) (*model.Release, error) {
 	return scanRelease(db.DB().QueryRowContext(ctx, `
-		select id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, type, steps, status, remediation_status, remediation_reason, argocd_application_name, external_ref, created_at, updated_at, deleted_at
+		select id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, rollback_source_release_id, rollback_target_artifact_repository, rollback_target_artifact_tag, rollback_target_artifact_digest, rollback_target_artifact_ref, type, steps, status, remediation_status, remediation_reason, argocd_application_name, external_ref, created_at, updated_at, deleted_at
 		from releases
 		where id = $1 and deleted_at is null
 	`, id))
@@ -81,7 +81,7 @@ func (s *PostgresStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (s *PostgresStore) List(ctx context.Context, filter ListFilter) ([]*model.Release, error) {
 	query := `
-		select id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, type, steps, status, remediation_status, remediation_reason, argocd_application_name, external_ref, created_at, updated_at, deleted_at
+		select id, execution_intent_id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot, artifact_repository, artifact_tag, artifact_digest, artifact_ref, rollback_source_release_id, rollback_target_artifact_repository, rollback_target_artifact_tag, rollback_target_artifact_digest, rollback_target_artifact_ref, type, steps, status, remediation_status, remediation_reason, argocd_application_name, external_ref, created_at, updated_at, deleted_at
 		from releases
 	`
 	clauses := make([]string, 0, 5)
@@ -148,9 +148,9 @@ func (s *PostgresStore) UpdateRow(ctx context.Context, release *model.Release) e
 	}
 	result, err := db.DB().ExecContext(ctx, `
 		update releases
-		set execution_intent_id=$2, application_id=$3, manifest_id=$4, env=$5, strategy=$6, routes_snapshot=$7, app_config_snapshot=$8, artifact_repository=$9, artifact_tag=$10, artifact_digest=$11, artifact_ref=$12, type=$13, steps=$14, status=$15, remediation_status=$16, remediation_reason=$17, argocd_application_name=$18, external_ref=$19, updated_at=$20, deleted_at=$21
+		set execution_intent_id=$2, application_id=$3, manifest_id=$4, env=$5, strategy=$6, routes_snapshot=$7, app_config_snapshot=$8, artifact_repository=$9, artifact_tag=$10, artifact_digest=$11, artifact_ref=$12, rollback_source_release_id=$13, rollback_target_artifact_repository=$14, rollback_target_artifact_tag=$15, rollback_target_artifact_digest=$16, rollback_target_artifact_ref=$17, type=$18, steps=$19, status=$20, remediation_status=$21, remediation_reason=$22, argocd_application_name=$23, external_ref=$24, updated_at=$25, deleted_at=$26
 		where id = $1
-	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.EnvironmentID, release.Strategy, routesJSON, appConfigJSON, release.ArtifactRepository, release.ArtifactTag, release.ArtifactDigest, release.ArtifactRef, release.Type, stepsJSON, release.Status, release.RemediationStatus, release.RemediationReason, release.ArgoCDApplicationName, release.ExternalRef, release.UpdatedAt, release.DeletedAt)
+	`, release.ID, dbsql.NullableUUIDPtr(release.ExecutionIntentID), release.ApplicationID, release.ManifestID, release.EnvironmentID, release.Strategy, routesJSON, appConfigJSON, release.ArtifactRepository, release.ArtifactTag, release.ArtifactDigest, release.ArtifactRef, dbsql.NullableUUIDPtr(release.RollbackSourceReleaseID), release.RollbackTargetArtifactRepository, release.RollbackTargetArtifactTag, release.RollbackTargetArtifactDigest, release.RollbackTargetArtifactRef, release.Type, stepsJSON, release.Status, release.RemediationStatus, release.RemediationReason, release.ArgoCDApplicationName, release.ExternalRef, release.UpdatedAt, release.DeletedAt)
 	if err != nil {
 		return err
 	}
@@ -189,6 +189,7 @@ func scanRelease(scanner interface{ Scan(dest ...any) error }) (*model.Release, 
 	var (
 		item            model.Release
 		executionIntent sql.NullString
+		rollbackSourceRelease sql.NullString
 		routesBytes     []byte
 		appConfigBytes  []byte
 		stepsBytes      []byte
@@ -208,6 +209,11 @@ func scanRelease(scanner interface{ Scan(dest ...any) error }) (*model.Release, 
 		&item.ArtifactTag,
 		&item.ArtifactDigest,
 		&item.ArtifactRef,
+		&rollbackSourceRelease,
+		&item.RollbackTargetArtifactRepository,
+		&item.RollbackTargetArtifactTag,
+		&item.RollbackTargetArtifactDigest,
+		&item.RollbackTargetArtifactRef,
 		&item.Type,
 		&stepsBytes,
 		&item.Status,
@@ -224,6 +230,10 @@ func scanRelease(scanner interface{ Scan(dest ...any) error }) (*model.Release, 
 
 	var err error
 	item.ExecutionIntentID, err = dbsql.ParseNullUUID(executionIntent)
+	if err != nil {
+		return nil, err
+	}
+	item.RollbackSourceReleaseID, err = dbsql.ParseNullUUID(rollbackSourceRelease)
 	if err != nil {
 		return nil, err
 	}
