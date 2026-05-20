@@ -991,6 +991,76 @@ func TestApplyOperationRequestCancelsRunningReleaseWithPendingRollback(t *testin
 	}
 }
 
+func TestApplyOperationRequestCancelsPausedReleaseWithPendingRollback(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "start_deployment":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_rollout":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 60
+			steps[i].Message = "deployment paused by operator"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationCancel, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected cancel request to change paused release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	if stored.RemediationStatus != string(model.RemediationPendingRollback) {
+		t.Fatalf("remediation_status = %q, want %q", stored.RemediationStatus, model.RemediationPendingRollback)
+	}
+	step := findReleaseStep(stored.Steps, "observe_rollout")
+	if step == nil {
+		t.Fatal("observe_rollout step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("observe_rollout status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "rollback") {
+		t.Fatalf("observe_rollout message = %q, want rollback detail", step.Message)
+	}
+}
+
 func TestApplyOperationRequestCreatesRollbackReleaseFromPendingRollback(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
@@ -1118,6 +1188,113 @@ func TestApplyOperationRequestCreatesRollbackReleaseFromPendingRollback(t *testi
 	}
 	if startStep.Status != model.StepRunning && startStep.Status != model.StepSucceeded {
 		t.Fatalf("rollback start step status = %q", startStep.Status)
+	}
+}
+
+func TestApplyOperationRequestRollbackSelectsMostRecentSucceededArtifactTarget(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	olderReleaseID := uuid.New()
+	newerReleaseID := uuid.New()
+	now := time.Now()
+
+	svc := &releaseService{}
+	olderRelease := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        olderReleaseID,
+			CreatedAt: now.Add(-40 * time.Minute),
+			UpdatedAt: now.Add(-35 * time.Minute),
+		},
+		ApplicationID:      appID,
+		ManifestID:         uuid.New(),
+		EnvironmentID:      "staging",
+		Strategy:           string(model.ReleaseStrategyRolling),
+		Type:               model.ReleaseUpgrade,
+		Steps:              model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:             model.ReleaseSucceeded,
+		ArtifactRepository: "oci://registry.example.com/devflow/releases/demo-api-old",
+		ArtifactTag:        "release-old",
+		ArtifactDigest:     "sha256:old",
+		ArtifactRef:        "oci://registry.example.com/devflow/releases/demo-api-old@sha256:old",
+	}
+	if err := svc.repoStore().Insert(context.Background(), olderRelease); err != nil {
+		t.Fatalf("insert older release: %v", err)
+	}
+	newerRelease := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        newerReleaseID,
+			CreatedAt: now.Add(-20 * time.Minute),
+			UpdatedAt: now.Add(-15 * time.Minute),
+		},
+		ApplicationID:      appID,
+		ManifestID:         uuid.New(),
+		EnvironmentID:      "staging",
+		Strategy:           string(model.ReleaseStrategyRolling),
+		Type:               model.ReleaseUpgrade,
+		Steps:              model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:             model.ReleaseSucceeded,
+		ArtifactRepository: "oci://registry.example.com/devflow/releases/demo-api-new",
+		ArtifactTag:        "release-new",
+		ArtifactDigest:     "sha256:new",
+		ArtifactRef:        "oci://registry.example.com/devflow/releases/demo-api-new@sha256:new",
+	}
+	if err := svc.repoStore().Insert(context.Background(), newerRelease); err != nil {
+		t.Fatalf("insert newer release: %v", err)
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-10 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID:     appID,
+		ManifestID:        manifestID,
+		EnvironmentID:     "staging",
+		Strategy:          string(model.ReleaseStrategyRolling),
+		Type:              model.ReleaseUpgrade,
+		Steps:             model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:            model.ReleaseFailed,
+		RemediationStatus: string(model.RemediationPendingRollback),
+		RemediationReason: "release may have partially or fully affected live runtime state",
+	}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationRollback, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected rollback request to create rollback release")
+	}
+
+	items, err := svc.List(context.Background(), ReleaseListFilter{
+		ApplicationID: &appID,
+		EnvironmentID: "staging",
+	})
+	if err != nil {
+		t.Fatalf("list releases: %v", err)
+	}
+
+	var rollbackRelease *model.Release
+	for _, item := range items {
+		if item.Type == model.ReleaseRollback {
+			rollbackRelease = item
+			break
+		}
+	}
+	if rollbackRelease == nil {
+		t.Fatal("rollback release not found")
+	}
+	if rollbackRelease.RollbackSourceReleaseID == nil || *rollbackRelease.RollbackSourceReleaseID != newerReleaseID {
+		t.Fatalf("rollback rollback_source_release_id = %v, want %s", rollbackRelease.RollbackSourceReleaseID, newerReleaseID)
+	}
+	if rollbackRelease.RollbackTargetArtifactRef != newerRelease.ArtifactRef {
+		t.Fatalf("rollback rollback_target_artifact_ref = %q, want %q", rollbackRelease.RollbackTargetArtifactRef, newerRelease.ArtifactRef)
 	}
 }
 
@@ -1321,6 +1498,67 @@ func TestUpdateStatusMarksRollbackSourceRemediationFailed(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(updatedSource.RemediationReason), "failed") {
 		t.Fatalf("source remediation_reason = %q, want failed detail", updatedSource.RemediationReason)
+	}
+}
+
+func TestUpdateStatusMarksRollbackSourceRemediationFailedOnSyncFailed(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now()
+	sourceReleaseID := uuid.New()
+	rollbackReleaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	svc := &releaseService{}
+	sourceRelease := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        sourceReleaseID,
+			CreatedAt: now.Add(-20 * time.Minute),
+			UpdatedAt: now.Add(-10 * time.Minute),
+		},
+		ApplicationID:     appID,
+		ManifestID:        manifestID,
+		EnvironmentID:     "staging",
+		Strategy:          string(model.ReleaseStrategyRolling),
+		Type:              model.ReleaseUpgrade,
+		Steps:             model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:            model.ReleaseFailed,
+		RemediationStatus: string(model.RemediationRollingBack),
+		RemediationReason: "rollback release created",
+	}
+	if err := svc.repoStore().Insert(context.Background(), sourceRelease); err != nil {
+		t.Fatalf("insert source release: %v", err)
+	}
+
+	rollbackRelease := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        rollbackReleaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID:           appID,
+		ManifestID:              manifestID,
+		EnvironmentID:           "staging",
+		Strategy:                string(model.ReleaseStrategyRolling),
+		Type:                    model.ReleaseRollback,
+		Status:                  model.ReleaseSyncing,
+		Steps:                   model.DefaultReleaseSteps(model.Normal, model.ReleaseRollback),
+		RollbackSourceReleaseID: &sourceReleaseID,
+	}
+	if err := svc.repoStore().Insert(context.Background(), rollbackRelease); err != nil {
+		t.Fatalf("insert rollback release: %v", err)
+	}
+
+	if err := svc.UpdateStatus(context.Background(), rollbackReleaseID, model.ReleaseSyncFailed); err != nil {
+		t.Fatalf("UpdateStatus rollback release: %v", err)
+	}
+
+	updatedSource, err := svc.Get(context.Background(), sourceReleaseID)
+	if err != nil {
+		t.Fatalf("get source release: %v", err)
+	}
+	if updatedSource.RemediationStatus != string(model.RemediationRollbackFailed) {
+		t.Fatalf("source remediation_status = %q, want %q", updatedSource.RemediationStatus, model.RemediationRollbackFailed)
 	}
 }
 
