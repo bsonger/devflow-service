@@ -474,36 +474,7 @@ func (s *releaseService) attachBundleSummary(ctx context.Context, release *model
 }
 
 func (s *releaseService) updateStatus(ctx context.Context, releaseID uuid.UUID, status model.ReleaseStatus) error {
-	release, err := s.loadRelease(ctx, releaseID)
-	if err != nil {
-		return err
-	}
-	if isReleaseTerminalStatus(release.Status) {
-		return nil
-	}
-	if release.Status == status {
-		return nil
-	}
-	previousStatus := release.Status
-	release.Status = status
-	release.UpdatedAt = time.Now()
-	if err := s.repoStore().UpdateRow(ctx, release); err != nil {
-		return err
-	}
-	statusLog := platformobs.OperationLogger(ctx, "release_service", "update_release_status", "release",
-		zap.String("resource_id", release.ID.String()),
-	)
-	statusLog.Info("release status updated",
-		zap.String("result", "success"),
-		zap.String("previous_status", string(previousStatus)),
-		zap.String("status", string(status)),
-	)
-	if err := newReleaseRemediationManager(s).syncRollbackSource(ctx, release, status); err != nil {
-		return err
-	}
-	observeReleaseTerminal(ctx, release, status)
-	newReleasePhaseController(s).runObserveDeployment(ctx, release, status)
-	return nil
+	return newReleaseStatusManager(s).updateStatus(ctx, releaseID, status)
 }
 
 func (s *releaseService) UpdateStatus(ctx context.Context, releaseID uuid.UUID, status model.ReleaseStatus) error {
