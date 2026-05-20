@@ -1125,10 +1125,7 @@ func createArgoApplicationStartMessage(release *model.Release, appName string, t
 func createArgoApplicationSuccessMessage(release *model.Release, appName string) string {
 	appName = strings.TrimSpace(appName)
 	environmentId := releaseTargetEnvironment(release)
-	artifactRef := ""
-	if release != nil {
-		artifactRef = strings.TrimSpace(release.ArtifactRef)
-	}
+	artifactRef := releaseExecutionArtifactRef(release)
 	switch {
 	case appName != "" && environmentId != "" && artifactRef != "":
 		return fmt.Sprintf("argocd application %s created for environment %s and sync requested from %s", appName, environmentId, artifactRef)
@@ -1293,12 +1290,10 @@ func deriveOCIApplicationArtifact(release *model.Release) (string, string) {
 	if release == nil {
 		return "", ""
 	}
-	repository := strings.TrimSpace(release.ArtifactRepository)
-	targetRevision := strings.TrimSpace(release.ArtifactDigest)
+	repository, targetRevision, artifactRef := releaseExecutionArtifactMetadata(release)
 	if targetRevision == "" {
-		targetRevision = strings.TrimSpace(release.ArtifactTag)
+		targetRevision = releaseExecutionArtifactTag(release)
 	}
-	artifactRef := strings.TrimSpace(release.ArtifactRef)
 	if strings.HasPrefix(artifactRef, "oci://") {
 		trimmed := strings.TrimPrefix(artifactRef, "oci://")
 		if repository == "" {
@@ -1321,6 +1316,38 @@ func deriveOCIApplicationArtifact(release *model.Release) (string, string) {
 		return "", targetRevision
 	}
 	return "oci://" + repository, targetRevision
+}
+
+func releaseExecutionArtifactMetadata(release *model.Release) (repository, digest, ref string) {
+	if release == nil {
+		return "", "", ""
+	}
+	if strings.EqualFold(strings.TrimSpace(release.Type), model.ReleaseRollback) {
+		repository = strings.TrimSpace(release.RollbackTargetArtifactRepository)
+		digest = strings.TrimSpace(release.RollbackTargetArtifactDigest)
+		ref = strings.TrimSpace(release.RollbackTargetArtifactRef)
+		if repository != "" || digest != "" || ref != "" {
+			return repository, digest, ref
+		}
+	}
+	return strings.TrimSpace(release.ArtifactRepository), strings.TrimSpace(release.ArtifactDigest), strings.TrimSpace(release.ArtifactRef)
+}
+
+func releaseExecutionArtifactTag(release *model.Release) string {
+	if release == nil {
+		return ""
+	}
+	if strings.EqualFold(strings.TrimSpace(release.Type), model.ReleaseRollback) {
+		if tag := strings.TrimSpace(release.RollbackTargetArtifactTag); tag != "" {
+			return tag
+		}
+	}
+	return strings.TrimSpace(release.ArtifactTag)
+}
+
+func releaseExecutionArtifactRef(release *model.Release) string {
+	_, _, ref := releaseExecutionArtifactMetadata(release)
+	return ref
 }
 
 func (s *releaseService) syncArgoApplication(ctx context.Context, appName string) error {

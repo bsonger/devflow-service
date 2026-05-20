@@ -83,6 +83,39 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 	assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, "apps", "Deployment")
 }
 
+func TestBuildArgoApplicationUsesRollbackTargetOCIArtifactSource(t *testing.T) {
+	release := &model.Release{
+		BaseModel:                       model.BaseModel{ID: uuid.New()},
+		ApplicationID:                    uuid.New(),
+		ManifestID:                       uuid.New(),
+		EnvironmentID:                    "production",
+		Type:                             model.ReleaseRollback,
+		ArtifactRepository:               "zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/current",
+		ArtifactDigest:                   "sha256:current",
+		ArtifactRef:                      "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/current@sha256:current",
+		RollbackTargetArtifactRepository: "zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/previous",
+		RollbackTargetArtifactDigest:     "sha256:previous",
+		RollbackTargetArtifactRef:        "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/previous@sha256:previous",
+	}
+	manifest := &manifestdomain.Manifest{BaseModel: model.BaseModel{ID: release.ManifestID}}
+	target := releasesupport.DeployTarget{Namespace: "checkout", DestinationServer: "https://cluster-prod.example.com"}
+
+	app := buildArgoApplication(release, manifest, &releasesupport.ApplicationProjection{
+		Name:        "demo-api",
+		ProjectName: "checkout",
+	}, target)
+
+	if app.Spec.Source == nil {
+		t.Fatal("expected oci application source")
+	}
+	if app.Spec.Source.RepoURL != "oci://zot.zot.svc.cluster.local:5000/devflow/releases/demo-api/previous" {
+		t.Fatalf("RepoURL = %q", app.Spec.Source.RepoURL)
+	}
+	if app.Spec.Source.TargetRevision != "sha256:previous" {
+		t.Fatalf("TargetRevision = %q", app.Spec.Source.TargetRevision)
+	}
+}
+
 func TestBuildReleaseSyncOperationUsesPruneReplaceAndForce(t *testing.T) {
 	operation := buildReleaseSyncOperation()
 	if operation == nil || operation.Sync == nil {
@@ -866,6 +899,19 @@ func TestCreateArgoApplicationMessageHelpers(t *testing.T) {
 	failure := createArgoApplicationFailureMessage("demo-api", errors.New("sync denied"))
 	if failure != "argocd application demo-api failed: sync denied" {
 		t.Fatalf("failure = %q", failure)
+	}
+}
+
+func TestCreateArgoApplicationSuccessMessageUsesRollbackTargetArtifactRef(t *testing.T) {
+	release := &model.Release{
+		EnvironmentID:             "production",
+		Type:                      model.ReleaseRollback,
+		ArtifactRef:               "oci://registry.example.com/devflow/releases/demo-api@sha256:current",
+		RollbackTargetArtifactRef: "oci://registry.example.com/devflow/releases/demo-api@sha256:previous",
+	}
+	success := createArgoApplicationSuccessMessage(release, "demo-api")
+	if success != "argocd application demo-api created for environment production and sync requested from oci://registry.example.com/devflow/releases/demo-api@sha256:previous" {
+		t.Fatalf("success = %q", success)
 	}
 }
 
