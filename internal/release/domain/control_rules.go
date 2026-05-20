@@ -11,6 +11,12 @@ var allowedLifecycleTransitions = map[LifecycleStatus]map[LifecycleStatus]struct
 		LifecycleFailed:  {},
 	},
 	LifecycleRunning: {
+		LifecyclePaused:     {},
+		LifecycleFinalizing: {},
+	},
+	LifecyclePaused: {
+		LifecycleRunning:    {},
+		LifecycleFailed:     {},
 		LifecycleFinalizing: {},
 	},
 	LifecycleFinalizing: {

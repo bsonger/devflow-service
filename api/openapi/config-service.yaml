@@ -904,6 +904,10 @@ definitions:
         items:
           "$ref": "#/definitions/http.ReleaseRouteDoc"
         type: array
+      remediation_reason:
+        type: string
+      remediation_status:
+        type: string
       status:
         type: string
       steps:

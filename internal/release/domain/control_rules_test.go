@@ -25,6 +25,9 @@ func TestValidateLifecycleTransitionAllowsExpectedPaths(t *testing.T) {
 		{LifecyclePending, LifecycleDispatching},
 		{LifecycleDispatching, LifecycleRunning},
 		{LifecycleDispatching, LifecycleFailed},
+		{LifecycleRunning, LifecyclePaused},
+		{LifecyclePaused, LifecycleRunning},
+		{LifecyclePaused, LifecycleFailed},
 		{LifecycleRunning, LifecycleFinalizing},
 		{LifecycleFinalizing, LifecycleSucceeded},
 		{LifecycleFinalizing, LifecycleFailed},
@@ -43,6 +46,7 @@ func TestValidateLifecycleTransitionRejectsUnexpectedPaths(t *testing.T) {
 		to   LifecycleStatus
 	}{
 		{LifecyclePending, LifecycleRunning},
+		{LifecyclePaused, LifecycleSucceeded},
 		{LifecycleRunning, LifecycleSucceeded},
 		{LifecycleSucceeded, LifecycleRunning},
 	}

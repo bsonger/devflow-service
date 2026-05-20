@@ -235,7 +235,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_application_transport_http.CreateApplicationRequest"
+                            "$ref": "#/definitions/application_transport_http.CreateApplicationRequest"
                         }
                     }
                 ],
@@ -292,7 +292,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_application_transport_http.UpdateApplicationRequest"
+                            "$ref": "#/definitions/application_transport_http.UpdateApplicationRequest"
                         }
                     }
                 ],
@@ -557,7 +557,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_cluster_transport_http.CreateClusterRequest"
+                            "$ref": "#/definitions/cluster_transport_http.CreateClusterRequest"
                         }
                     }
                 ],
@@ -614,7 +614,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_cluster_transport_http.UpdateClusterRequest"
+                            "$ref": "#/definitions/cluster_transport_http.UpdateClusterRequest"
                         }
                     }
                 ],
@@ -678,7 +678,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_environment_transport_http.CreateEnvironmentRequest"
+                            "$ref": "#/definitions/environment_transport_http.CreateEnvironmentRequest"
                         }
                     }
                 ],
@@ -735,7 +735,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_environment_transport_http.UpdateEnvironmentRequest"
+                            "$ref": "#/definitions/environment_transport_http.UpdateEnvironmentRequest"
                         }
                     }
                 ],
@@ -876,7 +876,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_manifest_transport_http.CreateManifestRequestDoc"
+                            "$ref": "#/definitions/manifest_transport_http.CreateManifestRequestDoc"
                         }
                     }
                 ],
@@ -1078,7 +1078,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_project_transport_http.CreateProjectRequest"
+                            "$ref": "#/definitions/project_transport_http.CreateProjectRequest"
                         }
                     }
                 ],
@@ -1135,7 +1135,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_project_transport_http.UpdateProjectRequest"
+                            "$ref": "#/definitions/project_transport_http.UpdateProjectRequest"
                         }
                     }
                 ],
@@ -1483,7 +1483,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_route_transport_http.DeleteRouteRequest"
+                            "$ref": "#/definitions/route_transport_http.DeleteRouteRequest"
                         }
                     }
                 ],
@@ -1664,7 +1664,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_service_transport_http.DeleteServiceRequest"
+                            "$ref": "#/definitions/service_transport_http.DeleteServiceRequest"
                         }
                     }
                 ],
@@ -1997,6 +1997,162 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "application_transport_http.CreateApplicationRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "repo_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "application_transport_http.UpdateApplicationRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "repo_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "cluster_transport_http.CreateClusterRequest": {
+            "type": "object",
+            "required": [
+                "kubeconfig",
+                "name",
+                "server"
+            ],
+            "properties": {
+                "argocd_cluster_name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "kubeconfig": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "server": {
+                    "type": "string"
+                }
+            }
+        },
+        "cluster_transport_http.UpdateClusterRequest": {
+            "type": "object",
+            "required": [
+                "kubeconfig",
+                "name",
+                "server"
+            ],
+            "properties": {
+                "argocd_cluster_name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "kubeconfig": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "server": {
+                    "type": "string"
+                }
+            }
+        },
+        "environment_transport_http.CreateEnvironmentRequest": {
+            "type": "object",
+            "required": [
+                "cluster_id",
+                "name"
+            ],
+            "properties": {
+                "cluster_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "environment_transport_http.UpdateEnvironmentRequest": {
+            "type": "object",
+            "required": [
+                "cluster_id",
+                "name"
+            ],
+            "properties": {
+                "cluster_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig": {
             "type": "object",
             "properties": {
@@ -3112,7 +3268,7 @@ const docTemplate = `{
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_intent_transport_http.IntentDoc"
+                        "$ref": "#/definitions/intent_transport_http.IntentDoc"
                     }
                 },
                 "pagination": {
@@ -3124,7 +3280,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/internal_intent_transport_http.IntentDoc"
+                    "$ref": "#/definitions/intent_transport_http.IntentDoc"
                 }
             }
         },
@@ -3134,7 +3290,7 @@ const docTemplate = `{
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
+                        "$ref": "#/definitions/manifest_transport_http.ManifestDoc"
                     }
                 },
                 "pagination": {
@@ -3146,7 +3302,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestResourcesViewDoc"
                 }
             }
         },
@@ -3154,7 +3310,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestDoc"
                 }
             }
         },
@@ -3454,6 +3610,12 @@ const docTemplate = `{
                 "manifest_id": {
                     "type": "string"
                 },
+                "remediation_reason": {
+                    "type": "string"
+                },
+                "remediation_status": {
+                    "type": "string"
+                },
                 "routes_snapshot": {
                     "type": "array",
                     "items": {
@@ -3534,7 +3696,7 @@ const docTemplate = `{
                 "env": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_release_transport_http.ManifestEnvVarDoc"
+                        "$ref": "#/definitions/release_transport_http.ManifestEnvVarDoc"
                     }
                 },
                 "labels": {
@@ -3769,163 +3931,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_application_transport_http.CreateApplicationRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "project_id": {
-                    "type": "string"
-                },
-                "repo_address": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_application_transport_http.UpdateApplicationRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "project_id": {
-                    "type": "string"
-                },
-                "repo_address": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_cluster_transport_http.CreateClusterRequest": {
-            "type": "object",
-            "required": [
-                "kubeconfig",
-                "name",
-                "server"
-            ],
-            "properties": {
-                "argocd_cluster_name": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "kubeconfig": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "server": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_cluster_transport_http.UpdateClusterRequest": {
-            "type": "object",
-            "required": [
-                "kubeconfig",
-                "name",
-                "server"
-            ],
-            "properties": {
-                "argocd_cluster_name": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "kubeconfig": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "server": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_environment_transport_http.CreateEnvironmentRequest": {
-            "type": "object",
-            "required": [
-                "cluster_id",
-                "name"
-            ],
-            "properties": {
-                "cluster_id": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_environment_transport_http.UpdateEnvironmentRequest": {
-            "type": "object",
-            "required": [
-                "cluster_id",
-                "name"
-            ],
-            "properties": {
-                "cluster_id": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_intent_transport_http.IntentDoc": {
+        "intent_transport_http.IntentDoc": {
             "type": "object",
             "properties": {
                 "attempt_count": {
@@ -3972,7 +3978,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.CreateManifestRequestDoc": {
+        "manifest_transport_http.CreateManifestRequestDoc": {
             "type": "object",
             "properties": {
                 "application_id": {
@@ -3983,7 +3989,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestDoc": {
+        "manifest_transport_http.ManifestDoc": {
             "type": "object",
             "properties": {
                 "application_id": {
@@ -4019,7 +4025,7 @@ const docTemplate = `{
                 "services_snapshot": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestServiceDoc"
+                        "$ref": "#/definitions/manifest_transport_http.ManifestServiceDoc"
                     }
                 },
                 "span_id": {
@@ -4031,7 +4037,7 @@ const docTemplate = `{
                 "steps": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestStepDoc"
+                        "$ref": "#/definitions/manifest_transport_http.ManifestStepDoc"
                     }
                 },
                 "trace_id": {
@@ -4041,11 +4047,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workload_config_snapshot": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadConfigDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestWorkloadConfigDoc"
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestEnvVarDoc": {
+        "manifest_transport_http.ManifestEnvVarDoc": {
             "type": "object",
             "properties": {
                 "name": {
@@ -4056,30 +4062,30 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestGroupedResourcesDoc": {
+        "manifest_transport_http.ManifestGroupedResourcesDoc": {
             "type": "object",
             "properties": {
                 "configmap": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestRenderedResourceDoc"
                 },
                 "deployment": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestRenderedResourceDoc"
                 },
                 "rollout": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestRenderedResourceDoc"
                 },
                 "services": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+                        "$ref": "#/definitions/manifest_transport_http.ManifestRenderedResourceDoc"
                     }
                 },
                 "virtualservice": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestRenderedResourceDoc"
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestRenderedResourceDoc": {
+        "manifest_transport_http.ManifestRenderedResourceDoc": {
             "type": "object",
             "properties": {
                 "kind": {
@@ -4100,7 +4106,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestResourcesViewDoc": {
+        "manifest_transport_http.ManifestResourcesViewDoc": {
             "type": "object",
             "properties": {
                 "application_id": {
@@ -4110,11 +4116,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resources": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestGroupedResourcesDoc"
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestServiceDoc": {
+        "manifest_transport_http.ManifestServiceDoc": {
             "type": "object",
             "properties": {
                 "id": {
@@ -4126,12 +4132,12 @@ const docTemplate = `{
                 "ports": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestServicePortDoc"
+                        "$ref": "#/definitions/manifest_transport_http.ManifestServicePortDoc"
                     }
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestServicePortDoc": {
+        "manifest_transport_http.ManifestServicePortDoc": {
             "type": "object",
             "properties": {
                 "name": {
@@ -4148,7 +4154,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestStepDoc": {
+        "manifest_transport_http.ManifestStepDoc": {
             "type": "object",
             "properties": {
                 "end_time": {
@@ -4171,7 +4177,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestWorkloadConfigDoc": {
+        "manifest_transport_http.ManifestWorkloadConfigDoc": {
             "type": "object",
             "properties": {
                 "annotations": {
@@ -4189,7 +4195,7 @@ const docTemplate = `{
                 "env": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_manifest_transport_http.ManifestEnvVarDoc"
+                        "$ref": "#/definitions/manifest_transport_http.ManifestEnvVarDoc"
                     }
                 },
                 "id": {
@@ -4202,23 +4208,23 @@ const docTemplate = `{
                     }
                 },
                 "metrics": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadMetricsDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestWorkloadMetricsDoc"
                 },
                 "probes": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestWorkloadProbesDoc"
                 },
                 "replicas": {
                     "type": "integer"
                 },
                 "resources": {
-                    "$ref": "#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc"
+                    "$ref": "#/definitions/manifest_transport_http.ManifestWorkloadResourceRequirementsDoc"
                 },
                 "service_account_name": {
                     "type": "string"
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestWorkloadMetricsDoc": {
+        "manifest_transport_http.ManifestWorkloadMetricsDoc": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -4232,7 +4238,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestWorkloadProbesDoc": {
+        "manifest_transport_http.ManifestWorkloadProbesDoc": {
             "type": "object",
             "properties": {
                 "liveness": {
@@ -4246,7 +4252,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc": {
+        "manifest_transport_http.ManifestWorkloadResourceRequirementsDoc": {
             "type": "object",
             "properties": {
                 "limits": {
@@ -4260,7 +4266,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_project_transport_http.CreateProjectRequest": {
+        "project_transport_http.CreateProjectRequest": {
             "type": "object",
             "properties": {
                 "description": {
@@ -4277,7 +4283,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_project_transport_http.UpdateProjectRequest": {
+        "project_transport_http.UpdateProjectRequest": {
             "type": "object",
             "properties": {
                 "description": {
@@ -4294,7 +4300,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_release_transport_http.ManifestEnvVarDoc": {
+        "release_transport_http.ManifestEnvVarDoc": {
             "type": "object",
             "properties": {
                 "name": {
@@ -4305,7 +4311,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_route_transport_http.DeleteRouteRequest": {
+        "route_transport_http.DeleteRouteRequest": {
             "type": "object",
             "properties": {
                 "application_id": {
@@ -4313,7 +4319,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_service_transport_http.DeleteServiceRequest": {
+        "service_transport_http.DeleteServiceRequest": {
             "type": "object",
             "properties": {
                 "application_id": {

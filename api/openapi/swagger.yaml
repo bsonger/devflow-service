@@ -1,5 +1,109 @@
 basePath: /
 definitions:
+  application_transport_http.CreateApplicationRequest:
+    properties:
+      description:
+        type: string
+      labels:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem'
+        type: array
+      name:
+        type: string
+      project_id:
+        type: string
+      repo_address:
+        type: string
+    type: object
+  application_transport_http.UpdateApplicationRequest:
+    properties:
+      description:
+        type: string
+      labels:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem'
+        type: array
+      name:
+        type: string
+      project_id:
+        type: string
+      repo_address:
+        type: string
+    type: object
+  cluster_transport_http.CreateClusterRequest:
+    properties:
+      argocd_cluster_name:
+        type: string
+      description:
+        type: string
+      kubeconfig:
+        type: string
+      labels:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem'
+        type: array
+      name:
+        type: string
+      server:
+        type: string
+    required:
+    - kubeconfig
+    - name
+    - server
+    type: object
+  cluster_transport_http.UpdateClusterRequest:
+    properties:
+      argocd_cluster_name:
+        type: string
+      description:
+        type: string
+      kubeconfig:
+        type: string
+      labels:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem'
+        type: array
+      name:
+        type: string
+      server:
+        type: string
+    required:
+    - kubeconfig
+    - name
+    - server
+    type: object
+  environment_transport_http.CreateEnvironmentRequest:
+    properties:
+      cluster_id:
+        type: string
+      description:
+        type: string
+      labels:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem'
+        type: array
+      name:
+        type: string
+    required:
+    - cluster_id
+    - name
+    type: object
+  environment_transport_http.UpdateEnvironmentRequest:
+    properties:
+      cluster_id:
+        type: string
+      description:
+        type: string
+      labels:
+        items:
+          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem'
+        type: array
+      name:
+        type: string
+    required:
+    - cluster_id
+    - name
+    type: object
   github_com_bsonger_devflow-service_internal_appconfig_domain.AppConfig:
     properties:
       application_id:
@@ -729,7 +833,7 @@ definitions:
     properties:
       data:
         items:
-          $ref: '#/definitions/internal_intent_transport_http.IntentDoc'
+          $ref: '#/definitions/intent_transport_http.IntentDoc'
         type: array
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
@@ -737,13 +841,13 @@ definitions:
   http.IntentResponse:
     properties:
       data:
-        $ref: '#/definitions/internal_intent_transport_http.IntentDoc'
+        $ref: '#/definitions/intent_transport_http.IntentDoc'
     type: object
   http.ManifestListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
+          $ref: '#/definitions/manifest_transport_http.ManifestDoc'
         type: array
       pagination:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.Pagination'
@@ -751,12 +855,12 @@ definitions:
   http.ManifestResourcesResponse:
     properties:
       data:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestResourcesViewDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestResourcesViewDoc'
     type: object
   http.ManifestResponse:
     properties:
       data:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestDoc'
     type: object
   http.ManifestWorkloadEmptyDirDoc:
     properties:
@@ -952,6 +1056,10 @@ definitions:
         type: string
       manifest_id:
         type: string
+      remediation_reason:
+        type: string
+      remediation_status:
+        type: string
       routes_snapshot:
         items:
           $ref: '#/definitions/http.ReleaseRouteDoc'
@@ -1004,7 +1112,7 @@ definitions:
         type: object
       env:
         items:
-          $ref: '#/definitions/internal_release_transport_http.ManifestEnvVarDoc'
+          $ref: '#/definitions/release_transport_http.ManifestEnvVarDoc'
         type: array
       labels:
         additionalProperties:
@@ -1157,111 +1265,7 @@ definitions:
       size_class:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass'
     type: object
-  internal_application_transport_http.CreateApplicationRequest:
-    properties:
-      description:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem'
-        type: array
-      name:
-        type: string
-      project_id:
-        type: string
-      repo_address:
-        type: string
-    type: object
-  internal_application_transport_http.UpdateApplicationRequest:
-    properties:
-      description:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_application_domain.LabelItem'
-        type: array
-      name:
-        type: string
-      project_id:
-        type: string
-      repo_address:
-        type: string
-    type: object
-  internal_cluster_transport_http.CreateClusterRequest:
-    properties:
-      argocd_cluster_name:
-        type: string
-      description:
-        type: string
-      kubeconfig:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem'
-        type: array
-      name:
-        type: string
-      server:
-        type: string
-    required:
-    - kubeconfig
-    - name
-    - server
-    type: object
-  internal_cluster_transport_http.UpdateClusterRequest:
-    properties:
-      argocd_cluster_name:
-        type: string
-      description:
-        type: string
-      kubeconfig:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_cluster_domain.LabelItem'
-        type: array
-      name:
-        type: string
-      server:
-        type: string
-    required:
-    - kubeconfig
-    - name
-    - server
-    type: object
-  internal_environment_transport_http.CreateEnvironmentRequest:
-    properties:
-      cluster_id:
-        type: string
-      description:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem'
-        type: array
-      name:
-        type: string
-    required:
-    - cluster_id
-    - name
-    type: object
-  internal_environment_transport_http.UpdateEnvironmentRequest:
-    properties:
-      cluster_id:
-        type: string
-      description:
-        type: string
-      labels:
-        items:
-          $ref: '#/definitions/github_com_bsonger_devflow-service_internal_environment_domain.LabelItem'
-        type: array
-      name:
-        type: string
-    required:
-    - cluster_id
-    - name
-    type: object
-  internal_intent_transport_http.IntentDoc:
+  intent_transport_http.IntentDoc:
     properties:
       attempt_count:
         type: integer
@@ -1292,14 +1296,14 @@ definitions:
       updated_at:
         type: string
     type: object
-  internal_manifest_transport_http.CreateManifestRequestDoc:
+  manifest_transport_http.CreateManifestRequestDoc:
     properties:
       application_id:
         type: string
       git_revision:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestDoc:
+  manifest_transport_http.ManifestDoc:
     properties:
       application_id:
         type: string
@@ -1323,7 +1327,7 @@ definitions:
         type: string
       services_snapshot:
         items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestServiceDoc'
+          $ref: '#/definitions/manifest_transport_http.ManifestServiceDoc'
         type: array
       span_id:
         type: string
@@ -1331,38 +1335,38 @@ definitions:
         type: string
       steps:
         items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestStepDoc'
+          $ref: '#/definitions/manifest_transport_http.ManifestStepDoc'
         type: array
       trace_id:
         type: string
       updated_at:
         type: string
       workload_config_snapshot:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadConfigDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestWorkloadConfigDoc'
     type: object
-  internal_manifest_transport_http.ManifestEnvVarDoc:
+  manifest_transport_http.ManifestEnvVarDoc:
     properties:
       name:
         type: string
       value:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestGroupedResourcesDoc:
+  manifest_transport_http.ManifestGroupedResourcesDoc:
     properties:
       configmap:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestRenderedResourceDoc'
       deployment:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestRenderedResourceDoc'
       rollout:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestRenderedResourceDoc'
       services:
         items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
+          $ref: '#/definitions/manifest_transport_http.ManifestRenderedResourceDoc'
         type: array
       virtualservice:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestRenderedResourceDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestRenderedResourceDoc'
     type: object
-  internal_manifest_transport_http.ManifestRenderedResourceDoc:
+  manifest_transport_http.ManifestRenderedResourceDoc:
     properties:
       kind:
         type: string
@@ -1376,16 +1380,16 @@ definitions:
       yaml:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestResourcesViewDoc:
+  manifest_transport_http.ManifestResourcesViewDoc:
     properties:
       application_id:
         type: string
       manifest_id:
         type: string
       resources:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestGroupedResourcesDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestGroupedResourcesDoc'
     type: object
-  internal_manifest_transport_http.ManifestServiceDoc:
+  manifest_transport_http.ManifestServiceDoc:
     properties:
       id:
         type: string
@@ -1393,10 +1397,10 @@ definitions:
         type: string
       ports:
         items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestServicePortDoc'
+          $ref: '#/definitions/manifest_transport_http.ManifestServicePortDoc'
         type: array
     type: object
-  internal_manifest_transport_http.ManifestServicePortDoc:
+  manifest_transport_http.ManifestServicePortDoc:
     properties:
       name:
         type: string
@@ -1407,7 +1411,7 @@ definitions:
       target_port:
         type: integer
     type: object
-  internal_manifest_transport_http.ManifestStepDoc:
+  manifest_transport_http.ManifestStepDoc:
     properties:
       end_time:
         type: string
@@ -1422,7 +1426,7 @@ definitions:
       task_run:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestWorkloadConfigDoc:
+  manifest_transport_http.ManifestWorkloadConfigDoc:
     properties:
       annotations:
         additionalProperties:
@@ -1434,7 +1438,7 @@ definitions:
         type: array
       env:
         items:
-          $ref: '#/definitions/internal_manifest_transport_http.ManifestEnvVarDoc'
+          $ref: '#/definitions/manifest_transport_http.ManifestEnvVarDoc'
         type: array
       id:
         type: string
@@ -1443,17 +1447,17 @@ definitions:
           type: string
         type: object
       metrics:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadMetricsDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestWorkloadMetricsDoc'
       probes:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadProbesDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestWorkloadProbesDoc'
       replicas:
         type: integer
       resources:
-        $ref: '#/definitions/internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc'
+        $ref: '#/definitions/manifest_transport_http.ManifestWorkloadResourceRequirementsDoc'
       service_account_name:
         type: string
     type: object
-  internal_manifest_transport_http.ManifestWorkloadMetricsDoc:
+  manifest_transport_http.ManifestWorkloadMetricsDoc:
     properties:
       enabled:
         type: boolean
@@ -1462,7 +1466,7 @@ definitions:
       scrape_profile:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadMetricsScrapeProfile'
     type: object
-  internal_manifest_transport_http.ManifestWorkloadProbesDoc:
+  manifest_transport_http.ManifestWorkloadProbesDoc:
     properties:
       liveness:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
@@ -1471,7 +1475,7 @@ definitions:
       startup:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadProbe'
     type: object
-  internal_manifest_transport_http.ManifestWorkloadResourceRequirementsDoc:
+  manifest_transport_http.ManifestWorkloadResourceRequirementsDoc:
     properties:
       limits:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadResourceList'
@@ -1480,7 +1484,7 @@ definitions:
       size_class:
         $ref: '#/definitions/github_com_bsonger_devflow-service_internal_workloadconfig_domain.WorkloadSizeClass'
     type: object
-  internal_project_transport_http.CreateProjectRequest:
+  project_transport_http.CreateProjectRequest:
     properties:
       description:
         type: string
@@ -1491,7 +1495,7 @@ definitions:
       name:
         type: string
     type: object
-  internal_project_transport_http.UpdateProjectRequest:
+  project_transport_http.UpdateProjectRequest:
     properties:
       description:
         type: string
@@ -1502,19 +1506,19 @@ definitions:
       name:
         type: string
     type: object
-  internal_release_transport_http.ManifestEnvVarDoc:
+  release_transport_http.ManifestEnvVarDoc:
     properties:
       name:
         type: string
       value:
         type: string
     type: object
-  internal_route_transport_http.DeleteRouteRequest:
+  route_transport_http.DeleteRouteRequest:
     properties:
       application_id:
         type: string
     type: object
-  internal_service_transport_http.DeleteServiceRequest:
+  service_transport_http.DeleteServiceRequest:
     properties:
       application_id:
         type: string
@@ -1666,7 +1670,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_application_transport_http.CreateApplicationRequest'
+          $ref: '#/definitions/application_transport_http.CreateApplicationRequest'
       produces:
       - application/json
       responses:
@@ -1718,7 +1722,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_application_transport_http.UpdateApplicationRequest'
+          $ref: '#/definitions/application_transport_http.UpdateApplicationRequest'
       responses:
         "204":
           description: No Content
@@ -1877,7 +1881,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_cluster_transport_http.CreateClusterRequest'
+          $ref: '#/definitions/cluster_transport_http.CreateClusterRequest'
       produces:
       - application/json
       responses:
@@ -1929,7 +1933,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_cluster_transport_http.UpdateClusterRequest'
+          $ref: '#/definitions/cluster_transport_http.UpdateClusterRequest'
       responses:
         "204":
           description: No Content
@@ -1955,7 +1959,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_environment_transport_http.CreateEnvironmentRequest'
+          $ref: '#/definitions/environment_transport_http.CreateEnvironmentRequest'
       produces:
       - application/json
       responses:
@@ -2007,7 +2011,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_environment_transport_http.UpdateEnvironmentRequest'
+          $ref: '#/definitions/environment_transport_http.UpdateEnvironmentRequest'
       responses:
         "204":
           description: No Content
@@ -2083,7 +2087,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_manifest_transport_http.CreateManifestRequestDoc'
+          $ref: '#/definitions/manifest_transport_http.CreateManifestRequestDoc'
       produces:
       - application/json
       responses:
@@ -2215,7 +2219,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_project_transport_http.CreateProjectRequest'
+          $ref: '#/definitions/project_transport_http.CreateProjectRequest'
       produces:
       - application/json
       responses:
@@ -2267,7 +2271,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_project_transport_http.UpdateProjectRequest'
+          $ref: '#/definitions/project_transport_http.UpdateProjectRequest'
       responses:
         "204":
           description: No Content
@@ -2481,7 +2485,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_route_transport_http.DeleteRouteRequest'
+          $ref: '#/definitions/route_transport_http.DeleteRouteRequest'
       responses:
         "204":
           description: No Content
@@ -2598,7 +2602,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/internal_service_transport_http.DeleteServiceRequest'
+          $ref: '#/definitions/service_transport_http.DeleteServiceRequest'
       responses:
         "204":
           description: No Content

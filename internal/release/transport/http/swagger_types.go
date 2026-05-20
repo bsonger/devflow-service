@@ -49,6 +49,8 @@ type ReleaseDoc struct {
 	Type                  string                   `json:"type"`
 	Steps                 []ReleaseStepDoc         `json:"steps,omitempty"`
 	Status                string                   `json:"status"`
+	RemediationStatus     string                   `json:"remediation_status,omitempty"`
+	RemediationReason     string                   `json:"remediation_reason,omitempty"`
 	ArgoCDApplicationName string                   `json:"argocd_application_name,omitempty"`
 	ExternalRef           string                   `json:"external_ref,omitempty"`
 	CreatedAt             string                   `json:"created_at,omitempty"`

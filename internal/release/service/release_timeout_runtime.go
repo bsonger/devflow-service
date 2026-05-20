@@ -70,6 +70,9 @@ func compatControlStateFromRelease(release *releasedomain.Release) (releasedomai
 	if release == nil {
 		return releasedomain.ReleaseControlState{}, false
 	}
+	if pausedRelease, paused := applyPausedCompatibilityState(release); paused {
+		release = pausedRelease
+	}
 	state := releasedomain.NewInitialControlState(compatReleaseStrategy(release.Strategy), release.UpdatedAt)
 	switch release.Status {
 	case releasedomain.ReleaseSyncing:
@@ -132,6 +135,12 @@ func compatReleaseStatusFromControlState(state releasedomain.ReleaseControlState
 func inferRunningLifecycleStatus(release *releasedomain.Release) releasedomain.LifecycleStatus {
 	if release == nil {
 		return releasedomain.LifecycleRunning
+	}
+	if observeRollout := findReleaseStep(release.Steps, "observe_rollout"); observeRollout != nil {
+		message := strings.ToLower(strings.TrimSpace(observeRollout.Message))
+		if observeRollout.Status == releasedomain.StepRunning && strings.Contains(message, "paused by operator") {
+			return releasedomain.LifecyclePaused
+		}
 	}
 	observeRollout := findReleaseStep(release.Steps, "observe_rollout")
 	finalizeRelease := findReleaseStep(release.Steps, "finalize_release")

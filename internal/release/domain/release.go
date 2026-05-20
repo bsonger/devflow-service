@@ -20,6 +20,8 @@ type Release struct {
 	Type                  string                `json:"type" db:"type"`
 	Steps                 []ReleaseStep         `json:"steps,omitempty" db:"steps"`
 	Status                ReleaseStatus         `json:"status" db:"status"`
+	RemediationStatus     string                `json:"remediation_status,omitempty" db:"remediation_status"`
+	RemediationReason     string                `json:"remediation_reason,omitempty" db:"remediation_reason"`
 	ArgoCDApplicationName string                `json:"argocd_application_name,omitempty" db:"argocd_application_name"`
 	ExternalRef           string                `json:"external_ref,omitempty" db:"external_ref"`
 }

@@ -56,6 +56,8 @@ CREATE TABLE releases (
   type TEXT NOT NULL,
   steps TEXT NOT NULL DEFAULT '[]',
   status TEXT NOT NULL,
+  remediation_status TEXT NOT NULL DEFAULT '',
+  remediation_reason TEXT NOT NULL DEFAULT '',
   argocd_application_name TEXT NOT NULL DEFAULT '',
   external_ref TEXT NOT NULL DEFAULT '',
   created_at DATETIME NOT NULL,
@@ -362,6 +364,42 @@ func TestReleaseRepositoryPersistsArgoCDApplicationName(t *testing.T) {
 	}
 }
 
+func TestReleaseRepositoryPersistsRemediationFields(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+
+	stepsJSON, _ := marshalJSON(model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade), "[]")
+	_, err := store.DB().ExecContext(context.Background(), `
+		insert into releases (
+			id, application_id, manifest_id, env, strategy, routes_snapshot, app_config_snapshot,
+			type, steps, status, remediation_status, remediation_reason, created_at, updated_at, deleted_at
+		)
+		values ($1,$2,$3,'staging','rolling','[]','{}','Upgrade',$4,'Failed',$5,$6,$7,$8,null)
+	`, releaseID.String(), appID.String(), manifestID.String(),
+		stepsJSON,
+		string(model.RemediationPendingRollback),
+		"release may have partially or fully affected live runtime state",
+		time.Now(),
+		time.Now())
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	svc := &releaseService{}
+	release, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if release.RemediationStatus != string(model.RemediationPendingRollback) {
+		t.Fatalf("remediation_status = %q", release.RemediationStatus)
+	}
+	if release.RemediationReason != "release may have partially or fully affected live runtime state" {
+		t.Fatalf("remediation_reason = %q", release.RemediationReason)
+	}
+}
+
 func TestUpdateStatusAllowsNonTerminalTransition(t *testing.T) {
 	setupTestDB(t)
 	releaseID := uuid.New()
@@ -637,6 +675,314 @@ func TestProcessTimeoutsKeepsRunningReleaseInRolloutPhaseWithoutObservedSuccess(
 	}
 	if finalizeStep.Status != model.StepRunning {
 		t.Fatalf("finalize_release status = %q, want %q", finalizeStep.Status, model.StepRunning)
+	}
+}
+
+func TestApplyOperationRequestPausesRunningRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "start_deployment":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_rollout":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 40
+			steps[i].Message = "deployment progressing"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationPause, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected pause request to change release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseRunning {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseRunning)
+	}
+	step := findReleaseStep(stored.Steps, "observe_rollout")
+	if step == nil {
+		t.Fatal("observe_rollout step not found")
+	}
+	if step.Status != model.StepRunning {
+		t.Fatalf("observe_rollout status = %q, want %q", step.Status, model.StepRunning)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "paused") {
+		t.Fatalf("observe_rollout message = %q, want pause detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestResumesPausedRelease(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "start_deployment":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_rollout":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 40
+			steps[i].Message = "deployment paused by operator"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationResume, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected resume request to change release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	step := findReleaseStep(stored.Steps, "observe_rollout")
+	if step == nil {
+		t.Fatal("observe_rollout step not found")
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "resumed") {
+		t.Fatalf("observe_rollout message = %q, want resume detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestRejectsResumeWhenNotPaused(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade),
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationResume, now)
+	if err == nil {
+		t.Fatal("expected resume rejection error")
+	}
+	if changed {
+		t.Fatal("expected rejected resume not to mutate release")
+	}
+}
+
+func TestApplyOperationRequestCancelsDispatchingReleaseWithCleanupOnly(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "create_argocd_application":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 50
+			steps[i].Message = "creating argocd application"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseSyncing,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationCancel, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected cancel request to change release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	if stored.RemediationStatus != string(model.RemediationCleanupOnly) {
+		t.Fatalf("remediation_status = %q, want %q", stored.RemediationStatus, model.RemediationCleanupOnly)
+	}
+	if !strings.Contains(strings.ToLower(stored.RemediationReason), "handoff") {
+		t.Fatalf("remediation_reason = %q, want handoff detail", stored.RemediationReason)
+	}
+	step := findReleaseStep(stored.Steps, "create_argocd_application")
+	if step == nil {
+		t.Fatal("create_argocd_application step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("create_argocd_application status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "cleanup") {
+		t.Fatalf("create_argocd_application message = %q, want cleanup detail", step.Message)
+	}
+}
+
+func TestApplyOperationRequestCancelsRunningReleaseWithPendingRollback(t *testing.T) {
+	setupTestDB(t)
+	releaseID := uuid.New()
+	appID := uuid.New()
+	manifestID := uuid.New()
+	now := time.Now()
+
+	steps := model.DefaultReleaseSteps(model.Normal, model.ReleaseUpgrade)
+	for i := range steps {
+		switch steps[i].Code {
+		case "freeze_inputs", "ensure_namespace", "ensure_pull_secret", "ensure_appproject_destination", "render_deployment_bundle", "publish_bundle", "create_argocd_application", "start_deployment":
+			steps[i].Status = model.StepSucceeded
+			steps[i].Progress = 100
+			steps[i].Message = "done"
+		case "observe_rollout":
+			steps[i].Status = model.StepRunning
+			steps[i].Progress = 60
+			steps[i].Message = "deployment progressing"
+		}
+	}
+
+	release := &model.Release{
+		BaseModel: model.BaseModel{
+			ID:        releaseID,
+			CreatedAt: now.Add(-5 * time.Minute),
+			UpdatedAt: now.Add(-1 * time.Minute),
+		},
+		ApplicationID: appID,
+		ManifestID:    manifestID,
+		EnvironmentID: "staging",
+		Strategy:      string(model.ReleaseStrategyRolling),
+		Type:          model.ReleaseUpgrade,
+		Steps:         steps,
+		Status:        model.ReleaseRunning,
+	}
+	svc := &releaseService{}
+	if err := svc.repoStore().Insert(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+
+	changed, err := svc.ApplyOperationRequest(context.Background(), releaseID, model.ReleaseOperationCancel, now)
+	if err != nil {
+		t.Fatalf("ApplyOperationRequest error = %v", err)
+	}
+	if !changed {
+		t.Fatal("expected cancel request to change release state")
+	}
+
+	stored, err := svc.Get(context.Background(), releaseID)
+	if err != nil {
+		t.Fatalf("get release: %v", err)
+	}
+	if stored.Status != model.ReleaseFailed {
+		t.Fatalf("status = %q, want %q", stored.Status, model.ReleaseFailed)
+	}
+	if stored.RemediationStatus != string(model.RemediationPendingRollback) {
+		t.Fatalf("remediation_status = %q, want %q", stored.RemediationStatus, model.RemediationPendingRollback)
+	}
+	if !strings.Contains(strings.ToLower(stored.RemediationReason), "runtime") {
+		t.Fatalf("remediation_reason = %q, want runtime detail", stored.RemediationReason)
+	}
+	step := findReleaseStep(stored.Steps, "observe_rollout")
+	if step == nil {
+		t.Fatal("observe_rollout step not found")
+	}
+	if step.Status != model.StepFailed {
+		t.Fatalf("observe_rollout status = %q, want %q", step.Status, model.StepFailed)
+	}
+	if !strings.Contains(strings.ToLower(step.Message), "rollback") {
+		t.Fatalf("observe_rollout message = %q, want rollback detail", step.Message)
 	}
 }
 

@@ -274,6 +274,8 @@ Produced by release execution after freeze:
 | `strategy` | `string` | required | user | 本次发布选择的 rollout 策略 |
 | `steps` | `[]ReleaseStep` | system-managed | no | 发布步骤，使用稳定 `code` 标识每个步骤 |
 | `status` | `ReleaseStatus` | system-managed | no | 发布状态 |
+| `remediation_status` | `string` | system-managed | no | 失败或取消后所需处置动作状态，例如 `NotRequired`、`CleanupOnly`、`PendingRollback` |
+| `remediation_reason` | `string` | system-managed | no | remediation 判定原因，供调试和运维判断使用 |
 | `argocd_application_name` | `string` | system-managed | no | Argo CD `Application` 名称 |
 | `external_ref` | `string` | system-managed | no | 外部系统引用，例如 ArgoCD Application 名称 |
 

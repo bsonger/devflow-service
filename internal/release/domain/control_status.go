@@ -8,6 +8,7 @@ const (
 	LifecyclePending     LifecycleStatus = "Pending"
 	LifecycleDispatching LifecycleStatus = "Dispatching"
 	LifecycleRunning     LifecycleStatus = "Running"
+	LifecyclePaused      LifecycleStatus = "Paused"
 	LifecycleFinalizing  LifecycleStatus = "Finalizing"
 	LifecycleSucceeded   LifecycleStatus = "Succeeded"
 	LifecycleFailed      LifecycleStatus = "Failed"
