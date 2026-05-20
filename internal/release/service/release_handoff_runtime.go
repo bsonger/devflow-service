@@ -144,10 +144,6 @@ func (c *releaseHandoffController) persistArgoApplicationMetadata(ctx context.Co
 	return c.service.repoStore().UpdateArgoMetadata(ctx, release.ID, appName, appName, updatedAt)
 }
 
-func (s *releaseService) persistArgoApplicationMetadata(ctx context.Context, release *model.Release, appName string) error {
-	return newReleaseHandoffController(s).persistArgoApplicationMetadata(ctx, release, appName)
-}
-
 func releaseDeploymentStartStep(release *model.Release) (string, string) {
 	if release == nil {
 		return "", ""

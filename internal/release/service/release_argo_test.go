@@ -85,7 +85,7 @@ func TestBuildArgoApplicationUsesOCIArtifactSource(t *testing.T) {
 
 func TestBuildArgoApplicationUsesRollbackTargetOCIArtifactSource(t *testing.T) {
 	release := &model.Release{
-		BaseModel:                       model.BaseModel{ID: uuid.New()},
+		BaseModel:                        model.BaseModel{ID: uuid.New()},
 		ApplicationID:                    uuid.New(),
 		ManifestID:                       uuid.New(),
 		EnvironmentID:                    "production",
@@ -443,7 +443,7 @@ func TestPersistArgoApplicationMetadataUpdatesRelease(t *testing.T) {
 		t.Fatalf("get failed: %v", err)
 	}
 
-	if err := svc.persistArgoApplicationMetadata(context.Background(), release, "demo-api"); err != nil {
+	if err := newReleaseHandoffController(svc).persistArgoApplicationMetadata(context.Background(), release, "demo-api"); err != nil {
 		t.Fatalf("persistArgoApplicationMetadata failed: %v", err)
 	}
 
@@ -487,7 +487,7 @@ func TestPersistArgoApplicationMetadataDoesNotOverwriteUpdatedSteps(t *testing.T
 		t.Fatalf("UpdateStep create_argocd_application failed: %v", err)
 	}
 
-	if err := svc.persistArgoApplicationMetadata(context.Background(), staleRelease, "demo-api"); err != nil {
+	if err := newReleaseHandoffController(svc).persistArgoApplicationMetadata(context.Background(), staleRelease, "demo-api"); err != nil {
 		t.Fatalf("persistArgoApplicationMetadata failed: %v", err)
 	}
 
