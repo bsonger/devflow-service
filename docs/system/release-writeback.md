@@ -25,7 +25,8 @@ Current steady-state topology:
 
 Ownership rule:
 
-- the control plane that owns the deploy-side target owns the release record and callback surface
+- the control plane that executes the deploy-side release owns the release record and callback surface
+- do not infer writeback ownership from the target environment name alone
 - workload identity and observer routing use `devflow.control-plane/id`
 - `devflow.control-plane/id` comes from explicit `observer.control_plane_id` config on both `release-service` and `runtime-service`
 - do not infer control-plane ownership from namespace names inside handlers or observers

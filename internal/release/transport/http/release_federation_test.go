@@ -9,88 +9,56 @@ import (
 
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
-	"github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-func TestReleaseShouldProxyByManifestForRemoteProductionTarget(t *testing.T) {
+func TestReleaseShouldNotProxyByManifestForCreatePath(t *testing.T) {
 	originalGetLocalManifest := releaseGetLocalManifest
-	originalResolve := releaseResolveDeployTarget
-	originalRuntimeConfig := releaseCurrentRuntimeConfig
+	originalProxyBaseURL := releaseCurrentProxyBaseURL
 	defer func() {
 		releaseGetLocalManifest = originalGetLocalManifest
-		releaseResolveDeployTarget = originalResolve
-		releaseCurrentRuntimeConfig = originalRuntimeConfig
+		releaseCurrentProxyBaseURL = originalProxyBaseURL
 	}()
 
-	appID := uuid.New()
 	manifestID := uuid.New()
-	releaseCurrentRuntimeConfig = func() support.RuntimeConfig {
-		return support.RuntimeConfig{
-			ControlPlaneID: "devflow-staging",
-			Downstream: model.DownstreamConfig{
-				ReleaseServiceBaseURL: "http://release-service.devflow.svc.cluster.local",
-			},
-		}
+	releaseCurrentProxyBaseURL = func() string {
+		return "http://release-service.devflow.svc.cluster.local"
 	}
 	releaseGetLocalManifest = func(_ context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
 		if id != manifestID {
 			t.Fatalf("manifest id = %s want %s", id, manifestID)
 		}
-		return &manifestdomain.Manifest{ApplicationID: appID}, nil
-	}
-	releaseResolveDeployTarget = func(_ context.Context, applicationID, environmentID string) (*support.DeployTarget, error) {
-		if applicationID != appID.String() || environmentID != "env-prod" {
-			t.Fatalf("unexpected target lookup application=%q environment=%q", applicationID, environmentID)
-		}
-		return &support.DeployTarget{EnvironmentName: "production"}, nil
+		return nil, nil
 	}
 
-	if !releaseShouldProxyByManifest(context.Background(), manifestID, "env-prod") {
-		t.Fatal("expected release request to proxy to production control plane")
+	if releaseShouldProxyByManifest(context.Background(), manifestID, "env-prod") {
+		t.Fatal("expected create path to stay on the current release-service")
 	}
 }
 
-func TestReleaseShouldNotProxyByManifestForLocalStagingTarget(t *testing.T) {
-	originalGetLocalManifest := releaseGetLocalManifest
-	originalResolve := releaseResolveDeployTarget
-	originalRuntimeConfig := releaseCurrentRuntimeConfig
+func TestReleaseShouldNotProxyByTargetForListPath(t *testing.T) {
+	originalProxyBaseURL := releaseCurrentProxyBaseURL
 	defer func() {
-		releaseGetLocalManifest = originalGetLocalManifest
-		releaseResolveDeployTarget = originalResolve
-		releaseCurrentRuntimeConfig = originalRuntimeConfig
+		releaseCurrentProxyBaseURL = originalProxyBaseURL
 	}()
 
-	appID := uuid.New()
-	manifestID := uuid.New()
-	releaseCurrentRuntimeConfig = func() support.RuntimeConfig {
-		return support.RuntimeConfig{
-			ControlPlaneID: "devflow-staging",
-			Downstream: model.DownstreamConfig{
-				ReleaseServiceBaseURL: "http://release-service.devflow.svc.cluster.local",
-			},
-		}
-	}
-	releaseGetLocalManifest = func(context.Context, uuid.UUID) (*manifestdomain.Manifest, error) {
-		return &manifestdomain.Manifest{ApplicationID: appID}, nil
-	}
-	releaseResolveDeployTarget = func(context.Context, string, string) (*support.DeployTarget, error) {
-		return &support.DeployTarget{EnvironmentName: "staging"}, nil
+	releaseCurrentProxyBaseURL = func() string {
+		return "http://release-service.devflow.svc.cluster.local"
 	}
 
-	if releaseShouldProxyByManifest(context.Background(), manifestID, "env-pre") {
-		t.Fatal("expected local staging target to stay local")
+	if releaseShouldProxyByTarget(context.Background(), uuid.New(), "env-pre") {
+		t.Fatal("expected list path to stay on the current release-service")
 	}
 }
 
 func TestGetReleaseProxiesLocalNotFound(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	originalHTTPClient := releaseFederationHTTPClient
-	originalRuntimeConfig := releaseCurrentRuntimeConfig
+	originalProxyBaseURL := releaseCurrentProxyBaseURL
 	defer func() {
 		releaseFederationHTTPClient = originalHTTPClient
-		releaseCurrentRuntimeConfig = originalRuntimeConfig
+		releaseCurrentProxyBaseURL = originalProxyBaseURL
 	}()
 
 	releaseID := uuid.New()
@@ -104,10 +72,8 @@ func TestGetReleaseProxiesLocalNotFound(t *testing.T) {
 	defer remote.Close()
 
 	releaseFederationHTTPClient = remote.Client()
-	releaseCurrentRuntimeConfig = func() support.RuntimeConfig {
-		return support.RuntimeConfig{
-			Downstream: model.DownstreamConfig{ReleaseServiceBaseURL: remote.URL},
-		}
+	releaseCurrentProxyBaseURL = func() string {
+		return remote.URL
 	}
 
 	handler := &ReleaseHandler{

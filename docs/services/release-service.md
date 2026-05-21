@@ -176,7 +176,9 @@ Production release records and production callback state belong to production
 这说明：
 
 - `Release` 是 release-owned 的 deploy-side record
-- the control plane that owns the deploy-side target owns the durable `Release` row
+- the control plane that executes the deploy-side release owns the durable `Release` row
+- do not derive release ownership from the target environment name alone
+- if one platform deploys another named downstream environment, the executing platform still owns release truth and must stamp its own `devflow.control-plane/id` onto the rendered workload metadata
 
 它承担的观察面包括：
 

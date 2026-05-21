@@ -20,59 +20,26 @@ var releaseFederationHTTPClient = &http.Client{Timeout: 30 * time.Second}
 var releaseGetLocalManifest = func(ctx context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
 	return manifestservice.ManifestService.Get(ctx, id)
 }
-var releaseResolveDeployTarget = support.ResolveDeployTarget
-var releaseCurrentRuntimeConfig = support.CurrentRuntimeConfig
-
-func releaseProxyBaseURL() string {
-	return strings.TrimSpace(releaseCurrentRuntimeConfig().Downstream.ReleaseServiceBaseURL)
+var releaseCurrentProxyBaseURL = func() string {
+	return strings.TrimSpace(support.CurrentRuntimeConfig().Downstream.ReleaseServiceBaseURL)
 }
 
-func releaseShouldProxyByManifest(ctx context.Context, manifestID uuid.UUID, environmentID string) bool {
+func releaseProxyBaseURL() string {
+	return strings.TrimSpace(releaseCurrentProxyBaseURL())
+}
+
+func releaseShouldProxyByManifest(_ context.Context, manifestID uuid.UUID, environmentID string) bool {
 	if releaseProxyBaseURL() == "" || manifestID == uuid.Nil || strings.TrimSpace(environmentID) == "" {
 		return false
 	}
-	manifest, err := releaseGetLocalManifest(ctx, manifestID)
-	if err != nil || manifest == nil {
-		return false
-	}
-	return releaseShouldProxyByTarget(ctx, manifest.ApplicationID, environmentID)
+	return false
 }
 
-func releaseShouldProxyByTarget(ctx context.Context, applicationID uuid.UUID, environmentID string) bool {
+func releaseShouldProxyByTarget(_ context.Context, applicationID uuid.UUID, environmentID string) bool {
 	if releaseProxyBaseURL() == "" || applicationID == uuid.Nil || strings.TrimSpace(environmentID) == "" {
 		return false
 	}
-	target, err := releaseResolveDeployTarget(ctx, applicationID.String(), environmentID)
-	if err != nil || target == nil {
-		return false
-	}
-	return !releaseControlPlaneOwnsTarget(strings.TrimSpace(releaseCurrentRuntimeConfig().ControlPlaneID), target)
-}
-
-func releaseControlPlaneOwnsTarget(controlPlaneID string, target *support.DeployTarget) bool {
-	if target == nil {
-		return true
-	}
-	expected := releaseExpectedControlPlaneIDForEnvironment(target.EnvironmentName)
-	if expected == "" {
-		return true
-	}
-	return strings.EqualFold(strings.TrimSpace(controlPlaneID), expected)
-}
-
-func releaseExpectedControlPlaneIDForEnvironment(environmentName string) string {
-	switch strings.ToLower(strings.TrimSpace(environmentName)) {
-	case "":
-		return ""
-	case "production", "prod":
-		return "devflow-production"
-	case "staging":
-		return "devflow-staging"
-	case "pre-production", "preproduction":
-		return "devflow-pre-production"
-	default:
-		return ""
-	}
+	return false
 }
 
 func proxyReleaseRequest(c *gin.Context, method, path string, body []byte, contentType string) bool {

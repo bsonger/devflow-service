@@ -141,7 +141,9 @@ Short form:
 **Boundary rule:**
 - `Release` is the deploy-side freeze point.
 - It consumes `Manifest`; it does not replace it.
-- In the active multi-control-plane topology, the control plane that owns the deploy target owns the persisted `Release` row.
+- In the active multi-control-plane topology, the control plane that executes the deploy-side release owns the persisted `Release` row.
+- Do not infer release ownership from the target environment name alone.
+- A platform may deploy a differently named downstream environment; in that case workload identity, release truth, and runtime ownership still belong to the platform that executed the release.
 - When the owning control plane cannot find the referenced manifest locally, it may read it from the configured manifest-source fallback instead of recreating release truth elsewhere.
 
 ### Stage 4. Release bundle render
