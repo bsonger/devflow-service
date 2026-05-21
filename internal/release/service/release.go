@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/yaml"
 )
 
 type ReleaseListFilter struct {
@@ -217,6 +218,7 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 			SourceDirectory: appConfig.SourceDirectory,
 			SourceCommit:    appConfig.SourceCommit,
 		}
+		injectReleaseRuntimeConfigSnapshot(&release.AppConfigSnapshot)
 	}
 
 	networkReader := releaseNetworkReaderFactory()
@@ -239,6 +241,111 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 		})
 	}
 	return nil
+}
+
+func injectReleaseRuntimeConfigSnapshot(snapshot *model.ReleaseAppConfig) {
+	if snapshot == nil {
+		return
+	}
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	controlPlaneID := strings.TrimSpace(runtimeCfg.ControlPlaneID)
+	releaseServiceBaseURL := strings.TrimSpace(runtimeCfg.Downstream.ReleaseServiceBaseURL)
+	if controlPlaneID == "" && releaseServiceBaseURL == "" {
+		return
+	}
+
+	updatedData := make(map[string]string, len(snapshot.Data))
+	changed := false
+	for name, content := range snapshot.Data {
+		nextContent, ok := injectReleaseRuntimeConfigContent(name, content, controlPlaneID, releaseServiceBaseURL)
+		updatedData[name] = nextContent
+		changed = changed || ok
+	}
+	if changed {
+		snapshot.Data = updatedData
+	}
+	for i := range snapshot.Files {
+		nextContent, ok := injectReleaseRuntimeConfigContent(snapshot.Files[i].Name, snapshot.Files[i].Content, controlPlaneID, releaseServiceBaseURL)
+		if !ok {
+			continue
+		}
+		snapshot.Files[i].Content = nextContent
+		if snapshot.Data != nil {
+			snapshot.Data[snapshot.Files[i].Name] = nextContent
+		}
+	}
+}
+
+func injectReleaseRuntimeConfigContent(name, content, controlPlaneID, releaseServiceBaseURL string) (string, bool) {
+	trimmedName := strings.ToLower(strings.TrimSpace(name))
+	if trimmedName == "" || (trimmedName != "config.yaml" && trimmedName != "config.yml") {
+		return content, false
+	}
+
+	var document map[string]any
+	if err := yaml.Unmarshal([]byte(content), &document); err != nil || document == nil {
+		return content, false
+	}
+
+	changed := false
+	if controlPlaneID != "" {
+		observerConfig, ok := mapStringAny(document["observer"])
+		if !ok {
+			observerConfig = map[string]any{}
+		}
+		if strings.TrimSpace(stringValueAny(observerConfig["control_plane_id"])) != controlPlaneID {
+			observerConfig["control_plane_id"] = controlPlaneID
+			document["observer"] = observerConfig
+			changed = true
+		}
+	}
+	if releaseServiceBaseURL != "" {
+		downstreamConfig, ok := mapStringAny(document["downstream"])
+		if !ok {
+			downstreamConfig = map[string]any{}
+		}
+		if strings.TrimSpace(stringValueAny(downstreamConfig["release_service_base_url"])) != releaseServiceBaseURL {
+			downstreamConfig["release_service_base_url"] = releaseServiceBaseURL
+			document["downstream"] = downstreamConfig
+			changed = true
+		}
+	}
+	if !changed {
+		return content, false
+	}
+
+	encoded, err := yaml.Marshal(document)
+	if err != nil {
+		return content, false
+	}
+	return string(encoded), true
+}
+
+func mapStringAny(value any) (map[string]any, bool) {
+	if value == nil {
+		return nil, false
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed, true
+	case map[any]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			keyString, ok := key.(string)
+			if !ok {
+				return nil, false
+			}
+			out[keyString] = item
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func stringValueAny(value any) string {
+	text, _ := value.(string)
+	return text
 }
 
 // Create validates that the build-side manifest is deployable, freezes release-only live inputs, and then starts deploy execution.

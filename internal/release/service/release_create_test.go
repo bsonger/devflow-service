@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -262,6 +263,69 @@ func TestFreezeReleaseLiveInputsIgnoresRouteLookupError(t *testing.T) {
 	}
 	if len(release.RoutesSnapshot) != 0 {
 		t.Fatalf("expected empty route snapshot, got %#v", release.RoutesSnapshot)
+	}
+}
+
+func TestFreezeReleaseLiveInputsInjectsExecutingControlPlaneIntoRuntimeConfig(t *testing.T) {
+	originalConfigFactory := releaseConfigReaderFactory
+	originalNetworkFactory := releaseNetworkReaderFactory
+	originalRuntimeConfig := releasesupport.CurrentRuntimeConfig()
+	defer func() {
+		releaseConfigReaderFactory = originalConfigFactory
+		releaseNetworkReaderFactory = originalNetworkFactory
+		releasesupport.ConfigureRuntimeConfig(originalRuntimeConfig)
+	}()
+
+	releasesupport.ConfigureRuntimeConfig(releasesupport.RuntimeConfig{
+		ControlPlaneID: "devflow-production",
+		Downstream: model.DownstreamConfig{
+			ReleaseServiceBaseURL: "http://release-service.devflow.svc.cluster.local:80",
+		},
+	})
+
+	releaseConfigReaderFactory = func() releaseConfigReader {
+		return stubReleaseConfigReader{
+			findFn: func(_ context.Context, applicationID, environmentID string) (*appconfigdownstream.AppConfig, error) {
+				return &appconfigdownstream.AppConfig{
+					ID:        uuid.New().String(),
+					MountPath: "/etc/config",
+					Files: []appconfigdownstream.ManifestFile{
+						{
+							Name: "config.yaml",
+							Content: "server:\n  port: 8084\n" +
+								"downstream:\n  release_service_base_url: \"http://release-service.devflow-staging.svc.cluster.local:80\"\n" +
+								"observer:\n  control_plane_id: \"devflow-staging\"\n",
+						},
+					},
+				}, nil
+			},
+		}
+	}
+	releaseNetworkReaderFactory = func() releaseNetworkReader {
+		return stubReleaseNetworkReader{
+			listFn: func(_ context.Context, applicationID, environmentID string) ([]servicedownstream.Route, error) {
+				return nil, nil
+			},
+		}
+	}
+
+	release := &model.Release{
+		ApplicationID: uuid.New(),
+		EnvironmentID: "ce3e0499-e862-4322-98e2-264fa6f09286",
+	}
+	if err := freezeReleaseLiveInputs(context.Background(), release); err != nil {
+		t.Fatalf("freezeReleaseLiveInputs failed: %v", err)
+	}
+
+	content := release.AppConfigSnapshot.Data["config.yaml"]
+	if !strings.Contains(content, `control_plane_id: devflow-production`) {
+		t.Fatalf("config.yaml missing injected control plane id: %s", content)
+	}
+	if !strings.Contains(content, `release_service_base_url: http://release-service.devflow.svc.cluster.local:80`) {
+		t.Fatalf("config.yaml missing injected release service base url: %s", content)
+	}
+	if release.AppConfigSnapshot.Files[0].Content != content {
+		t.Fatalf("snapshot file content not kept in sync with data map")
 	}
 }
 

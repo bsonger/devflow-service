@@ -144,6 +144,7 @@ Short form:
 - In the active multi-control-plane topology, the control plane that executes the deploy-side release owns the persisted `Release` row.
 - Do not infer release ownership from the target environment name alone.
 - A platform may deploy a differently named downstream environment; in that case workload identity, release truth, and runtime ownership still belong to the platform that executed the release.
+- During release freeze, the executing control plane may override runtime-facing ownership fields inside the frozen `app_config_snapshot` such as `observer.control_plane_id` and `downstream.release_service_base_url` so the rendered workload config matches the platform that actually owns rollout observation and writeback.
 - When the owning control plane cannot find the referenced manifest locally, it may read it from the configured manifest-source fallback instead of recreating release truth elsewhere.
 
 ### Stage 4. Release bundle render
