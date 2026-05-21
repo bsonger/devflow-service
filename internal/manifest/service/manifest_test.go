@@ -230,6 +230,91 @@ func TestCreateManifestReturnsMissingConfigWhenCleanupDeletedLegacyRow(t *testin
 	}
 }
 
+func TestCreateManifestIgnoresOptionalServiceLookupError(t *testing.T) {
+	setupManifestTestDB(t)
+	originalCreatePVC := manifestCreatePVC
+	originalCreatePipelineRun := manifestCreatePipelineRun
+	originalPatchPVCOwner := manifestPatchPVCOwner
+	originalGetPipeline := manifestGetPipeline
+	originalLogger := platformlogger.Logger
+	t.Cleanup(func() {
+		manifestCreatePVC = originalCreatePVC
+		manifestCreatePipelineRun = originalCreatePipelineRun
+		manifestPatchPVCOwner = originalPatchPVCOwner
+		manifestGetPipeline = originalGetPipeline
+		platformlogger.Logger = originalLogger
+	})
+	platformlogger.Logger = zap.NewNop()
+
+	manifestCreatePVC = func(context.Context, string, string, string, string) (*corev1.PersistentVolumeClaim, error) {
+		return &corev1.PersistentVolumeClaim{}, nil
+	}
+	manifestCreatePipelineRun = func(_ context.Context, _ string, pr *tknv1.PipelineRun) (*tknv1.PipelineRun, error) {
+		if pr == nil {
+			t.Fatal("expected pipeline run")
+		}
+		pr.Name = "manifest-run"
+		pr.Namespace = "tekton"
+		return pr, nil
+	}
+	manifestPatchPVCOwner = func(context.Context, *corev1.PersistentVolumeClaim, *tknv1.PipelineRun) error {
+		return nil
+	}
+	manifestGetPipeline = func(context.Context, string, string) (*tknv1.Pipeline, error) {
+		return &tknv1.Pipeline{}, nil
+	}
+
+	configAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/workload-configs" && r.URL.RawQuery == "application_id=11111111-1111-1111-1111-111111111111":
+			_, _ = io.WriteString(w, `{"data":[{"id":"wc-1"}]}`)
+		case r.URL.Path == "/api/v1/workload-configs/wc-1":
+			_, _ = io.WriteString(w, `{"data":{"id":"wc-1","application_id":"11111111-1111-1111-1111-111111111111","replicas":1}}`)
+		default:
+			t.Fatalf("unexpected config request path=%s query=%s", r.URL.Path, r.URL.RawQuery)
+		}
+	}))
+	defer configAPI.Close()
+
+	networkAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/services" || r.URL.RawQuery != "application_id=11111111-1111-1111-1111-111111111111" {
+			t.Fatalf("unexpected network request path=%s query=%s", r.URL.Path, r.URL.RawQuery)
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, `{"error":{"code":"internal","message":"boom"}}`)
+	}))
+	defer networkAPI.Close()
+
+	runtimeCfg := releasesupport.CurrentRuntimeConfig()
+	cfg := runtimeCfg
+	cfg.Downstream.ConfigServiceBaseURL = configAPI.URL
+	cfg.Downstream.NetworkServiceBaseURL = networkAPI.URL
+	cfg.ImageRegistry.Registry = "registry.example.com"
+	cfg.ImageRegistry.Namespace = "devflow"
+	t.Cleanup(func() { releasesupport.ConfigureRuntimeConfig(runtimeCfg) })
+	releasesupport.ConfigureRuntimeConfig(cfg)
+
+	svc := &manifestService{apps: stubManifestApplicationReader{
+		getFn: func(_ context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+			return &releasesupport.ApplicationProjection{ID: id, Name: "demo-api", RepoAddress: "git@github.com:example/demo-api.git"}, nil
+		},
+	}}
+
+	manifest, err := svc.CreateManifest(context.Background(), &manifestdomain.CreateManifestRequest{ApplicationID: mustUUID("11111111-1111-1111-1111-111111111111")})
+	if err != nil {
+		t.Fatalf("CreateManifest() error = %v", err)
+	}
+	if manifest == nil {
+		t.Fatal("expected manifest")
+	}
+	if len(manifest.ServicesSnapshot) != 0 {
+		t.Fatalf("expected empty services snapshot, got %+v", manifest.ServicesSnapshot)
+	}
+	if manifest.WorkloadConfigSnapshot.ID != "wc-1" {
+		t.Fatalf("expected workload snapshot to be preserved, got %+v", manifest.WorkloadConfigSnapshot)
+	}
+}
+
 func TestNormalizeGitRevisionDefaultsToMain(t *testing.T) {
 	if got := normalizeGitRevision(""); got != "main" {
 		t.Fatalf("normalizeGitRevision(\"\") = %q, want main", got)

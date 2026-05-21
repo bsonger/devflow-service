@@ -95,8 +95,10 @@ func (s *manifestService) CreateManifest(ctx context.Context, req *manifestdomai
 	}
 	services, err := networks.ListServices(ctx, req.ApplicationID.String())
 	if err != nil {
-		observeManifest(ctx, nil, false, time.Since(start))
-		return nil, err
+		log.Warn("skip service snapshot because optional service lookup failed",
+			zap.Error(err),
+		)
+		services = nil
 	}
 	imageTarget, err := oci.BuildImageTarget(runtimeCfg.ImageRegistry, application.Name, "main", "", time.Now())
 	if err != nil {
