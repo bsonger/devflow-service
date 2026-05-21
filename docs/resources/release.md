@@ -357,6 +357,7 @@ Contract rule:
 - no runtime consumer should require annotations to recover release, application, or environment identity
 - the live annotation keys emitted by code are `otel.devflow.io/trace-id` and `otel.devflow.io/parent-span-id`; treat them as supplementary diagnostics rather than business identity
 - `kubectl.kubernetes.io/restartedAt` is intentionally excluded from rendered desired-state workload metadata even though live workloads may later carry it
+- `devflow.io/observe-state` and `devflow.io/release-status` are release-owned runtime labels and may change after Argo handoff; they belong in the Argo `ignoreDifferences` seam, not in identity comparison
 
 ## Output boundary
 

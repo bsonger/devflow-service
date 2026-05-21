@@ -952,17 +952,23 @@ func assertRestartedAtIgnoreDifference(t *testing.T, items appv1.IgnoreDifferenc
 	if items[0].Group != wantGroup || items[0].Kind != wantKind {
 		t.Fatalf("ignoreDifference target = %#v", items[0])
 	}
-	if len(items[0].JSONPointers) != 3 {
+	if len(items[0].JSONPointers) != 5 {
 		t.Fatalf("ignoreDifference pointers = %#v", items[0].JSONPointers)
 	}
 	if items[0].JSONPointers[0] != "/metadata/labels/devflow.io~1observe-state" {
 		t.Fatalf("ignoreDifference pointer[0] = %#v", items[0].JSONPointers)
 	}
-	if items[0].JSONPointers[1] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
+	if items[0].JSONPointers[1] != "/metadata/labels/devflow.io~1release-status" {
 		t.Fatalf("ignoreDifference pointer[1] = %#v", items[0].JSONPointers)
 	}
-	if items[0].JSONPointers[2] != "/spec/template/metadata/labels/devflow.io~1observe-state" {
+	if items[0].JSONPointers[2] != "/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt" {
 		t.Fatalf("ignoreDifference pointer[2] = %#v", items[0].JSONPointers)
+	}
+	if items[0].JSONPointers[3] != "/spec/template/metadata/labels/devflow.io~1observe-state" {
+		t.Fatalf("ignoreDifference pointer[3] = %#v", items[0].JSONPointers)
+	}
+	if items[0].JSONPointers[4] != "/spec/template/metadata/labels/devflow.io~1release-status" {
+		t.Fatalf("ignoreDifference pointer[4] = %#v", items[0].JSONPointers)
 	}
 	for _, pointer := range items[0].JSONPointers {
 		if strings.Contains(pointer, model.ReleaseIDLabel) || strings.Contains(pointer, model.ReleaseApplicationLabel) || strings.Contains(pointer, model.ReleaseEnvironmentLabel) {

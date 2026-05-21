@@ -815,8 +815,10 @@ func releaseWorkloadRestartedAtIgnoreDifference(release *model.Release) appv1.Re
 		Kind:  kind,
 		JSONPointers: []string{
 			"/metadata/labels/devflow.io~1observe-state",
+			"/metadata/labels/devflow.io~1release-status",
 			"/spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt",
 			"/spec/template/metadata/labels/devflow.io~1observe-state",
+			"/spec/template/metadata/labels/devflow.io~1release-status",
 		},
 	}
 }
