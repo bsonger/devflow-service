@@ -861,11 +861,7 @@ func (o *KubernetesRuntimeObserver) resolveSpecNamespace(spec *domain.RuntimeSpe
 			return namespace
 		}
 	}
-	namespace := strings.TrimSpace(o.cfg.Namespace)
-	if namespace == "" {
-		namespace = detectObserverNamespace()
-	}
-	return namespace
+	return strings.TrimSpace(o.cfg.Namespace)
 }
 
 func detectObserverNamespace() string {

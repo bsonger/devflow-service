@@ -297,6 +297,25 @@ func TestListPodsFromCacheOrAPIUsesCacheWhenReady(t *testing.T) {
 	}
 }
 
+func TestResolveSpecNamespaceDoesNotFallBackToObserverPodNamespace(t *testing.T) {
+	t.Setenv("POD_NAMESPACE", "devflow")
+
+	observer := &KubernetesRuntimeObserver{
+		cfg:   KubernetesRuntimeObserverConfig{},
+		store: runtimerepo.NewMemoryStore(),
+	}
+
+	spec := &runtimedomain.RuntimeSpec{
+		ID:            uuid.New(),
+		ApplicationID: uuid.New(),
+		Environment:   "ce3e0499-e862-4322-98e2-264fa6f09286",
+	}
+
+	if got := observer.resolveSpecNamespace(spec); got != "" {
+		t.Fatalf("resolveSpecNamespace() = %q, want empty for cluster-wide lookup", got)
+	}
+}
+
 func TestReleaseStatusLabelUpdaterUpdatesDeploymentLabels(t *testing.T) {
 	clientset := kubefake.NewSimpleClientset(&appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
