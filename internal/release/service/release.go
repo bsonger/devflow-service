@@ -190,12 +190,17 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	if release == nil {
 		return nil
 	}
+	log := platformobs.OperationLogger(ctx, "release_service", "freeze_release_live_inputs", "release",
+		zap.String("application_id", release.ApplicationID.String()),
+		zap.String("environment_id", strings.TrimSpace(release.EnvironmentID)),
+	)
 	configReader := releaseConfigReaderFactory()
 	appConfig, err := configReader.FindAppConfig(ctx, release.ApplicationID.String(), releaseTargetEnvironment(release))
 	if err != nil {
-		return err
-	}
-	if appConfig != nil {
+		log.Warn("skip app config snapshot because optional app config lookup failed",
+			zap.Error(err),
+		)
+	} else if appConfig != nil {
 		files := make([]model.ReleaseFile, 0, len(appConfig.Files))
 		for _, item := range appConfig.Files {
 			files = append(files, model.ReleaseFile{Name: item.Name, Content: item.Content})
@@ -217,7 +222,10 @@ func freezeReleaseLiveInputs(ctx context.Context, release *model.Release) error 
 	networkReader := releaseNetworkReaderFactory()
 	routes, err := networkReader.ListRoutes(ctx, release.ApplicationID.String(), release.EnvironmentID)
 	if err != nil {
-		return err
+		log.Warn("skip route snapshot because optional route lookup failed",
+			zap.Error(err),
+		)
+		return nil
 	}
 	release.RoutesSnapshot = make([]model.ReleaseRoute, 0, len(routes))
 	for _, item := range routes {

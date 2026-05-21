@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -182,6 +183,85 @@ func TestFreezeReleaseLiveInputsAllowsMissingAppConfig(t *testing.T) {
 	}
 	if len(release.RoutesSnapshot) != 1 {
 		t.Fatalf("expected one route snapshot, got %#v", release.RoutesSnapshot)
+	}
+}
+
+func TestFreezeReleaseLiveInputsIgnoresAppConfigLookupError(t *testing.T) {
+	originalConfigFactory := releaseConfigReaderFactory
+	originalNetworkFactory := releaseNetworkReaderFactory
+	defer func() {
+		releaseConfigReaderFactory = originalConfigFactory
+		releaseNetworkReaderFactory = originalNetworkFactory
+	}()
+
+	releaseConfigReaderFactory = func() releaseConfigReader {
+		return stubReleaseConfigReader{
+			findFn: func(_ context.Context, applicationID, environmentID string) (*appconfigdownstream.AppConfig, error) {
+				return nil, errors.New("config downstream failed")
+			},
+		}
+	}
+	releaseNetworkReaderFactory = func() releaseNetworkReader {
+		return stubReleaseNetworkReader{
+			listFn: func(_ context.Context, applicationID, environmentID string) ([]servicedownstream.Route, error) {
+				return nil, nil
+			},
+		}
+	}
+
+	release := &model.Release{
+		ApplicationID: uuid.New(),
+		EnvironmentID: "staging",
+	}
+	if err := freezeReleaseLiveInputs(context.Background(), release); err != nil {
+		t.Fatalf("freezeReleaseLiveInputs failed: %v", err)
+	}
+	if len(release.AppConfigSnapshot.Files) != 0 || len(release.AppConfigSnapshot.Data) != 0 {
+		t.Fatalf("expected empty app config snapshot, got %#v", release.AppConfigSnapshot)
+	}
+}
+
+func TestFreezeReleaseLiveInputsIgnoresRouteLookupError(t *testing.T) {
+	originalConfigFactory := releaseConfigReaderFactory
+	originalNetworkFactory := releaseNetworkReaderFactory
+	defer func() {
+		releaseConfigReaderFactory = originalConfigFactory
+		releaseNetworkReaderFactory = originalNetworkFactory
+	}()
+
+	releaseConfigReaderFactory = func() releaseConfigReader {
+		return stubReleaseConfigReader{
+			findFn: func(_ context.Context, applicationID, environmentID string) (*appconfigdownstream.AppConfig, error) {
+				return &appconfigdownstream.AppConfig{
+					ID:        uuid.New().String(),
+					MountPath: "/etc/config",
+					Files: []appconfigdownstream.ManifestFile{
+						{Name: "app.yaml", Content: "name: demo"},
+					},
+				}, nil
+			},
+		}
+	}
+	releaseNetworkReaderFactory = func() releaseNetworkReader {
+		return stubReleaseNetworkReader{
+			listFn: func(_ context.Context, applicationID, environmentID string) ([]servicedownstream.Route, error) {
+				return nil, errors.New("route downstream failed")
+			},
+		}
+	}
+
+	release := &model.Release{
+		ApplicationID: uuid.New(),
+		EnvironmentID: "staging",
+	}
+	if err := freezeReleaseLiveInputs(context.Background(), release); err != nil {
+		t.Fatalf("freezeReleaseLiveInputs failed: %v", err)
+	}
+	if release.AppConfigSnapshot.MountPath != "/etc/config" {
+		t.Fatalf("expected app config snapshot to be preserved, got %#v", release.AppConfigSnapshot)
+	}
+	if len(release.RoutesSnapshot) != 0 {
+		t.Fatalf("expected empty route snapshot, got %#v", release.RoutesSnapshot)
 	}
 }
 

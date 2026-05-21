@@ -220,11 +220,11 @@ From persisted `Manifest`:
 
 From `config-service`:
 
-- `app_config_snapshot`
+- optional `app_config_snapshot`
 
 From `network-service`:
 
-- `routes_snapshot`
+- optional/deferred `routes_snapshot`
 
 From `meta-service`:
 
