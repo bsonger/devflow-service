@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -145,6 +144,7 @@ func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, c
 	if err := workloadCache.Start(ctx); err != nil {
 		return err
 	}
+	logKubernetesRuntimeObserverStartup(cfg)
 	store := repository.RuntimeStore
 	observer := &KubernetesRuntimeObserver{
 		cfg:           cfg,
@@ -156,6 +156,21 @@ func StartKubernetesRuntimeObserver(ctx context.Context, restCfg *rest.Config, c
 	}
 	go observer.run(ctx)
 	return nil
+}
+
+func logKubernetesRuntimeObserverStartup(cfg KubernetesRuntimeObserverConfig) {
+	namespaceScope := "cluster"
+	namespace := ""
+	if trimmed := strings.TrimSpace(cfg.Namespace); trimmed != "" {
+		namespaceScope = "single"
+		namespace = trimmed
+	}
+	runtimeObserverLogf("runtime_observer_startup_config",
+		zap.String("control_plane_id", strings.TrimSpace(cfg.ControlPlaneID)),
+		zap.String("namespace_scope", namespaceScope),
+		zap.String("namespace", namespace),
+		zap.Int64("poll_interval_seconds", int64(cfg.PollInterval/time.Second)),
+	)
 }
 
 func (o *KubernetesRuntimeObserver) run(ctx context.Context) {
@@ -859,18 +874,6 @@ func (o *KubernetesRuntimeObserver) resolveSpecNamespace(spec *domain.RuntimeSpe
 		}
 	}
 	return strings.TrimSpace(o.cfg.Namespace)
-}
-
-func detectObserverNamespace() string {
-	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
-		return ns
-	}
-	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		if ns := strings.TrimSpace(string(data)); ns != "" {
-			return ns
-		}
-	}
-	return ""
 }
 
 func int32Value(v *int32) int {

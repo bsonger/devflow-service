@@ -14,6 +14,7 @@ import (
 	runtimeservice "github.com/bsonger/devflow-service/internal/runtime/service"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -314,6 +315,45 @@ func TestResolveSpecNamespaceDoesNotFallBackToObserverPodNamespace(t *testing.T)
 
 	if got := observer.resolveSpecNamespace(spec); got != "" {
 		t.Fatalf("resolveSpecNamespace() = %q, want empty for cluster-wide lookup", got)
+	}
+}
+
+func TestLogKubernetesRuntimeObserverStartupUsesClusterScopeWhenNamespaceUnset(t *testing.T) {
+	var mu sync.Mutex
+	var records []map[string]any
+	runtimeObserverLogf = func(event string, fields ...zap.Field) {
+		mu.Lock()
+		defer mu.Unlock()
+		record := map[string]any{"event": event}
+		for _, field := range fields {
+			switch field.Type {
+			case zapcore.StringType:
+				record[field.Key] = field.String
+			case zapcore.Int64Type:
+				record[field.Key] = field.Integer
+			default:
+				record[field.Key] = field.Interface
+			}
+		}
+		records = append(records, record)
+	}
+	defer func() { runtimeObserverLogf = defaultRuntimeObserverLogf }()
+
+	logKubernetesRuntimeObserverStartup(KubernetesRuntimeObserverConfig{
+		ControlPlaneID: "devflow-production",
+		PollInterval:   15 * time.Second,
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(records) != 1 {
+		t.Fatalf("records = %#v", records)
+	}
+	if got := records[0]["namespace_scope"]; got != "cluster" {
+		t.Fatalf("namespace_scope = %#v, want cluster", got)
+	}
+	if got := records[0]["control_plane_id"]; got != "devflow-production" {
+		t.Fatalf("control_plane_id = %#v, want devflow-production", got)
 	}
 }
 

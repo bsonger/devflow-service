@@ -182,6 +182,7 @@ Release reconcile rules:
 - only process releases whose persisted status is `Running`
 - only process workloads owned by the current `control_plane_id`
 - write release steps through the shared runtime release writer and preserve the existing `/api/v1/verify/release/steps` contract
+- when the runtime observer namespace is unset, discovery is cluster-wide rather than implicitly falling back to the observer pod namespace; namespace narrowing must be configured explicitly
 
 Manifest reconcile rules:
 
