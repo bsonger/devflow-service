@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -313,6 +314,90 @@ func TestResolveSpecNamespaceDoesNotFallBackToObserverPodNamespace(t *testing.T)
 
 	if got := observer.resolveSpecNamespace(spec); got != "" {
 		t.Fatalf("resolveSpecNamespace() = %q, want empty for cluster-wide lookup", got)
+	}
+}
+
+func TestSyncDefaultsToClusterWideDiscoveryWhenNamespaceUnset(t *testing.T) {
+	t.Setenv("POD_NAMESPACE", "devflow")
+
+	appID := uuid.New()
+	controlPlaneID := "devflow-production"
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "runtime-service",
+			Namespace: "devflow-staging",
+			Labels: map[string]string{
+				releasedomain.ReleaseApplicationLabel: appID.String(),
+				releasedomain.ReleaseEnvironmentLabel: "ce3e0499-e862-4322-98e2-264fa6f09286",
+				releasedomain.ReleaseIDLabel:          uuid.New().String(),
+				releasedomain.ReleaseStatusLabel:      string(releasedomain.ReleaseRunning),
+				releasedomain.ControlPlaneLabel:       controlPlaneID,
+				"app.kubernetes.io/name":              "runtime-service",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32PtrForObserverTest(1),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						releasedomain.ReleaseApplicationLabel: appID.String(),
+						releasedomain.ReleaseEnvironmentLabel: "ce3e0499-e862-4322-98e2-264fa6f09286",
+						releasedomain.ReleaseIDLabel:          uuid.New().String(),
+						releasedomain.ReleaseStatusLabel:      string(releasedomain.ReleaseRunning),
+						releasedomain.ControlPlaneLabel:       controlPlaneID,
+						"app.kubernetes.io/name":              "runtime-service",
+					},
+				},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			ReadyReplicas:      1,
+			UpdatedReplicas:    1,
+			AvailableReplicas:  1,
+			ObservedGeneration: 1,
+			Replicas:           1,
+		},
+	}
+
+	clientset := kubefake.NewSimpleClientset(deployment)
+	store := runtimerepo.NewMemoryStore()
+	scheme := runtime.NewScheme()
+	observer := &KubernetesRuntimeObserver{
+		cfg: KubernetesRuntimeObserverConfig{
+			ControlPlaneID: controlPlaneID,
+		},
+		clientset: clientset,
+		dynamic: dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
+			scheme,
+			map[schema.GroupVersionResource]string{
+				releaseRolloutGVR: "RolloutList",
+			},
+		),
+		store:     store,
+		runtime:   runtimeservice.New(store, nil),
+	}
+
+	runtimeObserverLogf = func(string, ...zap.Field) {}
+	defer func() { runtimeObserverLogf = defaultRuntimeObserverLogf }()
+
+	observer.sync(context.Background())
+
+	spec, err := store.FindRuntimeSpecByApplicationEnv(context.Background(), appID, "ce3e0499-e862-4322-98e2-264fa6f09286")
+	if err != nil {
+		t.Fatalf("FindRuntimeSpecByApplicationEnv failed: %v", err)
+	}
+	if spec == nil {
+		t.Fatal("expected runtime spec to be discovered from non-local namespace")
+	}
+	workload, err := store.GetObservedWorkload(context.Background(), spec.ID)
+	if err != nil {
+		t.Fatalf("GetObservedWorkload failed: %v", err)
+	}
+	if workload == nil {
+		t.Fatal("expected observed workload after cluster-wide discovery")
+	}
+	if workload.Namespace != "devflow-staging" {
+		t.Fatalf("workload namespace = %q, want devflow-staging", workload.Namespace)
 	}
 }
 

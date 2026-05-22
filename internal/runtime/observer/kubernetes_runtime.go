@@ -179,9 +179,6 @@ func (o *KubernetesRuntimeObserver) sync(ctx context.Context) {
 	log := platformobs.OperationLogger(ctx, "runtime_observer", "sync_kubernetes_runtime", "runtime")
 	namespace := strings.TrimSpace(o.cfg.Namespace)
 	if namespace == "" {
-		namespace = detectObserverNamespace()
-	}
-	if namespace == "" {
 		namespace = metav1.NamespaceAll
 	}
 	selector := releaseDiscoverySelector(strings.TrimSpace(o.cfg.ControlPlaneID))
