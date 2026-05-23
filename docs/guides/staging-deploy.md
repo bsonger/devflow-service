@@ -1,8 +1,8 @@
-# Staging Deploy Policy
+# Staging Deploy
 
 ## Purpose
 
-This policy records the repo-local defaults for deploying the 5 backend services to the staging environment through the DevFlow platform.
+This guide records the repo-local defaults for deploying the 5 backend services to the staging environment through the DevFlow platform.
 
 ## Canonical staging endpoints
 

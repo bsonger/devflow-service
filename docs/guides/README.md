@@ -16,6 +16,7 @@
 - `local-development.md`
 - `backend-change-playbook.md`
 - `openapi-workflow.md`
+- `staging-deploy.md`
 
 ## 与其他目录的边界
 

@@ -60,7 +60,7 @@ PLATFORM_AUTH_HEADER='Authorization: Bearer <token>' \
 bash scripts/deploy-platform-staging-all.sh
 ```
 
-Canonical staging defaults for this repo are documented in `docs/policies/staging-deploy-policy.md`.
+Canonical staging defaults for this repo are documented in `docs/guides/staging-deploy.md`.
 
 Default service set:
 - `meta-service`
