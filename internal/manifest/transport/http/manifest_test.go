@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	manifestdomain "github.com/bsonger/devflow-service/internal/manifest/domain"
 	manifestservice "github.com/bsonger/devflow-service/internal/manifest/service"
 	model "github.com/bsonger/devflow-service/internal/release/domain"
+	releasesupport "github.com/bsonger/devflow-service/internal/release/support"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -22,6 +24,14 @@ type stubManifestService struct {
 	getFn          func(context.Context, uuid.UUID) (*manifestdomain.Manifest, error)
 	getResourcesFn func(context.Context, uuid.UUID) (*manifestdomain.ManifestResourcesView, error)
 	deleteFn       func(context.Context, uuid.UUID) error
+}
+
+type stubApplicationReader struct {
+	getFn func(context.Context, uuid.UUID) (*releasesupport.ApplicationProjection, error)
+}
+
+func (s stubApplicationReader) Get(ctx context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+	return s.getFn(ctx, id)
 }
 
 func (s stubManifestService) CreateManifest(ctx context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
@@ -46,12 +56,24 @@ func (s stubManifestService) Delete(ctx context.Context, id uuid.UUID) error {
 
 func TestCreateManifestReturnsCreated(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
+	applicationID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	handler := &ManifestHandler{
 		svc: stubManifestService{
 			createFn: func(_ context.Context, req *manifestdomain.CreateManifestRequest) (*manifestdomain.Manifest, error) {
+				if req.ApplicationID != applicationID {
+					t.Fatalf("application id = %s want %s", req.ApplicationID, applicationID)
+				}
 				item := &manifestdomain.Manifest{ApplicationID: req.ApplicationID, GitRevision: "main", RepoAddress: "git@github.com:example/demo.git", CommitHash: "abcdef123456", ImageRef: "repo/demo@sha256:abc", ImageDigest: "sha256:abc", PipelineID: "pipe-1", TraceID: "trace-1", SpanID: "span-1", Status: model.ManifestPending}
 				item.WithCreateDefault()
 				return item, nil
+			},
+		},
+		apps: stubApplicationReader{
+			getFn: func(_ context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+				if id != applicationID {
+					t.Fatalf("application id = %s want %s", id, applicationID)
+				}
+				return &releasesupport.ApplicationProjection{ID: applicationID, Name: "Portal API"}, nil
 			},
 		},
 	}
@@ -65,15 +87,18 @@ func TestCreateManifestReturnsCreated(t *testing.T) {
 		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 	var payload struct {
-		Data manifestdomain.Manifest `json:"data"`
+		Data ManifestDoc `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal body: %v", err)
 	}
+	if payload.Data.ApplicationName != "Portal API" {
+		t.Fatalf("application_name = %q want Portal API", payload.Data.ApplicationName)
+	}
 	if payload.Data.ImageRef == "" || payload.Data.CommitHash == "" || payload.Data.PipelineID == "" || payload.Data.GitRevision != "main" {
 		t.Fatalf("unexpected payload %+v", payload.Data)
 	}
-	if payload.Data.Status != model.ManifestPending {
+	if payload.Data.Status != string(model.ManifestPending) {
 		t.Fatalf("status = %q, want %q", payload.Data.Status, model.ManifestPending)
 	}
 }
@@ -186,6 +211,104 @@ func TestGetManifestNotFound(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("got %d want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestListManifestsIncludesApplicationNameWhenAvailable(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	applicationID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	handler := &ManifestHandler{
+		svc: stubManifestService{
+			listFn: func(_ context.Context, _ manifestdomain.ManifestListFilter) ([]manifestdomain.Manifest, error) {
+				item := manifestdomain.Manifest{
+					ApplicationID: applicationID,
+					GitRevision:   "main",
+					ImageRef:      "repo/demo:tag",
+					Status:        model.ManifestAvailable,
+				}
+				item.WithCreateDefault()
+				return []manifestdomain.Manifest{item}, nil
+			},
+		},
+		apps: stubApplicationReader{
+			getFn: func(_ context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+				if id != applicationID {
+					t.Fatalf("application id = %s want %s", id, applicationID)
+				}
+				return &releasesupport.ApplicationProjection{ID: applicationID, Name: "Portal API"}, nil
+			},
+		},
+	}
+	r := gin.New()
+	r.GET("/api/v1/manifests", handler.List)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manifests", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload struct {
+		Data []ManifestDoc `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if len(payload.Data) != 1 {
+		t.Fatalf("len(data) = %d want 1", len(payload.Data))
+	}
+	if payload.Data[0].ApplicationName != "Portal API" {
+		t.Fatalf("application_name = %q want %q", payload.Data[0].ApplicationName, "Portal API")
+	}
+}
+
+func TestGetManifestFallsBackWhenApplicationNameLookupFails(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+	manifestID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	applicationID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	handler := &ManifestHandler{
+		svc: stubManifestService{
+			getFn: func(_ context.Context, id uuid.UUID) (*manifestdomain.Manifest, error) {
+				if id != manifestID {
+					t.Fatalf("manifest id = %s want %s", id, manifestID)
+				}
+				item := &manifestdomain.Manifest{
+					ApplicationID: applicationID,
+					GitRevision:   "main",
+					ImageRef:      "repo/demo:tag",
+					Status:        model.ManifestAvailable,
+				}
+				item.WithCreateDefault()
+				return item, nil
+			},
+		},
+		apps: stubApplicationReader{
+			getFn: func(_ context.Context, id uuid.UUID) (*releasesupport.ApplicationProjection, error) {
+				if id != applicationID {
+					t.Fatalf("application id = %s want %s", id, applicationID)
+				}
+				return nil, errors.New("lookup failed")
+			},
+		},
+	}
+	r := gin.New()
+	r.GET("/api/v1/manifests/:id", handler.Get)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/manifests/"+manifestID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var payload struct {
+		Data ManifestDoc `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if payload.Data.ApplicationID != applicationID {
+		t.Fatalf("application_id = %s want %s", payload.Data.ApplicationID, applicationID)
+	}
+	if payload.Data.ApplicationName != "" {
+		t.Fatalf("application_name = %q want empty fallback", payload.Data.ApplicationName)
 	}
 }
 

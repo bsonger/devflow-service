@@ -68,6 +68,7 @@ For repo-wide API envelope, pagination, and compatibility rules, also see:
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
 | `application_id` | `uuid.UUID` | required | user | Owning application ID |
+| `application_name` | `string` | system-managed | no | Owning application name for display surfaces |
 | `git_revision` | `string` | optional | user | Source selector: branch, tag, or commit; defaults to `main` |
 | `repo_address` | `string` | system-managed | no | Repository address resolved by the service |
 | `commit_hash` | `string` | system-managed | no | Immutable source commit actually built |

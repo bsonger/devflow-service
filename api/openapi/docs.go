@@ -4045,6 +4045,9 @@ const docTemplate = `{
                 "application_id": {
                     "type": "string"
                 },
+                "application_name": {
+                    "type": "string"
+                },
                 "commit_hash": {
                     "type": "string"
                 },
