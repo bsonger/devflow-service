@@ -1373,6 +1373,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/releases/{id}/deploy": {
+            "post": {
+                "description": "触发已冻结的Release进入部署执行阶段",
+                "tags": [
+                    "Release"
+                ],
+                "summary": "开始部署Release",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Release ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/routes": {
             "get": {
                 "produces": [

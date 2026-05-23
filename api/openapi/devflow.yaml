@@ -3435,6 +3435,49 @@ paths:
       summary: 创建Release
       tags:
       - Release
+  "/api/v1/release/releases/{id}/deploy":
+    post:
+      parameters:
+      - description: Release ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '404':
+          description: Not Found
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+        '409':
+          description: Conflict
+          schema:
+            "$ref": "#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse"
+          headers:
+            X-Request-Id:
+              type: string
+              description: Echoed request id or generated request id
+            X-Request-ID:
+              type: string
+              description: Echoed request id or generated request id
+      summary: 开始部署Release
+      tags:
+      - Release
   "/api/v1/release/releases/{id}":
     delete:
       parameters:

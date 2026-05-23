@@ -38,7 +38,7 @@ Important rules:
 - `steps[*].code` is the stable identifier and should be used by writeback and automation
 - `steps[*].name` is display text and may evolve over time
 - the frontend should render the returned `steps` list instead of assuming a fixed step count
-- the release create call initializes the full step list early, then release dispatch and later callback senders advance different steps over time
+- the release create call initializes the freeze-side step list early, then the separate deploy call and later callback senders advance different steps over time
 - each stable `steps[*].code` has one advancing owner even when multiple systems can report facts about that step
 - release-service should keep `steps` in canonical execution order and should not append unknown ad-hoc step entries at runtime
 
@@ -52,12 +52,13 @@ Purpose:
 - freeze deployment inputs
 - create the release record and initial steps
 
-2. release execution phase
+2. release deploy phase
 Purpose:
-- build the environment-specific deployment bundle
-- publish that bundle
-- create the external deployment object
+- confirm the frozen release can be deployed
+- create or update the external deployment object
 - hand rolling releases off to cluster execution through the release-owned `start_deployment` step
+
+The deployment bundle itself is prepared during freeze-to-OCI; deploy only consumes that frozen artifact.
 
 3. rollout callback phase
 Purpose:

@@ -171,7 +171,7 @@ Production release records and production callback state belong to production
 3. read route list from `network-service`
 4. resolve application / environment / cluster deploy target from `meta-service`
 5. freeze those live inputs onto the release row
-6. render, publish, and deploy the release bundle
+6. hand the frozen release to the separate deploy phase
 
 这说明：
 

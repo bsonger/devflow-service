@@ -2423,6 +2423,29 @@ paths:
       summary: 获取Release bundle preview
       tags:
       - Release
+  /api/v1/releases/{id}/deploy:
+    post:
+      description: 触发已冻结的Release进入部署执行阶段
+      parameters:
+      - description: Release ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_bsonger_devflow-service_internal_platform_httpx.ErrorResponse'
+      summary: 开始部署Release
+      tags:
+      - Release
   /api/v1/routes:
     get:
       parameters:

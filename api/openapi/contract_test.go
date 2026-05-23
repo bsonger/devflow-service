@@ -27,6 +27,7 @@ func TestDevflowOpenAPIContract(t *testing.T) {
 				"/api/v1/config/app-configs",
 				"/api/v1/network/services",
 				"/api/v1/release/releases",
+				"/api/v1/release/releases/{id}/deploy",
 				"/api/v1/release/manifests/tekton/status",
 			},
 			protectedRoutes: []string{
@@ -72,6 +73,7 @@ func TestDevflowOpenAPIContract(t *testing.T) {
 				"/api/v1/release/manifests/tekton/result",
 				"/api/v1/release/intents",
 				"/api/v1/release/releases",
+				"/api/v1/release/releases/{id}/deploy",
 				"/api/v1/release/verify/argo/events",
 				"/api/v1/release/verify/release/steps",
 				"/api/v1/release/verify/release/artifact",

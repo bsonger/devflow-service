@@ -801,8 +801,8 @@ After validation and snapshot freeze, release-service should:
 
 Current implementation note:
 
-- release creation does not universally stop here
-- in the default path, `release-service` continues into dispatch work during the create flow
+- release creation does not universally stop here; in the split flow it only freezes the release and leaves deployment to a separate deploy call
+- in the split flow, `release-service` stops after freeze and requires an explicit deploy call for the execution phase
 - intent creation is mode-dependent, not a guaranteed always-on phase
 
 ## 4. Release execution renders deployment bundle
@@ -1002,25 +1002,24 @@ It should not be interpreted as:
 - release 渲染 deployment bundle 时应使用 manifest 中已经冻结好的 workload/service/image 信息
 - release 的 environment 语义应该由 `release.environment_id` 明确表达，而不是由 build-time image metadata 反推
 - ArgoCD source 应该消费 release 产出的 OCI deployment bundle
-- release create 是否快速返回取决于当前运行模式；默认实现会在 create 流程内继续做 dispatch
+- release create 是否快速返回取决于当前运行模式；默认实现会在 create 流程内完成 freeze，deploy 是单独的后续动作
 
 ## Responsibility split by phase
 
-### release-service synchronous create phase
+### release-service synchronous freeze phase
 
 - validate request
 - resolve manifest/environment binding
 - freeze `app_config_snapshot`
 - freeze optional/deferred `routes_snapshot` only when route flow is enabled
 - persist release
-- initialize steps and status
+- initialize the freeze-side steps and status
 - optionally create execution intent when intent mode is enabled
 
-### release execution phase
+### release-service deploy phase
 
-- `render_deployment_bundle`
-- `publish_bundle`
-- `create_argocd_application`
+- consume the frozen bundle created during freeze
+- create or update the Argo handoff object
 - trigger deployment start
 
 Current implementation facts:
@@ -1031,15 +1030,14 @@ Current implementation facts:
   - `render_deployment_bundle`
   - `publish_bundle`
   - `create_argocd_application`
-- render phase now builds a release-owned in-memory deployment bundle structure from:
+- freeze phase now builds a release-owned in-memory deployment bundle structure from:
   - `manifest.services_snapshot`
   - `manifest.workload_config_snapshot`
   - `manifest.image_ref`
   - `release.app_config_snapshot`
   - optional/deferred `release.routes_snapshot`
-- render phase is the point where one canonical release-owned bundle fact is fixed for that release
-- publish phase now flows through a bundle publisher abstraction
-- publish phase should consume the already-rendered bundle fact instead of introducing a different rendering source of truth
+- freeze phase is the point where one canonical release-owned bundle fact is fixed for that release
+- deploy phase should consume the already-rendered bundle fact instead of introducing a different rendering source of truth
 - current default publisher records artifact metadata from rendered bundle content and digest
 - publisher modes:
   - `metadata`: metadata-only
