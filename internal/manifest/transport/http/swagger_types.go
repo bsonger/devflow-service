@@ -112,7 +112,6 @@ type ManifestResourcesViewDoc struct {
 type ManifestDoc struct {
 	ID                     uuid.UUID                 `json:"id"`
 	ApplicationID          uuid.UUID                 `json:"application_id"`
-	ApplicationName        string                    `json:"application_name,omitempty"`
 	GitRevision            string                    `json:"git_revision,omitempty"`
 	RepoAddress            string                    `json:"repo_address,omitempty"`
 	CommitHash             string                    `json:"commit_hash,omitempty"`

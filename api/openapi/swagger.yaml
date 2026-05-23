@@ -1317,8 +1317,6 @@ definitions:
     properties:
       application_id:
         type: string
-      application_name:
-        type: string
       commit_hash:
         type: string
       created_at:
