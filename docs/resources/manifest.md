@@ -67,6 +67,7 @@ For repo-wide API envelope, pagination, and compatibility rules, also see:
 
 | Field | Type | Required | Writable | Description |
 |---|---|---|---|---|
+| `name` | `string` | system-managed | no | Display name derived by the backend as `application-name` plus the manifest version label |
 | `application_id` | `uuid.UUID` | required | user | Owning application ID |
 | `git_revision` | `string` | optional | user | Source selector: branch, tag, or commit; defaults to `main` |
 | `repo_address` | `string` | system-managed | no | Repository address resolved by the service |

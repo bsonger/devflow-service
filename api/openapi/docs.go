@@ -4066,6 +4066,9 @@ const docTemplate = `{
                 "image_tag": {
                     "type": "string"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "pipeline_id": {
                     "type": "string"
                 },
