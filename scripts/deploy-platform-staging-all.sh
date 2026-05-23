@@ -21,7 +21,7 @@ Authentication options (optional but usually required):
 
 Optional environment variables:
   SERVICE_NAMES           Comma-separated application names, default:
-                          meta-service,config-service,network-service,release-service,runtime-service
+                          meta-service,config-service,network-service,release-service,runtime-service,platform-web
   GIT_REVISION            Git revision for all deployments, default main
   STRATEGY                rolling | blueGreen | canary, default rolling
   WAIT_FOR_MANIFEST       true | false, default true
@@ -36,8 +36,8 @@ Optional environment variables:
 Notes:
   - This script discovers applications by project, then deploys each one through
     scripts/deploy-platform-release.sh.
-  - The default target set is the 5 backend services:
-    meta-service, config-service, network-service, release-service, runtime-service.
+  - The default target set is the 5 backend services plus the frontend:
+    meta-service, config-service, network-service, release-service, runtime-service, platform-web.
 EOF
 }
 
@@ -98,7 +98,7 @@ require_env ENVIRONMENT_ID
 
 AUTH_HEADER=${PLATFORM_AUTH_HEADER:-}
 COOKIE_HEADER=${PLATFORM_COOKIE_HEADER:-}
-SERVICE_NAMES=${SERVICE_NAMES:-meta-service,config-service,network-service,release-service,runtime-service}
+SERVICE_NAMES=${SERVICE_NAMES:-meta-service,config-service,network-service,release-service,runtime-service,platform-web}
 GIT_REVISION=${GIT_REVISION:-main}
 STRATEGY=${STRATEGY:-rolling}
 WAIT_FOR_MANIFEST=${WAIT_FOR_MANIFEST:-true}

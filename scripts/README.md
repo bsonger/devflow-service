@@ -50,7 +50,7 @@ This script is the repo-local way to trigger a platform deployment from the serv
 
 ## Platform staging helper
 
-When you want to deploy the 5 backend services to one staging environment in sequence through the platform, use:
+When you want to deploy the 5 backend services plus the frontend to one staging environment in sequence through the platform, use:
 
 ```sh
 PLATFORM_BASE_URL=https://devflow.bei.com \
@@ -68,6 +68,7 @@ Default service set:
 - `network-service`
 - `release-service`
 - `runtime-service`
+- `platform-web`
 
 This helper first resolves application IDs from `PROJECT_ID`, then delegates each deployment to `scripts/deploy-platform-release.sh`.
 

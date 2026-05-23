@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide records the repo-local defaults for deploying the 5 backend services to the staging environment through the DevFlow platform.
+This guide records the repo-local defaults for deploying the 5 backend services plus the frontend to the staging environment through the DevFlow platform.
 
 ## Platform deploy endpoints
 
@@ -26,6 +26,7 @@ This guide records the repo-local defaults for deploying the 5 backend services 
 - `network-service`
 - `release-service`
 - `runtime-service`
+- `platform-web`
 
 ## Deployment contract
 
@@ -33,7 +34,7 @@ When deploying staging through the platform helper scripts:
 
 - use `PLATFORM_BASE_URL=https://devflow.bei.com`
 - use the staging `PROJECT_ID` and `ENVIRONMENT_ID` above
-- deploy the 5 backend services as one set unless the operator explicitly narrows `SERVICE_NAMES`
+- deploy the 5 backend services plus `platform-web` as one set unless the operator explicitly narrows `SERVICE_NAMES`
 - prefer the repo-local platform deploy helper scripts instead of direct Kubernetes YAML application
 
 When validating the deployed staging environment in a browser or by direct API calls:
