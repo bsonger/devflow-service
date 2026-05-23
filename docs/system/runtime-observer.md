@@ -13,6 +13,7 @@ Use it to answer:
 - which parts call Kubernetes directly
 - what the active runtime read path is in pre-production
 - which release-owned metadata labels runtime-service consumes from Kubernetes objects
+- how runtime observer startup behaves when namespace narrowing is not configured
 
 ## Core rule
 
@@ -49,6 +50,7 @@ Important implementation note:
 
 - this read model is currently kept in-process inside `runtime-service`
 - it is rebuilt by observers after restart rather than being loaded from PostgreSQL at boot
+- the Kubernetes runtime observer now defaults to cluster-wide discovery when `observer.namespace` is empty; it no longer falls back to the observer pod namespace
 - the active recovery path depends on release-owned Kubernetes labels, with this stable contract:
   - `app.kubernetes.io/name`
   - `devflow.io/release-id`
@@ -76,6 +78,7 @@ Rules:
 - annotations are supplementary only; they may carry trace or restart context but must not be required for identity recovery
 - `runtime-service` may send rollout callbacks into `release-service`, but it does not own release truth
 - `release-service` remains the owner of release state, release steps, and terminal rollout persistence
+- startup diagnostics should include `namespace_scope=cluster|single` so operators can tell at a glance whether the observer is scanning the whole cluster or a single namespace
 
 ## Public runtime read surface
 

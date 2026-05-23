@@ -18,6 +18,7 @@ import (
 
 type releaseService interface {
 	Create(ctx context.Context, release *model.Release) (uuid.UUID, error)
+	Deploy(ctx context.Context, releaseID uuid.UUID) error
 	Get(ctx context.Context, id uuid.UUID) (*model.Release, error)
 	GetBundlePreview(ctx context.Context, id uuid.UUID) (*model.ReleaseBundlePreview, error)
 	List(ctx context.Context, filter service.ReleaseListFilter) ([]*model.Release, error)
@@ -47,6 +48,7 @@ func (h *ReleaseHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	release.GET("/:id", h.Get)
 	release.GET("/:id/bundle-preview", h.GetBundlePreview)
 	release.POST("", h.Create)
+	release.POST("/:id/deploy", h.Deploy)
 	release.DELETE("/:id", h.Delete)
 }
 
@@ -99,6 +101,35 @@ func (h *ReleaseHandler) Create(c *gin.Context) {
 	}
 
 	httpx.WriteData(c, http.StatusCreated, release)
+}
+
+// Deploy
+// @Summary 开始部署Release
+// @Description 触发已冻结的Release进入部署执行阶段
+// @Tags Release
+// @Param id path string true "Release ID"
+// @Success 204
+// @Failure 404 {object} httpx.ErrorResponse
+// @Failure 409 {object} httpx.ErrorResponse
+// @Router /api/v1/releases/{id}/deploy [post]
+func (h *ReleaseHandler) Deploy(c *gin.Context) {
+	id, ok := httpx.ParseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.svc.Deploy(c.Request.Context(), id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpx.WriteNotFound(c, "not found")
+			return
+		}
+		if errors.Is(err, service.ErrReleaseManifestNotAvailable) || errors.Is(err, downstreamhttp.ErrServiceUnavailable) || errors.Is(err, releasesupport.ErrDeployTargetClusterNotReady) || errors.Is(err, releasesupport.ErrDeployTargetClusterReadinessMalformed) {
+			httpx.WriteFailedPrecondition(c, http.StatusConflict, err.Error())
+			return
+		}
+		httpx.WriteInternalError(c, err)
+		return
+	}
+	httpx.WriteNoContent(c)
 }
 
 // Get

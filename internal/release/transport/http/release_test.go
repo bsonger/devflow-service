@@ -19,6 +19,7 @@ import (
 
 type stubReleaseService struct {
 	createFn    func(context.Context, *model.Release) (uuid.UUID, error)
+	deployFn    func(context.Context, uuid.UUID) error
 	getFn       func(context.Context, uuid.UUID) (*model.Release, error)
 	getBundleFn func(context.Context, uuid.UUID) (*model.ReleaseBundlePreview, error)
 	listFn      func(context.Context, service.ReleaseListFilter) ([]*model.Release, error)
@@ -27,6 +28,13 @@ type stubReleaseService struct {
 
 func (s stubReleaseService) Create(ctx context.Context, release *model.Release) (uuid.UUID, error) {
 	return s.createFn(ctx, release)
+}
+
+func (s stubReleaseService) Deploy(ctx context.Context, id uuid.UUID) error {
+	if s.deployFn == nil {
+		return nil
+	}
+	return s.deployFn(ctx, id)
 }
 
 func (s stubReleaseService) Get(ctx context.Context, id uuid.UUID) (*model.Release, error) {

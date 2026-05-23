@@ -348,8 +348,8 @@ func stringValueAny(value any) string {
 	return text
 }
 
-// Create validates that the build-side manifest is deployable, freezes release-only live inputs, and then starts deploy execution.
-// This is the explicit handoff point from manifest build observation into release-owned bundle render/publication and Argo delivery.
+// Create validates that the build-side manifest is deployable and freezes release-only live inputs.
+// Deploy execution is started separately through Deploy/DispatchRelease so freeze and deploy can fail and be retried independently.
 func (s *releaseService) Create(ctx context.Context, release *model.Release) (uuid.UUID, error) {
 	log := platformobs.OperationLogger(ctx, "release_service", "create_release", "release",
 		zap.String("result", "started"),
@@ -453,6 +453,10 @@ func (s *releaseService) DispatchRelease(ctx context.Context, releaseID uuid.UUI
 	}
 	release.Status = model.ReleaseSyncing
 	return s.executeReleasePhases(ctx, release)
+}
+
+func (s *releaseService) Deploy(ctx context.Context, releaseID uuid.UUID) error {
+	return s.DispatchRelease(ctx, releaseID)
 }
 
 func (s *releaseService) handleSyncArgoError(ctx context.Context, release *model.Release, err error) {
@@ -694,7 +698,7 @@ func (s *releaseService) updateStatusFromSteps(ctx context.Context, releaseID uu
 	return s.updateStatus(ctx, releaseID, nextStatus)
 }
 
-// executeReleasePhases runs the deploy-side pipeline after manifest build handoff has completed.
+// executeReleasePhases runs the deploy-side pipeline after the frozen release has been handed off for deployment.
 // From this point on, step messages, bundle preview/publication, and Argo application sync are the authoritative diagnostics surfaces.
 func (s *releaseService) executeReleasePhases(ctx context.Context, release *model.Release) error {
 	annotateReleaseSpan(ctx, release)

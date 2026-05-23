@@ -34,6 +34,7 @@
 
 - 对 live Kubernetes workload 的运行态查看
 - 对 `application + environment` 粒度的运行态控制
+- 启动时记录 runtime observer 的低基数配置摘要，便于定位 cluster-wide 与单 namespace 两种观察模式
 
 ## Planned note
 
@@ -110,6 +111,7 @@
 - `devflow.control-plane/id` is also part of the active runtime ownership contract; observers only process workloads that belong to the local control plane when `observer.control_plane_id` is configured
 - `observer.control_plane_id` must match the owning `release-service` value for the same control plane; mismatches look like stale writeback or missing release records
 - runtime-service consumes those labels as the authoritative release/application/environment lookup surface; it must not require annotations for identity recovery
+- when runtime observer namespace narrowing is not configured, the observer defaults to cluster-wide discovery and startup logs should make that scope explicit
 - Argo CD `Application` annotations are reserved for supplementary tracing context such as trace/span correlation during handoff diagnostics
 - runtime-service active/runtime-domain storage is PostgreSQL-free
 - shared platform startup outside `cmd/runtime-service` may still open PostgreSQL for other services
