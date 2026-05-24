@@ -447,7 +447,7 @@ The anti-drift proof surfaces for this contract are:
 - aggregate OpenAPI in `api/openapi/devflow.yaml`
 - generated Swagger snapshot in `api/openapi/swagger.yaml`
 - repo verification via `make openapi-check` and `bash scripts/verify.sh`
-- pre-production shared-ingress operator proof via `test/workloadconfig/preprod_workload_config_flow.sh` and `test/workloadconfig/README.md`
+- pre-production shared-ingress operator proof via `test/workloadconfig/README.md`
 
 The tracked pre-production probe is intentionally collection-aware and captures explicit status/body checkpoints for:
 

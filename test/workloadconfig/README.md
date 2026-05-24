@@ -2,10 +2,6 @@
 
 This directory contains the tracked operator proof surface for the shared-ingress workload-config API.
 
-## Files
-
-- `preprod_workload_config_flow.sh` — repeatable `GET -> PUT -> GET` probe against `/api/v1/config/workload-configs`
-
 ## Goal
 
 Prove one real pre-production workload-config row can be:
@@ -36,14 +32,6 @@ The script writes captured status/body files under `test/workloadconfig/.tmp/` b
 
 ## Required command
 
-```sh
-PREPROD_BASE_URL=https://<shared-ingress-host> \
-PREPROD_AUTH_HEADER='Authorization: Bearer <token>' \
-APPLICATION_ID=<application-uuid> \
-WORKLOAD_CONFIG_ID=<workload-config-uuid> \
-bash test/workloadconfig/preprod_workload_config_flow.sh
-```
-
 ## Supported write fields in the probe payload
 
 The probe intentionally sends only the constrained contract fields:
@@ -68,15 +56,6 @@ Set `EXPECTED_OUTCOME` when you want the script to enforce a specific result:
 - `missing_after_update` — read-after-write returns `404` or the row disappears from the application list, which localizes the issue to repository cleanup / missing-row behavior
 
 Example:
-
-```sh
-EXPECTED_OUTCOME=clean_round_trip \
-PREPROD_BASE_URL=https://<shared-ingress-host> \
-PREPROD_COOKIE_HEADER='Cookie: session=<masked>' \
-APPLICATION_ID=<application-uuid> \
-WORKLOAD_CONFIG_ID=<workload-config-uuid> \
-bash test/workloadconfig/preprod_workload_config_flow.sh
-```
 
 ## Read-after-write inspection points
 

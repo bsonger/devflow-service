@@ -3,10 +3,6 @@
 This directory contains repository-level release-flow verification that hits the
 shared pre-production ingress instead of package-local mocks.
 
-Current active script:
-
-- `test/e2e/preprod_release_flow.sh`
-
 It validates:
 
 - release create through `release-service`
@@ -31,12 +27,3 @@ The current control-plane behavior proves acceptance when:
 - `finalize_release` remains `Pending`
 
 Recommended canary usage:
-
-```sh
-PREPROD_BASE_URL=https://devflow-pre-production.bei.com \
-MANIFEST_ID=<uuid> \
-ENVIRONMENT_ID=<uuid> \
-STRATEGY=canary \
-EXPECTED_STATUS=Running \
-bash test/e2e/preprod_release_flow.sh
-```
