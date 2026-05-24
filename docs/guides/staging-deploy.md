@@ -12,7 +12,7 @@ This guide records the repo-local defaults for deploying the 5 backend services 
 ## Staging runtime endpoints
 
 - staging UI: `https://devflow-staging.bei.com/platform`
-- staging API root: `https://devflow-staging.bei.com/v1/api`
+- staging API root: `https://devflow-staging.bei.com/api/v1`
 
 ## Canonical staging identifiers
 
@@ -40,4 +40,4 @@ When deploying staging through the platform helper scripts:
 When validating the deployed staging environment in a browser or by direct API calls:
 
 - open `https://devflow-staging.bei.com/platform`
-- use `https://devflow-staging.bei.com/v1/api`
+- use `https://devflow-staging.bei.com/api/v1`
