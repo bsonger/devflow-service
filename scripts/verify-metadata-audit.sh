@@ -52,15 +52,15 @@ check \
 check \
   "Argo Application metadata mirrors release identity labels" \
   "model.ReleaseIDLabel:          release.ID.String()," \
-  internal/release/service/release.go
+  internal/release/service/release_handoff_runtime.go
 check \
   "Argo Application keeps trace annotations supplementary" \
-  "oci.TraceIDAnnotation: sc.TraceID().String()," \
-  internal/release/service/release.go
+  "oci.TraceIDAnnotation:             sc.TraceID().String()," \
+  internal/release/service/release_handoff_runtime.go
 check \
   "Argo Application keeps parent span annotations supplementary" \
-  "oci.SpanAnnotation:    sc.SpanID().String()," \
-  internal/release/service/release.go
+  "oci.SpanAnnotation:                sc.SpanID().String()," \
+  internal/release/service/release_handoff_runtime.go
 check \
   "Argo ignore-differences includes restartedAt annotation for rolling deployments" \
   "assertRestartedAtIgnoreDifference(t, app.Spec.IgnoreDifferences, \"apps\", \"Deployment\")" \

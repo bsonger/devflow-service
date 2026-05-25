@@ -50,19 +50,20 @@ This script is the repo-local way to trigger a platform deployment from the serv
 
 ## Platform staging helper
 
-When you want to deploy the 5 backend services plus the frontend to one staging environment in sequence through the platform, use:
+When you want to deploy only the services you changed to one staging environment through the platform, use `SERVICE_NAMES` to narrow the target set:
 
 ```sh
 PLATFORM_BASE_URL=https://devflow.bei.com \
 PROJECT_ID=<project-uuid> \
 ENVIRONMENT_ID=<staging-environment-uuid> \
+SERVICE_NAMES=platform-web \
 PLATFORM_AUTH_HEADER='Authorization: Bearer <token>' \
 bash scripts/deploy-platform-staging-all.sh
 ```
 
 Canonical staging defaults for this repo are documented in `docs/guides/staging-deploy.md`.
 
-Default service set:
+Default service set when `SERVICE_NAMES` is not narrowed:
 - `meta-service`
 - `config-service`
 - `network-service`
